@@ -145,6 +145,8 @@
 
 ## Прод (crm.avtoaliyans.ru)
 
+**SSH:** `docs/sync/prod-ssh.md` — IP **`91.229.11.16`**, ключ **`C:\,ssh\private_key.ppk`** (PuTTY PPK), скрипт `scripts/prod-plink.ps1`. Путь на сервере: `/var/www/www-root/data/www/avtoaliyans.ru` (не `crm.avtoaliyans.ru` как подпапка).
+
 ```bash
 git pull
 php artisan migrate

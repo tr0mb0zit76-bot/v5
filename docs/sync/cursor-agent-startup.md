@@ -91,6 +91,7 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1
 | --- | --- |
 | `docs/sync/Cursor-handoff-latest.md` | Последние изменения, HEAD, прод-чеклист |
 | `docs/sync/cursor-agent-startup.md` | Эта инструкция |
+| `docs/sync/prod-ssh.md` | SSH на прод: IP `91.229.11.16`, PPK `C:\,ssh\private_key.ppk` |
 | `docs/sync/CRM-00-index.md` | Оглавление vault |
 | `docs/sync/v5-local-00-index.md` | Карта компонентов кода |
 | `docs/sync/v5-local-Components-*.md` | Тематические карточки |

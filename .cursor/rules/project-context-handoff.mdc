@@ -31,6 +31,7 @@ alwaysApply: true
 
 - Найди в коде соседние файлы и существующие паттерны — не изобретай заново.
 - Для домена смотри карточки в `docs/sync/v5-local-Components-*.md` и `docs/*.md` из handoff.
+- **SSH на прод:** только IP `91.229.11.16`, ключ `C:\,ssh\private_key.ppk` (PPK) — см. `docs/sync/prod-ssh.md`.
 
 ## 4. После заметной работы
 

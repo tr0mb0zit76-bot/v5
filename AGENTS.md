@@ -178,7 +178,8 @@ This project has domain-specific skills available. You MUST activate the relevan
 
 ### Прочее
 
-- Мобильная нижняя панель: `app/Support/MobileNavCatalog.php` — кандидаты кнопок с учётом `visibility_areas` (дашборд не навязывается, если области нет); итоговый проп для фронта собирает `app/Support/MobileNavResolver.php` (`HandleInertiaRequests` → `auth.user.mobile_nav`). Сохранение выбора пользователя: `ProfileController::updateMobileBottomNav`, маршрут `profile.mobile-bottom-nav` (`routes/web.php`).
+- **SSH на прод:** `docs/sync/prod-ssh.md` — IP `91.229.11.16`, ключ PuTTY `C:\,ssh\private_key.ppk`, скрипт `scripts/prod-plink.ps1` (не путать с GitHub-ключом в `~/.ssh`).
+- Мобильная нижняя панель: `app/Support/MobileNavCatalog.php` — кандидаты кнопок с учётом `visibility_areas` (дашборд не навязывается, если области нет); итоговый проп для фронта собирает `MobileNavResolver` (`HandleInertiaRequests` → `auth.user.mobile_nav`). Сохранение выбора пользователя: `ProfileController::updateMobileBottomNav`, маршрут `profile.mobile-bottom-nav` (`routes/web.php`).
 - PWA: `public/sw.js` — кэш shell для `/`, навигации на другие пути идут через сеть.
 - Синхрон индексов Obsidian ↔ git: `docs/sync/`, `scripts/sync-docs-to-yandex.ps1`; MCP bearer с Я.Диска: `scripts/sync-cursor-mcp-from-yandex.ps1`.
 
