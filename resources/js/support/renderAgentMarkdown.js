@@ -1,6 +1,10 @@
-import { marked } from 'marked';
+import { Marked } from 'marked';
 
-marked.setOptions({
+/**
+ * Отдельный экземпляр marked: @tiptap/markdown вызывает marked.use() на глобальном
+ * singleton и регистрирует токены вроде taskList без HTML-renderer — ломает parse() в панели ИИ.
+ */
+const agentMarked = new Marked({
     gfm: true,
     breaks: true,
 });
@@ -15,7 +19,7 @@ export function renderAgentMarkdown(text) {
         return '';
     }
 
-    const html = marked.parse(source);
+    const html = agentMarked.parse(source);
 
     return typeof html === 'string' ? html : '';
 }
