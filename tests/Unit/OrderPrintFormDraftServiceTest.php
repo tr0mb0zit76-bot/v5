@@ -360,6 +360,49 @@ class OrderPrintFormDraftServiceTest extends TestCase
         $this->assertSame('Выгрузка до 18:00', $rows[1]['route_point_row_special_conditions']);
     }
 
+    public function test_route_point_table_rows_read_special_conditions_from_wizard_state(): void
+    {
+        $service = $this->makeService();
+        $order = new Order;
+        $order->forceFill([
+            'wizard_state' => [
+                'performers' => [[
+                    'stage' => 'leg_1',
+                    'loading_special_conditions' => 'Верхняя',
+                    'unloading_special_conditions' => 'Верхняя',
+                ]],
+            ],
+        ]);
+
+        $order->setRelation('legs', new Collection([
+            new OrderLeg(['id' => 467, 'sequence' => 1, 'description' => 'leg_1']),
+        ]));
+        $order->setRelation('routePoints', new Collection([
+            new RoutePoint([
+                'order_leg_id' => 467,
+                'type' => 'loading',
+                'sequence' => 1,
+                'address' => 'Калужская обл, г Обнинск',
+            ]),
+            new RoutePoint([
+                'order_leg_id' => 467,
+                'type' => 'unloading',
+                'sequence' => 2,
+                'address' => 'Ленинградская обл, поселок Новогорелово',
+            ]),
+        ]));
+        $order->setRelation('cargoItems', new Collection);
+
+        $method = new \ReflectionMethod($service, 'buildRoutePointTableRowsForTemplate');
+        $method->setAccessible(true);
+
+        /** @var list<array<string, string>> $rows */
+        $rows = $method->invoke($service, $order, null);
+
+        $this->assertSame('Верхняя', $rows[0]['route_point_row_special_conditions']);
+        $this->assertSame('Верхняя', $rows[1]['route_point_row_special_conditions']);
+    }
+
     public function test_uses_carrier_portal_submission_for_driver_and_vehicle_when_fleet_ids_missing(): void
     {
         $service = $this->makeService();

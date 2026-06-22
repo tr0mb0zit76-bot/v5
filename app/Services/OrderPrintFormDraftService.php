@@ -1115,11 +1115,10 @@ class OrderPrintFormDraftService
 
     private function resolvePerformerSpecialConditions(Order $order, ?OrderPrintFormContext $context, string $field): ?string
     {
-        $performers = is_array($order->performers) ? $order->performers : [];
         $values = [];
 
-        foreach ($performers as $performer) {
-            if (! is_array($performer) || ! $this->performerMatchesPrintContext($order, $performer, $context)) {
+        foreach ($this->collectPerformerRows($order) as $performer) {
+            if (! $this->performerMatchesPrintContext($order, $performer, $context)) {
                 continue;
             }
 
@@ -1156,14 +1155,9 @@ class OrderPrintFormDraftService
         }
 
         $field = $type === 'loading' ? 'loading_special_conditions' : 'unloading_special_conditions';
-        $performers = is_array($order->performers) ? $order->performers : [];
         $normalizedStage = $this->normalizeStageIdentifier($stageKey);
 
-        foreach ($performers as $performer) {
-            if (! is_array($performer)) {
-                continue;
-            }
-
+        foreach ($this->collectPerformerRows($order) as $performer) {
             if ($this->normalizeStageIdentifier((string) ($performer['stage'] ?? '')) !== $normalizedStage) {
                 continue;
             }
