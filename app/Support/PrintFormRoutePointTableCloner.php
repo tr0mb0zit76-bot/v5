@@ -26,11 +26,13 @@ final class PrintFormRoutePointTableCloner
         'route_point_row_contact_phone',
         'route_point_row_planned_date',
         'route_point_row_time_range',
+        'route_point_row_special_conditions',
         'route_point_row_summary',
     ];
 
     /** @var list<string> */
     private const MULTILINE_MACROS = [
+        'route_point_row_special_conditions',
         'route_point_row_summary',
     ];
 

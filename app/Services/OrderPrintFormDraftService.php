@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\OrderLeg;
 use App\Models\PrintFormBasicTerm;
 use App\Models\PrintFormTemplate;
+use App\Models\RoutePoint;
 use App\Models\User;
 use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Support\CargoPackagesLabelFormatter;
@@ -1131,6 +1132,52 @@ class OrderPrintFormDraftService
         return $values === [] ? null : implode("\n\n", $values);
     }
 
+    private function resolveStageKeyForRoutePoint(Order $order, RoutePoint $point): string
+    {
+        $legId = (int) ($point->order_leg_id ?? 0);
+        if ($legId > 0 && $order->relationLoaded('legs')) {
+            $leg = $order->legs->firstWhere('id', $legId);
+            if ($leg !== null) {
+                return $this->normalizeStageIdentifier((string) $leg->description);
+            }
+        }
+
+        return 'leg_1';
+    }
+
+    private function resolveSpecialConditionsForRoutePointRow(
+        Order $order,
+        ?OrderPrintFormContext $context,
+        string $stageKey,
+        string $type,
+    ): string {
+        if (! in_array($type, ['loading', 'unloading'], true)) {
+            return '';
+        }
+
+        $field = $type === 'loading' ? 'loading_special_conditions' : 'unloading_special_conditions';
+        $performers = is_array($order->performers) ? $order->performers : [];
+        $normalizedStage = $this->normalizeStageIdentifier($stageKey);
+
+        foreach ($performers as $performer) {
+            if (! is_array($performer)) {
+                continue;
+            }
+
+            if ($this->normalizeStageIdentifier((string) ($performer['stage'] ?? '')) !== $normalizedStage) {
+                continue;
+            }
+
+            if (! $this->performerMatchesPrintContext($order, $performer, $context)) {
+                continue;
+            }
+
+            return trim((string) ($performer[$field] ?? ''));
+        }
+
+        return '';
+    }
+
     /**
      * @param  array<string, mixed>  $performer
      */
@@ -1317,6 +1364,8 @@ class OrderPrintFormDraftService
                 : ($this->buildContactPhoneValue($point->recipient_contact ?? null, $point->recipient_phone ?? null) ?? '');
             $typeLabel = $type === 'loading' ? 'Погрузка' : 'Выгрузка';
             $stageLabel = $legStageLabels[(int) ($point->order_leg_id ?? 0)] ?? '';
+            $stageKey = $this->resolveStageKeyForRoutePoint($order, $point);
+            $specialConditions = $this->resolveSpecialConditionsForRoutePointRow($order, $context, $stageKey, $type);
             $plannedDate = $point->planned_date?->format('d.m.Y') ?? '';
             $timeRange = $this->resolvePointTimeRange($point) ?? '';
             $summaryParts = array_filter([
@@ -1327,6 +1376,7 @@ class OrderPrintFormDraftService
                 $contactPhone !== '' ? $contactPhone : null,
                 $plannedDate !== '' ? $plannedDate : null,
                 $timeRange !== '' ? $timeRange : null,
+                $specialConditions !== '' ? $specialConditions : null,
             ]);
 
             $index++;
@@ -1341,6 +1391,7 @@ class OrderPrintFormDraftService
                 'route_point_row_contact_phone' => $contactPhone,
                 'route_point_row_planned_date' => $plannedDate,
                 'route_point_row_time_range' => $timeRange,
+                'route_point_row_special_conditions' => $specialConditions,
                 'route_point_row_summary' => implode("\n", $summaryParts),
             ];
         }

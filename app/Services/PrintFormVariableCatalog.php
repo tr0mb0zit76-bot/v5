@@ -324,6 +324,7 @@ class PrintFormVariableCatalog
             ['value' => 'route_point_row_contact_phone', 'label' => 'Таблица точек маршрута: контакт'],
             ['value' => 'route_point_row_planned_date', 'label' => 'Таблица точек маршрута: дата'],
             ['value' => 'route_point_row_time_range', 'label' => 'Таблица точек маршрута: время'],
+            ['value' => 'route_point_row_special_conditions', 'label' => 'Таблица точек маршрута: особые условия (погрузка/выгрузка по типу точки)'],
             ['value' => 'route_point_row_summary', 'label' => 'Таблица точек маршрута: сводка'],
             ['value' => 'cargo.summary', 'label' => 'Груз: Сводка (одна строка, позиции через « | »)'],
             ['value' => 'cargo_row_index', 'label' => 'Таблица грузов: № (строка, cloneRow)'],

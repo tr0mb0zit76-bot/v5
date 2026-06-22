@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Models\Cargo;
 use App\Models\Contractor;
 use App\Models\Order;
+use App\Models\OrderLeg;
 use App\Models\RoutePoint;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\PrintFormVariableCatalog;
@@ -310,6 +311,53 @@ class OrderPrintFormDraftServiceTest extends TestCase
         $this->assertSame('Казань, Логистическая 10', $rows[1]['route_point_row_address']);
         $this->assertSame('3', $rows[2]['route_point_row_index']);
         $this->assertSame('Москва, Склад 5', $rows[2]['route_point_row_address']);
+    }
+
+    public function test_route_point_table_rows_include_special_conditions_from_performer_stage(): void
+    {
+        $service = $this->makeService();
+        $order = new Order([
+            'performers' => [
+                [
+                    'stage' => 'leg_1',
+                    'loading_special_conditions' => 'Пропуск за сутки',
+                    'unloading_special_conditions' => 'Выгрузка до 18:00',
+                ],
+            ],
+        ]);
+
+        $order->setRelation('legs', new Collection([
+            new OrderLeg(['id' => 10, 'sequence' => 1, 'description' => 'leg_1']),
+        ]));
+        $order->setRelation('routePoints', new Collection([
+            new RoutePoint([
+                'order_leg_id' => 10,
+                'type' => 'loading',
+                'sequence' => 1,
+                'address' => 'Самара, Заводская 1',
+                'sender_name' => 'ООО Отправитель',
+                'normalized_data' => ['city' => 'Самара'],
+            ]),
+            new RoutePoint([
+                'order_leg_id' => 10,
+                'type' => 'unloading',
+                'sequence' => 2,
+                'address' => 'Казань, Логистическая 10',
+                'recipient_name' => 'ООО Получатель',
+                'normalized_data' => ['city' => 'Казань'],
+            ]),
+        ]));
+        $order->setRelation('cargoItems', new Collection);
+
+        $method = new \ReflectionMethod($service, 'buildRoutePointTableRowsForTemplate');
+        $method->setAccessible(true);
+
+        /** @var list<array<string, string>> $rows */
+        $rows = $method->invoke($service, $order, null);
+
+        $this->assertCount(2, $rows);
+        $this->assertSame('Пропуск за сутки', $rows[0]['route_point_row_special_conditions']);
+        $this->assertSame('Выгрузка до 18:00', $rows[1]['route_point_row_special_conditions']);
     }
 
     public function test_uses_carrier_portal_submission_for_driver_and_vehicle_when_fleet_ids_missing(): void
