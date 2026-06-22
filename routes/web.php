@@ -671,7 +671,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('leads.status.update');
 
     Route::get('/modules', fn () => Inertia::render('Modules/Index'))
-        ->middleware('visibility.area.any:modules_how_much_fits|modules_how_much_costs|modules_import_cost|modules')
+        ->middleware('visibility.area.any:modules_how_much_fits|modules_how_much_costs|modules_import_cost|modules_proposal_templates|modules')
         ->name('modules.index');
 
     Route::redirect('/modules/counter', '/sales-assistant/counter')
@@ -701,7 +701,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
     });
 
-    Route::middleware('visibility.area:settings')->prefix('modules/proposal-templates')->name('modules.proposal-templates.')->controller(ProposalHtmlTemplateController::class)->group(function () {
+    Route::middleware('visibility.area:modules_proposal_templates')->prefix('modules/proposal-templates')->name('modules.proposal-templates.')->controller(ProposalHtmlTemplateController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('/create', 'create')->name('create');
         Route::post('/', 'store')->name('store');

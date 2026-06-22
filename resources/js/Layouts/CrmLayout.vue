@@ -927,6 +927,7 @@ const MENU_ROUTES = {
     'modules-how-much-fits': '/modules/how-much-fits',
     'modules-how-much-costs': '/modules/how-much-costs',
     'modules-import-cost': '/modules/import-cost',
+    'modules-proposal-templates': '/modules/proposal-templates',
     'sales-assistant-scripts': '/scripts',
     'sales-assistant-book': '/sales-assistant/book',
     'sales-assistant-book-quiz-analytics': '/sales-assistant/book/quiz-analytics',
@@ -1326,10 +1327,22 @@ const menuItems = computed(() => {
                 { area: 'modules_how_much_fits', key: 'modules-how-much-fits', label: 'Сколько влезет?' },
                 { area: 'modules_how_much_costs', key: 'modules-how-much-costs', label: 'Сколько стоит?' },
                 { area: 'modules_import_cost', key: 'modules-import-cost', label: 'Растаможка' },
+                { area: 'modules_proposal_templates', key: 'modules-proposal-templates', label: 'Шаблоны КП' },
             ];
-            const moduleChildren = moduleParts.filter(
-                (part) => isAdmin || areas.includes('modules') || areas.includes(part.area),
-            );
+            const moduleChildren = moduleParts.filter((part) => {
+                if (isAdmin || areas.includes('modules') || areas.includes(part.area)) {
+                    return true;
+                }
+
+                if (
+                    part.area === 'modules_proposal_templates'
+                    && (areas.includes('settings') || areas.includes('settings_system'))
+                ) {
+                    return true;
+                }
+
+                return false;
+            });
 
             return moduleChildren.length > 0
                 ? [{

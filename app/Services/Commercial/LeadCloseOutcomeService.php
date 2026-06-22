@@ -27,6 +27,7 @@ final class LeadCloseOutcomeService
         $expectedOutcome = $primaryFlag->terminalOutcome();
 
         $lead->forceFill([
+            'status' => $expectedOutcome,
             'close_outcome_primary_flag' => $primaryFlag->value,
             'close_outcome_secondary_flags' => $secondaryFlags ?? [],
             'lost_reason' => $note ?? $lead->lost_reason,

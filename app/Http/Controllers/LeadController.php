@@ -1362,10 +1362,6 @@ class LeadController extends Controller
             return;
         }
 
-        if (! in_array($lead->status, ['won', 'lost'], true)) {
-            return;
-        }
-
         $flag = LeadCloseOutcomeFlag::from((string) $request->string('close_outcome_primary_flag'));
 
         $this->leadCloseOutcome->apply(
