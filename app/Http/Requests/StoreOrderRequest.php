@@ -484,8 +484,8 @@ class StoreOrderRequest extends FormRequest
             'performers.*.fleet_driver_id' => ['nullable', 'integer'],
             'performers.*.execution_mode' => ['nullable', 'string', Rule::in([OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET])],
             'performers.*.fleet_trip_id' => ['nullable', 'integer'],
-            'performers.*.loading_actual' => ['nullable', 'date'],
-            'performers.*.unloading_actual' => ['nullable', 'date'],
+            'performers.*.loading_actual' => ['nullable', 'date', 'before_or_equal:today'],
+            'performers.*.unloading_actual' => ['nullable', 'date', 'before_or_equal:today'],
             'performers.*.loading_special_conditions' => ['nullable', 'string', 'max:2000'],
             'performers.*.unloading_special_conditions' => ['nullable', 'string', 'max:2000'],
             'performers.*.split_carriers' => ['nullable', 'array', 'max:4'],
@@ -495,8 +495,8 @@ class StoreOrderRequest extends FormRequest
             'performers.*.split_carriers.*.fleet_driver_id' => ['nullable', 'integer'],
             'performers.*.split_carriers.*.execution_mode' => ['nullable', 'string', Rule::in([OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET])],
             'performers.*.split_carriers.*.fleet_trip_id' => ['nullable', 'integer'],
-            'performers.*.split_carriers.*.loading_actual' => ['nullable', 'date'],
-            'performers.*.split_carriers.*.unloading_actual' => ['nullable', 'date'],
+            'performers.*.split_carriers.*.loading_actual' => ['nullable', 'date', 'before_or_equal:today'],
+            'performers.*.split_carriers.*.unloading_actual' => ['nullable', 'date', 'before_or_equal:today'],
 
             'print_form_template_selection' => ['nullable', 'array'],
             'print_form_template_selection.*' => ['nullable', 'integer', 'exists:print_form_templates,id'],
@@ -510,7 +510,7 @@ class StoreOrderRequest extends FormRequest
             'route_points.*.planned_date' => ['nullable', 'date'],
             'route_points.*.planned_time_from' => ['nullable', 'date_format:H:i'],
             'route_points.*.planned_time_to' => ['nullable', 'date_format:H:i'],
-            'route_points.*.actual_date' => ['nullable', 'date'],
+            'route_points.*.actual_date' => ['nullable', 'date', 'before_or_equal:today'],
             'route_points.*.actual_time' => ['nullable', 'date_format:H:i'],
             'route_points.*.contact_person' => ['nullable', 'string', 'max:255'],
             'route_points.*.contact_phone' => ['nullable', 'string', 'max:50'],
@@ -708,5 +708,19 @@ class StoreOrderRequest extends FormRequest
         }
 
         return $rules;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'performers.*.loading_actual.before_or_equal' => 'Фактическая дата погрузки не может быть позже сегодняшнего дня.',
+            'performers.*.unloading_actual.before_or_equal' => 'Фактическая дата выгрузки не может быть позже сегодняшнего дня.',
+            'performers.*.split_carriers.*.loading_actual.before_or_equal' => 'Фактическая дата погрузки не может быть позже сегодняшнего дня.',
+            'performers.*.split_carriers.*.unloading_actual.before_or_equal' => 'Фактическая дата выгрузки не может быть позже сегодняшнего дня.',
+            'route_points.*.actual_date.before_or_equal' => 'Фактическая дата точки маршрута не может быть позже сегодняшнего дня.',
+        ];
     }
 }

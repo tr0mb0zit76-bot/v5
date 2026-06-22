@@ -1315,6 +1315,12 @@ class OrderWizardController extends Controller
             'carrier_portal_submission' => is_array($row['carrier_portal_submission'] ?? null)
                 ? $row['carrier_portal_submission']
                 : null,
+            'loading_special_conditions' => filled($row['loading_special_conditions'] ?? null)
+                ? trim((string) $row['loading_special_conditions'])
+                : null,
+            'unloading_special_conditions' => filled($row['unloading_special_conditions'] ?? null)
+                ? trim((string) $row['unloading_special_conditions'])
+                : null,
             'split_carriers' => [],
         ];
 
@@ -1379,6 +1385,8 @@ class OrderWizardController extends Controller
                 'fleet_driver_id' => null,
                 'loading_actual' => null,
                 'unloading_actual' => null,
+                'loading_special_conditions' => $wizard['loading_special_conditions'] ?? $base['loading_special_conditions'] ?? null,
+                'unloading_special_conditions' => $wizard['unloading_special_conditions'] ?? $base['unloading_special_conditions'] ?? null,
             ];
         }
 
@@ -1395,6 +1403,8 @@ class OrderWizardController extends Controller
             'carrier_portal_submission' => $wizard['carrier_portal_submission'] ?? $base['carrier_portal_submission'] ?? null,
             'loading_actual' => $wizard['loading_actual'] ?? $base['loading_actual'] ?? null,
             'unloading_actual' => $wizard['unloading_actual'] ?? $base['unloading_actual'] ?? null,
+            'loading_special_conditions' => $wizard['loading_special_conditions'] ?? $base['loading_special_conditions'] ?? null,
+            'unloading_special_conditions' => $wizard['unloading_special_conditions'] ?? $base['unloading_special_conditions'] ?? null,
         ];
     }
 

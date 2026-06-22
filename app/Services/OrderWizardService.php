@@ -432,7 +432,7 @@ class OrderWizardService
                 if (! is_array($extra)) {
                     return $p;
                 }
-                foreach (['fleet_vehicle_id', 'fleet_driver_id', 'carrier_mode', 'split_carriers', 'contractor_id', 'contractor_name', 'execution_mode', 'fleet_trip_id', 'carrier_portal_submission'] as $key) {
+                foreach (['fleet_vehicle_id', 'fleet_driver_id', 'carrier_mode', 'split_carriers', 'contractor_id', 'contractor_name', 'execution_mode', 'fleet_trip_id', 'carrier_portal_submission', 'loading_special_conditions', 'unloading_special_conditions'] as $key) {
                     if (! array_key_exists($key, $extra)) {
                         continue;
                     }

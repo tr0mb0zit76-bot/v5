@@ -635,11 +635,11 @@
                                 <div class="flex flex-wrap gap-2">
                                     <div class="w-[8.75rem] space-y-0.5">
                                         <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. погрузка</label>
-                                        <input v-model="performer.loading_actual" type="date" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" />
+                                        <input v-model="performer.loading_actual" type="date" :max="maxActualDate" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" @change="onPerformerActualDateInput(performer, 'loading_actual')" />
                                     </div>
                                     <div class="w-[8.75rem] space-y-0.5">
                                         <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. выгрузка</label>
-                                        <input v-model="performer.unloading_actual" type="date" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" />
+                                        <input v-model="performer.unloading_actual" type="date" :max="maxActualDate" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" @change="onPerformerActualDateInput(performer, 'unloading_actual')" />
                                     </div>
                                 </div>
                             </template>
@@ -766,11 +766,11 @@
                                     <div class="flex flex-wrap gap-2 border-t border-zinc-200/80 pt-2 dark:border-zinc-700">
                                         <div class="w-[8.75rem] space-y-0.5">
                                             <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. погрузка</label>
-                                            <input v-model="slot.loading_actual" type="date" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" />
+                                            <input v-model="slot.loading_actual" type="date" :max="maxActualDate" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" @change="onSplitActualDateInput(slot, 'loading_actual')" />
                                         </div>
                                         <div class="w-[8.75rem] space-y-0.5">
                                             <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. выгрузка</label>
-                                            <input v-model="slot.unloading_actual" type="date" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" />
+                                            <input v-model="slot.unloading_actual" type="date" :max="maxActualDate" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" @change="onSplitActualDateInput(slot, 'unloading_actual')" />
                                         </div>
                                     </div>
                                 </div>
@@ -1991,6 +1991,7 @@ import {
     performerFleetCacheKey,
     splitCarrierSlotLabel,
 } from '@/support/orderPerformers.js';
+import { clampActualDateToToday, todayIsoDate } from '@/support/orderActualDates.js';
 import { classifyDealType, paymentFormMetaFromOptions } from '@/support/paymentFormDealType.js';
 import {
     allocationWeightPlaceholder,
@@ -3084,6 +3085,16 @@ const initialWizardPerformers = Array.isArray(props.order?.performers)
     : blankOrder().performers;
 
 const initialOrderPayload = computed(() => props.order ?? props.orderTemplate ?? null);
+
+const maxActualDate = todayIsoDate();
+
+function onPerformerActualDateInput(performer, field) {
+    performer[field] = clampActualDateToToday(performer[field]);
+}
+
+function onSplitActualDateInput(slot, field) {
+    slot[field] = clampActualDateToToday(slot[field]);
+}
 
 const form = useForm({
     ...blankOrder(),

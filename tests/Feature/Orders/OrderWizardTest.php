@@ -197,6 +197,7 @@ class OrderWizardTest extends TestCase
         Schema::create('leg_contractor_assignments', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('order_leg_id');
+            $table->unsignedTinyInteger('carrier_slot')->default(1);
             $table->unsignedBigInteger('contractor_id')->nullable();
             $table->timestamp('assigned_at')->nullable();
             $table->unsignedBigInteger('assigned_by');
@@ -384,6 +385,7 @@ class OrderWizardTest extends TestCase
         Schema::create('payment_schedules', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('order_id');
+            $table->unsignedBigInteger('parent_payment_id')->nullable();
             $table->unsignedBigInteger('counterparty_id')->nullable();
             $table->enum('party', ['customer', 'carrier']);
             $table->enum('type', ['prepayment', 'final']);
@@ -391,6 +393,7 @@ class OrderWizardTest extends TestCase
             $table->date('planned_date')->nullable();
             $table->date('actual_date')->nullable();
             $table->enum('status', ['pending', 'paid', 'overdue', 'cancelled'])->default('pending');
+            $table->boolean('is_partial')->default(false);
             $table->text('notes')->nullable();
             $table->timestamps();
         });
@@ -1850,6 +1853,162 @@ class OrderWizardTest extends TestCase
             ->where('order.performers.0.contractor_id', $carrierId)
             ->where('order.performers.0.contractor_name', 'Carrier')
         );
+    }
+
+    public function test_edit_page_restores_performer_special_conditions_from_saved_snapshot(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Client',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Carrier',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-SPECIAL-001',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-01',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'carrier_id' => $carrierId,
+            'customer_rate' => 150000,
+            'carrier_rate' => 88000,
+            'performers' => json_encode([
+                [
+                    'stage' => 'leg_1',
+                    'contractor_id' => $carrierId,
+                    'loading_special_conditions' => 'Пропуск за сутки',
+                    'unloading_special_conditions' => 'Только до 18:00',
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('orders.edit', $orderId));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Orders/Wizard')
+            ->where('order.performers.0.loading_special_conditions', 'Пропуск за сутки')
+            ->where('order.performers.0.unloading_special_conditions', 'Только до 18:00')
+        );
+    }
+
+    public function test_update_rejects_future_performer_loading_actual_date(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-FUTURE-001',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => now()->toDateString(),
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $futureDate = now()->addDay()->toDateString();
+
+        $response = $this->actingAs($admin)->from(route('orders.edit', $orderId))->patch(route('orders.update', $orderId), [
+            'status' => 'new',
+            'own_company_id' => null,
+            'client_id' => $clientId,
+            'order_date' => now()->toDateString(),
+            'order_number' => 'ORD-FUTURE-001',
+            'special_notes' => '',
+            'performers' => [
+                [
+                    'stage' => 'leg_1',
+                    'contractor_id' => $carrierId,
+                    'loading_actual' => $futureDate,
+                ],
+            ],
+            'route_points' => [
+                [
+                    'type' => 'loading',
+                    'sequence' => 1,
+                    'address' => 'Самара',
+                    'normalized_data' => [],
+                    'planned_date' => now()->toDateString(),
+                    'actual_date' => null,
+                ],
+                [
+                    'type' => 'unloading',
+                    'sequence' => 2,
+                    'address' => 'Уфа',
+                    'normalized_data' => [],
+                    'planned_date' => now()->addDay()->toDateString(),
+                    'actual_date' => null,
+                ],
+            ],
+            'cargo_items' => [],
+            'documents' => [],
+            'financial_term' => [
+                'client_price' => '1000',
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'bank_transfer',
+                'contractors_costs' => [
+                    ['stage' => 'leg_1', 'contractor_id' => $carrierId, 'amount' => '800'],
+                ],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors('performers.0.loading_actual');
     }
 
     public function test_edit_page_opens_with_cargos_linked_through_legs_and_legacy_order_columns_missing(): void
