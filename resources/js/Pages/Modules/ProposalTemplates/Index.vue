@@ -2,7 +2,7 @@
     <div class="flex min-h-0 flex-1 flex-col gap-4">
         <CrmPageHeader
             title="Шаблоны КП (HTML)"
-            lead="WYSIWYG-шаблоны коммерческих предложений для лидов: переменные, preview, PDF через Gotenberg."
+            lead="Визуальный конструктор КП (GrapesJS): блоки и колонки, переменные лида, preview и PDF через Gotenberg."
         >
             <template #actions>
                 <Link :href="route('modules.proposal-templates.create')" :class="crmBtnPrimary">

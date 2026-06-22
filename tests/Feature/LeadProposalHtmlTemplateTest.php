@@ -106,7 +106,7 @@ class LeadProposalHtmlTemplateTest extends TestCase
             ['name' => 'admin-html-templates'],
             [
                 'display_name' => 'Админ',
-                'visibility_areas' => ['settings', 'leads'],
+                'visibility_areas' => ['settings', 'leads', 'modules_proposal_templates'],
                 'visibility_scopes' => ['leads' => 'all'],
             ],
         );
@@ -120,5 +120,29 @@ class LeadProposalHtmlTemplateTest extends TestCase
         $response->assertInertia(fn ($page) => $page
             ->component('Modules/ProposalTemplates/Index')
             ->has('templates', 2));
+    }
+
+    public function test_settings_user_can_open_grapes_editor_create_page(): void
+    {
+        $role = Role::query()->firstOrCreate(
+            ['name' => 'admin-html-templates-editor'],
+            [
+                'display_name' => 'Админ',
+                'visibility_areas' => ['settings', 'modules_proposal_templates'],
+                'visibility_scopes' => ['leads' => 'all'],
+            ],
+        );
+
+        $user = User::factory()->create(['role_id' => $role->id]);
+        Lead::factory()->create(['responsible_id' => $user->id, 'number' => 'L-GRAPES']);
+
+        $response = $this->actingAs($user)->get(route('modules.proposal-templates.create'));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('Modules/ProposalTemplates/Editor')
+            ->where('template', null)
+            ->has('variables')
+            ->has('previewLeads'));
     }
 }

@@ -47,6 +47,7 @@ class ProposalHtmlTemplateController extends Controller
         return Inertia::render('Modules/ProposalTemplates/Editor', [
             'template' => null,
             'variables' => $this->variablesForUi(),
+            'previewLeads' => $this->previewLeadsForUi(),
         ]);
     }
 
@@ -57,6 +58,7 @@ class ProposalHtmlTemplateController extends Controller
         return Inertia::render('Modules/ProposalTemplates/Editor', [
             'template' => $this->serializeTemplate($proposalHtmlTemplate),
             'variables' => $this->variablesForUi(),
+            'previewLeads' => $this->previewLeadsForUi(),
         ]);
     }
 
@@ -126,6 +128,37 @@ class ProposalHtmlTemplateController extends Controller
             'Content-Disposition' => 'inline; filename="proposal-preview.html"',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    /**
+     * @return list<array{id: int, label: string}>
+     */
+    private function previewLeadsForUi(): array
+    {
+        if (! Schema::hasTable('leads')) {
+            return [];
+        }
+
+        return Lead::query()
+            ->orderByDesc('id')
+            ->limit(25)
+            ->get(['id', 'number', 'title'])
+            ->map(function (Lead $lead): array {
+                $number = trim((string) ($lead->number ?? ''));
+                $title = trim((string) ($lead->title ?? ''));
+                $label = $number !== '' ? $number : "Лид #{$lead->id}";
+
+                if ($title !== '') {
+                    $label .= ' — '.$title;
+                }
+
+                return [
+                    'id' => (int) $lead->id,
+                    'label' => $label,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**

@@ -29,6 +29,8 @@ export default defineConfig({
             'ag-grid-community',
             'ag-grid-vue3',
             'ag-grid-community/styles/ag-grid.css',
+            'grapesjs',
+            'grapesjs-preset-newsletter',
         ],
     },
 })

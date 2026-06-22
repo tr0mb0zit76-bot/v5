@@ -87,7 +87,7 @@
                 </div>
                 <div class="mt-5 text-xl font-semibold">Шаблоны КП (HTML)</div>
                 <p class="mt-2 text-sm leading-6">
-                    Конструктор HTML-коммерческих предложений для лидов: переменные, preview, PDF и отправка по e-mail.
+                    Визуальный конструктор на GrapesJS: блоки, колонки, переменные лида, preview, PDF и отправка по e-mail.
                 </p>
                 <div class="crm-module-card__cta mt-5 text-sm font-medium group-hover:underline">
                     Открыть модуль
