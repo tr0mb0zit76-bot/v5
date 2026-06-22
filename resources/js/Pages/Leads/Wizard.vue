@@ -573,6 +573,7 @@ function blankForm() {
         tasks: [],
         business_process_id: props.businessProcesses?.[0]?.id ?? null,
         process_progress: null,
+        link_task_id: null,
     };
 }
 
@@ -639,7 +640,7 @@ watch(() => [props.selectedLead, props.leadTemplate], () => {
     activeTab.value = 'main';
     selectedTemplateId.value = props.printFormTemplateOptions?.[0]?.id ? String(props.printFormTemplateOptions[0].id) : '';
     nextStepForm.reset();
-    nextStepForm.responsible_id = lead?.responsible_id ?? defaultResponsibleId();
+    nextStepForm.responsible_id = payload.responsible_id ?? defaultResponsibleId();
     nextStepForm.priority = 'high';
     advanceStageId.value = '';
 }, { immediate: true });

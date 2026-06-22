@@ -564,6 +564,18 @@ class TaskController extends Controller
         return RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'tasks');
     }
 
+    private function canCreateLeads(Request $request): bool
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        return Schema::hasTable('leads')
+            && RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'leads');
+    }
+
     private function canAccessKanbanBoard(Request $request): bool
     {
         $user = $request->user();
@@ -597,6 +609,7 @@ class TaskController extends Controller
             'attachmentBaseUrl' => route('tasks.index'),
             'can_bulk_mutate_tasks' => RoleAccess::canBulkMutateTasks($request->user()),
             'can_delete_tasks' => RoleAccess::canDeleteTask($request->user()),
+            'can_create_leads' => $this->canCreateLeads($request),
         ];
     }
 

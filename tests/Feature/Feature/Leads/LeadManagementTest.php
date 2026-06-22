@@ -3,6 +3,7 @@
 namespace Tests\Feature\Feature\Leads;
 
 use App\Models\Lead;
+use App\Models\Task;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -839,6 +840,65 @@ class LeadManagementTest extends TestCase
         $this->assertDatabaseHas('lead_activities', [
             'lead_id' => $lead->id,
             'subject' => 'Создан следующий шаг',
+        ]);
+    }
+
+    public function test_create_from_task_prefills_lead_template(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $contractorId = $this->createContractor();
+
+        $task = Task::query()->create([
+            'number' => 'TSK-TEST-001',
+            'title' => 'Перезвонить по заявке',
+            'description' => 'Клиент ждёт КП',
+            'status' => 'new',
+            'priority' => 'high',
+            'responsible_id' => $manager->id,
+            'contractor_id' => $contractorId,
+        ]);
+
+        $response = $this->actingAs($manager)->get(route('leads.create', ['from_task' => $task->id]));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Leads/Index')
+            ->where('isCreating', true)
+            ->where('leadTemplate.title', 'Перезвонить по заявке')
+            ->where('leadTemplate.description', 'Клиент ждёт КП')
+            ->where('leadTemplate.counterparty_id', $contractorId)
+            ->where('leadTemplate.responsible_id', $manager->id)
+            ->where('leadTemplate.link_task_id', $task->id)
+        );
+    }
+
+    public function test_store_with_link_task_id_attaches_lead_to_task(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+
+        $task = Task::query()->create([
+            'number' => 'TSK-TEST-002',
+            'title' => 'Связать с лидом',
+            'status' => 'new',
+            'priority' => 'medium',
+            'responsible_id' => $manager->id,
+        ]);
+
+        $response = $this->actingAs($manager)->post(route('leads.store'), [
+            'status' => 'new',
+            'source' => 'inbound',
+            'responsible_id' => $manager->id,
+            'title' => 'Лид из задачи',
+            'target_currency' => 'RUB',
+            'link_task_id' => $task->id,
+        ]);
+
+        $leadId = DB::table('leads')->value('id');
+
+        $response->assertRedirect(route('leads.show', $leadId));
+        $this->assertDatabaseHas('tasks', [
+            'id' => $task->id,
+            'lead_id' => $leadId,
         ]);
     }
 

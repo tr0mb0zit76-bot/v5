@@ -12,6 +12,15 @@
                     Канбан
                 </Link>
                 <button
+                    v-if="canCreateLeads"
+                    type="button"
+                    :class="crmBtnSecondaryOutline"
+                    @click="openCreateLead"
+                >
+                    <Plus class="h-4 w-4" />
+                    Создать лид
+                </button>
+                <button
                     type="button"
                     :class="crmBtnCreate"
                     @click="openCreateModal"
@@ -215,6 +224,15 @@
                             </div>
                         </div>
                         <button
+                            v-if="canCreateLeads && selectedTask && !selectedTask.lead_id"
+                            type="button"
+                            :class="crmBtnNeutral"
+                            class="!px-3 !py-2 text-xs"
+                            @click="openCreateLeadFromTask(selectedTask)"
+                        >
+                            Создать лид
+                        </button>
+                        <button
                             v-if="selectedTask && selectedTask.status !== 'done'"
                             type="button"
                             :class="crmBtnNeutral"
@@ -380,10 +398,22 @@
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Связанный лид</label>
-                            <select v-model="form.lead_id" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50">
-                                <option :value="null">Без привязки</option>
-                                <option v-for="lead in leadOptions" :key="lead.id" :value="lead.id">{{ lead.number }} — {{ lead.title }}</option>
-                            </select>
+                            <div class="mt-2 flex gap-2">
+                                <select v-model="form.lead_id" class="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50">
+                                    <option :value="null">Без привязки</option>
+                                    <option v-for="lead in leadOptions" :key="lead.id" :value="lead.id">{{ lead.number }} — {{ lead.title }}</option>
+                                </select>
+                                <button
+                                    v-if="canCreateLeads"
+                                    type="button"
+                                    :class="crmBtnSecondaryOutline"
+                                    class="shrink-0 !px-3"
+                                    title="Создать новый лид"
+                                    @click="openCreateLeadFromForm"
+                                >
+                                    <Plus class="h-4 w-4" />
+                                </button>
+                            </div>
                         </div>
                         <div>
                             <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Контрагент</label>
@@ -480,6 +510,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    can_create_leads: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const tasks = ref(props.tasks ?? []);
@@ -490,6 +524,7 @@ const leadOptions = computed(() => props.leadOptions ?? []);
 const contractorOptions = computed(() => props.contractorOptions ?? []);
 const canBulkMutateTasks = computed(() => props.can_bulk_mutate_tasks === true);
 const canDeleteTasks = computed(() => props.can_delete_tasks === true);
+const canCreateLeads = computed(() => props.can_create_leads === true);
 
 watch(() => page.props.tasks, (next) => {
     tasks.value = next ?? [];
@@ -819,6 +854,24 @@ function openCreateModal() {
         return;
     }
     isFormOpen.value = true;
+}
+
+function openCreateLead(task = null) {
+    if (!canCreateLeads.value) {
+        return;
+    }
+
+    const params = task?.id ? { from_task: task.id } : {};
+
+    router.visit(route('leads.create', params));
+}
+
+function openCreateLeadFromTask(task) {
+    openCreateLead(task);
+}
+
+function openCreateLeadFromForm() {
+    openCreateLead(editingTask.value ?? selectedTask.value ?? null);
 }
 
 function openEditModal(task) {

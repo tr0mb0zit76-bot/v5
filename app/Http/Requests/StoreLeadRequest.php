@@ -132,6 +132,10 @@ class StoreLeadRequest extends FormRequest
             'cargo_items.*.is_oversized' => ['nullable', 'boolean'],
             'cargo_items.*.is_fragile' => ['nullable', 'boolean'],
 
+            'link_task_id' => Schema::hasTable('tasks')
+                ? ['nullable', 'integer', 'exists:tasks,id']
+                : ['nullable'],
+
             'activities' => ['nullable', 'array'],
             'activities.*.type' => ['required', Rule::in(['call', 'email', 'meeting', 'note', 'status_change'])],
             'activities.*.subject' => ['nullable', 'string', 'max:255'],

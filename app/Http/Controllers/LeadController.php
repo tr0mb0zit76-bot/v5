@@ -30,6 +30,7 @@ use App\Services\LeadConversionService;
 use App\Services\LeadLinkedTaskService;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\Leads\LeadBasedOnTemplateBuilder;
+use App\Services\Leads\TaskLeadTemplateBuilder;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\ActivityEventType;
 use App\Support\AtiDictionaryOptionCatalog;
@@ -71,8 +72,11 @@ class LeadController extends Controller
         return $this->renderIndexPage($request);
     }
 
-    public function create(Request $request, LeadBasedOnTemplateBuilder $leadBasedOnTemplateBuilder): Response
-    {
+    public function create(
+        Request $request,
+        LeadBasedOnTemplateBuilder $leadBasedOnTemplateBuilder,
+        TaskLeadTemplateBuilder $taskLeadTemplateBuilder,
+    ): Response {
         $leadTemplate = null;
 
         if ($request->filled('from')) {
@@ -80,6 +84,12 @@ class LeadController extends Controller
 
             if ($sourceLead instanceof Lead && $this->canAccessLead($request, $sourceLead)) {
                 $leadTemplate = $leadBasedOnTemplateBuilder->build($sourceLead);
+            }
+        } elseif ($request->filled('from_task')) {
+            $sourceTask = Task::query()->find((int) $request->query('from_task'));
+
+            if ($sourceTask instanceof Task && $this->canAccessTaskForLeadLinking($request, $sourceTask)) {
+                $leadTemplate = $taskLeadTemplateBuilder->build($sourceTask);
             }
         }
 
@@ -155,6 +165,10 @@ class LeadController extends Controller
 
             return $lead->fresh(['businessProcess', 'businessProcessStage']);
         });
+
+        if ($request->filled('link_task_id')) {
+            $this->linkCreatedLeadToTask($request, $lead, (int) $request->integer('link_task_id'));
+        }
 
         return to_route('leads.show', $lead);
     }
@@ -891,6 +905,55 @@ class LeadController extends Controller
             && Schema::hasTable('lead_cargo_items')
             && Schema::hasTable('lead_activities')
             && Schema::hasTable('lead_offers');
+    }
+
+    private function canAccessTaskForLeadLinking(Request $request, Task $task): bool
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        if (! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'leads')) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if (! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'tasks')
+            && ! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'kanban')) {
+            return false;
+        }
+
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
+
+        return $scope === 'all' || (int) $task->responsible_id === (int) $user->id;
+    }
+
+    private function linkCreatedLeadToTask(Request $request, Lead $lead, int $taskId): void
+    {
+        if (! Schema::hasTable('tasks')) {
+            return;
+        }
+
+        $task = Task::query()->find($taskId);
+
+        if (! $task instanceof Task) {
+            return;
+        }
+
+        abort_unless($this->canAccessTaskForLeadLinking($request, $task), 403);
+
+        if ($task->lead_id !== null && (int) $task->lead_id !== (int) $lead->id) {
+            throw ValidationException::withMessages([
+                'link_task_id' => 'У задачи уже привязан другой лид.',
+            ]);
+        }
+
+        $task->update(['lead_id' => $lead->id]);
     }
 
     private function nextTaskNumber(): string
