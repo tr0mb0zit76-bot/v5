@@ -56,14 +56,17 @@ tags: [leads, contractors, mail, scripts, proposals]
 | Миграции | `proposal_html_templates`, `proposal_html_template_variables` |
 | Рендер / PDF | `LeadProposalHtmlRenderer`, `LeadProposalPdfService` (Gotenberg chromium) |
 | CRUD шаблонов | `ProposalHtmlTemplateController`, `Modules/ProposalTemplates/*` |
+| GrapesJS | `Components/ProposalTemplates/ProposalGrapesEditor.vue` — preset newsletter, RU locale |
+| UI редактора | переменные **слева**, холст **справа**; preview на лиде после сохранения |
 | Маршруты | `modules.proposal-templates.*`, `leads.proposal.from-html-template`, `leads.proposal.html-preview` |
 | UI лида | `LeadWizardCommercialTab.vue` |
-| Seeder | `ProposalHtmlTemplateVariableSeeder` |
-| Тесты | `LeadProposalHtmlRendererTest`, `LeadProposalPdfServiceTest`, `LeadProposalHtmlTemplateTest.php` |
+| Seeder | `ProposalHtmlTemplateVariableSeeder`, демо `ProposalHtmlTemplateDemoSeeder` (slug `parallel-import-demo`) |
+| Демо HTML | `app/Support/ProposalHtmlTemplateParallelImportDemo.php` |
+| Тесты | `LeadProposalHtmlRendererTest`, `LeadProposalPdfServiceTest`, `LeadProposalHtmlTemplateTest.php`, `ProposalHtmlTemplateParallelImportDemoTest` |
 
-**Прод:** `DOC_PREVIEW_DRIVER=gotenberg`, `GOTENBERG_URL=…` · после deploy: `php artisan db:seed --class=ProposalHtmlTemplateVariableSeeder`
+**Прод:** `DOC_PREVIEW_DRIVER=gotenberg`, `GOTENBERG_URL=…` · после deploy: `npm run build`, `php artisan db:seed --class=ProposalHtmlTemplateVariableSeeder` (и при необходимости `ProposalHtmlTemplateDemoSeeder`)
 
----
+*Обновлено: 2026-06-22.*
 
 ## Шаг 5 — Аналитика скриптов (фазы 5 + 6.1–6.3)
 

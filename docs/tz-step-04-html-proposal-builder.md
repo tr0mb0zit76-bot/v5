@@ -46,15 +46,17 @@ proposal_html_template_variables  -- каталог, seed
 
 | # | Комponent |
 |---|-----------|
-| 4.6 | Страница `Modules/ProposalTemplates/Editor.vue` — GrapesJS или TipTap + блоки |
-| 4.7 | Preview на реальном лиде |
+| 4.6 | Страница `Modules/ProposalTemplates/Editor.vue` — **GrapesJS** (`grapesjs` + `grapesjs-preset-newsletter`, MIT) |
+| 4.7 | Preview на реальном лиде (в редакторе + на карточке лида) |
 | 4.8 | В лиде: выбор HTML-шаблона рядом с DOCX «КП из шаблона» |
 
-### Editor (рекомендация)
+### Editor
 
-- **GrapesJS** (MIT) или **Unlayer embed** — блоки, стили, mobile preview
-- Экспорт: HTML + inline critical CSS
+- **GrapesJS** + preset newsletter — блоки, колонки, device preview, русская локаль
+- Слева панель **Переменные** (каталог полей лида), справа холст редактора
+- Экспорт при сохранении: `html_body` + `css_inline`
 - Без SMTP в модуле — только шаблоны
+- Демо макета Unisender: `php artisan db:seed --class=ProposalHtmlTemplateDemoSeeder` → slug `parallel-import-demo`
 
 ---
 
@@ -64,7 +66,7 @@ proposal_html_template_variables  -- каталог, seed
 - Менеджер на лиде выбирает шаблон → preview → PDF → «Отправить КП» (существующий mail flow).
 - PHPUnit: render + PDF smoke (mock Gotenberg).
 
-**Статус:** ✅ MVP закрыт (2026-06-21).
+**Статус:** ✅ MVP закрыт (2026-06-21). ✅ Визуальный редактор GrapesJS (2026-06-22).
 
 ### Реализовано
 
@@ -76,10 +78,12 @@ proposal_html_template_variables  -- каталог, seed
 | Рендер | `LeadProposalHtmlRenderer` + `LeadPrintFormDraftService::buildLeadSnapshot()` |
 | PDF | `LeadProposalPdfService` (Gotenberg `/forms/chromium/convert/html`) |
 | CRUD | `ProposalHtmlTemplateController`, `Modules/ProposalTemplates/*` |
-| Лид | `POST leads/{lead}/proposal/from-html-template`, `GET …/html-preview` |
+| GrapesJS | `Components/ProposalTemplates/ProposalGrapesEditor.vue` |
+| Демо-шаблон | `ProposalHtmlTemplateParallelImportDemo`, `ProposalHtmlTemplateDemoSeeder` |
+| Лид | `POST leads/{lead}/proposal/from-html-template`, `GET …/html-preview`, `GET modules/…/preview/{lead}` |
 | UI лида | блок «HTML-шаблон КП» в `LeadWizardCommercialTab.vue` |
 | Почта | PDF-вложение через `CommercialMailService::resolveOfferAttachment()` |
-| Тесты | `LeadProposalHtmlRendererTest`, `LeadProposalPdfServiceTest`, `LeadProposalHtmlTemplateTest` |
+| Тесты | `LeadProposalHtmlRendererTest`, `LeadProposalPdfServiceTest`, `LeadProposalHtmlTemplateTest`, `ProposalHtmlTemplateParallelImportDemoTest` |
 
 ---
 

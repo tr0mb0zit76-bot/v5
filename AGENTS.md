@@ -176,6 +176,15 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Закрытие сделки: `OrderStatusService` → `checklistForOrder()` — все пункты чек-листа должны быть `completed`.
 - Документация: `docs/documents-user-guide.md`, `docs/documents-regulation.md`; публикация в Книгу: `php scripts/mcp-prod-upsert-documents.php`.
 
+### HTML-шаблоны КП (GrapesJS)
+
+- Модуль **Модули → Шаблоны КП**: `resources/js/Pages/Modules/ProposalTemplates/*`, редактор `Components/ProposalTemplates/ProposalGrapesEditor.vue` (GrapesJS + `grapesjs-preset-newsletter`, MIT).
+- Маршруты: `modules.proposal-templates.*` (`/modules/proposal-templates`); область `modules_proposal_templates`; CRUD — `canAccessSettingsSystem`.
+- Плейсхолдеры в HTML: `{lead.number}`, `{counterparty.name}` и т.д. — каталог `ProposalHtmlTemplateVariableCatalog` (из `PrintFormVariableCatalog::leadOptions()`); панель переменных **слева** от холста.
+- Рендер / PDF: `LeadProposalHtmlRenderer`, `LeadProposalPdfService` (Gotenberg); на лиде — `LeadWizardCommercialTab.vue`.
+- Демо-шаблон Unisender: `ProposalHtmlTemplateParallelImportDemo`, seeder `ProposalHtmlTemplateDemoSeeder` (slug `parallel-import-demo`).
+- ТЗ: `docs/tz-step-04-html-proposal-builder.md`; карточка `docs/sync/v5-local-Components-Commercial-Roadmap.md`.
+
 ### Прочее
 
 - **SSH на прод:** `docs/sync/prod-ssh.md` — IP `91.229.11.16`, ключ PuTTY `C:\,ssh\private_key.ppk`, скрипт `scripts/prod-plink.ps1` (не путать с GitHub-ключом в `~/.ssh`).

@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-22 · **Ветка:** `master` · **HEAD:** `d0880d4`
+**Обновлено:** 2026-06-22 · **Ветка:** `master` · **HEAD:** `5272b6e` (после push — см. `git log -1`)
 
 ---
 
@@ -78,6 +78,34 @@
 
 ## Что сделано недавно (2026-06-22)
 
+### Шаблоны КП — GrapesJS + демо Unisender
+
+| Коммит | Суть |
+| --- | --- |
+| `146a1de` | Визуальный редактор **GrapesJS** (`grapesjs-preset-newsletter`), preview на лиде в редакторе |
+| `5272b6e` | Демо-шаблон «Параллельный импорт» (`parallel-import-demo`), seeder `ProposalHtmlTemplateDemoSeeder` |
+| `ebc28d3` | Печать заказа: `{route_point_row_special_conditions}` из `wizard_state.performers` |
+| `f374d2a` | Пункт меню «Шаблоны КП», синхронизация статуса лида с close outcome |
+
+**Как проверить модуль КП:**
+
+1. **Модули → Шаблоны КП** (область `modules_proposal_templates` + доступ к настройкам).
+2. Открыть **«Параллельный импорт (демо Unisender)»** — макет как в Unisender; переменные `{responsible.*}`, `{counterparty.contact_person}` и др.
+3. В редакторе: **слева** панель переменных, **справа** холст GrapesJS; после сохранения — Preview на лиде.
+4. На карточке лида: вкладка коммерции → HTML-шаблон → preview / PDF.
+
+**После pull:**
+
+```powershell
+git pull
+npm ci
+npm run build
+php artisan db:seed --class=ProposalHtmlTemplateDemoSeeder
+php artisan optimize:clear
+```
+
+### Ранее 2026-06-22
+
 - **`d0880d4`** — создание лидов из задач (`from_task`, `link_task_id`), кнопки в разделе «Задачи», фикс `ReferenceError: lead is not defined` в `Leads/Wizard.vue`
 - **`3b2c73b`** — merge commercial roadmap в `master`, обновление handoff/индексов
 - Инструкция старта сессии Cursor: `docs/sync/cursor-agent-startup.md`, правило `.cursor/rules/project-context-handoff.mdc`
@@ -93,7 +121,7 @@
 | **1** | Портрет контрагента из лида — merge + preview, UI в Wizard |
 | **2** | Персона «Почта», `MailThreadAnalysisService`, tools в command bar |
 | **3** | HITL `contractor_insight_drafts` — черновики инсайтов, accept/reject |
-| **4** | HTML-шаблоны КП → PDF (Gotenberg) + CRUD в Модулях |
+| **4** | HTML-шаблоны КП → PDF (Gotenberg) + GrapesJS в Модулях + демо `parallel-import-demo` |
 | **5** | Аналитика скриптов Play, A/B узлов, context tags, CSV export |
 
 **Карта кода:** `docs/sync/v5-local-Components-Commercial-Roadmap.md`  
@@ -175,6 +203,6 @@ b1ab68b Документация QR-проверки печати
 
 ## Следующая сессия (предложение)
 
-1. Deploy `master` на прод (migrate, `npm run build`)
-2. Проверить: лиды из задач, commercial roadmap UI
-3. Backlog: фаза 6.4 NLP, пользовательские инструкции в Книгу
+1. Deploy `master` на прод после pull (migrate при необходимости, `npm run build`)
+2. Проверить: **Модули → Шаблоны КП** — демо-шаблон, layout (переменные слева), preview на лиде
+3. Backlog: доменные блоки GrapesJS (маршрут, ставка), фаза 6.4 NLP, инструкции в Книгу

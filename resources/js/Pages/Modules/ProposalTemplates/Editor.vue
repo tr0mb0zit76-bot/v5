@@ -46,13 +46,7 @@
                 </div>
             </div>
 
-            <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr),280px]">
-                <ProposalGrapesEditor
-                    ref="grapesEditorRef"
-                    :html-body="initialHtmlBody"
-                    :css-inline="initialCssInline"
-                />
-
+            <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[280px,minmax(0,1fr)]">
                 <div class="flex max-h-[720px] flex-col gap-3 overflow-hidden rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                     <div class="text-sm font-semibold">Переменные</div>
                     <p class="text-xs text-zinc-500 dark:text-zinc-400">
@@ -75,6 +69,12 @@
                         </button>
                     </div>
                 </div>
+
+                <ProposalGrapesEditor
+                    ref="grapesEditorRef"
+                    :html-body="initialHtmlBody"
+                    :css-inline="initialCssInline"
+                />
             </div>
 
             <div class="flex justify-end gap-2">
