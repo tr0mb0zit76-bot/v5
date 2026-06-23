@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-22 · **Ветка:** `master` · **HEAD:** `5272b6e` (после push — см. `git log -1`)
+**Обновлено:** 2026-06-23 · **Ветка:** `master` · **HEAD:** `078b41d` (после push — см. `git log -1`)
 
 ---
 
@@ -47,12 +47,12 @@
 
 3. **`.env`** — свой на каждой машине (не копировать с другого ПК). OSPanel MySQL: **`DB_HOST=127.0.1.21`**, не `127.0.0.1`.
 
-4. **Тестовая БД:** скопировать шаблон → `.env.testing` (`u_tromb.env.example`). После pull с миграциями:
+4. **Тестовая БД:** скопировать `u_tromb.env.example` → `.env.testing`, **`DB_DATABASE=u_tromb_test`** (рабочая `u_tromb` не трогать). После pull с миграциями:
    ```powershell
-   php artisan migrate --env=testing
-   # при «битой» схеме:
-   php artisan migrate:fresh --env=testing --force
+   php artisan migrate --env=testing --schema-path=database/schema/.skip-mysql-cli-load
    ```
+   **Не задавать `DB_HOST` в PowerShell** перед тестами — перебьёт `.env.testing`.  
+   `phpunit.xml`: `ORDER_WIZARD_TEST_DATABASE=u_tromb_test`.
 
 5. **Obsidian vault:** `YandexDisk/Exchange` (тот же аккаунт Я.Диска)
 
@@ -76,7 +76,35 @@
 
 ---
 
-## Что сделано недавно (2026-06-22)
+## Что сделано недавно (2026-06-23)
+
+### Собственный парк, рейсы, локальная БД, прод
+
+| Коммит | Суть |
+| --- | --- |
+| `bd8894c` | «Собственный парк» — виртуальный перевозчик (`is_own_company=false`), не в списке own company; ag-Grid scroll + filter persistence; PHPUnit → **`u_tromb_test`** |
+| `078b41d` | Мастер заказа: один пункт «Собственный парк» (без дубля в поиске); выбор всегда ставит `execution_mode=own_fleet` |
+
+**Рейсы (`/fleet/trips`):** строки только из `fleet_trips`. Создание при сохранении заказа, если в `performers` есть **`execution_mode: own_fleet`** — не достаточно одного `carrier_id=Собственный парк`. Карточка: `docs/sync/v5-local-Components-Fleet-Own-Fleet.md`.
+
+**Прод (ручные правки БД, июнь 2026):**
+- Удалён лишний рейс у **АС-2606-0001** (внешний перевозчик, рейс остался после смены).
+- **СП-2606-0003** — рейс #5 + `execution_mode=own_fleet` в costs/metadata (мастер не сохранял из‑за рассинхрона AS/СП).
+
+**Локально:** без `.env.testing` тесты били в `u_tromb` и сносили данные; после восстановления дампа — `DecryptException` на `mail_imap_secret` при несовпадении `APP_KEY` (обнулить секреты или вернуть ключ из источника дампа).
+
+**На большом ПК после pull:**
+```powershell
+git pull
+copy u_tromb.env.example .env.testing   # если ещё нет; DB_DATABASE=u_tromb_test
+php artisan migrate --env=testing --schema-path=database/schema/.skip-mysql-cli-load
+npm run build
+pwsh -File scripts/sync-docs-to-yandex.ps1
+```
+
+---
+
+## Что сделано ранее (2026-06-22)
 
 ### Шаблоны КП — GrapesJS + демо Unisender
 
@@ -159,6 +187,8 @@ php artisan optimize:clear
 | **Handoff (этот файл)** | `docs/sync/Cursor-handoff-latest.md` |
 | **Старт сессии Cursor** | `docs/sync/cursor-agent-startup.md` |
 | **Правило агента** | `.cursor/rules/project-context-handoff.mdc` |
+| **Fleet / Собственный парк / Рейсы** | `docs/sync/v5-local-Components-Fleet-Own-Fleet.md` |
+| **Граф знаний vs Obsidian** | `docs/sync/knowledge-graph-notes.md` |
 | **Commercial roadmap 1–5** | `docs/sync/v5-local-Components-Commercial-Roadmap.md` |
 | Индекс vault | [[00-index]] |
 | Компоненты кода | [[v5-local/00-index]] |
@@ -203,6 +233,6 @@ b1ab68b Документация QR-проверки печати
 
 ## Следующая сессия (предложение)
 
-1. Deploy `master` на прод после pull (migrate при необходимости, `npm run build`)
-2. Проверить: **Модули → Шаблоны КП** — демо-шаблон, layout (переменные слева), preview на лиде
-3. Backlog: доменные блоки GrapesJS (маршрут, ставка), фаза 6.4 NLP, инструкции в Книгу
+1. Fleet: автоудаление `fleet_trips` при смене перевозчика на внешнего; бэкфилл рейсов по `contractors_costs` с `own_fleet`
+2. Дубликаты номеров заказов (СП/AS, `company_code` vs префикс в форме)
+3. Deploy `master` на прод при накоплении фиксов; `npm run build` на сервере

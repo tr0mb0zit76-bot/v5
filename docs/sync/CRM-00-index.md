@@ -36,9 +36,12 @@
 - [[Roadmap/Design/Activepieces UI Ideas|Activepieces — UI-идеи]]
 - [[Roadmap/Design/AI Agent Personas|AI Agent Personas — Джарвис, Галя, Юрик, Страж]]
 
+- [[knowledge-graph-notes|Граф знаний — Obsidian vs Hive Mind]]
+
 ## Архитектура (Hive Mind)
 
 - [[v5-local/00-index|Карта компонентов v5-local]]
+- [[v5-local/Components/Fleet Own Fleet|Собственный парк и рейсы (2026-06)]]
 - [[v5-local/Components/Commercial Roadmap|Коммерческий контур — шаги 1–5 (2026-06)]]
 - [[v5-local/Components/Import Cost Calculator|Растаможка — калькулятор ввоза]]
 - [[v5-local/Components/Management Accounting|Управленческий учёт — план/факт, split]]
@@ -60,10 +63,12 @@
 | **Растаможка (архитектура)** | `docs/import-cost-calculator-architecture.md` |
 | **Commercial roadmap (ТЗ + handoff)** | `docs/commercial-roadmap-implementation-tz.md`, `docs/sync/v5-local-Components-Commercial-Roadmap.md` |
 | **Handoff второй ПК** | `docs/sync/Cursor-handoff-latest.md` |
+| **Граф знаний (Obsidian vs код)** | `docs/sync/knowledge-graph-notes.md` |
+| **Fleet / рейсы** | `docs/sync/v5-local-Components-Fleet-Own-Fleet.md` |
 | AI personas (command bar) | `docs/ai-agent-personas.md` |
 | **Документы (пользователи)** | `docs/documents-user-guide.md` |
 | **Документы (регламент v1)** | `docs/documents-regulation.md` |
 | Мастер заказов | `docs/order-wizard-user-guide.md` |
 | Синхрон vault ↔ git | `docs/sync/README.md` |
 
-*Обновлено: 2026-06-21.*
+*Обновлено: 2026-06-23.*

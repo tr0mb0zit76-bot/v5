@@ -187,6 +187,14 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Демо-шаблон Unisender: `ProposalHtmlTemplateParallelImportDemo`, seeder `ProposalHtmlTemplateDemoSeeder` (slug `parallel-import-demo`).
 - ТЗ: `docs/tz-step-04-html-proposal-builder.md`; карточка `docs/sync/v5-local-Components-Commercial-Roadmap.md`.
 
+### Собственный парк и рейсы
+
+- Виртуальный перевозчик «Собственный парк» (`OwnFleetCatalog`, `OwnFleetContractorService`) — **не** own company в заказе (`is_own_company=false`, исключён из `Contractor::ownCompanyProfiles()`).
+- Рейсы (`fleet_trips`): создаются при сохранении заказа только если `performers[].execution_mode === own_fleet` (`FleetTripService::syncPlannedTripsFromOrder`); смена на внешнего перевозчика рейс **не удаляет**.
+- Мастер: верхняя кнопка «Собственный парк» в поиске перевозчика (`Wizard.vue` → `selectOwnFleetPerformer`); дубль из списка контрагентов скрыт с `078b41d`.
+- Карточка / runbook: `docs/sync/v5-local-Components-Fleet-Own-Fleet.md`.
+- PHPUnit: `.env.testing` → `DB_DATABASE=u_tromb_test` (не рабочая `u_tromb`).
+
 ### Прочее
 
 - **SSH на прод:** `docs/sync/prod-ssh.md` — IP `91.229.11.16`, ключ PuTTY `C:\,ssh\private_key.ppk`, скрипт `scripts/prod-plink.ps1` (не путать с GitHub-ключом в `~/.ssh`).

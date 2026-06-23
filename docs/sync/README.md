@@ -15,6 +15,8 @@
 | `v5-local-Components-Print-Forms-Verification.md` | `.../v5-local/Components/Print Forms Verification.md` |
 | `v5-local-Components-Utility-Modules.md` | `.../v5-local/Components/Utility Modules.md` |
 | `v5-local-Components-Commercial-Roadmap.md` | `.../v5-local/Components/Commercial Roadmap.md` |
+| `v5-local-Components-Fleet-Own-Fleet.md` | `.../v5-local/Components/Fleet Own Fleet.md` |
+| `knowledge-graph-notes.md` | `Yandex.Disk/Exchange/CRM/knowledge-graph-notes.md` |
 
 Путь по умолчанию: `C:\Sync\Yandex.Disk\Exchange`. На другом ПК — `-ExchangeRoot`.
 
@@ -48,4 +50,4 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1   # Obsidian MCP bearer
 
 См. `Exchange/for_note/README.md` на Я.Диске.
 
-*Обновлено: 2026-06-22.*
+*Обновлено: 2026-06-23.*

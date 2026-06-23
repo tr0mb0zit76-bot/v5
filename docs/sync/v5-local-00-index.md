@@ -38,9 +38,10 @@
 | Компонент | Файл sync |
 | --- | --- |
 | **Commercial roadmap (1–5)** | `v5-local-Components-Commercial-Roadmap.md` |
+| **Собственный парк / Рейсы** | `v5-local-Components-Fleet-Own-Fleet.md` |
 | Растаможка | `v5-local-Components-Import-Cost-Calculator.md` |
 | Управленческий учёт | `v5-local-Components-Management-Accounting.md` |
 | QR / verify печати | `v5-local-Components-Print-Forms-Verification.md` |
 | Утилиты | `v5-local-Components-Utility-Modules.md` |
 
-*Обновлено: 2026-06-22.*
+*Обновлено: 2026-06-23.*

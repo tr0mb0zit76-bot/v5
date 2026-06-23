@@ -54,6 +54,7 @@ cd C:\OSPanel\home\v5.local
 composer install
 npm ci
 # .env — свой; DB_HOST=127.0.1.21 для OSPanel
+# Тесты: copy u_tromb.env.example .env.testing → DB_DATABASE=u_tromb_test (рабочая u_tromb отдельно)
 ```
 
 Cursor: скопировать MCP из `for_note/cursor-mcp.project.json` или:
@@ -95,6 +96,8 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1
 | `docs/sync/CRM-00-index.md` | Оглавление vault |
 | `docs/sync/v5-local-00-index.md` | Карта компонентов кода |
 | `docs/sync/v5-local-Components-*.md` | Тематические карточки |
+| `docs/sync/knowledge-graph-notes.md` | Obsidian-граф vs Hive Mind (продукт vs код) |
+| `docs/sync/v5-local-Components-Fleet-Own-Fleet.md` | Рейсы, own_fleet, runbook |
 | `AGENTS.md` | Правила агента + доменная карта |
 | `.cursor/rules/project-context-handoff.mdc` | Автоправило Cursor |
 
@@ -110,4 +113,4 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1
 
 ---
 
-*Обновлено: 2026-06-22.*
+*Обновлено: 2026-06-23.*
