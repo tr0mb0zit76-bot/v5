@@ -21,6 +21,8 @@ This application is a Laravel application and its main Laravel ecosystems packag
 
 Правило Cursor: `.cursor/rules/project-context-handoff.mdc` (`alwaysApply`). Vault на Я.Диске (`Exchange/CRM/`) синхронизируется **из git**, не заменяет `git pull`.
 
+**SSH на прод (агенты):** только `.\scripts\prod-plink.ps1` → IP **`91.229.11.16`**, PPK **`C:\,ssh\private_key.ppk`**. **Не** `109.61.108.18`, **не** ручной `plink`, **не** путь `.../crm.avtoaliyans.ru/` на диске. См. `.cursor/rules/prod-ssh.mdc`, `docs/sync/prod-ssh.md`.
+
 - php - 8.3
 - inertiajs/inertia-laravel (INERTIA_LARAVEL) - v2
 - laravel/framework (LARAVEL) - v13

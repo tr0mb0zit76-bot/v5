@@ -54,7 +54,8 @@ defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'fleet', activeSubKey: 'fleet-drivers', mainFill: true }, () => page),
 });
 
-const modalKeys = ['selectedDriver', 'drivers', 'driverDocumentTypeOptions'];
+const modalOpenKeys = ['selectedDriver'];
+const modalRefreshKeys = ['selectedDriver', 'drivers', 'driverDocumentTypeOptions'];
 
 const page = usePage();
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
@@ -93,7 +94,7 @@ function handleRowDblClick(row) {
         router.get(showUrl, {}, {
             preserveScroll: true,
             preserveState: true,
-            only: modalKeys,
+            only: modalOpenKeys,
         });
     }
 }
@@ -109,6 +110,6 @@ function closeModal() {
 }
 
 function onWizardSaved() {
-    router.reload({ only: modalKeys });
+    router.reload({ only: modalRefreshKeys });
 }
 </script>

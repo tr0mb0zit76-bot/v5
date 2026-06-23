@@ -35,7 +35,7 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
-        <!-- OrderWizardTest дропает таблицы: разрешённая БД (см. u_tromb.env.example → .env.testing) -->
-        <env name="ORDER_WIZARD_TEST_DATABASE" value="u_tromb"/>
+        <!-- OrderWizardTest дропает таблицы: только тестовая БД (см. .env.testing → DB_DATABASE) -->
+        <env name="ORDER_WIZARD_TEST_DATABASE" value="u_tromb_test"/>
     </php>
 </phpunit>

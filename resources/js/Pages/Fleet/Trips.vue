@@ -41,7 +41,7 @@
                                 <td class="px-3 py-2 text-right">{{ formatMoney(trip.total_cost) }}</td>
                             </tr>
                             <tr v-if="trips.length === 0">
-                                <td colspan="6" class="px-3 py-8 text-center text-zinc-500">Рейсов пока нет. Они создаются при сохранении заказа с «Свой транспорт».</td>
+                                <td colspan="6" class="px-3 py-8 text-center text-zinc-500">Рейсов пока нет. Они создаются при сохранении заказа с перевозчиком «Собственный парк».</td>
                             </tr>
                         </tbody>
                     </table>

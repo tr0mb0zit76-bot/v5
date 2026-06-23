@@ -64,6 +64,7 @@
           @cell-double-clicked="onCellDoubleClicked"
           @cell-context-menu="onCellContextMenu"
           @cell-value-changed="onCellValueChanged"
+          @filter-changed="onGridFilterChanged"
         />
       </div>
 
@@ -112,6 +113,11 @@ import { AgSetListFilter, setListFilterParams } from '@/Components/Grid/agSetLis
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
 import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
+import {
+  agGridFilterModelStorageKey,
+  createAgGridFilterModelPersister,
+  loadAgGridFilterModel,
+} from '@/support/agGridFilterModelPersistence.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -162,6 +168,9 @@ const currentDensity = ref(defaultGridDensity);
 const gridSection = ref(null);
 const gridPanel = ref(null);
 const bottomScrollbar = ref(null);
+const persistFilterModel = createAgGridFilterModelPersister();
+const filterModelStorageKey = computed(() => agGridFilterModelStorageKey('tasks', props.userId));
+const quickSearchStorageKey = computed(() => `tasks_grid_quick_search_v1_${props.userId}`);
 
 const { bottomScrollbarWidth, gridContainerStyle, onBottomScrollbarScroll, refreshAgGridPanelLayout } = useAgGridHorizontalPanel({
   gridPanel,
@@ -431,7 +440,30 @@ function formatDue(value) {
 
 function onGridReady(params) {
   gridApi.value = params.api;
+
+  try {
+    const savedQuickSearch = localStorage.getItem(quickSearchStorageKey.value);
+    if (typeof savedQuickSearch === 'string') {
+      quickSearch.value = savedQuickSearch;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  loadAgGridFilterModel(gridApi.value, filterModelStorageKey.value);
+
   nextTick(() => {
+    refreshAgGridPanelLayout();
+  });
+}
+
+function onGridFilterChanged() {
+  persistFilterModel(gridApi.value, filterModelStorageKey.value);
+}
+
+function reapplyPersistedFilters() {
+  nextTick(() => {
+    loadAgGridFilterModel(gridApi.value, filterModelStorageKey.value);
     refreshAgGridPanelLayout();
   });
 }
@@ -574,16 +606,29 @@ function onFirstDataRendered() {
   });
 }
 
-watch(quickSearch, () => {
+watch(quickSearch, (value) => {
+  try {
+    localStorage.setItem(quickSearchStorageKey.value, value ?? '');
+  } catch {
+    /* ignore */
+  }
+
   gridApi.value?.onFilterChanged();
 });
 
 watch(
   () => props.rows,
   () => {
-    nextTick(() => refreshAgGridPanelLayout());
+    reapplyPersistedFilters();
   },
   { deep: true },
+);
+
+watch(
+  () => props.userId,
+  () => {
+    reapplyPersistedFilters();
+  },
 );
 
 function onExternalAgGridDensityChange(event) {

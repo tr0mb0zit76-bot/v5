@@ -31,6 +31,7 @@ use App\Support\ContractorWorkStatus;
 use App\Support\CurrencyDictionary;
 use App\Support\EdoProviderDictionary;
 use App\Support\MailSync\MailContractorAllowlist;
+use App\Support\OwnFleetCatalog;
 use App\Support\PartyNormsPenalties;
 use App\Support\PaymentFormDictionary;
 use Illuminate\Database\QueryException;
@@ -914,6 +915,11 @@ class ContractorController extends Controller
 
         if (! Schema::hasColumn('contractors', 'is_own_company')) {
             unset($validated['is_own_company']);
+        }
+
+        $contractorName = trim((string) ($validated['name'] ?? $existingContractor?->name ?? ''));
+        if (OwnFleetCatalog::isVirtualFleetContractorName($contractorName)) {
+            $validated['is_own_company'] = false;
         }
 
         if ((bool) ($validated['is_own_company'] ?? $existingContractor?->is_own_company ?? false)) {

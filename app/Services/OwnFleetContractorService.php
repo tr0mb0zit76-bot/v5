@@ -27,7 +27,7 @@ class OwnFleetContractorService
         }
 
         if (Schema::hasColumn('contractors', 'is_own_company')) {
-            $attributes['is_own_company'] = true;
+            $attributes['is_own_company'] = false;
         }
 
         if (Schema::hasColumn('contractors', 'is_verified')) {

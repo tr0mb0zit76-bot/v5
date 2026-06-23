@@ -75,6 +75,7 @@
           @column-moved="persistColumnState"
           @column-visible="persistColumnState"
           @sort-changed="persistColumnState"
+          @filter-changed="onGridFilterChanged"
         />
       </div>
 
@@ -114,6 +115,11 @@ import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
+import {
+  agGridFilterModelStorageKey,
+  createAgGridFilterModelPersister,
+  loadAgGridFilterModel,
+} from '@/support/agGridFilterModelPersistence.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import { crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
@@ -142,6 +148,8 @@ const gridPanel = ref(null);
 const bottomScrollbar = ref(null);
 const currentDensity = ref(defaultGridDensity);
 const showDensityMenu = ref(false);
+const persistFilterModel = createAgGridFilterModelPersister();
+const filterModelStorageKey = computed(() => agGridFilterModelStorageKey('fleet_vehicles', props.userId));
 
 const { bottomScrollbarWidth, gridContainerStyle, onBottomScrollbarScroll, refreshAgGridPanelLayout } = useAgGridHorizontalPanel({
   gridPanel,
@@ -333,7 +341,19 @@ const columnDefs = computed(() => {
 
 function onGridReady(params) {
   gridApi.value = params.api;
+  loadAgGridFilterModel(gridApi.value, filterModelStorageKey.value);
   refreshAgGridPanelLayout();
+}
+
+function onGridFilterChanged() {
+  persistFilterModel(gridApi.value, filterModelStorageKey.value);
+}
+
+function reapplyPersistedFilters() {
+  nextTick(() => {
+    loadAgGridFilterModel(gridApi.value, filterModelStorageKey.value);
+    refreshAgGridPanelLayout();
+  });
 }
 
 function onCellDoubleClicked(event) {
@@ -364,11 +384,20 @@ function resetFilters() {
   quickSearch.value = '';
   gridApi.value?.setFilterModel(null);
   gridApi.value?.onFilterChanged();
+  localStorage.removeItem(filterModelStorageKey.value);
 }
 
 watch(quickSearch, () => {
   gridApi.value?.onFilterChanged();
 });
+
+watch(
+  () => props.rows,
+  () => {
+    reapplyPersistedFilters();
+  },
+  { deep: true },
+);
 
 function onExternalAgGridDensityChange(event) {
   const detail = event?.detail;

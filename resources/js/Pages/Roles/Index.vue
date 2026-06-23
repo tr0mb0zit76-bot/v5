@@ -495,7 +495,7 @@ const visibilityGroupDefinitions = [
     },
     {
         id: 'own_fleet',
-        label: 'Собственный транспорт',
+        label: 'Собственный парк',
         description: 'Рейсы и эффективность собственного парка',
         collapsible: true,
         keys: ['own_fleet'],

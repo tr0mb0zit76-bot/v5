@@ -6,7 +6,7 @@ use App\Models\Order;
 
 final class OrderTransportTypeResolver
 {
-    public const LABEL_OWN_FLEET = 'Свой парк';
+    public const LABEL_OWN_FLEET = 'Собственный парк';
 
     public const LABEL_HIRED = 'Наёмный';
 

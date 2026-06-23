@@ -129,6 +129,11 @@ import {
     writeLocalAgGridDensity,
 } from '@/support/agGridUserDensity.js';
 import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
+import {
+    agGridFilterModelStorageKey,
+    createAgGridFilterModelPersister,
+    loadAgGridFilterModel,
+} from '@/support/agGridFilterModelPersistence.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -158,6 +163,8 @@ const lastSaveError = ref('');
 const currentDensity = ref(defaultGridDensity);
 const showDensityMenu = ref(false);
 const quickSearch = ref('');
+const persistFilterModel = createAgGridFilterModelPersister();
+const filterModelStorageKey = computed(() => agGridFilterModelStorageKey('disposition', props.userId));
 
 const quickSearchStorageKey = computed(() => `disposition_grid_quick_search_v1_${props.userId}`);
 
@@ -519,6 +526,7 @@ function resetGridViewState() {
 
     quickSearch.value = '';
     localStorage.removeItem(quickSearchStorageKey.value);
+    localStorage.removeItem(filterModelStorageKey.value);
 }
 
 function onGridViewsPinnedChanged() {
@@ -526,8 +534,17 @@ function onGridViewsPinnedChanged() {
 }
 
 function onFilterChanged() {
+    persistFilterModel(gridApi.value, filterModelStorageKey.value);
     refreshDisplayedRowCount();
     nextTick(() => {
+        refreshAgGridPanelLayout();
+    });
+}
+
+function reapplyPersistedFilters() {
+    nextTick(() => {
+        loadAgGridFilterModel(gridApi.value, filterModelStorageKey.value);
+        refreshDisplayedRowCount();
         refreshAgGridPanelLayout();
     });
 }
@@ -575,6 +592,14 @@ watch(quickSearch, (value) => {
     applyQuickSearchToGrid();
 });
 
+watch(
+    () => props.rows,
+    () => {
+        reapplyPersistedFilters();
+    },
+    { deep: true },
+);
+
 function onExternalAgGridDensityChange(event) {
     const detail = event?.detail;
     if (!detail) {
@@ -598,6 +623,7 @@ async function onGridReady(params) {
     gridApi.value = params.api;
     loadDensity();
     loadQuickSearch();
+    loadAgGridFilterModel(gridApi.value, filterModelStorageKey.value);
 
     if (quickSearch.value.trim() !== '') {
         applyQuickSearchToGrid();

@@ -1,5 +1,5 @@
 <template>
-  <div ref="gridSection" class="flex min-h-0 flex-1 flex-col gap-2">
+  <div ref="gridSection" class="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
     <div class="flex shrink-0 items-center gap-2">
       <div class="flex flex-wrap items-center gap-2">
         <div class="relative">
@@ -1545,6 +1545,7 @@ watch(
     await nextTick();
     if (gridApi.value) {
       gridApi.value.setGridOption('rowData', rows ?? []);
+      loadPersistedFilterModel();
     }
     refreshAgGridPanelLayout();
   },

@@ -24,8 +24,8 @@ export function resolveAgGridBottomScrollbarWidth(gridApi, centerViewport) {
 }
 
 /**
- * Высота области ag-grid: от верха панели до command bar, минус нижний скролл.
- * Не использует clientHeight панели — при схлопнутом flex-контейнере он даёт ~0 и прячет строки.
+ * Высота области ag-grid внутри панели, минус нижний горизонтальный скролл.
+ * Сначала берём фактическую высоту flex-панели; если она схлопнулась (~0) — fallback до command bar.
  *
  * @param {HTMLElement | null | undefined} panelElement
  * @param {HTMLElement | null | undefined} bottomScrollbarElement
@@ -40,6 +40,12 @@ export function resolveAgGridViewportHeight(panelElement, bottomScrollbarElement
     }
 
     const bottomScrollbarHeight = bottomScrollbarElement?.offsetHeight ?? 18;
+    const panelHeight = panelElement.getBoundingClientRect().height;
+
+    if (panelHeight > 0) {
+        return Math.max(minHeight, Math.floor(panelHeight - bottomScrollbarHeight));
+    }
+
     const panelTop = panelElement.getBoundingClientRect().top;
     const commandBarFooter = document.querySelector('.crm-layout-footer') ?? document.querySelector('footer');
     const footerTop = commandBarFooter?.getBoundingClientRect().top ?? window.innerHeight;

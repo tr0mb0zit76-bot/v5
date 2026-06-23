@@ -23,4 +23,5 @@ if (-not (Test-Path $plink)) {
     exit 1
 }
 
-& $plink -i $ppk "${User}@${hostName}" $RemoteCommand
+# -batch: не зависать на host key / passphrase в неинтерактивном режиме (ключ — в Pageant).
+& $plink -batch -i $ppk "${User}@${hostName}" $RemoteCommand

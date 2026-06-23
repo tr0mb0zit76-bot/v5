@@ -24,7 +24,7 @@ class OrderWizardTest extends TestCase
 
         $connection = config('database.default');
         $database = (string) config("database.connections.{$connection}.database");
-        $allowedDatabase = (string) env('ORDER_WIZARD_TEST_DATABASE', 'u_tromb');
+        $allowedDatabase = (string) env('ORDER_WIZARD_TEST_DATABASE', 'u_tromb_test');
         if ($database === '' || $database !== $allowedDatabase) {
             $this->markTestSkipped(
                 'OrderWizardTest пересоздаёт таблицы и удаляет все строки в выбранной БД. '

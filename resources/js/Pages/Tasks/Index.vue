@@ -483,10 +483,26 @@ defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'planning', activeSubKey: 'tasks', mainFill: true }, () => page),
 });
 
-const modalPropKeys = ['selectedTask', 'tasks', 'quickFilters'];
+const taskModalOpenKeys = ['selectedTask'];
+const taskListRefreshKeys = ['selectedTask', 'tasks', 'quickFilters'];
+
+function readPersistedTasksPageFilters(storedUserId) {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    try {
+        const raw = localStorage.getItem(`tasks_page_filters_v1_${storedUserId}`);
+
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
 
 const page = usePage();
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
+const persistedPageFilters = readPersistedTasksPageFilters(userId.value);
 
 const props = defineProps({
     tasks: Array,
@@ -542,8 +558,24 @@ watch(selectedTask, (next) => {
     }
 });
 
-const activeFilter = ref('Все');
-const filterResponsibleId = ref(null);
+const activeFilter = ref(persistedPageFilters?.activeFilter ?? 'Все');
+const filterResponsibleId = ref(persistedPageFilters?.filterResponsibleId ?? null);
+const pageFiltersStorageKey = computed(() => `tasks_page_filters_v1_${userId.value}`);
+watch([activeFilter, filterResponsibleId], () => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        localStorage.setItem(pageFiltersStorageKey.value, JSON.stringify({
+            activeFilter: activeFilter.value,
+            filterResponsibleId: filterResponsibleId.value,
+        }));
+    } catch {
+        /* ignore */
+    }
+});
+
 const selectedTaskIds = ref([]);
 const bulkAssignUserId = ref(null);
 const bulkStatus = ref('');
@@ -809,7 +841,7 @@ function handleRowDblClick(row) {
         router.get(route('tasks.show', row.id), {}, {
             preserveScroll: true,
             preserveState: true,
-            only: modalPropKeys,
+            only: taskModalOpenKeys,
         });
     }
 }
@@ -919,7 +951,7 @@ function markDone(task) {
     completeMenuOpen.value = false;
     router.patch(route('tasks.status.update', task.id), { status: 'done' }, {
         preserveScroll: true,
-        only: modalPropKeys,
+        only: taskListRefreshKeys,
     });
 }
 
@@ -927,7 +959,7 @@ function markDoneAndCreateNew(task) {
     completeMenuOpen.value = false;
     router.post(route('tasks.complete-and-follow-up', task.id), {}, {
         preserveScroll: true,
-        only: modalPropKeys,
+        only: taskListRefreshKeys,
         onSuccess: () => {
             isTaskDetailDismissed.value = false;
         },
@@ -957,7 +989,7 @@ function submitReschedule() {
         due_at: rescheduleDueAt.value,
     }, {
         preserveScroll: true,
-        only: modalPropKeys,
+        only: taskListRefreshKeys,
         onFinish: () => {
             rescheduleProcessing.value = false;
             closeRescheduleModal();
@@ -981,7 +1013,7 @@ function addChecklistItem() {
     }
     checklistForm.post(route('tasks.checklist-items.store', selectedTask.value.id), {
         preserveScroll: true,
-        only: modalPropKeys,
+        only: taskListRefreshKeys,
         onSuccess: () => {
             checklistForm.reset();
         },
@@ -994,7 +1026,7 @@ function toggleChecklistItem(item) {
     }
     router.patch(route('tasks.checklist-items.toggle', [selectedTask.value.id, item.id]), {}, {
         preserveScroll: true,
-        only: modalPropKeys,
+        only: taskListRefreshKeys,
     });
 }
 
@@ -1004,7 +1036,7 @@ function addComment() {
     }
     commentForm.post(route('tasks.comments.store', selectedTask.value.id), {
         preserveScroll: true,
-        only: modalPropKeys,
+        only: taskListRefreshKeys,
         onSuccess: () => {
             commentForm.reset();
         },
@@ -1027,7 +1059,7 @@ function addAttachment() {
     }
     attachmentForm.post(route('tasks.attachments.store', selectedTask.value.id), {
         preserveScroll: true,
-        only: modalPropKeys,
+        only: taskListRefreshKeys,
         forceFormData: true,
         onSuccess: () => {
             attachmentForm.reset();
@@ -1042,7 +1074,7 @@ function deleteAttachment(file) {
     }
     router.delete(route('tasks.attachments.destroy', [selectedTask.value.id, file.id]), {
         preserveScroll: true,
-        only: modalPropKeys,
+        only: taskListRefreshKeys,
     });
 }
 
@@ -1141,7 +1173,7 @@ onMounted(() => {
                 preserveScroll: true,
                 preserveState: true,
                 replace: true,
-                only: modalPropKeys,
+                only: taskModalOpenKeys,
             });
         }
         url.searchParams.delete('task');

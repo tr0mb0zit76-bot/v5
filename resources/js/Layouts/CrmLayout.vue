@@ -1253,7 +1253,7 @@ const menuItems = computed(() => {
         },
         {
             key: 'own-fleet',
-            label: 'Собственный транспорт',
+            label: 'Собственный парк',
             icon: Route,
             visibilityArea: 'own_fleet',
             children: [

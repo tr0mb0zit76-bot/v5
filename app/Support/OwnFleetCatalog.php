@@ -4,11 +4,34 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Models\Contractor;
+
 final class OwnFleetCatalog
 {
     public const EXECUTION_MODE_OWN_FLEET = 'own_fleet';
 
     public const CONTRACTOR_NAME = 'Собственный парк';
+
+    /** Подпись в UI (перевозчик, меню, отчёты) — совпадает с именем контрагента. */
+    public const UI_LABEL = self::CONTRACTOR_NAME;
+
+    public static function isVirtualFleetContractorName(?string $name): bool
+    {
+        if ($name === null) {
+            return false;
+        }
+
+        return trim($name) === self::CONTRACTOR_NAME;
+    }
+
+    public static function isVirtualFleetContractor(?Contractor $contractor): bool
+    {
+        if ($contractor === null) {
+            return false;
+        }
+
+        return self::isVirtualFleetContractorName($contractor->name);
+    }
 
     /**
      * @return list<string>

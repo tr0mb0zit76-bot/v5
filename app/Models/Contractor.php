@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\EdoProviderDictionary;
+use App\Support\OwnFleetCatalog;
 use App\Support\RoleAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -130,7 +131,16 @@ class Contractor extends Model
 
     public function isOwnCompanyProfile(): bool
     {
+        if (OwnFleetCatalog::isVirtualFleetContractor($this)) {
+            return false;
+        }
+
         return (bool) ($this->is_own_company ?? false);
+    }
+
+    public function isVirtualOwnFleetContractor(): bool
+    {
+        return OwnFleetCatalog::isVirtualFleetContractor($this);
     }
 
     /**
@@ -145,7 +155,8 @@ class Contractor extends Model
             return $query->whereRaw('0 = 1');
         }
 
-        return $query->where('is_own_company', true);
+        return $query->where('is_own_company', true)
+            ->where('name', '!=', OwnFleetCatalog::CONTRACTOR_NAME);
     }
 
     /**

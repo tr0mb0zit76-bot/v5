@@ -578,8 +578,7 @@
                                                     @mousedown.prevent
                                                     @click="selectOwnFleetPerformer(legIndex)"
                                                 >
-                                                    <span class="text-sm font-medium text-sky-700 dark:text-sky-300">Свой транспорт</span>
-                                                    <span class="text-xs text-zinc-500">{{ props.ownFleetContractor.name }}</span>
+                                                    <span class="text-sm font-medium text-sky-700 dark:text-sky-300">{{ OWN_FLEET_CONTRACTOR_NAME }}</span>
                                                 </button>
                                                 <button
                                                     v-for="contractor in filteredCarrierResults('performer', legIndex)"
@@ -721,8 +720,7 @@
                                                         @mousedown.prevent
                                                         @click="selectOwnFleetSplitSlot(legIndex, slotIndex)"
                                                     >
-                                                        <span class="text-sm font-medium text-sky-700 dark:text-sky-300">Свой транспорт</span>
-                                                        <span class="text-xs text-zinc-500">{{ props.ownFleetContractor.name }}</span>
+                                                        <span class="text-sm font-medium text-sky-700 dark:text-sky-300">{{ OWN_FLEET_CONTRACTOR_NAME }}</span>
                                                     </button>
                                                     <button
                                                         v-for="contractor in filteredCarrierResults('performer-slot', `${legIndex}-${slotIndex}`)"
@@ -2007,6 +2005,10 @@ import {
     summarizeAllocationsForColumn,
     validateCargoPerformerAllocations,
 } from '@/support/orderCargoPerformerAllocations.js';
+import {
+    isVirtualOwnFleetContractor,
+    OWN_FLEET_CONTRACTOR_NAME,
+} from '@/support/ownFleetCatalog.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'orders' }, () => page),
@@ -2283,7 +2285,9 @@ if ((props.order ?? props.orderTemplate)?.client_snapshot) {
     }
 }
 
-const ownCompanyOptions = ref([...props.ownCompanies]);
+const ownCompanyOptions = ref(
+    props.ownCompanies.filter((company) => !isVirtualOwnFleetContractor(company)),
+);
 const clientSearch = ref('');
 const showClientResults = ref(false);
 const carrierSearch = ref({});
@@ -4459,7 +4463,7 @@ function ensureContractorInLocalList(contractor) {
 function performerCarrierSearchLabel(performerIndex, contractorId) {
     const row = form.performers[performerIndex];
     if (isOwnFleetExecutionMode(row?.execution_mode)) {
-        return 'Свой транспорт';
+        return OWN_FLEET_CONTRACTOR_NAME;
     }
 
     const id = normalizeNullableNumber(contractorId);
@@ -4701,7 +4705,7 @@ function applyCarrierDefaultsByStage(stage, contractorId, carrierSlot = null) {
 function splitCarrierSearchLabel(legIndex, slotIndex, contractorId) {
     const slot = splitCarrierAt(legIndex, slotIndex);
     if (isOwnFleetExecutionMode(slot?.execution_mode)) {
-        return 'Свой транспорт';
+        return OWN_FLEET_CONTRACTOR_NAME;
     }
 
     const id = normalizeNullableNumber(contractorId);
@@ -4742,7 +4746,7 @@ function selectOwnFleetPerformer(index) {
     };
     form.performers = updatedPerformers;
 
-    setCarrierSearchValue('performer', index, 'Свой транспорт');
+    setCarrierSearchValue('performer', index, OWN_FLEET_CONTRACTOR_NAME);
     setCarrierResultsVisible('performer', index, false);
     syncContractorCostsFromPerformers();
     loadFleetOptionsForLeg(index);
@@ -4770,7 +4774,7 @@ function selectOwnFleetSplitSlot(legIndex, slotIndex) {
     slot.fleet_vehicle_id = null;
     slot.fleet_driver_id = null;
 
-    setCarrierSearchValue('performer-slot', `${legIndex}-${slotIndex}`, 'Свой транспорт');
+    setCarrierSearchValue('performer-slot', `${legIndex}-${slotIndex}`, OWN_FLEET_CONTRACTOR_NAME);
     setCarrierResultsVisible('performer-slot', `${legIndex}-${slotIndex}`, false);
     syncContractorCostsFromPerformers();
     loadFleetOptionsForLeg(legIndex, slotIndex);
@@ -6490,7 +6494,7 @@ async function createInlineCounterparty() {
         const contractor = payload.contractor;
 
         contractors.value.unshift(contractor);
-        if (contractor.is_own_company) {
+        if (contractor.is_own_company && !isVirtualOwnFleetContractor(contractor)) {
             ownCompanyOptions.value.unshift(contractor);
         }
         if (counterpartyTarget.value.kind === 'performer-slot' && counterpartyTarget.value.index !== null) {

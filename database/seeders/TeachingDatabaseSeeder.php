@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Опциональные фикстуры для **тестовой** БД из `.env.testing` (например u_tromb), а не для вашей рабочей `.env`.
+ * Опциональные фикстуры для **тестовой** БД из `.env.testing` (например u_tromb_test), а не для вашей рабочей `.env`.
  * Нужны, чтобы после `migrate` в тестовой схеме было что открыть вручную или не падали интеграционные проверки.
  *
  *   php artisan migrate --env=testing

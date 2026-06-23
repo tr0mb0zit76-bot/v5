@@ -54,7 +54,8 @@ defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'fleet', activeSubKey: 'fleet-vehicles', mainFill: true }, () => page),
 });
 
-const modalKeys = ['selectedVehicle', 'vehicles', 'vehicleDocumentTypeOptions'];
+const modalOpenKeys = ['selectedVehicle'];
+const modalRefreshKeys = ['selectedVehicle', 'vehicles', 'vehicleDocumentTypeOptions'];
 
 const page = usePage();
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
@@ -87,7 +88,7 @@ function handleRowDblClick(row) {
         router.get(route('fleet.vehicles.show', row.id, {}, false), {}, {
             preserveScroll: true,
             preserveState: true,
-            only: modalKeys,
+            only: modalOpenKeys,
         });
     }
 }
@@ -103,6 +104,6 @@ function closeModal() {
 }
 
 function onWizardSaved() {
-    router.reload({ only: modalKeys });
+    router.reload({ only: modalRefreshKeys });
 }
 </script>

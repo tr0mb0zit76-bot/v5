@@ -23,7 +23,7 @@
                 <p class="text-xs uppercase tracking-wide text-zinc-500">₽ / км</p>
                 <p class="mt-2 text-2xl font-semibold">{{ summary.rub_per_km != null ? formatMoney(summary.rub_per_km) : '—' }}</p>
                 <p v-if="summary.own_fleet_order_share_percent != null" class="mt-1 text-xs text-zinc-500">
-                    Доля заказов с own fleet: {{ summary.own_fleet_order_share_percent }}%
+                    Доля заказов с «Собственным парком»: {{ summary.own_fleet_order_share_percent }}%
                 </p>
             </article>
         </div>

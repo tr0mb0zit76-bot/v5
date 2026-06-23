@@ -21,7 +21,7 @@ final class McpIntegrationCatalog
             ['key' => 'tasks', 'label' => 'Задачи', 'description' => 'Внутренние и клиентские задачи', 'group' => 'Операции'],
             ['key' => 'disposition', 'label' => 'Диспозиция', 'description' => 'Утро/вечер по заказам', 'group' => 'Операции'],
             ['key' => 'mail', 'label' => 'Почта', 'description' => 'Переписка и исходящие письма', 'group' => 'Коммуникации'],
-            ['key' => 'fleet', 'label' => 'Собственный транспорт', 'description' => 'Авто, водители, рейсы', 'group' => 'Транспорт'],
+            ['key' => 'fleet', 'label' => 'Собственный парк', 'description' => 'Авто, водители, рейсы', 'group' => 'Транспорт'],
             ['key' => 'finance', 'label' => 'Финансы', 'description' => 'График оплат и зарплата', 'group' => 'Финансы'],
             ['key' => 'analytics', 'label' => 'Аналитика AI', 'description' => 'Обращения к AI и пробелы', 'group' => 'Отчёты'],
             ['key' => 'settings', 'label' => 'Шаблоны и система', 'description' => 'Печатные формы, базовые условия, конфигурация', 'group' => 'Конфигурация'],

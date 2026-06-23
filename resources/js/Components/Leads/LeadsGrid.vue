@@ -999,6 +999,7 @@ watch(
   () => props.rows,
   async () => {
     await nextTick();
+    loadPersistedFilterModel();
     refreshAgGridPanelLayout();
   },
 );
