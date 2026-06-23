@@ -1073,7 +1073,9 @@ async function confirmRiskAssessment(outcome) {
             body: JSON.stringify({
                 assessment_id: contractorScoring.value.assessment_id,
                 outcome,
-                applied_debt_limit: form.debt_limit,
+                applied_debt_limit: form.debt_limit === '' || form.debt_limit === null
+                    ? null
+                    : Number(form.debt_limit),
                 applied_postpayment_days: scoringScheduleTarget.value === 'carrier'
                     ? Number(form.default_carrier_payment_schedule?.postpayment_days ?? 0)
                     : Number(form.default_customer_payment_schedule?.postpayment_days ?? 0),
@@ -1083,7 +1085,10 @@ async function confirmRiskAssessment(outcome) {
         const data = await res.json();
 
         if (!res.ok) {
-            throw new Error(data.message || 'Не удалось подтвердить оценку');
+            const validationMessage = data.errors
+                ? Object.values(data.errors).flat().join(' ')
+                : null;
+            throw new Error(validationMessage || data.message || 'Не удалось подтвердить оценку');
         }
 
         if (data.verification) {

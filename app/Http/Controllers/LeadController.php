@@ -6,6 +6,7 @@ use App\Enums\LeadCloseOutcomeFlag;
 use App\Http\Requests\AdvanceLeadProcessStageRequest;
 use App\Http\Requests\MergeLeadPortraitRequest;
 use App\Http\Requests\StoreInlineOrderContractorRequest;
+use App\Http\Requests\StoreLeadAttachmentRequest;
 use App\Http\Requests\StoreLeadNextStepRequest;
 use App\Http\Requests\StoreLeadRequest;
 use App\Http\Requests\UpdateLeadRequest;
@@ -15,6 +16,7 @@ use App\Models\BusinessProcessStage;
 use App\Models\Cargo;
 use App\Models\Contractor;
 use App\Models\Lead;
+use App\Models\LeadAttachment;
 use App\Models\LeadOffer;
 use App\Models\PrintFormTemplate;
 use App\Models\ProposalHtmlTemplate;
@@ -56,6 +58,8 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LeadController extends Controller
 {
@@ -116,6 +120,10 @@ class LeadController extends Controller
 
         if (Schema::hasTable('tasks')) {
             $relations[] = 'tasks.responsible';
+        }
+
+        if (Schema::hasTable('lead_attachments')) {
+            $relations[] = 'attachments.user:id,name';
         }
 
         return $this->renderIndexPage($request, $lead->load($relations));
@@ -1199,6 +1207,17 @@ class LeadController extends Controller
                     'responsible_name' => $task->responsible?->name,
                 ])->values()->all()
                 : [],
+            'attachments' => Schema::hasTable('lead_attachments') && $lead->relationLoaded('attachments')
+                ? $lead->attachments->map(fn (LeadAttachment $attachment): array => [
+                    'id' => $attachment->id,
+                    'original_name' => $attachment->original_name,
+                    'mime_type' => $attachment->mime_type,
+                    'size_bytes' => $attachment->size_bytes,
+                    'created_at' => optional($attachment->created_at)?->toIso8601String(),
+                    'uploaded_by' => $attachment->user?->name,
+                    'download_url' => route('leads.attachments.download', [$lead, $attachment]),
+                ])->values()->all()
+                : [],
         ];
     }
 
@@ -1434,5 +1453,49 @@ class LeadController extends Controller
         }
 
         return to_route('leads.show', $lead)->with('flash', $flash);
+    }
+
+    public function storeAttachment(StoreLeadAttachmentRequest $request, Lead $lead): RedirectResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless(Schema::hasTable('lead_attachments'), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+
+        $file = $request->file('file');
+        $path = $file->store('leads/attachments', 'public');
+
+        $lead->attachments()->create([
+            'user_id' => $request->user()?->id,
+            'disk' => 'public',
+            'path' => $path,
+            'original_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getClientMimeType(),
+            'size_bytes' => $file->getSize(),
+        ]);
+
+        return $this->redirectToLeadShow($lead, 'Файл добавлен к лиду.');
+    }
+
+    public function destroyAttachment(Request $request, Lead $lead, LeadAttachment $leadAttachment): RedirectResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless(Schema::hasTable('lead_attachments'), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+        abort_unless($leadAttachment->lead_id === $lead->id, 404);
+
+        Storage::disk($leadAttachment->disk)->delete($leadAttachment->path);
+        $leadAttachment->delete();
+
+        return $this->redirectToLeadShow($lead, 'Вложение удалено.');
+    }
+
+    public function downloadAttachment(Request $request, Lead $lead, LeadAttachment $leadAttachment): BinaryFileResponse|StreamedResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless(Schema::hasTable('lead_attachments'), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+        abort_unless($leadAttachment->lead_id === $lead->id, 404);
+
+        return Storage::disk($leadAttachment->disk)->download($leadAttachment->path, $leadAttachment->original_name);
     }
 }

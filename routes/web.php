@@ -224,6 +224,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/leads/{lead}/offers/{offer}/draft', 'downloadOfferDraft')->name('leads.offers.draft');
         Route::post('/leads/{lead}/next-step', 'storeNextStep')->name('leads.next-step.store');
         Route::patch('/leads/{lead}/process-stage', 'advanceProcessStage')->name('leads.process-stage');
+        Route::post('/leads/{lead}/attachments', 'storeAttachment')->name('leads.attachments.store');
+        Route::delete('/leads/{lead}/attachments/{leadAttachment}', 'destroyAttachment')->name('leads.attachments.destroy');
+        Route::get('/leads/{lead}/attachments/{leadAttachment}/download', 'downloadAttachment')->name('leads.attachments.download');
         Route::get('/leads/{lead}/templates/{printFormTemplate}/draft', 'generateCommercialDraft')->name('leads.templates.generate-draft');
         Route::post('/leads/{lead}/convert', 'convert')->name('leads.convert');
         Route::get('/leads/{lead}/activity-timeline', [ActivityTimelineController::class, 'showForLead'])->name('leads.activity-timeline');

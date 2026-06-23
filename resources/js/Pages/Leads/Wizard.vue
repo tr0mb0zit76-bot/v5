@@ -221,7 +221,7 @@
                 </div>
 
                 <LeadCloseOutcomeFields
-                    v-if="form.status === 'lost' || form.status === 'won'"
+                    v-if="showLegacyCloseOutcomeFields"
                     v-model:primary-flag="form.close_outcome_primary_flag"
                     v-model:note="form.close_outcome_note"
                     :terminal-outcome="form.status === 'won' ? 'won' : 'lost'"
@@ -230,6 +230,50 @@
                     :error="form.errors.close_outcome_primary_flag || form.errors.close_outcome_note"
                     :input-class="crmFieldFluid"
                 />
+
+                <section v-if="selectedLeadId" class="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+                    <div>
+                        <h3 class="text-base font-semibold">Контекстные документы</h3>
+                        <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                            Пакинги, инвойсы и прочие файлы для работы с лидом. Не попадают в реестр «Документы».
+                        </p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input
+                            ref="attachmentInput"
+                            type="file"
+                            class="max-w-full text-sm text-zinc-600 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-800 dark:text-zinc-300 dark:file:bg-zinc-800 dark:file:text-zinc-100"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.txt"
+                            @change="onAttachmentSelected"
+                        />
+                        <button
+                            type="button"
+                            :class="crmBtnSecondary"
+                            :disabled="!attachmentFile || attachmentForm.processing"
+                            @click="addAttachment"
+                        >
+                            {{ attachmentForm.processing ? 'Загрузка…' : 'Загрузить' }}
+                        </button>
+                    </div>
+                    <div v-if="leadAttachments.length" class="space-y-2">
+                        <div
+                            v-for="file in leadAttachments"
+                            :key="file.id"
+                            class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700"
+                        >
+                            <div class="min-w-0">
+                                <a :href="file.download_url" class="font-medium text-zinc-900 underline-offset-2 hover:underline dark:text-zinc-100">
+                                    {{ file.original_name }}
+                                </a>
+                                <div class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                                    {{ formatAttachmentMeta(file) }}
+                                </div>
+                            </div>
+                            <button type="button" :class="crmBtnSecondary" @click="deleteAttachment(file)">Удалить</button>
+                        </div>
+                    </div>
+                    <p v-else class="text-sm text-zinc-500 dark:text-zinc-400">Файлов пока нет.</p>
+                </section>
 
                 <div class="grid gap-4 xl:grid-cols-4">
                     <div class="space-y-2"><label :class="crmLabel">Потребность</label><input v-model="form.qualification.need" type="text" :class="crmFieldFluid" /></div>
@@ -427,6 +471,7 @@ import {
     isCompleteContractorInn,
     normalizedContractorInn,
 } from '@/support/contractorPartyAutofill.js';
+import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import { normalizeLeadCargoItems } from '@/support/leadWizardCargo.js';
 import { defaultLeadRoutePoints, normalizeLeadRoutePoints } from '@/support/leadWizardRoute.js';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
@@ -571,6 +616,7 @@ function blankForm() {
         offers: [],
         orders: [],
         tasks: [],
+        attachments: [],
         business_process_id: props.businessProcesses?.[0]?.id ?? null,
         process_progress: null,
         link_task_id: null,
@@ -599,6 +645,7 @@ function leadToForm(lead) {
         offers: lead.offers ?? [],
         orders: lead.orders ?? [],
         tasks: lead.tasks ?? [],
+        attachments: lead.attachments ?? [],
     };
 }
 
@@ -647,6 +694,17 @@ watch(() => [props.selectedLead, props.leadTemplate], () => {
 
 const selectedLeadId = computed(() => props.selectedLead?.id ?? null);
 const processProgress = computed(() => form.process_progress ?? props.selectedLead?.process_progress ?? null);
+const showLegacyCloseOutcomeFields = computed(() => {
+    if (processProgress.value) {
+        return false;
+    }
+
+    return form.status === 'lost' || form.status === 'won';
+});
+const leadAttachments = computed(() => form.attachments ?? props.selectedLead?.attachments ?? []);
+const attachmentInput = ref(null);
+const attachmentFile = ref(null);
+const attachmentForm = useForm({ file: null });
 const businessProcessesEnabled = computed(() => Boolean(props.businessProcessesEnabled));
 const selectedCounterparty = computed(() => contractors.value.find((contractor) => Number(contractor.id) === Number(form.counterparty_id)) ?? null);
 const counterpartyPortraitIncomplete = computed(() => {
@@ -987,6 +1045,65 @@ function addActivity() { form.activities.push({ type: 'note', subject: '', conte
 function removeActivity(index) { form.activities.splice(index, 1); }
 function openTask(taskId) { router.get(route('tasks.index'), taskId ? { task: taskId } : {}); }
 
+async function onAttachmentSelected(event) {
+    const files = event.target?.files;
+    const picked = files && files[0] ? files[0] : null;
+    if (picked) {
+        await warnIfDocumentExceedsBudget(picked, page.props.document_upload_limits ?? {});
+    }
+    attachmentFile.value = picked;
+    attachmentForm.file = attachmentFile.value;
+}
+
+function addAttachment() {
+    if (!selectedLeadId.value || !attachmentFile.value) {
+        return;
+    }
+
+    attachmentForm.post(route('leads.attachments.store', selectedLeadId.value), {
+        preserveScroll: true,
+        only: ['selectedLead'],
+        forceFormData: true,
+        onSuccess: () => {
+            attachmentForm.reset();
+            attachmentFile.value = null;
+            if (attachmentInput.value) {
+                attachmentInput.value.value = '';
+            }
+        },
+    });
+}
+
+function deleteAttachment(file) {
+    if (!selectedLeadId.value || !file?.id) {
+        return;
+    }
+
+    router.delete(route('leads.attachments.destroy', [selectedLeadId.value, file.id]), {
+        preserveScroll: true,
+        only: ['selectedLead'],
+    });
+}
+
+function formatAttachmentMeta(file) {
+    const parts = [];
+    if (file.uploaded_by) {
+        parts.push(file.uploaded_by);
+    }
+    if (file.created_at) {
+        const date = new Date(file.created_at);
+        if (!Number.isNaN(date.getTime())) {
+            parts.push(new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(date));
+        }
+    }
+    if (file.size_bytes) {
+        const kb = Math.round(Number(file.size_bytes) / 1024);
+        parts.push(kb > 1024 ? `${(kb / 1024).toFixed(1)} МБ` : `${kb} КБ`);
+    }
+
+    return parts.length ? parts.join(' · ') : '—';
+}
+
 function submitProcessStage() {
     if (!selectedLeadId.value || !advanceStageId.value) {
         return;
@@ -1009,6 +1126,7 @@ function submit() {
         offers: undefined,
         orders: undefined,
         tasks: undefined,
+        attachments: undefined,
         process_progress: undefined,
     };
 

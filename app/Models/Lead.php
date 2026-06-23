@@ -198,4 +198,12 @@ class Lead extends Model
     {
         return $this->morphMany(ActivityEvent::class, 'subject')->orderByDesc('occurred_at');
     }
+
+    /**
+     * @return HasMany<LeadAttachment, $this>
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(LeadAttachment::class)->latest();
+    }
 }
