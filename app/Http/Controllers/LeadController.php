@@ -39,7 +39,7 @@ use App\Support\CurrencyDictionary;
 use App\Support\LeadCargoItemPayloadNormalizer;
 use App\Support\LeadCloseOutcomeFlagCatalog;
 use App\Support\LeadRoutePointPayloadNormalizer;
-use App\Support\LeadStatus;
+use App\Support\LeadSource;
 use App\Support\LeadTableColumns;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
@@ -675,14 +675,7 @@ class LeadController extends Controller
             'currentUserId' => request()->user()?->id,
             'canAssignResponsible' => $this->canAssignResponsible(request()),
             'canUseLeadTasks' => $this->canUseLeadTasks(request()),
-            'sourceOptions' => [
-                ['value' => 'inbound', 'label' => 'Входящий'],
-                ['value' => 'outbound', 'label' => 'Исходящий'],
-                ['value' => 'referral', 'label' => 'Рекомендация'],
-                ['value' => 'website', 'label' => 'Сайт'],
-                ['value' => 'existing_customer', 'label' => 'Действующий клиент'],
-                ['value' => 'other', 'label' => 'Другое'],
-            ],
+            'sourceOptions' => LeadSource::options(),
             'transportTypeOptions' => [
                 ['value' => 'ftl', 'label' => 'FTL'],
                 ['value' => 'ltl', 'label' => 'LTL'],

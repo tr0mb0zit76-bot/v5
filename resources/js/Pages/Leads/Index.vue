@@ -29,6 +29,7 @@
                 :available-columns="availableColumns"
                 :role-columns-config="roleColumnsConfig"
                 :user-id="userId"
+                :source-options="page.props.sourceOptions ?? []"
                 :allow-create="!featureUnavailable"
                 @create="openCreateLead"
                 @create-from="openCreateLeadFrom"

@@ -260,9 +260,33 @@ const props = defineProps({
     type: [String, Number],
     default: 'guest',
   },
+  sourceOptions: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const page = usePage();
+
+const sourceLabels = computed(() => {
+  const labels = { ...fallbackSourceLabels };
+
+  for (const option of props.sourceOptions ?? []) {
+    if (option?.value) {
+      labels[option.value] = option.label ?? option.value;
+    }
+  }
+
+  return labels;
+});
+
+function sourceLabel(value) {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+
+  return sourceLabels.value[value] ?? value;
+}
 
 const emit = defineEmits(['create', 'create-from', 'row-dblclick', 'columns-changed', 'delete-request']);
 
@@ -276,6 +300,15 @@ const statusLabels = {
   won: 'Конвертирован',
   lost: 'Закрыт',
   on_hold: 'Отложен',
+};
+
+const fallbackSourceLabels = {
+  inbound: 'Входящий',
+  outbound: 'Исходящий',
+  referral: 'Рекомендация',
+  website: 'Сайт',
+  existing_customer: 'Действующий клиент',
+  other: 'Другое',
 };
 
 const fallbackColumns = [
@@ -442,6 +475,10 @@ function leadSetFilterLabel(field, row) {
     return statusLabels[row.status] ?? row.status ?? '—';
   }
 
+  if (field === 'source') {
+    return sourceLabel(row.source);
+  }
+
   if (field === 'has_offer') {
     return row.has_offer ? 'Да' : 'Нет';
   }
@@ -460,6 +497,10 @@ function leadSetFilterLabel(field, row) {
 function collectLeadSetFilterValues(field) {
   if (field === 'status') {
     return Object.values(statusLabels).sort((left, right) => String(left).localeCompare(String(right), 'ru'));
+  }
+
+  if (field === 'source') {
+    return Object.values(sourceLabels.value).sort((left, right) => String(left).localeCompare(String(right), 'ru'));
   }
 
   if (field === 'has_offer') {
@@ -1050,6 +1091,10 @@ function formatValue(value, type, field, row) {
 
   if (field === 'status') {
     return statusLabels[value] ?? value;
+  }
+
+  if (field === 'source') {
+    return sourceLabel(value);
   }
 
   if (field === 'planned_shipping_date') {
