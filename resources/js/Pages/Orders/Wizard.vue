@@ -4543,15 +4543,31 @@ function filteredCarrierResults(kind, index) {
     }
 
     const selectedContractor = getContractorById(selectedContractorId);
-    
+
+    const excludeVirtualOwnFleet = (contractors) => {
+        if (!props.ownFleetContractor?.id) {
+            return contractors;
+        }
+
+        const ownFleetId = Number(props.ownFleetContractor.id);
+
+        return contractors.filter(
+            (contractor) => contractor.id !== ownFleetId && !isVirtualOwnFleetContractor(contractor),
+        );
+    };
+
     // Get server search results for this specific field
     const serverResults = serverCarrierSearchResults.value[carrierSearchKey(kind, index)] || [];
     const serverIds = new Set(serverResults.map(c => c.id));
 
     if (query === '' || query.length < MIN_CONTRACTOR_QUERY_LENGTH) {
-        const visibleContractors = carrierOptions.value.slice(0, 50);
+        const visibleContractors = excludeVirtualOwnFleet(carrierOptions.value.slice(0, 50));
 
         if (!selectedContractor || visibleContractors.some((contractor) => contractor.id === selectedContractor.id)) {
+            return visibleContractors;
+        }
+
+        if (isVirtualOwnFleetContractor(selectedContractor)) {
             return visibleContractors;
         }
 
@@ -4563,8 +4579,8 @@ function filteredCarrierResults(kind, index) {
         .filter((contractor) => [contractor.name, contractor.full_name, contractor.inn, contractor.phone, contractor.email].filter(Boolean)
             .some((value) => String(value).toLowerCase().includes(query)))
         .filter(c => !serverIds.has(c.id));
-    
-    return [...serverResults, ...localResults].slice(0, 50);
+
+    return excludeVirtualOwnFleet([...serverResults, ...localResults].slice(0, 50));
 }
 
 function parsePaymentTermPreset(term) {
@@ -4781,6 +4797,12 @@ function selectOwnFleetSplitSlot(legIndex, slotIndex) {
 }
 
 function selectSplitPerformerContractor(legIndex, slotIndex, contractor) {
+    if (isVirtualOwnFleetContractor(contractor)) {
+        selectOwnFleetSplitSlot(legIndex, slotIndex);
+
+        return;
+    }
+
     ensureContractorInLocalList(contractor);
 
     const slot = splitCarrierAt(legIndex, slotIndex);
@@ -4868,6 +4890,12 @@ function restoreSplitPerformerCarrierSearch(legIndex, slotIndex) {
 }
 
 function selectPerformerContractor(index, contractor) {
+    if (isVirtualOwnFleetContractor(contractor)) {
+        selectOwnFleetPerformer(index);
+
+        return;
+    }
+
     ensureContractorInLocalList(contractor);
 
     const updatedPerformers = [...form.performers];
