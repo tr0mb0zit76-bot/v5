@@ -743,7 +743,8 @@ function applyFormState(contractor, options = {}) {
     const payload = contractorToForm(contractor);
     form.defaults(payload);
     form.reset();
-    lastAutoFilledInn.value = payload.inn;
+    const normalizedInn = normalizedContractorInn(payload.inn ?? '');
+    lastAutoFilledInn.value = String(payload.full_name ?? '').trim() !== '' ? normalizedInn : '';
 
     for (const [key, value] of Object.entries(payload)) {
         form[key] = value;
@@ -761,6 +762,10 @@ function applyFormState(contractor, options = {}) {
     };
 
     inferAddressLinkFlagsFromForm();
+
+    if (shouldLookupPartyByInn(normalizedInn)) {
+        void nextTick(() => fetchPartySuggestions());
+    }
 }
 
 applyFormState(props.selectedContractor);
@@ -878,6 +883,7 @@ const contractorScoring = ref(null);
 const contractorScoringLoading = ref(false);
 const contractorScoringConfirmLoading = ref(false);
 const contractorScoringError = ref('');
+const contractorScoringSuccess = ref('');
 const limitApprovalSubmitLoading = ref(false);
 const limitApprovalState = ref(null);
 const verificationOverride = ref(null);
@@ -984,6 +990,7 @@ async function loadContractorScoring(options = { refresh: false }) {
 
     contractorScoringLoading.value = true;
     contractorScoringError.value = '';
+    contractorScoringSuccess.value = '';
 
     try {
         const params = new URLSearchParams();
@@ -1012,6 +1019,10 @@ async function loadContractorScoring(options = { refresh: false }) {
             verificationOverride.value = data.verification;
         }
 
+        if (data.ok && data.assessment_id && canApproveContractorLimit.value) {
+            applyScoringRecommendations();
+        }
+
         if (!data.ok) {
             contractorScoringError.value = data.error || 'Не удалось рассчитать скоринг';
         }
@@ -1031,6 +1042,26 @@ const scoringScheduleTarget = computed(() => {
     return 'customer';
 });
 
+function currentAppliedPostpaymentDays() {
+    const schedule = scoringScheduleTarget.value === 'carrier'
+        ? form.default_carrier_payment_schedule
+        : form.default_customer_payment_schedule;
+
+    return Number(schedule?.postpayment_days ?? 0);
+}
+
+const scoringFormDiffersFromDraft = computed(() => {
+    if (!contractorScoring.value?.ok) {
+        return false;
+    }
+
+    const draftLimit = Number(contractorScoring.value.recommended_debt_limit_rub ?? 0);
+    const draftDays = Number(contractorScoring.value.recommended_postpayment_days ?? 0);
+
+    return Number(form.debt_limit ?? 0) !== draftLimit
+        || currentAppliedPostpaymentDays() !== draftDays;
+});
+
 function applyScoringRecommendations() {
     if (!contractorScoring.value?.ok) {
         return;
@@ -1048,6 +1079,18 @@ function applyScoringRecommendations() {
 
     schedule.postpayment_days = contractorScoring.value.recommended_postpayment_days ?? 0;
     form[scheduleField] = schedule;
+}
+
+async function applyApprovedScoringLimits() {
+    if (!contractorScoring.value?.ok || !contractorScoring.value.assessment_id) {
+        return;
+    }
+
+    const outcome = scoringFormDiffersFromDraft.value
+        ? 'accepted_with_edits'
+        : 'accepted_as_is';
+
+    await confirmRiskAssessment(outcome);
 }
 
 async function confirmRiskAssessment(outcome) {
@@ -1093,6 +1136,17 @@ async function confirmRiskAssessment(outcome) {
 
         if (data.verification) {
             verificationOverride.value = data.verification;
+        }
+
+        contractorScoringSuccess.value = outcome === 'accepted_with_edits'
+            ? 'Условия с вашими правками применены. Контрагент отмечен проверенным.'
+            : 'Рекомендации скоринга применены. Контрагент отмечен проверенным.';
+
+        if (contractorScoring.value) {
+            contractorScoring.value = {
+                ...contractorScoring.value,
+                assessment_id: null,
+            };
         }
     } catch (e) {
         contractorScoringError.value = e.message || 'Не удалось подтвердить оценку';
@@ -1683,6 +1737,18 @@ function toggleActivityType(activityType) {
     form.activity_types.push(activityType);
 }
 
+function shouldLookupPartyByInn(normalizedInn) {
+    if (!isCompleteContractorInn(normalizedInn)) {
+        return false;
+    }
+
+    if (normalizedInn !== lastAutoFilledInn.value) {
+        return true;
+    }
+
+    return String(form.full_name ?? '').trim() === '';
+}
+
 async function fetchPartySuggestions() {
     const query = form.inn.trim() || form.name.trim();
 
@@ -1932,12 +1998,17 @@ watch(() => form.inn, (inn) => {
         form.inn = normalizedInn;
     }
 
-    if (!isCompleteContractorInn(normalizedInn) || normalizedInn === lastAutoFilledInn.value) {
+    if (!isCompleteContractorInn(normalizedInn)) {
+        lastAutoFilledInn.value = '';
+
+        return;
+    }
+
+    if (!shouldLookupPartyByInn(normalizedInn)) {
         return;
     }
 
     innLookupTimer = window.setTimeout(() => {
-        form.inn = normalizedInn;
         fetchPartySuggestions();
     }, 500);
 });
@@ -2913,31 +2984,21 @@ function goToPage(pageNumber) {
                                             {{ contractorScoring.summary }}
                                         </p>
 
-                                        <div v-if="contractorScoring.assessment_id && canApproveContractorLimit" class="flex flex-wrap gap-2">
-                                            <button
-                                                type="button"
-                                                class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                                                :disabled="contractorScoringConfirmLoading"
-                                                @click="applyScoringRecommendations"
-                                            >
-                                                Подставить рекомендации
-                                            </button>
+                                        <div v-if="contractorScoring.assessment_id && canApproveContractorLimit" class="space-y-2">
+                                            <p v-if="contractorScoringSuccess" class="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                                                {{ contractorScoringSuccess }}
+                                            </p>
                                             <button
                                                 type="button"
                                                 class="rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                                                 :disabled="contractorScoringConfirmLoading"
-                                                @click="confirmRiskAssessment('accepted_as_is')"
+                                                @click="applyApprovedScoringLimits"
                                             >
-                                                Принять без правок
+                                                {{ contractorScoringConfirmLoading ? 'Сохранение…' : 'Применить условия' }}
                                             </button>
-                                            <button
-                                                type="button"
-                                                class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                                                :disabled="contractorScoringConfirmLoading"
-                                                @click="confirmRiskAssessment('accepted_with_edits')"
-                                            >
-                                                Подтвердить с правками
-                                            </button>
+                                            <p v-if="scoringFormDiffersFromDraft" class="text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+                                                Лимит или отсрочка изменены относительно рекомендации — сохранятся ваши значения.
+                                            </p>
                                         </div>
 
                                         <ul

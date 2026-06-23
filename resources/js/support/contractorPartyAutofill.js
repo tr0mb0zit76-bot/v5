@@ -163,12 +163,24 @@ export async function fetchContractorDuplicateCheck(params = {}) {
     return response.json();
 }
 
+export function contractorPartyProfileIncomplete(target) {
+    if ('full_name' in target && String(target.full_name ?? '').trim() === '') {
+        return true;
+    }
+
+    return String(target.name ?? '').trim() === '';
+}
+
 export async function ensureContractorPartyAutofill(target, options = {}) {
     const normalizedInn = normalizedContractorInn(target.inn);
     const hasName = String(target.name ?? '').trim() !== '';
 
-    if (!isCompleteContractorInn(normalizedInn) || hasName) {
+    if (!isCompleteContractorInn(normalizedInn)) {
         return hasName;
+    }
+
+    if (!options.force && hasName && !contractorPartyProfileIncomplete(target)) {
+        return true;
     }
 
     const suggestion = await fetchContractorPartySuggestion(normalizedInn);

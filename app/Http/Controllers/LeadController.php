@@ -27,6 +27,7 @@ use App\Services\Commercial\LeadProposalHtmlRenderer;
 use App\Services\Commercial\LeadProposalPdfService;
 use App\Services\Commercial\ManagerSalesCoachingInsightsService;
 use App\Services\Contractor\ContractorPortraitService;
+use App\Services\DaDataService;
 use App\Services\LeadBusinessProcessService;
 use App\Services\LeadConversionService;
 use App\Services\LeadLinkedTaskService;
@@ -185,7 +186,7 @@ class LeadController extends Controller
     /**
      * Быстрое создание контрагента из карточки лида (без отдельного доступа к разделу «Контрагенты»).
      */
-    public function storeInlineContractor(StoreInlineOrderContractorRequest $request): JsonResponse
+    public function storeInlineContractor(StoreInlineOrderContractorRequest $request, DaDataService $daDataService): JsonResponse
     {
         abort_unless($this->hasLeadsFeatureTables(), 404);
 
@@ -204,6 +205,8 @@ class LeadController extends Controller
             'created_by' => $request->user()?->id,
             'updated_by' => $request->user()?->id,
         ];
+
+        $this->mergeInlineContractorPartyFromDaData($attributes, $daDataService);
 
         if (Schema::hasColumn('contractors', 'is_own_company')) {
             $attributes['is_own_company'] = false;
@@ -1436,6 +1439,45 @@ class LeadController extends Controller
             'cancelled_tasks' => $cancelledTasks,
             'suggested_title' => 'Узнать новости у клиента',
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function mergeInlineContractorPartyFromDaData(array &$attributes, DaDataService $daDataService): void
+    {
+        $inn = is_string($attributes['inn'] ?? null) ? preg_replace('/\D+/', '', $attributes['inn']) : '';
+        if ($inn === null || ! in_array(strlen($inn), [10, 12], true)) {
+            return;
+        }
+
+        $suggestions = $daDataService->suggestParty($inn, 1);
+        $suggestion = $suggestions[0] ?? null;
+        if (! is_array($suggestion)) {
+            return;
+        }
+
+        $party = is_array($suggestion['data'] ?? null) ? $suggestion['data'] : [];
+        $partyName = is_array($party['name'] ?? null) ? $party['name'] : [];
+
+        if (Schema::hasColumn('contractors', 'full_name')) {
+            $fullName = trim((string) ($partyName['full_with_opf'] ?? $partyName['full'] ?? ''));
+            if ($fullName !== '') {
+                $attributes['full_name'] = $fullName;
+            }
+        }
+
+        if (($attributes['kpp'] ?? null) === null || $attributes['kpp'] === '') {
+            $kpp = trim((string) ($party['kpp'] ?? ''));
+            if ($kpp !== '') {
+                $attributes['kpp'] = $kpp;
+            }
+        }
+
+        $shortName = trim((string) ($partyName['short_with_opf'] ?? $partyName['short'] ?? $suggestion['value'] ?? ''));
+        if ($shortName !== '' && trim((string) ($attributes['name'] ?? '')) === '') {
+            $attributes['name'] = ContractorIdentity::normalizeName($shortName);
+        }
     }
 
     /**

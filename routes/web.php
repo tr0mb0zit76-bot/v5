@@ -504,6 +504,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/contractors', 'index')->name('contractors.index');
         Route::get('/contractors/create', 'create')->name('contractors.create');
         Route::post('/contractors', 'store')->name('contractors.store');
+        Route::get('/contractors/duplicate-check', 'checkDuplicate')->name('contractors.duplicate-check');
+        Route::get('/contractors-suggest/party', 'suggestParty')->name('contractors.suggest-party');
+        Route::get('/contractors-suggest/address', 'suggestAddress')->name('contractors.suggest-address');
+        Route::get('/contractors-suggest/bank', 'suggestBank')->name('contractors.suggest-bank');
+        Route::post('/contractors/activity-types', 'storeActivityType')->name('contractors.activity-types.store');
+        Route::post('/contractors/mass-update-owner', 'massUpdateOwner')->name('contractors.mass-update-owner');
         Route::get('/contractors/{contractor}', 'show')->name('contractors.show');
         Route::get('/contractors/{contractor}/partner-card', 'downloadPartnerCard')->name('contractors.partner-card');
         Route::get('/contractors/{contractor}/documents/{contractorDocument}/preview', 'previewDocument')->name('contractors.documents.preview');
@@ -521,12 +527,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/contractors/{contractor}/print-form/basic-terms', [ContractorPrintFormController::class, 'updateBasicTerms'])->name('contractors.print-form.basic-terms.update');
         Route::post('/contractors/{contractor}/print-form/changes', [ContractorPrintFormController::class, 'submitChange'])->name('contractors.print-form.changes.submit');
         Route::post('/contractors/{contractor}/print-form/changes/{printFormChange}/resolve', [ContractorPrintFormController::class, 'resolveChange'])->name('contractors.print-form.changes.resolve');
-        Route::post('/contractors/activity-types', 'storeActivityType')->name('contractors.activity-types.store');
-        Route::post('/contractors/mass-update-owner', 'massUpdateOwner')->name('contractors.mass-update-owner');
-        Route::get('/contractors/duplicate-check', 'checkDuplicate')->name('contractors.duplicate-check');
-        Route::get('/contractors-suggest/party', 'suggestParty')->name('contractors.suggest-party');
-        Route::get('/contractors-suggest/address', 'suggestAddress')->name('contractors.suggest-address');
-        Route::get('/contractors-suggest/bank', 'suggestBank')->name('contractors.suggest-bank');
     });
 
     Route::controller(ContractorController::class)

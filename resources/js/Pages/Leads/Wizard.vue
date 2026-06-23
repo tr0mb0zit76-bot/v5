@@ -884,12 +884,16 @@ function hideCounterpartyResultsWithDelay() {
 
 async function lookupLeadCounterpartyByInn() {
     const normalizedInn = normalizedContractorInn(counterpartyForm.inn);
-    if (!isCompleteContractorInn(normalizedInn) || normalizedInn === leadCounterpartyLastAutofilledInn.value) {
+    if (!isCompleteContractorInn(normalizedInn)) {
+        return;
+    }
+
+    if (normalizedInn === leadCounterpartyLastAutofilledInn.value && String(counterpartyForm.name ?? '').trim() !== '') {
         return;
     }
 
     counterpartyForm.inn = normalizedInn;
-    const filled = await ensureContractorPartyAutofill(counterpartyForm);
+    const filled = await ensureContractorPartyAutofill(counterpartyForm, { force: normalizedInn !== leadCounterpartyLastAutofilledInn.value });
     if (filled) {
         leadCounterpartyLastAutofilledInn.value = normalizedInn;
     }
@@ -903,7 +907,13 @@ watch(() => counterpartyForm.inn, (inn) => {
         counterpartyForm.inn = normalizedInn;
     }
 
-    if (!isCompleteContractorInn(normalizedInn) || normalizedInn === leadCounterpartyLastAutofilledInn.value) {
+    if (!isCompleteContractorInn(normalizedInn)) {
+        leadCounterpartyLastAutofilledInn.value = '';
+
+        return;
+    }
+
+    if (normalizedInn === leadCounterpartyLastAutofilledInn.value && String(counterpartyForm.name ?? '').trim() !== '') {
         return;
     }
 
