@@ -40,6 +40,7 @@ use App\Support\LeadCargoItemPayloadNormalizer;
 use App\Support\LeadCloseOutcomeFlagCatalog;
 use App\Support\LeadRoutePointPayloadNormalizer;
 use App\Support\LeadSource;
+use App\Support\LeadStatus;
 use App\Support\LeadTableColumns;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
