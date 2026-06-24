@@ -44,7 +44,9 @@ use App\Support\LeadCloseOutcomeFlagCatalog;
 use App\Support\LeadRoutePointPayloadNormalizer;
 use App\Support\LeadSource;
 use App\Support\LeadStatus;
+use App\Support\LeadStatusAutoAdvance;
 use App\Support\LeadTableColumns;
+use App\Support\PaymentFormDictionary;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -139,7 +141,7 @@ class LeadController extends Controller
 
             $lead = Lead::query()->create([
                 'number' => $this->nextLeadNumber(),
-                'status' => $request->string('status')->toString(),
+                'status' => $this->resolveLeadStatusForSave($request),
                 'source' => $request->string('source')->toString() ?: null,
                 'counterparty_id' => $request->input('counterparty_id'),
                 'responsible_id' => $responsibleId,
@@ -149,10 +151,7 @@ class LeadController extends Controller
                 'loading_location' => $request->string('loading_location')->toString() ?: null,
                 'unloading_location' => $request->string('unloading_location')->toString() ?: null,
                 'planned_shipping_date' => $request->input('planned_shipping_date'),
-                'target_price' => $request->input('target_price'),
-                'target_currency' => $request->string('target_currency')->toString() ?: 'RUB',
-                'calculated_cost' => $request->input('calculated_cost'),
-                'expected_margin' => $request->input('expected_margin'),
+                ...$this->leadFinanceAttributes($request),
                 'next_contact_at' => $request->input('next_contact_at'),
                 'lost_reason' => $request->string('lost_reason')->toString() ?: null,
                 'lead_qualification' => $request->input('qualification', []),
@@ -161,6 +160,7 @@ class LeadController extends Controller
             ]);
 
             $this->syncNestedData($lead, $request);
+            $this->syncLeadRouteSummary($lead, $request);
 
             $this->maybeApplyCloseOutcomeFromRequest($lead, $request);
 
@@ -238,10 +238,12 @@ class LeadController extends Controller
 
         $previousStatus = $lead->status;
         $cancelledTasks = 0;
+        $resolvedStatus = $lead->status;
 
-        DB::transaction(function () use ($request, $lead, $previousStatus, &$cancelledTasks): void {
+        DB::transaction(function () use ($request, $lead, $previousStatus, &$cancelledTasks, &$resolvedStatus): void {
             $responsibleId = $this->sanitizeResponsibleId($request, $lead->responsible_id);
-            $newStatus = $request->string('status')->toString();
+            $newStatus = $this->resolveLeadStatusForSave($request);
+            $resolvedStatus = $newStatus;
 
             $lead->update([
                 'status' => $newStatus,
@@ -254,10 +256,7 @@ class LeadController extends Controller
                 'loading_location' => $request->string('loading_location')->toString() ?: null,
                 'unloading_location' => $request->string('unloading_location')->toString() ?: null,
                 'planned_shipping_date' => $request->input('planned_shipping_date'),
-                'target_price' => $request->input('target_price'),
-                'target_currency' => $request->string('target_currency')->toString() ?: 'RUB',
-                'calculated_cost' => $request->input('calculated_cost'),
-                'expected_margin' => $request->input('expected_margin'),
+                ...$this->leadFinanceAttributes($request),
                 'next_contact_at' => $request->input('next_contact_at'),
                 'lost_reason' => $request->string('lost_reason')->toString() ?: null,
                 'lead_qualification' => $request->input('qualification', []),
@@ -265,6 +264,7 @@ class LeadController extends Controller
             ]);
 
             $this->syncNestedData($lead, $request);
+            $this->syncLeadRouteSummary($lead, $request);
 
             $this->maybeApplyCloseOutcomeFromRequest($lead, $request);
 
@@ -273,7 +273,7 @@ class LeadController extends Controller
             }
         });
 
-        $followUp = $previousStatus !== 'lost' && $request->string('status')->toString() === 'lost'
+        $followUp = $previousStatus !== 'lost' && $resolvedStatus === 'lost'
             ? $this->leadFollowUpFlash($cancelledTasks)
             : null;
 
@@ -697,6 +697,7 @@ class LeadController extends Controller
                 ['value' => 'rail', 'label' => 'Ж/д'],
             ],
             'currencyOptions' => CurrencyDictionary::options(),
+            'paymentFormOptions' => PaymentFormDictionary::options(),
             'printFormTemplateOptions' => $this->availableCommercialTemplates($selectedLead)->values(),
             'proposalHtmlTemplateOptions' => $this->availableProposalHtmlTemplates()->values(),
             'businessProcessesEnabled' => $this->leadBusinessProcessService->tablesReady(),
@@ -891,6 +892,67 @@ class LeadController extends Controller
                 'created_by' => $request->user()?->id,
             ]);
         }
+    }
+
+    private function resolveLeadStatusForSave(StoreLeadRequest $request): string
+    {
+        $requestedStatus = $request->string('status')->toString();
+
+        if ($request->boolean('preserve_status')) {
+            return $requestedStatus;
+        }
+
+        return LeadStatusAutoAdvance::resolve(
+            $requestedStatus,
+            $request->input('route_points'),
+            $request->input('cargo_items'),
+            $request->input('target_price'),
+        );
+    }
+
+    private function syncLeadRouteSummary(Lead $lead, Request $request): void
+    {
+        $routePoints = $request->input('route_points', []);
+        if (! is_array($routePoints)) {
+            return;
+        }
+
+        $loadingAddress = null;
+        $unloadingAddress = null;
+        $plannedDate = null;
+
+        foreach ($routePoints as $routePoint) {
+            if (! is_array($routePoint) || ! LeadRoutePointPayloadNormalizer::isMeaningful($routePoint)) {
+                continue;
+            }
+
+            $type = (string) ($routePoint['type'] ?? '');
+            $address = trim((string) ($routePoint['address'] ?? ''));
+
+            if ($type === 'loading' && $loadingAddress === null && $address !== '') {
+                $loadingAddress = $address;
+            }
+
+            if ($type === 'unloading' && $unloadingAddress === null && $address !== '') {
+                $unloadingAddress = $address;
+            }
+
+            if ($plannedDate === null && filled($routePoint['planned_date'] ?? null)) {
+                $plannedDate = $routePoint['planned_date'];
+            }
+        }
+
+        $updates = array_filter([
+            'loading_location' => $loadingAddress,
+            'unloading_location' => $unloadingAddress,
+            'planned_shipping_date' => $plannedDate,
+        ], fn ($value): bool => $value !== null && $value !== '');
+
+        if ($updates === []) {
+            return;
+        }
+
+        $lead->forceFill($updates)->save();
     }
 
     private function nextLeadNumber(): string
@@ -1128,6 +1190,44 @@ class LeadController extends Controller
         return $contractor;
     }
 
+    /**
+     * @return array{
+     *     target_price: mixed,
+     *     target_currency: string,
+     *     customer_payment_form: string|null,
+     *     carrier_payment_form: string|null,
+     *     calculated_cost: mixed,
+     *     expected_margin: float|null
+     * }
+     */
+    private function leadFinanceAttributes(StoreLeadRequest $request): array
+    {
+        $targetPrice = $request->input('target_price');
+        $calculatedCost = $request->input('calculated_cost');
+
+        return [
+            'target_price' => $targetPrice,
+            'target_currency' => $request->string('target_currency')->toString() ?: 'RUB',
+            'customer_payment_form' => $request->filled('customer_payment_form')
+                ? $request->string('customer_payment_form')->toString()
+                : null,
+            'carrier_payment_form' => $request->filled('carrier_payment_form')
+                ? $request->string('carrier_payment_form')->toString()
+                : null,
+            'calculated_cost' => $calculatedCost,
+            'expected_margin' => $this->resolveLeadExpectedMargin($targetPrice, $calculatedCost),
+        ];
+    }
+
+    private function resolveLeadExpectedMargin(mixed $targetPrice, mixed $calculatedCost): ?float
+    {
+        if ($targetPrice === null || $targetPrice === '' || $calculatedCost === null || $calculatedCost === '') {
+            return null;
+        }
+
+        return round((float) $targetPrice - (float) $calculatedCost, 2);
+    }
+
     private function serializeLead(Lead $lead): array
     {
         return [
@@ -1146,6 +1246,8 @@ class LeadController extends Controller
             'planned_shipping_date' => optional($lead->planned_shipping_date)->toDateString(),
             'target_price' => $lead->target_price,
             'target_currency' => $lead->target_currency,
+            'customer_payment_form' => $lead->customer_payment_form,
+            'carrier_payment_form' => $lead->carrier_payment_form,
             'calculated_cost' => $lead->calculated_cost,
             'expected_margin' => $lead->expected_margin,
             'proposal_sent_at' => optional($lead->proposal_sent_at)?->toIso8601String(),

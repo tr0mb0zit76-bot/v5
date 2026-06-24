@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\LeadCloseOutcomeFlag;
 use App\Support\CurrencyDictionary;
+use App\Support\PaymentFormDictionary;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Schema;
@@ -60,6 +61,8 @@ class StoreLeadRequest extends FormRequest
             'planned_shipping_date' => ['nullable', 'date'],
             'target_price' => ['nullable', 'numeric', 'min:0'],
             'target_currency' => ['required_with:target_price', Rule::in(CurrencyDictionary::allowedCodes())],
+            'customer_payment_form' => ['nullable', 'string', Rule::in(PaymentFormDictionary::allowedCodesForValidation())],
+            'carrier_payment_form' => ['nullable', 'string', Rule::in(PaymentFormDictionary::allowedCodesForValidation())],
             'calculated_cost' => ['nullable', 'numeric', 'min:0'],
             'expected_margin' => ['nullable', 'numeric'],
             'next_contact_at' => ['nullable', 'date'],

@@ -99,6 +99,8 @@ class LeadManagementTest extends TestCase
             $table->date('planned_shipping_date')->nullable();
             $table->decimal('target_price', 12, 2)->nullable();
             $table->string('target_currency', 3)->default('RUB');
+            $table->string('customer_payment_form', 50)->nullable();
+            $table->string('carrier_payment_form', 50)->nullable();
             $table->decimal('calculated_cost', 12, 2)->nullable();
             $table->decimal('expected_margin', 12, 2)->nullable();
             $table->timestamp('proposal_sent_at')->nullable();
@@ -138,6 +140,7 @@ class LeadManagementTest extends TestCase
             $table->string('dangerous_class', 10)->nullable();
             $table->string('hs_code', 50)->nullable();
             $table->string('cargo_type', 50)->default('general');
+            $table->json('metadata')->nullable();
             $table->timestamps();
         });
 
@@ -478,6 +481,132 @@ class LeadManagementTest extends TestCase
         $this->assertDatabaseHas('lead_activities', [
             'lead_id' => $leadId,
             'subject' => 'Первичный звонок',
+        ]);
+    }
+
+    public function test_manager_can_save_lead_finance_fields_with_expected_margin(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+
+        $response = $this->actingAs($manager)->post(route('leads.store'), [
+            'status' => 'new',
+            'source' => 'inbound',
+            'responsible_id' => $manager->id,
+            'title' => 'Лид с финансами',
+            'target_currency' => 'RUB',
+            'target_price' => 200000,
+            'calculated_cost' => 150000,
+            'customer_payment_form' => 'vat_22',
+            'carrier_payment_form' => 'no_vat',
+            'qualification' => [],
+            'route_points' => [],
+            'cargo_items' => [],
+            'activities' => [],
+        ]);
+
+        $leadId = DB::table('leads')->value('id');
+
+        $response->assertRedirect(route('leads.show', $leadId));
+        $this->assertDatabaseHas('leads', [
+            'id' => $leadId,
+            'target_price' => 200000,
+            'calculated_cost' => 150000,
+            'customer_payment_form' => 'vat_22',
+            'carrier_payment_form' => 'no_vat',
+            'expected_margin' => 50000,
+        ]);
+    }
+
+    public function test_lead_status_auto_advances_when_route_and_cargo_are_filled(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+
+        $response = $this->actingAs($manager)->post(route('leads.store'), [
+            'status' => 'qualification',
+            'source' => 'inbound',
+            'responsible_id' => $manager->id,
+            'title' => 'Лид с маршрутом и грузом',
+            'target_currency' => 'RUB',
+            'qualification' => [],
+            'route_points' => [
+                [
+                    'type' => 'loading',
+                    'sequence' => 1,
+                    'address' => 'Самара, Заводская 1',
+                    'normalized_data' => [],
+                    'planned_date' => now()->addDays(3)->toDateString(),
+                ],
+            ],
+            'cargo_items' => [
+                [
+                    'name' => 'Оборудование',
+                    'description' => null,
+                    'weight_kg' => 1000,
+                    'volume_m3' => null,
+                    'package_type' => null,
+                    'package_count' => null,
+                    'dangerous_goods' => false,
+                    'dangerous_class' => null,
+                    'hs_code' => null,
+                    'cargo_type' => 'general',
+                ],
+            ],
+            'activities' => [],
+        ]);
+
+        $leadId = DB::table('leads')->value('id');
+
+        $response->assertRedirect(route('leads.show', $leadId));
+        $this->assertDatabaseHas('leads', [
+            'id' => $leadId,
+            'status' => 'calculation',
+            'loading_location' => 'Самара, Заводская 1',
+        ]);
+    }
+
+    public function test_lead_status_is_preserved_when_requested(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+
+        $response = $this->actingAs($manager)->post(route('leads.store'), [
+            'status' => 'qualification',
+            'preserve_status' => true,
+            'source' => 'inbound',
+            'responsible_id' => $manager->id,
+            'title' => 'Лид с ручным статусом',
+            'target_currency' => 'RUB',
+            'qualification' => [],
+            'route_points' => [
+                [
+                    'type' => 'loading',
+                    'sequence' => 1,
+                    'address' => 'Казань',
+                    'normalized_data' => [],
+                ],
+            ],
+            'cargo_items' => [
+                [
+                    'name' => 'Груз',
+                    'description' => null,
+                    'weight_kg' => null,
+                    'volume_m3' => null,
+                    'package_type' => null,
+                    'package_count' => null,
+                    'dangerous_goods' => false,
+                    'dangerous_class' => null,
+                    'hs_code' => null,
+                    'cargo_type' => 'general',
+                ],
+            ],
+            'activities' => [],
+        ]);
+
+        $leadId = DB::table('leads')->value('id');
+
+        $response->assertRedirect(route('leads.show', $leadId));
+        $this->assertDatabaseHas('leads', [
+            'id' => $leadId,
+            'status' => 'qualification',
         ]);
     }
 

@@ -55,14 +55,7 @@ class LeadConversionService
                     'hs_code' => $cargo->hs_code,
                     'cargo_type' => $cargo->cargo_type,
                 ])->values()->all(),
-                'financial_term' => $lead->target_price === null ? null : [
-                    'client_price' => $lead->target_price,
-                    'client_currency' => $lead->target_currency ?: 'RUB',
-                    'client_payment_schedule' => [],
-                    'contractors_costs' => [],
-                    'additional_costs' => [],
-                    'kpi_percent' => null,
-                ],
+                'financial_term' => $this->buildFinancialTermFromLead($lead),
                 'documents' => [],
             ];
 
@@ -105,5 +98,39 @@ class LeadConversionService
 
             return $order;
         });
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function buildFinancialTermFromLead(Lead $lead): ?array
+    {
+        if ($lead->target_price === null && $lead->calculated_cost === null) {
+            return null;
+        }
+
+        $currency = $lead->target_currency ?: 'RUB';
+        $contractorsCosts = [];
+
+        if ($lead->calculated_cost !== null) {
+            $contractorsCosts[] = [
+                'stage' => 'leg_1',
+                'contractor_id' => null,
+                'amount' => $lead->calculated_cost,
+                'currency' => $currency,
+                'payment_form' => $lead->carrier_payment_form ?: 'no_vat',
+                'payment_schedule' => [],
+            ];
+        }
+
+        return [
+            'client_price' => $lead->target_price,
+            'client_currency' => $currency,
+            'client_payment_form' => $lead->customer_payment_form,
+            'client_payment_schedule' => [],
+            'contractors_costs' => $contractorsCosts,
+            'additional_costs' => [],
+            'kpi_percent' => null,
+        ];
     }
 }

@@ -14,7 +14,7 @@ final class LeadStatus
         'proposal_ready' => 'КП подготовлено',
         'proposal_sent' => 'КП отправлено',
         'negotiation' => 'Переговоры',
-        'won' => 'Конвертирован',
+        'won' => 'Выигран',
         'lost' => 'Закрыт без сделки',
         'on_hold' => 'Отложен',
     ];

@@ -1,5 +1,5 @@
 <template>
-    <div :class="crmWizardShell">
+    <div :class="[crmWizardShell, embedded ? 'h-full min-h-0' : '']">
         <div :class="crmWizardHeader">
             <div class="flex items-center gap-3">
                 <button
@@ -27,23 +27,59 @@
         </div>
 
         <div class="border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
-            <div class="flex flex-wrap gap-2">
-                <button
-                    v-for="tab in tabs"
-                    :key="tab.key"
-                    type="button"
-                    class="inline-flex items-center gap-2 text-sm transition-colors"
-                    :class="crmTabButtonClasses(activeTab === tab.key)"
-                    @click="activeTab = tab.key"
-                >
-                    <component :is="tab.icon" class="h-4 w-4" />
-                    {{ tab.label }}
-                </button>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex flex-wrap gap-2">
+                    <button
+                        v-for="tab in tabs"
+                        :key="tab.key"
+                        type="button"
+                        class="inline-flex items-center gap-2 text-sm transition-colors"
+                        :class="crmTabButtonClasses(activeTab === tab.key)"
+                        @click="activeTab = tab.key"
+                    >
+                        <component :is="tab.icon" class="h-4 w-4" />
+                        {{ tab.label }}
+                    </button>
+                </div>
+                <div class="flex min-w-[14rem] items-center gap-2">
+                    <span class="shrink-0 text-xs font-medium text-zinc-500 dark:text-zinc-400">Ответственный</span>
+                    <select
+                        v-model.number="form.responsible_id"
+                        :class="`${crmFieldFluid} !py-1.5 text-sm`"
+                        :disabled="!canAssignResponsible"
+                    >
+                        <option v-for="user in responsibleUsers" :key="`lead-responsible-${user.id}`" :value="user.id">
+                            {{ user.name }}
+                        </option>
+                    </select>
+                </div>
             </div>
         </div>
 
         <div :class="crmWizardBody">
             <div v-if="activeTab === 'main'" class="space-y-5">
+                <LeadStatusPipeline
+                    v-model="form.status"
+                    :selected-lead-id="selectedLeadId"
+                    :converted-order-number="convertedOrderNumber"
+                    @manual-change="markStatusTouchedByUser"
+                />
+
+                <LeadWizardNextStepPanel
+                    :selected-lead-id="selectedLeadId"
+                    :can-use-lead-tasks="canUseLeadTasks"
+                    :can-assign-responsible="canAssignResponsible"
+                    :responsible-users="responsibleUsers"
+                    :open-tasks="openTasks"
+                    v-model:next-step-title="nextStepForm.title"
+                    v-model:next-step-due-at="nextStepForm.due_at"
+                    v-model:next-step-responsible-id="nextStepForm.responsible_id"
+                    :processing="nextStepForm.processing"
+                    :format-date-time="formatDateTime"
+                    @create="createNextStep"
+                    @open-task="openTask"
+                />
+
                 <div
                     v-if="followUpPrompt"
                     class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100"
@@ -96,59 +132,50 @@
                         Заполнить портрет контрагента
                     </Link>
                 </div>
-                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <div class="space-y-2">
-                        <label :class="crmLabel">Статус</label>
-                        <select v-model="form.status" :class="crmFieldFluid">
-                            <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                        </select>
-                    </div>
-                    <div class="space-y-2">
-                        <label :class="crmLabel">Источник</label>
-                        <select v-model="form.source" :class="crmFieldFluid">
-                            <option value="">Не выбрано</option>
-                            <option v-for="option in sourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                        </select>
-                    </div>
-                    <div class="space-y-2">
-                        <label :class="crmLabel">Ответственный</label>
-                        <select v-model.number="form.responsible_id" :class="crmFieldFluid" :disabled="!canAssignResponsible">
-                            <option v-for="user in responsibleUsers" :key="user.id" :value="user.id">{{ user.name }}</option>
-                        </select>
-                        <p v-if="!selectedLeadId && canAssignResponsible" class="text-xs text-zinc-500 dark:text-zinc-400">
-                            По умолчанию — вы; при необходимости можно назначить коллегу.
-                        </p>
-                    </div>
-                    <div class="space-y-2">
-                        <label :class="crmLabel">Плановая отгрузка</label>
-                        <input v-model="form.planned_shipping_date" type="date" :class="crmFieldFluid" />
-                    </div>
-                </div>
 
-                <div class="space-y-2">
-                    <label :class="crmLabel">Тема лида</label>
-                    <input v-model="form.title" type="text" :class="crmFieldFluid" />
-                </div>
-
-                <div class="space-y-2">
-                    <label :class="crmLabel">Описание</label>
-                    <textarea v-model="form.description" rows="4" :class="crmFieldFluid" />
-                </div>
-
-                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <section class="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+                    <h3 class="text-base font-semibold">Суть сделки</h3>
                     <div class="space-y-2">
-                        <div class="flex items-center justify-between gap-2">
-                            <label :class="crmLabel">Контрагент</label>
-                            <button
-                                type="button"
-                                class="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                                @mousedown.prevent
-                                @click.stop="openLeadCounterpartyModal"
-                            >
-                                Новый контрагент
-                            </button>
+                        <label :class="crmLabel">Тема</label>
+                        <input v-model="form.title" type="text" :class="crmFieldFluid" />
+                    </div>
+                    <div class="space-y-2">
+                        <textarea v-model="form.description" rows="4" :class="crmFieldFluid" placeholder="Суть запроса, ограничения, особенности груза или клиента" />
+                    </div>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="space-y-2">
+                            <label :class="crmLabel">Источник</label>
+                            <select v-model="form.source" :class="crmFieldFluid">
+                                <option value="">Не выбрано</option>
+                                <option v-for="option in sourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                            </select>
                         </div>
-                        <div class="relative">
+                        <div class="space-y-2">
+                            <label :class="crmLabel">Тип перевозки</label>
+                            <select v-model="form.transport_type" :class="crmFieldFluid">
+                                <option value="">Не выбрано</option>
+                                <option v-for="option in transportTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p v-if="routePlannedDateSummary" class="text-xs text-zinc-500 dark:text-zinc-400">
+                        Плановая дата: {{ formatRouteDate(routePlannedDateSummary) }} (вкладка «Маршрут»)
+                    </p>
+                </section>
+
+                <section class="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+                    <div class="flex items-center justify-between gap-2">
+                        <h3 class="text-base font-semibold">Клиент</h3>
+                        <button
+                            type="button"
+                            class="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                            @mousedown.prevent
+                            @click.stop="openLeadCounterpartyModal"
+                        >
+                            Новый контрагент
+                        </button>
+                    </div>
+                    <div class="relative">
                             <input
                                 v-model="counterpartySearch"
                                 type="text"
@@ -189,35 +216,18 @@
                                     Не найдено — создать «{{ counterpartySearch.trim() }}»
                                 </button>
                             </div>
-                        </div>
-                        <p v-if="selectedCounterparty" class="text-xs text-zinc-500">
-                            Выбран: {{ selectedCounterparty.name }}{{ selectedCounterparty.inn ? `, ИНН ${selectedCounterparty.inn}` : '' }}
-                        </p>
                     </div>
-                    <div class="space-y-2">
-                        <label :class="crmLabel">Тип перевозки</label>
-                        <select v-model="form.transport_type" :class="crmFieldFluid">
-                            <option value="">Не выбрано</option>
-                            <option v-for="option in transportTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                        </select>
+                    <p v-if="selectedCounterparty" class="text-xs text-zinc-500">
+                        {{ selectedCounterparty.name }}{{ selectedCounterparty.inn ? ` · ИНН ${selectedCounterparty.inn}` : '' }}
+                    </p>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <input v-model="form.qualification.authority" type="text" :class="crmFieldFluid" placeholder="ЛПР — кто принимает решение" />
+                        <input v-model="form.qualification.budget" type="text" :class="crmFieldFluid" placeholder="Ориентир по бюджету" />
                     </div>
-                    <div class="space-y-2">
-                        <label :class="crmLabel">Цена клиента</label>
-                        <input v-model="form.target_price" type="number" min="0" step="0.01" :class="crmFieldFluid" />
-                    </div>
-                    <div class="space-y-2">
-                        <label :class="crmLabel">Валюта</label>
-                        <select v-model="form.target_currency" :class="crmFieldFluid">
-                            <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                        </select>
-                    </div>
-                </div>
+                </section>
 
                 <div class="grid gap-4 md:grid-cols-2">
-                    <div class="space-y-2">
-                        <label :class="crmLabel">Следующий контакт</label>
-                        <input v-model="form.next_contact_at" type="datetime-local" :class="crmFieldFluid" />
-                    </div>
+                    <input v-model="form.next_contact_at" type="datetime-local" :class="crmFieldFluid" placeholder="Следующий контакт" />
                 </div>
 
                 <LeadCloseOutcomeFields
@@ -231,115 +241,21 @@
                     :input-class="crmFieldFluid"
                 />
 
-                <section v-if="selectedLeadId" class="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-                    <div>
-                        <h3 class="text-base font-semibold">Контекстные документы</h3>
-                        <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                            Пакинги, инвойсы и прочие файлы для работы с лидом. Не попадают в реестр «Документы».
-                        </p>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <input
-                            ref="attachmentInput"
-                            type="file"
-                            class="max-w-full text-sm text-zinc-600 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-800 dark:text-zinc-300 dark:file:bg-zinc-800 dark:file:text-zinc-100"
-                            accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.txt"
-                            @change="onAttachmentSelected"
-                        />
-                        <button
-                            type="button"
-                            :class="crmBtnSecondary"
-                            :disabled="!attachmentFile || attachmentForm.processing"
-                            @click="addAttachment"
-                        >
-                            {{ attachmentForm.processing ? 'Загрузка…' : 'Загрузить' }}
-                        </button>
-                    </div>
-                    <div v-if="leadAttachments.length" class="space-y-2">
-                        <div
-                            v-for="file in leadAttachments"
-                            :key="file.id"
-                            class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700"
-                        >
-                            <div class="min-w-0">
-                                <a :href="file.download_url" class="font-medium text-zinc-900 underline-offset-2 hover:underline dark:text-zinc-100">
-                                    {{ file.original_name }}
-                                </a>
-                                <div class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                                    {{ formatAttachmentMeta(file) }}
-                                </div>
-                            </div>
-                            <button type="button" :class="crmBtnSecondary" @click="deleteAttachment(file)">Удалить</button>
-                        </div>
-                    </div>
-                    <p v-else class="text-sm text-zinc-500 dark:text-zinc-400">Файлов пока нет.</p>
-                </section>
-
-                <div class="grid gap-4 xl:grid-cols-4">
-                    <div class="space-y-2"><label :class="crmLabel">Потребность</label><input v-model="form.qualification.need" type="text" :class="crmFieldFluid" /></div>
-                    <div class="space-y-2"><label :class="crmLabel">Срок</label><input v-model="form.qualification.timeline" type="text" :class="crmFieldFluid" /></div>
-                    <div class="space-y-2"><label :class="crmLabel">ЛПР</label><input v-model="form.qualification.authority" type="text" :class="crmFieldFluid" /></div>
-                    <div class="space-y-2"><label :class="crmLabel">Бюджет</label><input v-model="form.qualification.budget" type="text" :class="crmFieldFluid" /></div>
-                </div>
-
                 <div
                     v-if="selectedLeadId && form.counterparty_id && hasQualificationForPortraitMerge"
                     class="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-950/40"
                 >
-                    <p class="min-w-0 flex-1 text-zinc-600 dark:text-zinc-300">
-                        Заполненная квалификация может пополнить портрет контрагента без перезаписи уже известных полей.
-                    </p>
                     <button
                         type="button"
                         :class="crmBtnSecondary"
                         :disabled="portraitMergeProcessing"
                         @click="mergePortraitFromQualification"
                     >
-                        {{ portraitMergeProcessing ? 'Перенос…' : 'Перенести в портрет' }}
+                        {{ portraitMergeProcessing ? 'Перенос…' : 'Перенести ЛПР и бюджет в портрет' }}
                     </button>
                 </div>
                 <p v-if="portraitMergeMessage" class="text-sm text-emerald-700 dark:text-emerald-300">{{ portraitMergeMessage }}</p>
                 <p v-if="portraitMergeError" class="text-sm text-rose-600 dark:text-rose-300">{{ portraitMergeError }}</p>
-
-                <section v-if="selectedLeadId" class="space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <h3 class="text-base font-semibold">Следующий шаг</h3>
-                            <p class="text-sm text-zinc-500 dark:text-zinc-400">Лид без следующего шага не должен зависать в воронке.</p>
-                        </div>
-                        <div class="text-sm text-zinc-500 dark:text-zinc-400">Открытых задач: {{ openTasks.length }}</div>
-                    </div>
-
-                    <div v-if="canUseLeadTasks" class="grid gap-3 xl:grid-cols-[minmax(0,1.4fr),220px,220px,160px]">
-                        <input v-model="nextStepForm.title" type="text" :class="crmFieldFluid" placeholder="Например: перезвонить клиенту после расчёта" />
-                        <input v-model="nextStepForm.due_at" type="datetime-local" :class="crmFieldFluid" />
-                        <select v-model="nextStepForm.responsible_id" :class="crmFieldFluid" :disabled="!canAssignResponsible">
-                            <option v-for="user in responsibleUsers" :key="`next-step-${user.id}`" :value="user.id">{{ user.name }}</option>
-                        </select>
-                        <button type="button" :class="`${crmBtnSecondary} justify-center`" :disabled="nextStepForm.processing || !nextStepForm.title" @click="createNextStep">Создать шаг</button>
-                    </div>
-
-                    <div v-else class="text-sm text-zinc-500 dark:text-zinc-400">
-                        Модуль задач недоступен для вашей роли.
-                    </div>
-
-                    <div class="space-y-2">
-                        <div v-for="task in openTasks" :key="task.id" class="flex flex-wrap items-center justify-between gap-3 border border-zinc-200 px-3 py-3 text-sm dark:border-zinc-800">
-                            <div class="min-w-0 flex-1">
-                                <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ task.title }}</div>
-                                <div class="mt-1 text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                                    {{ task.status_label }} · {{ task.responsible_name || '—' }} · {{ formatDateTime(task.due_at) }}
-                                </div>
-                            </div>
-                            <button type="button" :class="crmBtnSecondary" @click="openTask(task.id)">Открыть задачи</button>
-                        </div>
-                        <div v-if="openTasks.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">Открытых следующих шагов пока нет.</div>
-                    </div>
-                </section>
-
-                <section v-else class="border border-dashed border-zinc-300 p-4 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                    Сохраните лид, чтобы назначить следующий шаг через модуль задач.
-                </section>
             </div>
 
             <LeadWizardRouteTab
@@ -358,6 +274,30 @@
                 :cargo-title-suggestions="cargoTitleSuggestions"
             />
 
+            <LeadWizardFinanceTab
+                v-else-if="activeTab === 'finance'"
+                v-model:target-price="form.target_price"
+                v-model:target-currency="form.target_currency"
+                v-model:calculated-cost="form.calculated_cost"
+                v-model:customer-payment-form="form.customer_payment_form"
+                v-model:carrier-payment-form="form.carrier_payment_form"
+                :currency-options="currencyOptions"
+                :payment-form-options="paymentFormOptions"
+                :expected-margin="form.expected_margin"
+            />
+
+            <LeadWizardDocumentsTab
+                v-else-if="activeTab === 'documents'"
+                :selected-lead-id="selectedLeadId"
+                :attachments="leadAttachments"
+                :attachment-processing="attachmentForm.processing"
+                :has-attachment-file="Boolean(attachmentFile)"
+                :format-attachment-meta="formatAttachmentMeta"
+                @file-selected="onAttachmentSelected"
+                @upload="addAttachment"
+                @delete="deleteAttachment"
+            />
+
             <div v-else-if="activeTab === 'activities'" class="space-y-4">
                 <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Коммуникации</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">История контактов и единая лента событий.</p></div><button type="button" :class="crmBtnSecondary" @click="addActivity"><Plus class="h-4 w-4" />Добавить активность</button></div>
                 <ActivityTimeline v-if="selectedLeadId" ref="activityTimelineRef" :lead-id="selectedLeadId" />
@@ -373,7 +313,7 @@
             </div>
 
             <LeadWizardCommercialTab
-                v-else
+                v-else-if="activeTab === 'commercial'"
                 v-model:selected-template-id="selectedTemplateId"
                 v-model:selected-html-template-id="selectedHtmlTemplateId"
                 :lead-id="selectedLeadId"
@@ -385,9 +325,14 @@
             />
         </div>
 
-        <div v-if="selectedLeadId" class="flex items-center justify-between gap-4 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
-            <div class="text-sm text-zinc-500 dark:text-zinc-400">Удаление используется для чистки воронки.</div>
-            <button type="button" :class="crmBtnDangerMuted" @click="destroyLead"><Trash2 class="h-4 w-4" />Удалить</button>
+        <div
+            v-if="selectedLeadId"
+            class="flex shrink-0 items-center justify-end gap-4 border-t border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900"
+        >
+            <button type="button" :class="crmBtnDangerMuted" @click="destroyLead">
+                <Trash2 class="h-4 w-4" />
+                Удалить
+            </button>
         </div>
 
         <div
@@ -458,12 +403,16 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowRightLeft, ClipboardList, FileText, History, MapPinned, Package, Plus, Save, Trash2, X } from 'lucide-vue-next';
+import { ArrowRightLeft, Banknote, ClipboardList, FileText, History, MapPinned, Package, Paperclip, Plus, Save, Trash2, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import LeadCloseOutcomeFields from '@/Components/Leads/LeadCloseOutcomeFields.vue';
 import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';
 import LeadWizardCargoTab from '@/Components/Leads/LeadWizardCargoTab.vue';
+import LeadWizardNextStepPanel from '@/Components/Leads/LeadWizardNextStepPanel.vue';
+import LeadStatusPipeline from '@/Components/Leads/LeadStatusPipeline.vue';
+import LeadWizardDocumentsTab from '@/Components/Leads/LeadWizardDocumentsTab.vue';
+import LeadWizardFinanceTab from '@/Components/Leads/LeadWizardFinanceTab.vue';
 import LeadWizardCommercialTab from '@/Components/Leads/LeadWizardCommercialTab.vue';
 import LeadWizardRouteTab from '@/Components/Leads/LeadWizardRouteTab.vue';
 import {
@@ -474,6 +423,7 @@ import {
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import { normalizeLeadCargoItems } from '@/support/leadWizardCargo.js';
 import { defaultLeadRoutePoints, normalizeLeadRoutePoints } from '@/support/leadWizardRoute.js';
+import { firstRoutePlannedDate } from '@/support/leadStatusPipeline.js';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import {
     crmBtnCreate,
@@ -508,6 +458,10 @@ const props = defineProps({
     sourceOptions: Array,
     transportTypeOptions: Array,
     currencyOptions: Array,
+    paymentFormOptions: {
+        type: Array,
+        default: () => [],
+    },
     printFormTemplateOptions: Array,
     proposalHtmlTemplateOptions: {
         type: Array,
@@ -566,6 +520,7 @@ const dictionaryProps = computed(() => ({
 const emit = defineEmits(['close']);
 
 const activeTab = ref('main');
+const statusTouchedByUser = ref(false);
 const selectedTemplateId = ref('');
 const selectedHtmlTemplateId = ref('');
 const contractors = ref([...props.contractors]);
@@ -573,6 +528,8 @@ const tabs = [
     { key: 'main', label: 'Основное', icon: ClipboardList },
     { key: 'route', label: 'Маршрут', icon: MapPinned },
     { key: 'cargo', label: 'Груз', icon: Package },
+    { key: 'finance', label: 'Финансы', icon: Banknote },
+    { key: 'documents', label: 'Документы', icon: Paperclip },
     { key: 'activities', label: 'Коммуникации', icon: History },
     { key: 'commercial', label: 'Коммерческое', icon: FileText },
 ];
@@ -603,6 +560,8 @@ function blankForm() {
         planned_shipping_date: '',
         target_price: null,
         target_currency: 'RUB',
+        customer_payment_form: '',
+        carrier_payment_form: '',
         calculated_cost: null,
         expected_margin: null,
         next_contact_at: '',
@@ -641,6 +600,8 @@ function leadToForm(lead) {
         close_outcome_note: lead.lost_reason ?? '',
         route_points: normalizeLeadRoutePoints(lead.route_points),
         cargo_items: normalizeLeadCargoItems(lead.cargo_items, dictionaryProps.value),
+        customer_payment_form: lead.customer_payment_form ?? '',
+        carrier_payment_form: lead.carrier_payment_form ?? '',
         activities: lead.activities ?? [],
         offers: lead.offers ?? [],
         orders: lead.orders ?? [],
@@ -685,6 +646,7 @@ watch(() => [props.selectedLead, props.leadTemplate], () => {
     form.reset();
     Object.entries(payload).forEach(([key, value]) => { form[key] = value; });
     activeTab.value = 'main';
+    statusTouchedByUser.value = false;
     selectedTemplateId.value = props.printFormTemplateOptions?.[0]?.id ? String(props.printFormTemplateOptions[0].id) : '';
     nextStepForm.reset();
     nextStepForm.responsible_id = payload.responsible_id ?? defaultResponsibleId();
@@ -702,7 +664,6 @@ const showLegacyCloseOutcomeFields = computed(() => {
     return form.status === 'lost' || form.status === 'won';
 });
 const leadAttachments = computed(() => form.attachments ?? props.selectedLead?.attachments ?? []);
-const attachmentInput = ref(null);
 const attachmentFile = ref(null);
 const attachmentForm = useForm({ file: null });
 const businessProcessesEnabled = computed(() => Boolean(props.businessProcessesEnabled));
@@ -715,8 +676,10 @@ const counterpartyPortraitIncomplete = computed(() => {
 const hasQualificationForPortraitMerge = computed(() => {
     const q = form.qualification ?? {};
 
-    return ['need', 'timeline', 'authority', 'budget'].some((key) => String(q[key] ?? '').trim() !== '');
+    return ['authority', 'budget'].some((key) => String(q[key] ?? '').trim() !== '');
 });
+const routePlannedDateSummary = computed(() => firstRoutePlannedDate(form.route_points));
+const convertedOrderNumber = computed(() => form.orders?.[0]?.order_number ?? '');
 const portraitMergeProcessing = ref(false);
 const portraitMergeMessage = ref('');
 const portraitMergeError = ref('');
@@ -1077,9 +1040,6 @@ function addAttachment() {
         onSuccess: () => {
             attachmentForm.reset();
             attachmentFile.value = null;
-            if (attachmentInput.value) {
-                attachmentInput.value.value = '';
-            }
         },
     });
 }
@@ -1130,9 +1090,27 @@ function submitProcessStage() {
     });
 }
 
+function markStatusTouchedByUser() {
+    statusTouchedByUser.value = true;
+}
+
+function formatRouteDate(value) {
+    if (!value) {
+        return '—';
+    }
+
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' }).format(date);
+}
+
 function submit() {
     const payload = {
         ...form.data(),
+        preserve_status: statusTouchedByUser.value,
         offers: undefined,
         orders: undefined,
         tasks: undefined,
@@ -1141,11 +1119,20 @@ function submit() {
     };
 
     if (selectedLeadId.value) {
-        router.patch(route('leads.update', selectedLeadId.value), payload);
+        router.patch(route('leads.update', selectedLeadId.value), payload, {
+            onSuccess: () => {
+                statusTouchedByUser.value = false;
+            },
+        });
+
         return;
     }
 
-    router.post(route('leads.store'), payload);
+    router.post(route('leads.store'), payload, {
+        onSuccess: () => {
+            statusTouchedByUser.value = false;
+        },
+    });
 }
 
 const showSendOfferModal = ref(false);

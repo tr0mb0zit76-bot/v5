@@ -32,6 +32,8 @@ class Lead extends Model
         'planned_shipping_date',
         'target_price',
         'target_currency',
+        'customer_payment_form',
+        'carrier_payment_form',
         'calculated_cost',
         'expected_margin',
         'proposal_sent_at',

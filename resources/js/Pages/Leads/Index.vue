@@ -21,7 +21,7 @@
             </template>
         </CrmPageHeader>
 
-        <LeadSalesCoachingPanel v-if="!featureUnavailable" :insights="salesCoachingInsights" />
+        <LeadSalesCoachingPanel v-if="!featureUnavailable && !isLeadModalOpen" :insights="salesCoachingInsights" />
 
         <div :class="crmGridPanel">
             <LeadsGrid
@@ -41,6 +41,7 @@
         <Modal :show="isLeadModalOpen" max-width="7xl" @close="closeLeadModal">
             <section class="flex max-h-[calc(100dvh-3rem)] min-h-[78dvh] flex-col overflow-hidden bg-white dark:bg-zinc-900">
                 <LeadWizard
+                    class="min-h-0 flex-1"
                     embedded
                     :selected-lead="(isCreateModalOpen || isCreateRoute) ? null : selectedLead"
                     :is-creating="isCreateModalOpen || isCreateRoute"

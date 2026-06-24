@@ -297,7 +297,7 @@ const statusLabels = {
   proposal_ready: 'КП готово',
   proposal_sent: 'КП отправлено',
   negotiation: 'Переговоры',
-  won: 'Конвертирован',
+  won: 'Выигран',
   lost: 'Закрыт',
   on_hold: 'Отложен',
 };

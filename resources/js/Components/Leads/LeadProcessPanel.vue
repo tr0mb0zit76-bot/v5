@@ -1,53 +1,51 @@
 <template>
-    <section class="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
-                <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Бизнес-процесс</h2>
-                <p v-if="!selectedLeadId" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    Выберите воронку при создании лида — этапы, сроки и playbook подтянутся из справочника.
-                </p>
-                <p v-else-if="processProgress" class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                    {{ processProgress.process_name }} · {{ processProgress.current_stage_name }}
-                </p>
+    <section class="rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+        <div v-if="!selectedLeadId" class="flex flex-wrap items-start gap-x-4 gap-y-2">
+            <div class="min-w-[14rem] flex-1 space-y-1">
+                <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Бизнес-процесс</label>
+                <select :value="businessProcessId" class="field" required @change="onProcessChange">
+                    <option v-for="process in businessProcesses" :key="process.id" :value="process.id">
+                        {{ process.name }}
+                    </option>
+                </select>
             </div>
             <p
-                v-if="processProgress?.stage_due_at"
-                class="text-xs"
-                :class="processProgress.is_stage_overdue ? 'font-medium text-rose-600 dark:text-rose-400' : 'text-zinc-500 dark:text-zinc-400'"
+                v-if="selectedProcessDescription"
+                class="max-w-md flex-1 pt-5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400"
             >
-                Срок этапа: {{ formatDateTime(processProgress.stage_due_at) }}
-                <span v-if="processProgress.is_stage_overdue"> (просрочен)</span>
+                {{ selectedProcessDescriptionPlain }}
             </p>
         </div>
 
-        <div v-if="!selectedLeadId" class="max-w-xl space-y-2">
-            <label class="label">Процесс</label>
-            <select :value="businessProcessId" class="field" required @change="onProcessChange">
-                <option v-for="process in businessProcesses" :key="process.id" :value="process.id">
-                    {{ process.name }}
-                </option>
-            </select>
-            <div v-if="selectedProcessDescription" class="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-                <CrmMarkdownView :model-value="selectedProcessDescription" compact />
-            </div>
-        </div>
-
         <template v-else-if="processProgress">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <p class="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    {{ processProgress.process_name }} · {{ processProgress.current_stage_name }}
+                </p>
+                <p
+                    v-if="processProgress.stage_due_at"
+                    class="text-xs"
+                    :class="processProgress.is_stage_overdue ? 'font-medium text-rose-600 dark:text-rose-400' : 'text-zinc-500 dark:text-zinc-400'"
+                >
+                    {{ formatDateTime(processProgress.stage_due_at) }}
+                    <span v-if="processProgress.is_stage_overdue"> · просрочен</span>
+                </p>
+            </div>
+
             <div
                 v-if="processProgress.current_stage_goal || processProgress.current_stage_playbook || processProgress.current_stage_success_criteria"
-                class="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20"
+                class="mt-3 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20"
             >
                 <div class="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
-                    Playbook текущего этапа
+                    Playbook
                 </div>
                 <p v-if="processProgress.current_stage_goal" class="text-sm font-medium text-emerald-950 dark:text-emerald-100">
-                    Цель: {{ processProgress.current_stage_goal }}
+                    {{ processProgress.current_stage_goal }}
                 </p>
                 <div v-if="processProgress.current_stage_playbook" class="rounded-lg border border-emerald-100 bg-white/90 p-2 dark:border-emerald-900/30 dark:bg-zinc-950/60">
-                    <CrmMarkdownView :model-value="processProgress.current_stage_playbook" />
+                    <CrmMarkdownView :model-value="processProgress.current_stage_playbook" compact />
                 </div>
                 <div v-if="processProgress.current_stage_success_criteria">
-                    <div class="mb-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">Критерии готовности</div>
                     <CrmMarkdownView :model-value="processProgress.current_stage_success_criteria" compact />
                 </div>
                 <div v-if="processProgress.current_stage_sales_script">
@@ -56,17 +54,17 @@
                         class="inline-flex items-center rounded-lg border border-emerald-400 bg-white px-3 py-1.5 text-xs font-medium text-emerald-900 hover:bg-emerald-50 dark:border-emerald-700 dark:bg-zinc-900 dark:text-emerald-100"
                         @click="startSalesScript(processProgress.current_stage_sales_script.version_id)"
                     >
-                        Открыть скрипт «{{ processProgress.current_stage_sales_script.title }}»
+                        Скрипт «{{ processProgress.current_stage_sales_script.title }}»
                     </button>
                 </div>
             </div>
 
-            <div class="space-y-1">
+            <div v-if="processProgress.progress_percent > 0" class="mt-3 space-y-1">
                 <div class="flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
-                    <span>Прогресс</span>
+                    <span>Этап процесса</span>
                     <span>{{ processProgress.progress_percent }}%</span>
                 </div>
-                <div class="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                <div class="h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                     <div
                         class="h-full rounded-full bg-emerald-600 transition-all dark:bg-emerald-500"
                         :style="{ width: `${processProgress.progress_percent}%` }"
@@ -74,11 +72,11 @@
                 </div>
             </div>
 
-            <div class="flex flex-wrap gap-1.5">
+            <div class="mt-2 flex flex-wrap gap-1.5">
                 <span
                     v-for="stage in processProgress.stages"
                     :key="stage.id"
-                    class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs"
+                    class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px]"
                     :class="stageStateClass(stage.state)"
                     :title="stage.stage_goal || undefined"
                 >
@@ -86,38 +84,37 @@
                 </span>
             </div>
 
-            <div v-if="advanceableStages.length" class="space-y-3">
-                <div class="flex flex-wrap items-end gap-2">
-                    <div class="min-w-[14rem] flex-1 space-y-1">
-                        <label class="label">Перевести на этап</label>
-                        <select :value="advanceStageId" class="field" @change="onAdvanceChange">
-                            <option value="">— выберите —</option>
-                            <option v-for="stage in advanceableStages" :key="stage.id" :value="stage.id">
-                                {{ stage.name }}
-                            </option>
-                        </select>
-                    </div>
-                    <button
-                        type="button"
-                        class="secondary-button"
-                        :disabled="!advanceStageId || processing || !canSubmitAdvance"
-                        @click="emit('advance')"
-                    >
-                        Перейти
-                    </button>
+            <div v-if="advanceableStages.length" class="mt-3 flex flex-wrap items-end gap-2">
+                <div class="min-w-[12rem] flex-1 space-y-1">
+                    <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Следующий этап</label>
+                    <select :value="advanceStageId" class="field" @change="onAdvanceChange">
+                        <option value="">—</option>
+                        <option v-for="stage in advanceableStages" :key="stage.id" :value="stage.id">
+                            {{ stage.name }}
+                        </option>
+                    </select>
                 </div>
-
-                <LeadCloseOutcomeFields
-                    v-if="selectedAdvanceStage?.is_terminal"
-                    v-model:primary-flag="closeOutcomePrimaryFlag"
-                    v-model:note="closeOutcomeNote"
-                    :terminal-outcome="selectedAdvanceStage?.terminal_outcome"
-                    :lost-options="lostCloseOutcomeOptions"
-                    :won-options="wonCloseOutcomeOptions"
-                    :error="closeOutcomeError"
-                    input-class="field"
-                />
+                <button
+                    type="button"
+                    class="secondary-button"
+                    :disabled="!advanceStageId || processing || !canSubmitAdvance"
+                    @click="emit('advance')"
+                >
+                    Перейти
+                </button>
             </div>
+
+            <LeadCloseOutcomeFields
+                v-if="selectedAdvanceStage?.is_terminal"
+                v-model:primary-flag="closeOutcomePrimaryFlag"
+                v-model:note="closeOutcomeNote"
+                class="mt-3"
+                :terminal-outcome="selectedAdvanceStage?.terminal_outcome"
+                :lost-options="lostCloseOutcomeOptions"
+                :won-options="wonCloseOutcomeOptions"
+                :error="closeOutcomeError"
+                input-class="field"
+            />
         </template>
     </section>
 </template>
@@ -150,6 +147,11 @@ const selectedProcessDescription = computed(() => {
 
     return process?.description ?? '';
 });
+
+const selectedProcessDescriptionPlain = computed(() => selectedProcessDescription.value
+    .replace(/[#>*_`[\]]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim());
 
 const advanceableStages = computed(() => {
     if (!props.processProgress?.stages) {
@@ -220,12 +222,9 @@ function startSalesScript(versionId) {
 
 <style scoped>
 .field {
-    @apply w-full border border-zinc-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400;
-}
-.label {
-    @apply text-sm font-medium;
+    @apply w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm outline-none transition-colors focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400;
 }
 .secondary-button {
-    @apply inline-flex items-center justify-center border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800;
+    @apply inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800;
 }
 </style>

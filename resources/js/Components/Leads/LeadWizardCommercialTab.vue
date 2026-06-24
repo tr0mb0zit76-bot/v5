@@ -222,7 +222,7 @@ function formatMoney(value, currency = 'RUB') {
                 Коммерческие предложения ещё не формировались.
             </div>
             <div v-if="orders.length" class="border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-                <div :class="crmPageEyebrow">Конвертирован в заказ</div>
+                <div :class="crmPageEyebrow">Создан заказ</div>
                 <div class="mt-2 font-medium">{{ orders[0].order_number }}</div>
             </div>
         </div>
