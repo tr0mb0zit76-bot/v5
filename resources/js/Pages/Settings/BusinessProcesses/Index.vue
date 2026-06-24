@@ -256,6 +256,49 @@
                         </div>
 
                         <details class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+                            <summary class="cursor-pointer text-sm font-medium">Напоминания (nudges)</summary>
+                            <div class="mt-3 space-y-3">
+                                <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                                    Cron <code class="text-[11px]">commercial:process-nudges</code> создаёт задачи по включённым триггерам. Пустой список — дефолты из config.
+                                </p>
+                                <div class="flex flex-wrap gap-2">
+                                    <label
+                                        v-for="option in nudgeTypeOptions"
+                                        :key="option.value"
+                                        class="inline-flex items-center gap-2 rounded border border-zinc-200 px-2 py-1 text-xs dark:border-zinc-700"
+                                        :title="option.description"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            class="rounded border-zinc-300"
+                                            :checked="stageForm.nudge_triggers.includes(option.value)"
+                                            @change="toggleNudgeTrigger(option.value)"
+                                        />
+                                        {{ option.label }}
+                                    </label>
+                                </div>
+                                <div class="grid gap-2 md:grid-cols-2">
+                                    <input
+                                        v-model.number="stageForm.no_reply_nudge_days"
+                                        type="number"
+                                        min="1"
+                                        max="90"
+                                        placeholder="Дней без ответа на КП"
+                                        :class="crmFieldFluid"
+                                    />
+                                    <input
+                                        v-model.number="stageForm.ledger_idle_nudge_days"
+                                        type="number"
+                                        min="1"
+                                        max="90"
+                                        placeholder="Дней без событий в ленте"
+                                        :class="crmFieldFluid"
+                                    />
+                                </div>
+                            </div>
+                        </details>
+
+                        <details class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
                             <summary class="cursor-pointer text-sm font-medium">Автозадача при входе на этап</summary>
                             <div class="mt-3 space-y-2">
                                 <label class="inline-flex items-center gap-2 text-sm">
@@ -345,10 +388,12 @@ const props = defineProps({
     health: { type: Object, default: () => ({ processes: [], recommendations: [], lookback_days: 90 }) },
     stage_issues: { type: Object, default: () => ({ rows: [] }) },
     sales_script_options: { type: Array, default: () => [] },
+    nudge_type_options: { type: Array, default: () => [] },
     lookback_days: { type: Number, default: 90 },
 });
 
 const salesScriptOptions = computed(() => props.sales_script_options ?? []);
+const nudgeTypeOptions = computed(() => props.nudge_type_options ?? []);
 
 const tabs = [
     { id: 'builder', label: 'Конструктор' },
@@ -384,6 +429,9 @@ const stageForm = useForm({
     task_description_template: '',
     task_due_days_offset: 0,
     task_priority: 'medium',
+    no_reply_nudge_days: null,
+    nudge_triggers: [],
+    ledger_idle_nudge_days: null,
 });
 
 watch(selectedProcess, (process) => {
@@ -465,6 +513,9 @@ function resetStageForm() {
     stageForm.auto_create_task = false;
     stageForm.task_due_days_offset = 0;
     stageForm.task_priority = 'medium';
+    stageForm.no_reply_nudge_days = null;
+    stageForm.nudge_triggers = [];
+    stageForm.ledger_idle_nudge_days = null;
 }
 
 function editStage(stage) {
@@ -483,6 +534,9 @@ function editStage(stage) {
     stageForm.task_description_template = stage.task_description_template ?? '';
     stageForm.task_due_days_offset = stage.task_due_days_offset ?? 0;
     stageForm.task_priority = stage.task_priority ?? 'medium';
+    stageForm.no_reply_nudge_days = stage.no_reply_nudge_days ?? null;
+    stageForm.nudge_triggers = [...(stage.nudge_triggers ?? [])];
+    stageForm.ledger_idle_nudge_days = stage.ledger_idle_nudge_days ?? null;
 }
 
 function submitStage() {
@@ -515,6 +569,18 @@ function deleteStage(stageId) {
     router.delete(route('settings.business-processes.stages.destroy', [selectedProcess.value.id, stageId]), {
         preserveScroll: true,
     });
+}
+
+function toggleNudgeTrigger(value) {
+    const triggers = new Set(stageForm.nudge_triggers ?? []);
+
+    if (triggers.has(value)) {
+        triggers.delete(value);
+    } else {
+        triggers.add(value);
+    }
+
+    stageForm.nudge_triggers = [...triggers];
 }
 
 function applyPlaybookTemplate() {

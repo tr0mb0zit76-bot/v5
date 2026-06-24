@@ -9,6 +9,7 @@ use App\Services\BusinessProcessAnalyticsService;
 use App\Services\LeadBusinessProcessService;
 use App\Services\Reports\LeadProcessReportsService;
 use App\Support\BusinessProcessPlaybook;
+use App\Support\CommercialNudgeType;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -49,6 +50,7 @@ class SettingsBusinessProcessController extends Controller
                 'success_criteria' => BusinessProcessPlaybook::emptySuccessCriteriaTemplate(),
             ],
             'sales_script_options' => $this->salesScriptOptions(),
+            'nudge_type_options' => $this->nudgeTypeOptions(),
             'health' => $this->businessProcessAnalyticsService->healthOverview($lookbackDays),
             'stage_issues' => $this->leadProcessReportsService->processStageIssues(),
             'lookback_days' => $lookbackDays,
@@ -190,6 +192,9 @@ class SettingsBusinessProcessController extends Controller
                 'task_description_template' => $stage->task_description_template,
                 'task_due_days_offset' => (int) ($stage->task_due_days_offset ?? 0),
                 'task_priority' => $stage->task_priority ?? 'medium',
+                'no_reply_nudge_days' => $stage->no_reply_nudge_days,
+                'nudge_triggers' => $stage->nudge_triggers ?? [],
+                'ledger_idle_nudge_days' => $stage->ledger_idle_nudge_days,
             ])->values()->all(),
         ];
     }
@@ -214,6 +219,10 @@ class SettingsBusinessProcessController extends Controller
             'task_description_template' => ['nullable', 'string'],
             'task_due_days_offset' => ['nullable', 'integer', 'min:0', 'max:365'],
             'task_priority' => ['nullable', Rule::in(['low', 'medium', 'high', 'critical'])],
+            'no_reply_nudge_days' => ['nullable', 'integer', 'min:1', 'max:90'],
+            'nudge_triggers' => ['nullable', 'array'],
+            'nudge_triggers.*' => ['string', Rule::in(CommercialNudgeType::values())],
+            'ledger_idle_nudge_days' => ['nullable', 'integer', 'min:1', 'max:90'],
         ]);
 
         $validated['description'] = BusinessProcessPlaybook::normalize($validated['description'] ?? null);
@@ -232,7 +241,43 @@ class SettingsBusinessProcessController extends Controller
             $validated['task_priority'] = $validated['task_priority'] ?? 'medium';
         }
 
+        if (Schema::hasColumn('business_process_stages', 'no_reply_nudge_days')) {
+            $validated['no_reply_nudge_days'] = filled($validated['no_reply_nudge_days'] ?? null)
+                ? (int) $validated['no_reply_nudge_days']
+                : null;
+        }
+
+        if (Schema::hasColumn('business_process_stages', 'nudge_triggers')) {
+            $triggers = $validated['nudge_triggers'] ?? null;
+            $validated['nudge_triggers'] = is_array($triggers) && $triggers !== []
+                ? array_values(array_unique(array_map('strval', $triggers)))
+                : null;
+        }
+
+        if (Schema::hasColumn('business_process_stages', 'ledger_idle_nudge_days')) {
+            $validated['ledger_idle_nudge_days'] = filled($validated['ledger_idle_nudge_days'] ?? null)
+                ? (int) $validated['ledger_idle_nudge_days']
+                : null;
+        }
+
         return $validated;
+    }
+
+    /**
+     * @return list<array{value: string, label: string, description: string}>
+     */
+    private function nudgeTypeOptions(): array
+    {
+        $types = config('commercial_nudges.types', []);
+
+        return collect(CommercialNudgeType::cases())
+            ->map(fn (CommercialNudgeType $type): array => [
+                'value' => $type->value,
+                'label' => (string) ($types[$type->value]['label'] ?? $type->label()),
+                'description' => (string) ($types[$type->value]['description'] ?? ''),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

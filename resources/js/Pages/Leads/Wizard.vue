@@ -65,21 +65,6 @@
                     @manual-change="markStatusTouchedByUser"
                 />
 
-                <LeadWizardNextStepPanel
-                    :selected-lead-id="selectedLeadId"
-                    :can-use-lead-tasks="canUseLeadTasks"
-                    :can-assign-responsible="canAssignResponsible"
-                    :responsible-users="responsibleUsers"
-                    :open-tasks="openTasks"
-                    v-model:next-step-title="nextStepForm.title"
-                    v-model:next-step-due-at="nextStepForm.due_at"
-                    v-model:next-step-responsible-id="nextStepForm.responsible_id"
-                    :processing="nextStepForm.processing"
-                    :format-date-time="formatDateTime"
-                    @create="createNextStep"
-                    @open-task="openTask"
-                />
-
                 <div
                     v-if="followUpPrompt"
                     class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100"
@@ -104,6 +89,14 @@
                     </div>
                 </div>
 
+                <LeadFocusNowPanel
+                    v-if="operationalBrief && selectedLeadId && businessProcessesEnabled && !processProgress"
+                    :brief="operationalBrief"
+                    :process-progress="processProgress"
+                    @navigate-tab="activeTab = $event"
+                    @focus-action="handleFocusAction"
+                />
+
                 <LeadProcessPanel
                     v-if="businessProcessesEnabled"
                     v-model:advance-stage-id="advanceStageId"
@@ -113,12 +106,22 @@
                     :business-processes="businessProcesses"
                     :business-process-id="form.business_process_id"
                     :process-progress="processProgress"
+                    :operational-brief="operationalBrief"
                     :processing="processStageForm.processing"
                     :lost-close-outcome-options="lostCloseOutcomeOptions"
                     :won-close-outcome-options="wonCloseOutcomeOptions"
                     :close-outcome-error="processStageForm.errors.close_outcome_primary_flag"
                     @update:business-process-id="form.business_process_id = $event"
                     @advance="submitProcessStage"
+                    @navigate-tab="activeTab = $event"
+                    @focus-action="handleFocusAction"
+                />
+                <LeadFocusNowPanel
+                    v-else-if="operationalBrief"
+                    :brief="operationalBrief"
+                    :process-progress="processProgress"
+                    @navigate-tab="activeTab = $event"
+                    @focus-action="handleFocusAction"
                 />
                 <div
                     v-if="counterpartyPortraitIncomplete"
@@ -158,9 +161,6 @@
                             </select>
                         </div>
                     </div>
-                    <p v-if="routePlannedDateSummary" class="text-xs text-zinc-500 dark:text-zinc-400">
-                        Плановая дата: {{ formatRouteDate(routePlannedDateSummary) }} (вкладка «Маршрут»)
-                    </p>
                 </section>
 
                 <section class="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
@@ -217,11 +217,14 @@
                                 </button>
                             </div>
                     </div>
-                    <p v-if="selectedCounterparty" class="text-xs text-zinc-500">
-                        {{ selectedCounterparty.name }}{{ selectedCounterparty.inn ? ` · ИНН ${selectedCounterparty.inn}` : '' }}
-                    </p>
                     <div class="grid gap-4 md:grid-cols-2">
-                        <input v-model="form.qualification.authority" type="text" :class="crmFieldFluid" placeholder="ЛПР — кто принимает решение" />
+                        <input
+                            v-model="form.qualification.authority"
+                            type="text"
+                            :class="crmFieldFluid"
+                            placeholder="ЛПР — кто принимает решение"
+                            @input="onAuthorityManualInput"
+                        />
                         <input v-model="form.qualification.budget" type="text" :class="crmFieldFluid" placeholder="Ориентир по бюджету" />
                     </div>
                 </section>
@@ -256,6 +259,21 @@
                 </div>
                 <p v-if="portraitMergeMessage" class="text-sm text-emerald-700 dark:text-emerald-300">{{ portraitMergeMessage }}</p>
                 <p v-if="portraitMergeError" class="text-sm text-rose-600 dark:text-rose-300">{{ portraitMergeError }}</p>
+
+                <LeadWizardNextStepPanel
+                    :selected-lead-id="selectedLeadId"
+                    :can-use-lead-tasks="canUseLeadTasks"
+                    :can-assign-responsible="canAssignResponsible"
+                    :responsible-users="responsibleUsers"
+                    :open-tasks="openTasks"
+                    v-model:next-step-title="nextStepForm.title"
+                    v-model:next-step-due-at="nextStepForm.due_at"
+                    v-model:next-step-responsible-id="nextStepForm.responsible_id"
+                    :processing="nextStepForm.processing"
+                    :format-date-time="formatDateTime"
+                    @create="createNextStep"
+                    @open-task="openTask"
+                />
             </div>
 
             <LeadWizardRouteTab
@@ -408,6 +426,7 @@ import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeli
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import LeadCloseOutcomeFields from '@/Components/Leads/LeadCloseOutcomeFields.vue';
 import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';
+import LeadFocusNowPanel from '@/Components/Leads/LeadFocusNowPanel.vue';
 import LeadWizardCargoTab from '@/Components/Leads/LeadWizardCargoTab.vue';
 import LeadWizardNextStepPanel from '@/Components/Leads/LeadWizardNextStepPanel.vue';
 import LeadStatusPipeline from '@/Components/Leads/LeadStatusPipeline.vue';
@@ -423,7 +442,6 @@ import {
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import { normalizeLeadCargoItems } from '@/support/leadWizardCargo.js';
 import { defaultLeadRoutePoints, normalizeLeadRoutePoints } from '@/support/leadWizardRoute.js';
-import { firstRoutePlannedDate } from '@/support/leadStatusPipeline.js';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import {
     crmBtnCreate,
@@ -656,6 +674,17 @@ watch(() => [props.selectedLead, props.leadTemplate], () => {
 
 const selectedLeadId = computed(() => props.selectedLead?.id ?? null);
 const processProgress = computed(() => form.process_progress ?? props.selectedLead?.process_progress ?? null);
+const operationalBrief = computed(() => props.selectedLead?.operational_brief ?? null);
+
+function handleFocusAction({ tab, kind }) {
+    activeTab.value = tab ?? 'main';
+
+    if (kind === 'next_step') {
+        nextTick(() => {
+            document.getElementById('lead-next-step-panel')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+    }
+}
 const showLegacyCloseOutcomeFields = computed(() => {
     if (processProgress.value) {
         return false;
@@ -667,7 +696,6 @@ const leadAttachments = computed(() => form.attachments ?? props.selectedLead?.a
 const attachmentFile = ref(null);
 const attachmentForm = useForm({ file: null });
 const businessProcessesEnabled = computed(() => Boolean(props.businessProcessesEnabled));
-const selectedCounterparty = computed(() => contractors.value.find((contractor) => Number(contractor.id) === Number(form.counterparty_id)) ?? null);
 const counterpartyPortraitIncomplete = computed(() => {
     const coverage = props.selectedLead?.counterparty_portrait_coverage_pct;
 
@@ -678,11 +706,12 @@ const hasQualificationForPortraitMerge = computed(() => {
 
     return ['authority', 'budget'].some((key) => String(q[key] ?? '').trim() !== '');
 });
-const routePlannedDateSummary = computed(() => firstRoutePlannedDate(form.route_points));
 const convertedOrderNumber = computed(() => form.orders?.[0]?.order_number ?? '');
 const portraitMergeProcessing = ref(false);
 const portraitMergeMessage = ref('');
 const portraitMergeError = ref('');
+const authorityAutofilledFromCounterpartyId = ref(null);
+const suppressAuthorityManualReset = ref(false);
 const canAssignResponsible = computed(() => Boolean(props.canAssignResponsible));
 const canUseLeadTasks = computed(() => Boolean(props.canUseLeadTasks));
 const openTasks = computed(() => (form.tasks ?? []).filter((task) => !['done', 'cancelled'].includes(task.status)));
@@ -735,10 +764,70 @@ const combinedCounterpartyResults = computed(() => {
         .slice(0, 50);
 });
 
-watch(() => form.counterparty_id, (counterpartyId) => {
+watch(() => form.counterparty_id, async (counterpartyId, previousId) => {
     const selected = contractors.value.find((contractor) => Number(contractor.id) === Number(counterpartyId));
     counterpartySearch.value = selected?.name ?? '';
+
+    if (!counterpartyId) {
+        authorityAutofilledFromCounterpartyId.value = null;
+
+        return;
+    }
+
+    if (Number(counterpartyId) !== Number(previousId)) {
+        await syncAuthorityFromCounterparty(Number(counterpartyId));
+    }
 }, { immediate: true });
+
+function onAuthorityManualInput() {
+    if (suppressAuthorityManualReset.value) {
+        return;
+    }
+
+    authorityAutofilledFromCounterpartyId.value = null;
+}
+
+async function syncAuthorityFromCounterparty(contractorId) {
+    if (!contractorId) {
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${route('leads.counterparty-authority-hint')}?contractor_id=${contractorId}`,
+            {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            },
+        );
+
+        if (!response.ok) {
+            return;
+        }
+
+        const payload = await response.json();
+        const hint = String(payload.authority ?? '').trim();
+
+        if (hint === '') {
+            return;
+        }
+
+        const current = String(form.qualification.authority ?? '').trim();
+        const wasAutofilled = authorityAutofilledFromCounterpartyId.value !== null;
+
+        if (current !== '' && !wasAutofilled) {
+            return;
+        }
+
+        suppressAuthorityManualReset.value = true;
+        form.qualification.authority = hint;
+        authorityAutofilledFromCounterpartyId.value = contractorId;
+        await nextTick();
+        suppressAuthorityManualReset.value = false;
+    } catch {
+        suppressAuthorityManualReset.value = false;
+    }
+}
 
 watch(counterpartySearch, (newQuery) => {
     clearTimeout(counterpartySearchTimer.value);
@@ -1092,19 +1181,6 @@ function submitProcessStage() {
 
 function markStatusTouchedByUser() {
     statusTouchedByUser.value = true;
-}
-
-function formatRouteDate(value) {
-    if (!value) {
-        return '—';
-    }
-
-    const date = new Date(`${value}T00:00:00`);
-    if (Number.isNaN(date.getTime())) {
-        return value;
-    }
-
-    return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' }).format(date);
 }
 
 function submit() {

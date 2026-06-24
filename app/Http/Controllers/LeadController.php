@@ -22,6 +22,7 @@ use App\Models\PrintFormTemplate;
 use App\Models\ProposalHtmlTemplate;
 use App\Models\Task;
 use App\Services\ActivityLedgerService;
+use App\Services\Commercial\LeadAttentionQueueService;
 use App\Services\Commercial\LeadCloseOutcomeService;
 use App\Services\Commercial\LeadProposalHtmlRenderer;
 use App\Services\Commercial\LeadProposalPdfService;
@@ -33,10 +34,12 @@ use App\Services\LeadConversionService;
 use App\Services\LeadLinkedTaskService;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\Leads\LeadBasedOnTemplateBuilder;
+use App\Services\Leads\LeadOperationalBriefService;
 use App\Services\Leads\TaskLeadTemplateBuilder;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\ActivityEventType;
 use App\Support\AtiDictionaryOptionCatalog;
+use App\Support\ContractorDecisionMakerLabel;
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
 use App\Support\LeadCargoItemPayloadNormalizer;
@@ -71,8 +74,10 @@ class LeadController extends Controller
         private readonly ActivityLedgerService $activityLedger,
         private readonly LeadCloseOutcomeService $leadCloseOutcome,
         private readonly ManagerSalesCoachingInsightsService $salesCoachingInsights,
+        private readonly LeadAttentionQueueService $leadAttentionQueue,
         private readonly LeadLinkedTaskService $leadLinkedTaskService,
         private readonly ContractorPortraitService $contractorPortraitService,
+        private readonly LeadOperationalBriefService $leadOperationalBriefService,
     ) {}
 
     public function index(Request $request): Response
@@ -102,6 +107,24 @@ class LeadController extends Controller
         }
 
         return $this->renderIndexPage($request, null, true, $leadTemplate);
+    }
+
+    public function counterpartyAuthorityHint(Request $request): JsonResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+
+        $validated = $request->validate([
+            'contractor_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $contractor = Contractor::query()
+            ->visibleTo($request->user(), 'customer')
+            ->with('contacts')
+            ->findOrFail((int) $validated['contractor_id']);
+
+        return response()->json([
+            'authority' => ContractorDecisionMakerLabel::resolve($contractor),
+        ]);
     }
 
     public function show(Request $request, Lead $lead): Response
@@ -602,6 +625,10 @@ class LeadController extends Controller
                     (int) config('outcome_intelligence.coaching_default_days', 90),
                 )
                 : null,
+            'leadAttentionQueue' => $this->leadAttentionQueue->queueForUser(
+                $request->user(),
+                (int) config('commercial_nudges.attention_queue_limit', 15),
+            ),
             ...$this->sharedWizardProps($selectedLead),
         ]);
     }
@@ -1298,6 +1325,7 @@ class LeadController extends Controller
             ])->values()->all(),
             'business_process_id' => $lead->business_process_id,
             'process_progress' => $this->leadBusinessProcessService->progressPayload($lead),
+            'operational_brief' => $this->leadOperationalBriefService->build($lead),
             'tasks' => Schema::hasTable('tasks')
                 ? $lead->tasks->map(fn (Task $task): array => [
                     'id' => $task->id,

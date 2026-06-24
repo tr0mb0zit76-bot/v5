@@ -4,6 +4,7 @@ import {
     dictionaryOptionByValue,
     normalizeDictionaryItems,
     normalizeNullableNumber,
+    parseLocaleDecimal,
 } from '@/support/wizardDictionaryHelpers.js';
 
 export function blankLeadCargoItem() {
@@ -168,15 +169,15 @@ export function applyTrailerTypeOption(item, trailerTypeOptions) {
 }
 
 export function cargoWeightInKg(item) {
-    const value = Number(item.weight_value ?? item.weight_kg ?? 0);
+    const value = parseLocaleDecimal(item.weight_value ?? item.weight_kg ?? 0) ?? 0;
 
     return item.weight_unit === 't' ? value * 1000 : value;
 }
 
 export function cargoPackageCountFactor(item) {
-    const count = Number(item.package_count);
+    const count = parseLocaleDecimal(item.package_count);
 
-    if (Number.isFinite(count) && count > 0) {
+    if (count !== null && count > 0) {
         return Math.trunc(count);
     }
 
@@ -188,8 +189,8 @@ export function cargoLineTotalWeightKg(item) {
 }
 
 export function cargoLineTotalVolumeM3(item) {
-    const per = Number(item.volume_m3);
-    if (!Number.isFinite(per) || per <= 0) {
+    const per = parseLocaleDecimal(item.volume_m3);
+    if (per === null || per <= 0) {
         return 0;
     }
 
@@ -200,20 +201,30 @@ export function cargoHasDimensions(item) {
     return [item.length_m, item.width_m, item.height_m].some((value) => value !== null && value !== undefined && String(value).trim() !== '');
 }
 
-export function cargoDimensionsLabel(item) {
-    const length = item.length_m !== null && item.length_m !== undefined && item.length_m !== '' ? Number(item.length_m).toFixed(2) : '—';
-    const width = item.width_m !== null && item.width_m !== undefined && item.width_m !== '' ? Number(item.width_m).toFixed(2) : '—';
-    const height = item.height_m !== null && item.height_m !== undefined && item.height_m !== '' ? Number(item.height_m).toFixed(2) : '—';
+export function cargoDimensionFieldsEmpty(item) {
+    return [item.length_m, item.width_m, item.height_m].every(
+        (value) => value === null || value === undefined || String(value).trim() === '',
+    );
+}
 
-    return `${length}×${width}×${height} м`;
+export function cargoDimensionsLabel(item) {
+    const length = parseLocaleDecimal(item.length_m);
+    const width = parseLocaleDecimal(item.width_m);
+    const height = parseLocaleDecimal(item.height_m);
+
+    const lengthLabel = length !== null ? length.toFixed(2) : '—';
+    const widthLabel = width !== null ? width.toFixed(2) : '—';
+    const heightLabel = height !== null ? height.toFixed(2) : '—';
+
+    return `${lengthLabel}×${widthLabel}×${heightLabel} м`;
 }
 
 export function cargoComputedVolumeM3(item) {
-    const length = Number(item.length_m);
-    const width = Number(item.width_m);
-    const height = Number(item.height_m);
+    const length = parseLocaleDecimal(item.length_m);
+    const width = parseLocaleDecimal(item.width_m);
+    const height = parseLocaleDecimal(item.height_m);
 
-    if (!Number.isFinite(length) || !Number.isFinite(width) || !Number.isFinite(height) || length <= 0 || width <= 0 || height <= 0) {
+    if (length === null || width === null || height === null || length <= 0 || width <= 0 || height <= 0) {
         return null;
     }
 
@@ -226,6 +237,6 @@ export function leadCargoSummary(items) {
     return {
         totalWeight: list.reduce((sum, item) => sum + cargoLineTotalWeightKg(item), 0),
         totalVolume: list.reduce((sum, item) => sum + cargoLineTotalVolumeM3(item), 0),
-        totalPackages: list.reduce((sum, item) => sum + Number(item.package_count || 0), 0),
+        totalPackages: list.reduce((sum, item) => sum + (parseLocaleDecimal(item.package_count) ?? 0), 0),
     };
 }

@@ -92,6 +92,12 @@
                 </div>
             </section>
 
+            <LeadAttentionPanel
+                v-if="leadAttentionQueue?.available && leadAttentionQueue.total > 0"
+                :queue="leadAttentionQueue"
+                show-all-link
+            />
+
             <section
                 v-if="showFinanceFlowSection"
                 class="crm-panel p-6"
@@ -333,6 +339,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import { BarChart3, Bot, Building2, FileText, Package, SquarePen, Target } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import LeadAttentionPanel from '@/Components/Leads/LeadAttentionPanel.vue';
 import {
     crmBtnPrimary,
     crmField,
@@ -378,6 +385,10 @@ const props = defineProps({
             disposition_kpi: null,
             disposition_kpi_own: null,
         }),
+    },
+    leadAttentionQueue: {
+        type: Object,
+        default: null,
     },
 });
 

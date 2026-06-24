@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { Plus } from 'lucide-vue-next';
 import {
     applyCargoTypeOption,
@@ -9,6 +9,7 @@ import {
     applyTruckBodyTypeOption,
     blankLeadCargoItem,
     cargoComputedVolumeM3,
+    cargoDimensionFieldsEmpty,
     cargoDimensionsLabel,
     cargoHasDimensions,
     cargoLineTotalVolumeM3,
@@ -17,7 +18,7 @@ import {
     cargoWeightInKg,
     leadCargoSummary,
 } from '@/support/leadWizardCargo.js';
-import { dictionarySelectionLabel } from '@/support/wizardDictionaryHelpers.js';
+import { dictionarySelectionLabel, sanitizeDecimalInput } from '@/support/wizardDictionaryHelpers.js';
 import { crmBtnSecondary, crmFieldFluid } from '@/support/crmUi.js';
 
 const cargoItems = defineModel('cargoItems', { type: Array, required: true });
@@ -62,6 +63,29 @@ function onTruckBodyTypeChange(item) {
 function onTrailerTypeChange(item) {
     applyTrailerTypeOption(item, props.trailerTypeOptions);
 }
+
+function onCargoDecimalInput(item, field, event) {
+    item[field] = sanitizeDecimalInput(event.target.value);
+
+    if (field === 'weight_value') {
+        item.weight_kg = item.weight_value;
+    }
+}
+
+watch(
+    () => cargoItems.value,
+    (items) => {
+        items.forEach((item) => {
+            const volume = cargoComputedVolumeM3(item);
+            if (volume !== null) {
+                item.volume_m3 = Math.round(volume * 1000) / 1000;
+            } else if (!cargoDimensionFieldsEmpty(item)) {
+                item.volume_m3 = null;
+            }
+        });
+    },
+    { deep: true, immediate: true },
+);
 </script>
 
 <template>
@@ -113,11 +137,11 @@ function onTrailerTypeChange(item) {
                         <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Вес</label>
                         <div class="flex gap-1.5">
                             <input
-                                v-model="item.weight_value"
-                                type="number"
-                                min="0"
-                                step="0.001"
+                                :value="item.weight_value ?? ''"
+                                type="text"
+                                inputmode="decimal"
                                 class="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                @input="onCargoDecimalInput(item, 'weight_value', $event)"
                             />
                             <select v-model="item.weight_unit" class="w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1.5 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-950">
                                 <option value="kg">кг</option>
@@ -197,23 +221,22 @@ function onTrailerTypeChange(item) {
                     <div class="flex min-w-0 flex-1 flex-wrap items-end gap-x-1.5 gap-y-1">
                         <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
                             <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Д</label>
-                            <input v-model="item.length_m" type="number" min="0" step="0.01" class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950" />
+                            <input :value="item.length_m ?? ''" type="text" inputmode="decimal" class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950" @input="onCargoDecimalInput(item, 'length_m', $event)" />
                         </div>
                         <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
                             <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Ш</label>
-                            <input v-model="item.width_m" type="number" min="0" step="0.01" class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950" />
+                            <input :value="item.width_m ?? ''" type="text" inputmode="decimal" class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950" @input="onCargoDecimalInput(item, 'width_m', $event)" />
                         </div>
                         <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
                             <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">В</label>
-                            <input v-model="item.height_m" type="number" min="0" step="0.01" class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950" />
+                            <input :value="item.height_m ?? ''" type="text" inputmode="decimal" class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950" @input="onCargoDecimalInput(item, 'height_m', $event)" />
                         </div>
                         <div class="flex w-[8.25rem] shrink-0 items-center gap-1">
                             <label class="w-12 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Объём</label>
                             <input
-                                v-model="item.volume_m3"
-                                type="number"
-                                min="0"
-                                step="0.001"
+                                :value="item.volume_m3 ?? ''"
+                                type="text"
+                                inputmode="decimal"
                                 :readonly="cargoComputedVolumeM3(item) !== null"
                                 placeholder="—"
                                 :class="[
@@ -222,6 +245,7 @@ function onTrailerTypeChange(item) {
                                         ? 'cursor-default border border-dashed border-zinc-200 bg-zinc-50 text-zinc-800 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-100'
                                         : 'border border-zinc-200 bg-white dark:border-zinc-700',
                                 ]"
+                                @input="onCargoDecimalInput(item, 'volume_m3', $event)"
                             />
                         </div>
                     </div>

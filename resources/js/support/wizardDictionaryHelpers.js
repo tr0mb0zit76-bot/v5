@@ -1,3 +1,45 @@
+export function sanitizeDecimalInput(value) {
+    if (value === null || value === undefined) {
+        return '';
+    }
+
+    const trimmed = String(value).trim().replace(/\s+/g, '');
+
+    if (trimmed === '') {
+        return '';
+    }
+
+    if (trimmed.includes(',') && trimmed.includes('.')) {
+        if (trimmed.lastIndexOf(',') > trimmed.lastIndexOf('.')) {
+            return trimmed.replace(/\./g, '').replace(',', '.');
+        }
+
+        return trimmed.replace(/,/g, '');
+    }
+
+    return trimmed.replace(',', '.');
+}
+
+export function parseLocaleDecimal(value) {
+    if (value === null || value === undefined || value === '') {
+        return null;
+    }
+
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : null;
+    }
+
+    const sanitized = sanitizeDecimalInput(value);
+
+    if (sanitized === '' || sanitized === '.' || sanitized === '-') {
+        return null;
+    }
+
+    const parsed = Number(sanitized);
+
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function normalizeNullableNumber(value) {
     if (value === null || value === undefined || value === '') {
         return null;

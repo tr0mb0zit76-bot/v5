@@ -212,6 +212,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/leads/create', 'create')->name('leads.create');
         Route::post('/leads', 'store')->name('leads.store');
         Route::post('/leads/contractors', 'storeInlineContractor')->name('leads.contractors.store');
+        Route::get('/leads/counterparty-authority-hint', 'counterpartyAuthorityHint')->name('leads.counterparty-authority-hint');
         Route::get('/leads/{lead}', 'show')->name('leads.show');
         Route::patch('/leads/{lead}', 'update')->name('leads.update');
         Route::delete('/leads/{lead}', 'destroy')->name('leads.destroy');

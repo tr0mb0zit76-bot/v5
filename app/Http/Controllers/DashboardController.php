@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Commercial\LeadAttentionQueueService;
 use App\Services\DashboardMetricsService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -10,8 +11,11 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __invoke(Request $request, DashboardMetricsService $dashboardMetricsService): Response
-    {
+    public function __invoke(
+        Request $request,
+        DashboardMetricsService $dashboardMetricsService,
+        LeadAttentionQueueService $leadAttentionQueue,
+    ): Response {
         $validated = $request->validate([
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
@@ -51,6 +55,10 @@ class DashboardController extends Controller
                     'metrics_own' => null,
                 ]
                 : $dashboardMetricsService->forDashboard($request->user(), $dateFrom, $dateTo),
+            'leadAttentionQueue' => $leadAttentionQueue->queueForUser(
+                $request->user(),
+                (int) config('commercial_nudges.attention_queue_limit', 15),
+            ),
         ]);
     }
 }

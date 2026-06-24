@@ -28,6 +28,8 @@ class BusinessProcessStage extends Model
         'task_due_days_offset',
         'task_priority',
         'no_reply_nudge_days',
+        'nudge_triggers',
+        'ledger_idle_nudge_days',
     ];
 
     /**
@@ -38,6 +40,7 @@ class BusinessProcessStage extends Model
         return [
             'is_terminal' => 'boolean',
             'auto_create_task' => 'boolean',
+            'nudge_triggers' => 'array',
         ];
     }
 

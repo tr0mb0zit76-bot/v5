@@ -10,6 +10,7 @@ use App\Services\Ai\AiUsageAnalyticsService;
 use App\Services\Commercial\HeadOfSalesInsightsService;
 use App\Services\Commercial\MailThreadAnalysisService;
 use App\Services\Commercial\ManagerSalesCoachingInsightsService;
+use App\Services\Leads\LeadOperationalBriefService;
 use App\Services\ManagementAccounting\ManagementAccountingInsightsService;
 use App\Services\Mcp\AiToolAuditLogger;
 use App\Services\Mcp\ContractorMcpService;
@@ -33,6 +34,7 @@ use App\Services\SalesScripts\TrainerCoachingInsightsService;
 use App\Support\AiInteractionFeature;
 use App\Support\DispositionSlot;
 use App\Support\RoleAccess;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Schema;
@@ -70,6 +72,7 @@ class AgentToolRegistry
         private readonly ContractorPrintFormChangeRequestService $printFormChanges,
         private readonly ManagementAccountingMcpService $managementAccounting,
         private readonly ManagementAccountingInsightsService $managementAccountingInsights,
+        private readonly LeadOperationalBriefService $leadOperationalBrief,
     ) {}
 
     /**
@@ -114,7 +117,7 @@ class AgentToolRegistry
                 $this->audit->log($user, $name, $arguments, false, $error, AiInteractionFeature::CommandBar);
 
                 return ['error' => $error];
-            } catch (AuthenticationException|ModelNotFoundException $exception) {
+            } catch (AuthorizationException|AuthenticationException|ModelNotFoundException $exception) {
                 $this->audit->log($user, $name, $arguments, false, $exception->getMessage(), AiInteractionFeature::CommandBar);
 
                 return ['error' => $exception->getMessage()];
@@ -987,6 +990,40 @@ class AgentToolRegistry
                     (int) $args['lead_id'],
                     isset($args['thread_id']) ? (int) $args['thread_id'] : null,
                 ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_lead_operational_brief',
+                description: 'Операционный бриф лида: что сделать сейчас, пробелы в данных, риски (просрочка SLA, простой), готовность к переходу. Для разбора «почему застрял» — сначала этот tool, не копай БД вручную.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'lead_id' => ['type' => 'integer', 'minimum' => 1],
+                        'lead_ids' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'integer', 'minimum' => 1],
+                            'maxItems' => 25,
+                        ],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'leads'),
+                invoke: function (User $user, array $args): array {
+                    if (isset($args['lead_ids']) && is_array($args['lead_ids'])) {
+                        $ids = array_map(fn (mixed $id): int => (int) $id, $args['lead_ids']);
+
+                        return [
+                            'briefs' => $this->leadOperationalBrief->buildManyForUser($user, $ids),
+                        ];
+                    }
+
+                    if (! isset($args['lead_id'])) {
+                        return ['error' => 'Укажите lead_id или lead_ids.'];
+                    }
+
+                    return [
+                        'brief' => $this->leadOperationalBrief->buildForUser($user, (int) $args['lead_id']),
+                    ];
+                },
             ),
             new AgentToolDefinition(
                 name: 'get_manager_sales_coaching_insights',

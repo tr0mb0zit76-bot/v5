@@ -23,6 +23,12 @@
 
         <LeadSalesCoachingPanel v-if="!featureUnavailable && !isLeadModalOpen" :insights="salesCoachingInsights" />
 
+        <LeadAttentionPanel
+            v-if="!featureUnavailable && !isLeadModalOpen"
+            :queue="leadAttentionQueue"
+            @open-lead="handleRowDblClick"
+        />
+
         <div :class="crmGridPanel">
             <LeadsGrid
                 :rows="rows"
@@ -52,6 +58,7 @@
                     :source-options="page.props.sourceOptions ?? []"
                     :transport-type-options="page.props.transportTypeOptions ?? []"
                     :currency-options="page.props.currencyOptions ?? []"
+                    :payment-form-options="page.props.paymentFormOptions ?? []"
                     :print-form-template-options="page.props.printFormTemplateOptions ?? []"
                     :proposal-html-template-options="page.props.proposalHtmlTemplateOptions ?? []"
                     :current-user-id="page.props.currentUserId ?? null"
@@ -82,6 +89,7 @@ import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import { crmBtnCreate, crmGridPanel } from '@/support/crmUi.js';
 import LeadsGrid from '@/Components/Leads/LeadsGrid.vue';
 import LeadSalesCoachingPanel from '@/Components/Leads/LeadSalesCoachingPanel.vue';
+import LeadAttentionPanel from '@/Components/Leads/LeadAttentionPanel.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import Modal from '@/Components/Modal.vue';
 import LeadWizard from '@/Pages/Leads/Wizard.vue';
@@ -94,6 +102,7 @@ const page = usePage();
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
 const rows = computed(() => page.props.leads ?? []);
 const salesCoachingInsights = computed(() => page.props.salesCoachingInsights ?? null);
+const leadAttentionQueue = computed(() => page.props.leadAttentionQueue ?? null);
 const availableColumns = computed(() => page.props.leadColumns ?? []);
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const featureUnavailable = computed(() => Boolean(page.props.featureUnavailable));
@@ -150,7 +159,7 @@ function openCreateLeadFrom(row) {
     router.get(route('leads.create', { from: row.id }), {}, {
         preserveScroll: true,
         preserveState: true,
-        only: [...modalPropKeys, 'leads', 'salesCoachingInsights'],
+        only: [...modalPropKeys, 'leads', 'salesCoachingInsights', 'leadAttentionQueue'],
     });
 }
 

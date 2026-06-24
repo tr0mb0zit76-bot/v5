@@ -1023,11 +1023,11 @@
                                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Вес</label>
                                 <div class="flex gap-1.5">
                                     <input
-                                        v-model="item.weight_value"
-                                        type="number"
-                                        min="0"
-                                        step="0.001"
+                                        :value="item.weight_value ?? ''"
+                                        type="text"
+                                        inputmode="decimal"
                                         class="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        @input="onCargoDecimalInput(item, 'weight_value', $event)"
                                     />
                                     <select v-model="item.weight_unit" class="w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1.5 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-950">
                                         <option value="kg">кг</option>
@@ -1108,40 +1108,39 @@
                                 <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
                                     <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Д</label>
                                     <input
-                                        v-model="item.length_m"
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
+                                        :value="item.length_m ?? ''"
+                                        type="text"
+                                        inputmode="decimal"
                                         class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                        @input="onCargoDecimalInput(item, 'length_m', $event)"
                                     />
                                 </div>
                                 <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
                                     <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Ш</label>
                                     <input
-                                        v-model="item.width_m"
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
+                                        :value="item.width_m ?? ''"
+                                        type="text"
+                                        inputmode="decimal"
                                         class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                        @input="onCargoDecimalInput(item, 'width_m', $event)"
                                     />
                                 </div>
                                 <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
                                     <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">В</label>
                                     <input
-                                        v-model="item.height_m"
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
+                                        :value="item.height_m ?? ''"
+                                        type="text"
+                                        inputmode="decimal"
                                         class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                        @input="onCargoDecimalInput(item, 'height_m', $event)"
                                     />
                                 </div>
                                 <div class="flex w-[8.25rem] shrink-0 items-center gap-1">
                                     <label class="w-12 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Объём</label>
                                     <input
-                                        v-model="item.volume_m3"
-                                        type="number"
-                                        min="0"
-                                        step="0.001"
+                                        :value="item.volume_m3 ?? ''"
+                                        type="text"
+                                        inputmode="decimal"
                                         :readonly="cargoComputedVolumeM3(item) !== null"
                                         placeholder="—"
                                         :class="[
@@ -1150,6 +1149,7 @@
                                                 ? 'cursor-default border border-dashed border-zinc-200 bg-zinc-50 text-zinc-800 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-100'
                                                 : 'border border-zinc-200 bg-white dark:border-zinc-700',
                                         ]"
+                                        @input="onCargoDecimalInput(item, 'volume_m3', $event)"
                                     />
                                 </div>
                             </div>
@@ -1170,7 +1170,7 @@
                                     Объём:
                                     <template v-if="cargoLineTotalVolumeM3(item) > 0">{{ cargoLineTotalVolumeM3(item).toFixed(3) }} м³</template>
                                     <template v-else>—</template>
-                                    <span v-if="cargoPackageCountFactor(item) > 1 && cargoLineTotalVolumeM3(item) > 0" class="text-zinc-500">({{ Number(item.volume_m3 || 0).toFixed(3) }} м³ × {{ cargoPackageCountFactor(item) }})</span>
+                                    <span v-if="cargoPackageCountFactor(item) > 1 && cargoLineTotalVolumeM3(item) > 0" class="text-zinc-500">({{ (cargoLineTotalVolumeM3(item) / cargoPackageCountFactor(item)).toFixed(3) }} м³ × {{ cargoPackageCountFactor(item) }})</span>
                                 </div>
                                 <div v-if="cargoHasDimensions(item)">Габариты (Д×Ш×В): {{ cargoDimensionsLabel(item) }}</div>
                                 <div>Мест: {{ Number(item.package_count || 0) }}</div>
@@ -1933,6 +1933,7 @@ import {
     setRoutePointCity,
     syncRoutePointCityFromAddress,
 } from '@/support/routePointNormalizedData.js';
+import { parseLocaleDecimal, sanitizeDecimalInput } from '@/support/wizardDictionaryHelpers.js';
 import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import OrderWizardDocumentsTab from '@/Components/Orders/OrderWizardDocumentsTab.vue';
@@ -2974,18 +2975,18 @@ function normalizeCargoItem(raw = {}) {
 }
 
 function cargoWeightInKg(item) {
-    const v = Number(item.weight_value ?? item.weight_kg ?? 0);
+    const value = parseLocaleDecimal(item.weight_value ?? item.weight_kg ?? 0) ?? 0;
     if (item.weight_unit === 't') {
-        return v * 1000;
+        return value * 1000;
     }
 
-    return v;
+    return value;
 }
 
 /** Вес и габариты в строке — на одно место; множитель для сводок по числу мест. */
 function cargoPackageCountFactor(item) {
-    const n = Number(item.package_count);
-    if (Number.isFinite(n) && n > 0) {
+    const n = parseLocaleDecimal(item.package_count);
+    if (n !== null && n > 0) {
         return Math.trunc(n);
     }
 
@@ -2997,8 +2998,8 @@ function cargoLineTotalWeightKg(item) {
 }
 
 function cargoLineTotalVolumeM3(item) {
-    const per = Number(item.volume_m3);
-    if (!Number.isFinite(per) || per <= 0) {
+    const per = parseLocaleDecimal(item.volume_m3);
+    if (per === null || per <= 0) {
         return 0;
     }
 
@@ -3010,22 +3011,26 @@ function cargoHasDimensions(item) {
 }
 
 function cargoDimensionsLabel(item) {
-    const l = item.length_m !== null && item.length_m !== undefined && item.length_m !== '' ? Number(item.length_m).toFixed(2) : '—';
-    const w = item.width_m !== null && item.width_m !== undefined && item.width_m !== '' ? Number(item.width_m).toFixed(2) : '—';
-    const h = item.height_m !== null && item.height_m !== undefined && item.height_m !== '' ? Number(item.height_m).toFixed(2) : '—';
+    const l = parseLocaleDecimal(item.length_m);
+    const w = parseLocaleDecimal(item.width_m);
+    const h = parseLocaleDecimal(item.height_m);
 
-    return `${l}×${w}×${h} м`;
+    const lengthLabel = l !== null ? l.toFixed(2) : '—';
+    const widthLabel = w !== null ? w.toFixed(2) : '—';
+    const heightLabel = h !== null ? h.toFixed(2) : '—';
+
+    return `${lengthLabel}×${widthLabel}×${heightLabel} м`;
 }
 
 /**
  * Объём по габаритам (м³). Только если заданы все три стороны и они положительны.
  */
 function cargoComputedVolumeM3(item) {
-    const l = Number(item.length_m);
-    const w = Number(item.width_m);
-    const h = Number(item.height_m);
+    const l = parseLocaleDecimal(item.length_m);
+    const w = parseLocaleDecimal(item.width_m);
+    const h = parseLocaleDecimal(item.height_m);
 
-    if (!Number.isFinite(l) || !Number.isFinite(w) || !Number.isFinite(h) || l <= 0 || w <= 0 || h <= 0) {
+    if (l === null || w === null || h === null || l <= 0 || w <= 0 || h <= 0) {
         return null;
     }
 
@@ -3047,12 +3052,20 @@ function cargoVolumeDisplay(item) {
         return (Math.round(computed * 1000) / 1000).toFixed(3);
     }
 
-    const legacy = Number(item.volume_m3);
-    if (Number.isFinite(legacy)) {
+    const legacy = parseLocaleDecimal(item.volume_m3);
+    if (legacy !== null) {
         return legacy.toFixed(3);
     }
 
     return '';
+}
+
+function onCargoDecimalInput(item, field, event) {
+    item[field] = sanitizeDecimalInput(event.target.value);
+
+    if (field === 'weight_value') {
+        item.weight_kg = item.weight_value;
+    }
 }
 
 function selectedLoadingTypeCodes() {

@@ -32,32 +32,13 @@
                 </p>
             </div>
 
-            <div
-                v-if="processProgress.current_stage_goal || processProgress.current_stage_playbook || processProgress.current_stage_success_criteria"
-                class="mt-3 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20"
-            >
-                <div class="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
-                    Playbook
-                </div>
-                <p v-if="processProgress.current_stage_goal" class="text-sm font-medium text-emerald-950 dark:text-emerald-100">
-                    {{ processProgress.current_stage_goal }}
-                </p>
-                <div v-if="processProgress.current_stage_playbook" class="rounded-lg border border-emerald-100 bg-white/90 p-2 dark:border-emerald-900/30 dark:bg-zinc-950/60">
-                    <CrmMarkdownView :model-value="processProgress.current_stage_playbook" compact />
-                </div>
-                <div v-if="processProgress.current_stage_success_criteria">
-                    <CrmMarkdownView :model-value="processProgress.current_stage_success_criteria" compact />
-                </div>
-                <div v-if="processProgress.current_stage_sales_script">
-                    <button
-                        type="button"
-                        class="inline-flex items-center rounded-lg border border-emerald-400 bg-white px-3 py-1.5 text-xs font-medium text-emerald-900 hover:bg-emerald-50 dark:border-emerald-700 dark:bg-zinc-900 dark:text-emerald-100"
-                        @click="startSalesScript(processProgress.current_stage_sales_script.version_id)"
-                    >
-                        Скрипт «{{ processProgress.current_stage_sales_script.title }}»
-                    </button>
-                </div>
-            </div>
+            <LeadFocusNowPanel
+                v-if="operationalBrief"
+                :brief="operationalBrief"
+                :process-progress="processProgress"
+                @navigate-tab="emit('navigate-tab', $event)"
+                @focus-action="emit('focus-action', $event)"
+            />
 
             <div v-if="processProgress.progress_percent > 0" class="mt-3 space-y-1">
                 <div class="flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
@@ -121,8 +102,7 @@
 
 <script setup>
 import { computed } from 'vue';
-import { router } from '@inertiajs/vue3';
-import CrmMarkdownView from '@/Components/Crm/CrmMarkdownView.vue';
+import LeadFocusNowPanel from '@/Components/Leads/LeadFocusNowPanel.vue';
 import LeadCloseOutcomeFields from '@/Components/Leads/LeadCloseOutcomeFields.vue';
 
 const props = defineProps({
@@ -130,6 +110,7 @@ const props = defineProps({
     businessProcesses: { type: Array, default: () => [] },
     businessProcessId: [Number, String, null],
     processProgress: { type: Object, default: null },
+    operationalBrief: { type: Object, default: null },
     advanceStageId: { type: [Number, String], default: '' },
     processing: { type: Boolean, default: false },
     lostCloseOutcomeOptions: { type: Array, default: () => [] },
@@ -140,7 +121,7 @@ const props = defineProps({
 const closeOutcomePrimaryFlag = defineModel('closeOutcomePrimaryFlag', { type: String, default: '' });
 const closeOutcomeNote = defineModel('closeOutcomeNote', { type: String, default: '' });
 
-const emit = defineEmits(['update:businessProcessId', 'update:advanceStageId', 'advance']);
+const emit = defineEmits(['update:businessProcessId', 'update:advanceStageId', 'advance', 'navigate-tab', 'focus-action']);
 
 const selectedProcessDescription = computed(() => {
     const process = props.businessProcesses.find((item) => Number(item.id) === Number(props.businessProcessId));
@@ -211,12 +192,6 @@ function formatDateTime(value) {
     }
 
     return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(date);
-}
-
-function startSalesScript(versionId) {
-    router.post(route('scripts.sessions.store'), {
-        sales_script_version_id: versionId,
-    });
 }
 </script>
 

@@ -5,6 +5,7 @@ namespace Tests\Feature\Feature\Leads;
 use App\Models\Lead;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\Commercial\LeadAttentionQueueService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -67,6 +68,7 @@ class LeadManagementTest extends TestCase
             $table->id();
             $table->string('type')->default('customer');
             $table->string('name');
+            $table->unsignedBigInteger('owner_id')->nullable();
             $table->string('inn', 20)->nullable();
             $table->string('phone', 50)->nullable();
             $table->string('email')->nullable();
@@ -78,6 +80,9 @@ class LeadManagementTest extends TestCase
             $table->string('signer_name_nominative')->nullable();
             $table->string('signer_name_prepositional')->nullable();
             $table->string('signer_authority_basis')->nullable();
+            $table->string('contact_person')->nullable();
+            $table->string('contact_person_position')->nullable();
+            $table->string('signer_position')->nullable();
             $table->boolean('is_active')->default(true);
             $table->boolean('is_verified')->default(false);
             $table->boolean('is_own_company')->default(false);
@@ -377,6 +382,90 @@ class LeadManagementTest extends TestCase
             $table->unsignedBigInteger('updated_by')->nullable();
             $table->timestamps();
         });
+    }
+
+    public function test_lead_counterparty_authority_hint_returns_decision_maker(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $contractorId = $this->createContractor($manager->id);
+
+        DB::table('contractors')->where('id', $contractorId)->update([
+            'contact_person' => 'Иванова Анна',
+            'contact_person_position' => 'Директор',
+        ]);
+
+        $response = $this->actingAs($manager)->getJson(route('leads.counterparty-authority-hint', [
+            'contractor_id' => $contractorId,
+        ]));
+
+        $response->assertOk();
+        $response->assertJson([
+            'authority' => 'Иванова Анна, Директор',
+        ]);
+    }
+
+    public function test_commercial_process_nudges_creates_task_for_missed_next_contact(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $lead = Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'status' => 'qualification',
+            'next_contact_at' => now()->subDay(),
+            'title' => 'Пропущенный контакт',
+        ]);
+
+        $this->artisan('commercial:process-nudges')->assertSuccessful();
+
+        $this->assertDatabaseHas('tasks', [
+            'lead_id' => $lead->id,
+            'responsible_id' => $manager->id,
+            'status' => 'new',
+        ]);
+
+        $this->artisan('commercial:process-nudges')->assertSuccessful();
+        $this->assertSame(1, DB::table('tasks')->where('lead_id', $lead->id)->count());
+    }
+
+    public function test_lead_attention_queue_lists_missed_next_contact(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'status' => 'qualification',
+            'next_contact_at' => now()->subHours(4),
+            'title' => 'В очереди внимания',
+        ]);
+
+        $queue = app(LeadAttentionQueueService::class)
+            ->queueForUser($manager, 10);
+
+        $this->assertTrue($queue['available']);
+        $this->assertSame(1, $queue['total']);
+        $this->assertSame('В очереди внимания', $queue['items'][0]['title']);
+    }
+
+    public function test_lead_show_includes_operational_brief(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $lead = Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'status' => 'qualification',
+            'counterparty_id' => null,
+            'title' => 'Лид для брифа',
+        ]);
+
+        $response = $this->actingAs($manager)->get(route('leads.show', $lead));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Leads/Index')
+            ->where('selectedLead.id', $lead->id)
+            ->where('selectedLead.operational_brief.lead_id', $lead->id)
+            ->where('selectedLead.operational_brief.health', 'stuck')
+            ->has('selectedLead.operational_brief.actions_now')
+            ->has('selectedLead.operational_brief.summary_ru')
+            ->has('paymentFormOptions')
+        );
     }
 
     public function test_manager_sees_only_own_leads(): void
@@ -1077,9 +1166,9 @@ class LeadManagementTest extends TestCase
         ]);
     }
 
-    private function createContractor(): int
+    private function createContractor(?int $ownerId = null): int
     {
-        return (int) DB::table('contractors')->insertGetId([
+        $payload = [
             'type' => 'customer',
             'name' => 'ООО Клиент',
             'ogrn' => '1234567890123',
@@ -1091,7 +1180,13 @@ class LeadManagementTest extends TestCase
             'is_own_company' => false,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ];
+
+        if ($ownerId !== null) {
+            $payload['owner_id'] = $ownerId;
+        }
+
+        return (int) DB::table('contractors')->insertGetId($payload);
     }
 
     private function makeDocxPath(array $entries): string
