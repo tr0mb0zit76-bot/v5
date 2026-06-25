@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Services\Fleet\FleetVehicleRegistry;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -10,6 +11,17 @@ class StoreFleetVehicleRequest extends FormRequest
     public function authorize(): bool
     {
         return $this->user() !== null;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        /** @var FleetVehicleRegistry $registry */
+        $registry = app(FleetVehicleRegistry::class);
+
+        $this->merge([
+            'tractor_plate' => $registry->normalizePlate($this->input('tractor_plate')),
+            'trailer_plate' => $registry->normalizePlate($this->input('trailer_plate')),
+        ]);
     }
 
     /**

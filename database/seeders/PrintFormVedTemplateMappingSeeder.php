@@ -65,7 +65,9 @@ class PrintFormVedTemplateMappingSeeder extends Seeder
             return;
         }
 
-        $mapping = $resolver->effectiveVariableMapping($placeholders, [], 'order', $party);
+        $mapping = collect($resolver->effectiveVariableMapping($placeholders, [], 'order', $party))
+            ->reject(fn (string $path, string $placeholder): bool => $path === $placeholder)
+            ->all();
 
         $settings['variables'] = $placeholders;
         $settings['variable_mapping'] = $mapping;

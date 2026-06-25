@@ -4,10 +4,15 @@ namespace App\Support;
 
 use App\Models\FleetDriver;
 use App\Models\FleetVehicle;
+use App\Services\Fleet\FleetVehicleRegistry;
 use Illuminate\Support\Facades\Schema;
 
 final class CarrierPortalFleetResolver
 {
+    public function __construct(
+        private readonly FleetVehicleRegistry $fleetVehicleRegistry,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $identity
      */
@@ -17,8 +22,8 @@ final class CarrierPortalFleetResolver
             return null;
         }
 
-        $tractorPlate = $this->normalizePlate($identity['tractor_plate'] ?? null);
-        $trailerPlate = $this->normalizePlate($identity['trailer_plate'] ?? null);
+        $tractorPlate = $this->fleetVehicleRegistry->normalizePlate($identity['tractor_plate'] ?? null);
+        $trailerPlate = $this->fleetVehicleRegistry->normalizePlate($identity['trailer_plate'] ?? null);
 
         if ($tractorPlate !== null) {
             $existing = FleetVehicle::query()
@@ -85,30 +90,14 @@ final class CarrierPortalFleetResolver
             return null;
         }
 
-        $tractorPlate = $this->normalizePlate($identity['tractor_plate'] ?? null);
-        $trailerPlate = $this->normalizePlate($identity['trailer_plate'] ?? null);
+        $tractorPlate = $this->fleetVehicleRegistry->normalizePlate($identity['tractor_plate'] ?? null);
+        $trailerPlate = $this->fleetVehicleRegistry->normalizePlate($identity['trailer_plate'] ?? null);
 
         if ($tractorPlate === null && $trailerPlate === null) {
             return null;
         }
 
-        $query = FleetVehicle::query()->where('owner_contractor_id', $contractorId);
-
-        if ($tractorPlate !== null) {
-            $existing = (clone $query)->where('tractor_plate', $tractorPlate)->first();
-            if ($existing !== null) {
-                $existing->forceFill(array_filter([
-                    'trailer_plate' => $trailerPlate ?? $existing->trailer_plate,
-                    'tractor_brand' => $this->nullableString($identity['tractor_brand'] ?? null) ?? $existing->tractor_brand,
-                    'trailer_brand' => $this->nullableString($identity['trailer_brand'] ?? null) ?? $existing->trailer_brand,
-                ], fn (mixed $value): bool => $value !== null))->save();
-
-                return $existing->id;
-            }
-        }
-
-        $vehicle = FleetVehicle::query()->create([
-            'owner_contractor_id' => $contractorId,
+        $vehicle = $this->fleetVehicleRegistry->register($contractorId, [
             'tractor_plate' => $tractorPlate,
             'trailer_plate' => $trailerPlate,
             'tractor_brand' => $this->nullableString($identity['tractor_brand'] ?? null),
@@ -162,13 +151,7 @@ final class CarrierPortalFleetResolver
 
     private function normalizePlate(mixed $value): ?string
     {
-        if ($value === null) {
-            return null;
-        }
-
-        $plate = mb_strtoupper(trim((string) $value));
-
-        return $plate === '' ? null : $plate;
+        return $this->fleetVehicleRegistry->normalizePlate($value);
     }
 
     private function nullableString(mixed $value): ?string

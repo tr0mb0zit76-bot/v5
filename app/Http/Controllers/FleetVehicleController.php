@@ -7,6 +7,7 @@ use App\Http\Requests\StoreFleetVehicleRequest;
 use App\Http\Requests\UpdateFleetVehicleRequest;
 use App\Models\FleetVehicle;
 use App\Models\FleetVehicleDocument;
+use App\Services\Fleet\FleetVehicleRegistry;
 use App\Support\InlineStoredFileResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -21,6 +22,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FleetVehicleController extends Controller
 {
+    public function __construct(
+        private readonly FleetVehicleRegistry $fleetVehicleRegistry,
+    ) {}
+
     public function index(Request $request): Response
     {
         abort_unless(Schema::hasTable('fleet_vehicles'), 404);
@@ -42,7 +47,10 @@ class FleetVehicleController extends Controller
     {
         abort_unless(Schema::hasTable('fleet_vehicles'), 404);
         $validated = $request->validated();
-        $vehicle = FleetVehicle::query()->create($validated);
+        $vehicle = $this->fleetVehicleRegistry->register(
+            (int) $validated['owner_contractor_id'],
+            $validated,
+        );
 
         return to_route('fleet.vehicles.show', $vehicle);
     }
@@ -50,7 +58,18 @@ class FleetVehicleController extends Controller
     public function update(UpdateFleetVehicleRequest $request, FleetVehicle $fleetVehicle): RedirectResponse
     {
         abort_unless(Schema::hasTable('fleet_vehicles'), 404);
-        $fleetVehicle->update($request->validated());
+        $validated = $request->validated();
+        $ownerId = (int) $validated['owner_contractor_id'];
+        $tractorPlate = $this->fleetVehicleRegistry->normalizePlate($validated['tractor_plate'] ?? null);
+        $trailerPlate = $this->fleetVehicleRegistry->normalizePlate($validated['trailer_plate'] ?? null);
+
+        $this->fleetVehicleRegistry->assertUniqueForUpdate($fleetVehicle, $ownerId, $tractorPlate, $trailerPlate);
+
+        $fleetVehicle->update([
+            ...$validated,
+            'tractor_plate' => $tractorPlate,
+            'trailer_plate' => $trailerPlate,
+        ]);
 
         return to_route('fleet.vehicles.show', $fleetVehicle);
     }

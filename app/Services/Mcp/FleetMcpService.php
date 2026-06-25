@@ -5,15 +5,16 @@ namespace App\Services\Mcp;
 use App\Models\FleetDriver;
 use App\Models\FleetVehicle;
 use App\Models\User;
+use App\Services\Fleet\FleetVehicleRegistry;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class FleetMcpService
 {
     public function __construct(
         private readonly McpAccessGate $access,
+        private readonly FleetVehicleRegistry $fleetVehicleRegistry,
     ) {}
 
     /**
@@ -89,16 +90,7 @@ class FleetMcpService
             'notes' => ['nullable', 'string', 'max:5000'],
         ])->validate();
 
-        if (trim((string) ($validated['tractor_plate'] ?? '')) === ''
-            && trim((string) ($validated['trailer_plate'] ?? '')) === ''
-            && trim((string) ($validated['tractor_brand'] ?? '')) === ''
-            && trim((string) ($validated['trailer_brand'] ?? '')) === '') {
-            throw ValidationException::withMessages([
-                'tractor_plate' => 'Укажите хотя бы госномер или марку тягача/прицепа.',
-            ]);
-        }
-
-        $vehicle = FleetVehicle::query()->create($validated);
+        $vehicle = $this->fleetVehicleRegistry->register((int) $validated['owner_contractor_id'], $validated);
         $vehicle->load('owner:id,name,inn');
 
         return [

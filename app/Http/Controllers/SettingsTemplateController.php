@@ -518,7 +518,10 @@ class SettingsTemplateController extends Controller
         }
 
         return collect($normalized)
-            ->filter(fn (mixed $value, string $key): bool => in_array($key, $variables, true) && is_string($value) && $value !== '')
+            ->filter(fn (mixed $value, string $key): bool => in_array($key, $variables, true)
+                && is_string($value)
+                && $value !== ''
+                && $value !== $key)
             ->all();
     }
 
