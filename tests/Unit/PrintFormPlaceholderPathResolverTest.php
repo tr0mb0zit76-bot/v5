@@ -19,6 +19,21 @@ class PrintFormPlaceholderPathResolverTest extends TestCase
     }
 
     #[Test]
+    public function it_maps_gosnomer_ts_to_vehicle_number_and_ignores_identity_template_mapping(): void
+    {
+        $resolver = new PrintFormPlaceholderPathResolver;
+
+        $this->assertSame(
+            'vehicle.number',
+            $resolver->resolve('gosnomer_TS', [], 'order', 'customer'),
+        );
+        $this->assertSame(
+            'vehicle.number',
+            $resolver->resolve('gosnomer_TS', ['gosnomer_TS' => 'gosnomer_TS'], 'order', 'customer'),
+        );
+    }
+
+    #[Test]
     public function it_maps_trailer_legacy_placeholders_to_vehicle_trailer_fields(): void
     {
         $resolver = new PrintFormPlaceholderPathResolver;

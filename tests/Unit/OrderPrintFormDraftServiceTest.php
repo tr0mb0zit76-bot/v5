@@ -6,6 +6,7 @@ use App\Models\Cargo;
 use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\OrderLeg;
+use App\Models\PrintFormTemplate;
 use App\Models\RoutePoint;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\PrintFormVariableCatalog;
@@ -523,5 +524,37 @@ class OrderPrintFormDraftServiceTest extends TestCase
         $gosnomer = $method->invoke($service, 'gosnomer', $placeholders, $snapshot, 'М 816 СН/21');
 
         $this->assertSame('М 816 СН/21', $gosnomer);
+    }
+
+    public function test_legacy_gosnomer_ts_resolves_vehicle_number_despite_identity_template_mapping(): void
+    {
+        $service = $this->makeService();
+        $method = new \ReflectionMethod($service, 'resolvePlaceholderReplacement');
+        $method->setAccessible(true);
+
+        $placeholders = new Collection(['gosnomer_TS', 'marka_avto']);
+        $mapping = collect(['gosnomer_TS' => 'gosnomer_TS']);
+        $template = new PrintFormTemplate([
+            'party' => 'customer',
+            'code' => 'test',
+        ]);
+        $snapshot = [
+            'vehicle' => [
+                'number' => 'С357ХК797',
+                'brand' => 'Dongfeng',
+                'trailer_plate' => null,
+            ],
+        ];
+
+        $replacement = $method->invoke(
+            $service,
+            'gosnomer_TS',
+            $placeholders,
+            $mapping,
+            $template,
+            $snapshot,
+        );
+
+        $this->assertSame('С357ХК797', $replacement);
     }
 }

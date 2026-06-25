@@ -52,7 +52,9 @@ class PrintFormPlaceholderPathResolver
     {
         $explicit = $variableMapping[$placeholder] ?? null;
         if (is_string($explicit) && $explicit !== '') {
-            return $explicit;
+            if ($this->normalizeLegacyPlaceholderKey($explicit) !== $this->normalizeLegacyPlaceholderKey($placeholder)) {
+                return $explicit;
+            }
         }
 
         if ($entityType === 'lead') {
@@ -190,6 +192,7 @@ class PrintFormPlaceholderPathResolver
             'passport_voditel' => 'driver.passport_data',
             'marka_avto' => 'vehicle.brand',
             'gosnomer' => 'vehicle.number',
+            'gosnomer_ts' => 'vehicle.number',
             'marka_priz' => 'vehicle.trailer_brand',
             'gosnomer_priz' => 'vehicle.trailer_plate',
             'tip_pritsepa' => 'vehicle.cargo_body_type',

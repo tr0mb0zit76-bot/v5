@@ -2908,7 +2908,7 @@ class OrderPrintFormDraftService
             fn (mixed $candidate): bool => is_string($candidate) && $this->normalizedPlaceholderIsTrailerBrand($candidate),
         );
 
-        if ($placeholder === 'gosnomer' && ! $hasTrailerPlatePlaceholder) {
+        if ($this->normalizedPlaceholderIsTractorPlate($placeholder) && ! $hasTrailerPlatePlaceholder) {
             $trailerPlate = trim($this->stringifyValue(data_get($snapshot, 'vehicle.trailer_plate')));
             if ($trailerPlate !== '' && ! str_contains($replacement, $trailerPlate)) {
                 $replacement = trim($replacement) === ''
@@ -2927,6 +2927,13 @@ class OrderPrintFormDraftService
         }
 
         return $replacement;
+    }
+
+    private function normalizedPlaceholderIsTractorPlate(string $placeholder): bool
+    {
+        $normalized = mb_strtolower(trim($placeholder), 'UTF-8');
+
+        return in_array($normalized, ['gosnomer', 'gosnomer_ts'], true);
     }
 
     private function normalizedPlaceholderIsTrailerPlate(string $placeholder): bool
