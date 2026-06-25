@@ -50,4 +50,4 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1   # Obsidian MCP bearer
 
 См. `Exchange/for_note/README.md` на Я.Диске.
 
-*Обновлено: 2026-06-23.*
+*Обновлено: 2026-06-02.*

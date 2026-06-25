@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-23 · **Ветка:** `master` · **HEAD:** `078b41d` (после push — см. `git log -1`)
+**Обновлено:** 2026-06-02 · **Ветка:** `master` · **HEAD:** `78e7e0a` (после push — см. `git log -1`)
 
 ---
 
@@ -73,6 +73,42 @@
    npm run build
    php artisan optimize:clear
    ```
+
+---
+
+## Что сделано недавно (2026-06-02)
+
+### Печать, лиды, флот, MCP
+
+| Коммит | Суть |
+| --- | --- |
+| `067ca7c` | Поиск задач MCP/агента по **имени ответственного**; docs лидов (`leads-mechanism.md`, `lead-user-guide.md`); legacy `gosnomer` + прицеп в печати; ошибки валидации в `VehicleWizard` |
+| `e4d9168` | Плейсхолдер **`gosnomer_TS`** → `vehicle.number` (legacy + игнор маппинга «на себя») — заказ #58, шаблон `zayavka_s_zakazom_RF_AS` |
+| `78e7e0a` | **`FleetVehicleRegistry`** — дедуп ТС по владельцу + госномеру (UI «Авто», MCP, портал); в БД шаблонов не сохраняются `placeholder → placeholder` |
+
+**Печать — важно для агента:**
+
+- UI шаблонов показывает **итоговое** сопоставление (`effectiveVariableMapping`), генерация DOCX читает **сырой** `settings.variable_mapping` из БД.
+- После правки DOCX или сидера проверить `gosnomer_TS`, `gosnomer` и т.п. — явно выбрать «Транспорт: Номер» и **Сохранить** шаблон.
+- ТС/водитель в снимке берутся из `performers` / `order_legs.metadata.performer` (`fleet_vehicle_id`, `fleet_driver_id`), не из `orders.driver_id`.
+- Каталог плейсхолдеров: `PrintFormVariableCatalog.php`, резолвер: `PrintFormPlaceholderPathResolver.php`.
+
+**Редактирование ТС:** раздел **Авто** (`/fleet/vehicles`), двойной клик → `VehicleWizard` → Сохранить. Нужна область роли **`drivers`**. Из мастера заказа — только выбор из списка.
+
+**Дубли ТС на проде:** #49 / #50 (одинаковый `С357ХК797`, владелец #98) — артефакт до дедупа; #50 можно удалить, если ни один заказ не ссылается. Заказ #58 использует **#49**.
+
+**Лиды (nudges, бриф):** коммит `adafd54` — движок nudges, `LeadAttentionQueueService`, настройки БП; полное описание: `docs/leads-mechanism.md`.
+
+**На большом ПК после pull:**
+
+```powershell
+git pull
+npm run build
+php artisan optimize:clear
+pwsh -File scripts/sync-docs-to-yandex.ps1 -ExchangeRoot "$env:USERPROFILE\Yandex.Disk\Exchange"
+```
+
+**На проде после pull (уже задеплоено 2026-06-02):** `git pull`, `npm run build`, `php artisan optimize:clear`. Миграций в этих коммитах нет.
 
 ---
 
@@ -187,7 +223,8 @@ php artisan optimize:clear
 | **Handoff (этот файл)** | `docs/sync/Cursor-handoff-latest.md` |
 | **Старт сессии Cursor** | `docs/sync/cursor-agent-startup.md` |
 | **Правило агента** | `.cursor/rules/project-context-handoff.mdc` |
-| **Fleet / Собственный парк / Рейсы** | `docs/sync/v5-local-Components-Fleet-Own-Fleet.md` |
+| **Лиды (механизм, nudges)** | `docs/leads-mechanism.md`, `docs/lead-user-guide.md` |
+| **Fleet / рейсы / дедуп ТС** | `docs/sync/v5-local-Components-Fleet-Own-Fleet.md` |
 | **Граф знаний vs Obsidian** | `docs/sync/knowledge-graph-notes.md` |
 | **Commercial roadmap 1–5** | `docs/sync/v5-local-Components-Commercial-Roadmap.md` |
 | Индекс vault | [[00-index]] |
@@ -233,6 +270,7 @@ b1ab68b Документация QR-проверки печати
 
 ## Следующая сессия (предложение)
 
-1. Fleet: автоудаление `fleet_trips` при смене перевозчика на внешнего; бэкфилл рейсов по `contractors_costs` с `own_fleet`
-2. Дубликаты номеров заказов (СП/AS, `company_code` vs префикс в форме)
-3. Deploy `master` на прод при накоплении фиксов; `npm run build` на сервере
+1. Ссылка «Открыть карточку ТС» из мастера заказа; merge дубля #50 → #49 на проде
+2. Fleet: автоудаление `fleet_trips` при смене перевозчика на внешнего
+3. График оплат: счётчик «Показано X из Y» при фильтре ag-Grid (localStorage)
+4. Дубликаты номеров заказов (СП/AS, `company_code` vs префикс в форме)

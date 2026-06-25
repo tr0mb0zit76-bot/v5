@@ -51,6 +51,17 @@ tags: [fleet, own_fleet, fleet_trips, contractors]
 - `financial_terms.contractors_costs` — зеркало `execution_mode` через `syncContractorsCostsWithPerformers`.
 - `order_legs.metadata.performer` — фактические даты, ТС/водитель.
 
+## Дедупликация ТС (2026-06-02)
+
+`App\Services\Fleet\FleetVehicleRegistry` — при создании (UI `/fleet/vehicles`, MCP, портал перевозчика) ищет запись по **`owner_contractor_id` + нормализованный госномер** (тягач, затем прицеп). Повтор → обновление существующей карточки, не новая строка.
+
+Редактирование: **Авто** → двойной клик → `VehicleWizard` (PATCH). Область роли: **`drivers`**. Из мастера заказа — только выбор `fleet_vehicle_id`.
+
+## Печать: ТС и водитель в заказе
+
+Снимок: `OrderPrintFormDraftService` → `resolvePrimaryFleetSelection` из `performers` / `order_legs.metadata.performer`.  
+Плейсхолдеры: `vehicle.number`, `driver.full_name`; legacy `gosnomer`, `gosnomer_TS` (с 2026-06-02).
+
 ## Runbook (прод)
 
 **Лишний рейс** (перевозчик уже внешний):
@@ -71,4 +82,4 @@ DELETE FROM fleet_trips WHERE order_id = (SELECT id FROM orders WHERE order_numb
 `tests/Unit/VirtualOwnFleetContractorTest.php`  
 PHPUnit: `.env.testing` → `DB_DATABASE=u_tromb_test` (не рабочая `u_tromb`).
 
-*Обновлено: 2026-06-23.*
+*Обновлено: 2026-06-02.*

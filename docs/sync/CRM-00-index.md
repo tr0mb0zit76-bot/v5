@@ -69,6 +69,8 @@
 | **Документы (пользователи)** | `docs/documents-user-guide.md` |
 | **Документы (регламент v1)** | `docs/documents-regulation.md` |
 | Мастер заказов | `docs/order-wizard-user-guide.md` |
+| **Лиды (механизм)** | `docs/leads-mechanism.md` |
+| **Лиды (краткая инструкция)** | `docs/lead-user-guide.md` |
 | Синхрон vault ↔ git | `docs/sync/README.md` |
 
-*Обновлено: 2026-06-23.*
+*Обновлено: 2026-06-02.*

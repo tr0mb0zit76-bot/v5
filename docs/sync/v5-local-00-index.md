@@ -44,4 +44,4 @@
 | QR / verify печати | `v5-local-Components-Print-Forms-Verification.md` |
 | Утилиты | `v5-local-Components-Utility-Modules.md` |
 
-*Обновлено: 2026-06-23.*
+*Обновлено: 2026-06-02.*
