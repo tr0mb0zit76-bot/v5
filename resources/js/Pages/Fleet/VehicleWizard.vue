@@ -69,24 +69,29 @@
                         </div>
                     </div>
                     <p v-if="ownerPickedLabel" class="text-xs text-zinc-600 dark:text-zinc-300">Выбрано: {{ ownerPickedLabel }}</p>
+                    <p v-if="form.errors.owner_contractor_id" class="text-xs text-red-600">{{ form.errors.owner_contractor_id }}</p>
                 </div>
 
                 <div class="grid gap-4 md:grid-cols-2">
                     <div class="space-y-2">
                         <label class="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Марка тягача</label>
                         <input v-model="form.tractor_brand" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950" />
+                        <p v-if="form.errors.tractor_brand" class="text-xs text-red-600">{{ form.errors.tractor_brand }}</p>
                     </div>
                     <div class="space-y-2">
                         <label class="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Марка прицепа</label>
                         <input v-model="form.trailer_brand" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950" />
+                        <p v-if="form.errors.trailer_brand" class="text-xs text-red-600">{{ form.errors.trailer_brand }}</p>
                     </div>
                     <div class="space-y-2">
                         <label class="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Гос. номер тягача</label>
                         <input v-model="form.tractor_plate" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950" />
+                        <p v-if="form.errors.tractor_plate" class="text-xs text-red-600">{{ form.errors.tractor_plate }}</p>
                     </div>
                     <div class="space-y-2">
                         <label class="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Гос. номер прицепа</label>
                         <input v-model="form.trailer_plate" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950" />
+                        <p v-if="form.errors.trailer_plate" class="text-xs text-red-600">{{ form.errors.trailer_plate }}</p>
                     </div>
                 </div>
 

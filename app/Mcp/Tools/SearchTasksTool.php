@@ -13,7 +13,7 @@ use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
 
 #[Name('search_tasks')]
-#[Description('Поиск задач по номеру, названию или id. Учитывает scope ответственного.')]
+#[Description('Поиск задач по номеру, заголовку, id или имени ответственного. Учитывает scope ответственного.')]
 class SearchTasksTool extends Tool
 {
     use LogsMcpToolCalls;
@@ -47,7 +47,7 @@ class SearchTasksTool extends Tool
     {
         return [
             'query' => $schema->string()
-                ->description('Номер, заголовок или id. Пустая строка — последние задачи в пределах лимита.')
+                ->description('Номер, заголовок, id или фрагмент имени ответственного. Пустая строка — последние задачи в пределах лимита.')
                 ->max(120),
             'limit' => $schema->integer()
                 ->description('Максимум записей (1–25).')

@@ -376,7 +376,7 @@ class AgentToolRegistry
             ),
             new AgentToolDefinition(
                 name: 'search_tasks',
-                description: 'Поиск задач по заголовку, номеру или id.',
+                description: 'Поиск задач: заголовок, номер, id или имя ответственного (фрагмент «Тищенко», «Дина»).',
                 parameters: [
                     'type' => 'object',
                     'properties' => [

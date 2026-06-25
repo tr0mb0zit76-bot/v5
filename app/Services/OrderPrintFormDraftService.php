@@ -171,7 +171,7 @@ class OrderPrintFormDraftService
             }
 
             $mappedPath = $this->resolveMappedPath($placeholder, $mapping, $template);
-            $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
+            $replacement = $this->resolvePlaceholderReplacement($placeholder, $placeholders, $mapping, $template, $snapshot);
 
             foreach (PrintFormPlaceholderMacroVariants::innerPartsForSetValue($placeholder) as $inner) {
                 $processor->setValue($inner, $replacement);
@@ -206,8 +206,7 @@ class OrderPrintFormDraftService
                     continue;
                 }
 
-                $mappedPath = $this->resolveMappedPath($placeholder, $mapping, $template);
-                $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
+                $replacement = $this->resolvePlaceholderReplacement($placeholder, $placeholders, $mapping, $template, $snapshot);
 
                 foreach (PrintFormPlaceholderMacroVariants::innerPartsForSetValue($placeholder) as $inner) {
                     $processor->setValue($inner, $replacement);
@@ -2870,6 +2869,78 @@ class OrderPrintFormDraftService
         }
 
         return '';
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $placeholders
+     * @param  Collection<int, mixed>  $mapping
+     * @param  array<string, mixed>  $snapshot
+     */
+    private function resolvePlaceholderReplacement(
+        string $placeholder,
+        Collection $placeholders,
+        Collection $mapping,
+        PrintFormTemplate $template,
+        array $snapshot,
+    ): string {
+        $mappedPath = $this->resolveMappedPath($placeholder, $mapping, $template);
+        $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
+
+        return $this->applyLegacyVehiclePlaceholderEnrichment($placeholder, $placeholders, $snapshot, $replacement);
+    }
+
+    /**
+     * Старые шаблоны часто содержат только ${gosnomer} / ${marka_avto} без ${gosnomer_priz}.
+     *
+     * @param  Collection<int, mixed>  $placeholders
+     * @param  array<string, mixed>  $snapshot
+     */
+    private function applyLegacyVehiclePlaceholderEnrichment(
+        string $placeholder,
+        Collection $placeholders,
+        array $snapshot,
+        string $replacement,
+    ): string {
+        $hasTrailerPlatePlaceholder = $placeholders->contains(
+            fn (mixed $candidate): bool => is_string($candidate) && $this->normalizedPlaceholderIsTrailerPlate($candidate),
+        );
+        $hasTrailerBrandPlaceholder = $placeholders->contains(
+            fn (mixed $candidate): bool => is_string($candidate) && $this->normalizedPlaceholderIsTrailerBrand($candidate),
+        );
+
+        if ($placeholder === 'gosnomer' && ! $hasTrailerPlatePlaceholder) {
+            $trailerPlate = trim($this->stringifyValue(data_get($snapshot, 'vehicle.trailer_plate')));
+            if ($trailerPlate !== '' && ! str_contains($replacement, $trailerPlate)) {
+                $replacement = trim($replacement) === ''
+                    ? $trailerPlate
+                    : $replacement.' / '.$trailerPlate;
+            }
+        }
+
+        if ($placeholder === 'marka_avto' && ! $hasTrailerBrandPlaceholder) {
+            $trailerBrand = trim($this->stringifyValue(data_get($snapshot, 'vehicle.trailer_brand')));
+            if ($trailerBrand !== '' && ! str_contains($replacement, $trailerBrand)) {
+                $replacement = trim($replacement) === ''
+                    ? $trailerBrand
+                    : $replacement.' / '.$trailerBrand;
+            }
+        }
+
+        return $replacement;
+    }
+
+    private function normalizedPlaceholderIsTrailerPlate(string $placeholder): bool
+    {
+        $normalized = mb_strtolower(trim($placeholder), 'UTF-8');
+
+        return in_array($normalized, ['gosnomer_priz', 'gosnomer_prizepa', 'gosnomer_pritsepa'], true);
+    }
+
+    private function normalizedPlaceholderIsTrailerBrand(string $placeholder): bool
+    {
+        $normalized = mb_strtolower(trim($placeholder), 'UTF-8');
+
+        return in_array($normalized, ['marka_priz', 'marka_prizepa', 'marka_pritsepa'], true);
     }
 
     /**

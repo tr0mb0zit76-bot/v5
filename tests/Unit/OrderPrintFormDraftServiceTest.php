@@ -482,4 +482,46 @@ class OrderPrintFormDraftServiceTest extends TestCase
 
         $this->assertSame('M555MM99', data_get($snapshot, 'vehicle.number'));
     }
+
+    public function test_legacy_gosnomer_includes_trailer_plate_when_template_has_no_trailer_placeholder(): void
+    {
+        $service = $this->makeService();
+        $method = new \ReflectionMethod($service, 'applyLegacyVehiclePlaceholderEnrichment');
+        $method->setAccessible(true);
+
+        $placeholders = new Collection(['gosnomer', 'marka_avto', 'tip_pritsepa']);
+        $snapshot = [
+            'vehicle' => [
+                'number' => 'М 816 СН/21',
+                'trailer_plate' => 'АЕ 8447/21',
+                'brand' => 'Ивеко',
+                'trailer_brand' => null,
+            ],
+        ];
+
+        $gosnomer = $method->invoke($service, 'gosnomer', $placeholders, $snapshot, 'М 816 СН/21');
+        $marka = $method->invoke($service, 'marka_avto', $placeholders, $snapshot, 'Ивеко');
+
+        $this->assertSame('М 816 СН/21 / АЕ 8447/21', $gosnomer);
+        $this->assertSame('Ивеко', $marka);
+    }
+
+    public function test_legacy_gosnomer_does_not_duplicate_trailer_when_template_has_gosnomer_priz(): void
+    {
+        $service = $this->makeService();
+        $method = new \ReflectionMethod($service, 'applyLegacyVehiclePlaceholderEnrichment');
+        $method->setAccessible(true);
+
+        $placeholders = new Collection(['gosnomer', 'gosnomer_priz']);
+        $snapshot = [
+            'vehicle' => [
+                'number' => 'М 816 СН/21',
+                'trailer_plate' => 'АЕ 8447/21',
+            ],
+        ];
+
+        $gosnomer = $method->invoke($service, 'gosnomer', $placeholders, $snapshot, 'М 816 СН/21');
+
+        $this->assertSame('М 816 СН/21', $gosnomer);
+    }
 }

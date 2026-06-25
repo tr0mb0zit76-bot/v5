@@ -51,7 +51,10 @@ class TaskMcpService
         if ($needle !== '') {
             $builder->where(function (Builder $scoped) use ($needle): void {
                 $scoped->where('title', 'like', '%'.$needle.'%')
-                    ->orWhere('number', 'like', '%'.$needle.'%');
+                    ->orWhere('number', 'like', '%'.$needle.'%')
+                    ->orWhereHas('responsible', function (Builder $userQuery) use ($needle): void {
+                        $userQuery->where('name', 'like', '%'.$needle.'%');
+                    });
 
                 if (preg_match('/^\d+$/', $needle) === 1) {
                     $scoped->orWhere('id', (int) $needle);

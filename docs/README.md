@@ -10,7 +10,8 @@
 | [order-wizard-financial-terms-user-guide.md](./order-wizard-financial-terms-user-guide.md) | Финансовые условия в мастере заказов | `mcp-prod-upsert-order-wizard.php` |
 | [documents-user-guide.md](./documents-user-guide.md) | Документы | `mcp-prod-upsert-documents.php` |
 | [ai-assistants-user-guide.md](./ai-assistants-user-guide.md) | Ассистенты CRM | `mcp-prod-upsert-assistants.php` |
-| [lead-user-guide.md](./lead-user-guide.md) | — | — |
+| [lead-user-guide.md](./lead-user-guide.md) | Краткая инструкция по лидам | — |
+| [leads-mechanism.md](./leads-mechanism.md) | Механизм работы лидов (статусы, БП, nudges) | — |
 | [kanban-user-guide.md](./kanban-user-guide.md) | — | — |
 | [tasks-user-guide.md](./tasks-user-guide.md) | — | — |
 | [disposition-user-guide.md](./disposition-user-guide.md) | — | — |
