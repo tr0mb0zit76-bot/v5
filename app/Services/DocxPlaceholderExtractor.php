@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\PrintFormTemplate;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use ZipArchive;
@@ -61,6 +62,50 @@ class DocxPlaceholderExtractor
         }
 
         return $this->extractFromFile($absolutePath);
+    }
+
+    /**
+     * Итоговый список плейсхолдеров шаблона: сохранённый в settings + свежий парс DOCX.
+     * Нужен для UI сопоставления — settings могли устареть после правки DOCX или seeder.
+     *
+     * @return list<string>
+     */
+    public function placeholdersForTemplate(PrintFormTemplate $template): array
+    {
+        $settings = is_array($template->settings) ? $template->settings : [];
+        $stored = collect($settings['variables'] ?? [])
+            ->filter(fn (mixed $value): bool => is_string($value) && $value !== '')
+            ->values()
+            ->all();
+
+        if (! filled($template->file_path) || ! filled($template->file_disk)) {
+            return $stored;
+        }
+
+        $disk = (string) $template->file_disk;
+        $path = (string) $template->file_path;
+
+        if (! Storage::disk($disk)->exists($path)) {
+            return $stored;
+        }
+
+        return $this->mergePlaceholderLists($stored, $this->extractFromDisk($disk, $path));
+    }
+
+    /**
+     * @param  list<string>  $stored
+     * @param  list<string>  $fromFile
+     * @return list<string>
+     */
+    public function mergePlaceholderLists(array $stored, array $fromFile): array
+    {
+        return collect($stored)
+            ->merge($fromFile)
+            ->filter(fn (mixed $value): bool => is_string($value) && $value !== '')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 
     /**

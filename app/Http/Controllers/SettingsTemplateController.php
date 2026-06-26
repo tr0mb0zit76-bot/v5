@@ -73,75 +73,82 @@ class SettingsTemplateController extends Controller
                 ->orderBy('document_type')
                 ->orderBy('name')
                 ->get()
-                ->map(fn (PrintFormTemplate $template): array => [
-                    'id' => $template->id,
-                    'code' => $template->code,
-                    'name' => $template->name,
-                    'entity_type' => $template->entity_type ?? 'order',
-                    'document_type' => $template->document_type,
-                    'document_group' => $template->document_group,
-                    'party' => $template->party,
-                    'source_type' => $template->source_type ?? 'system',
-                    'contractor_id' => $template->contractor_id,
-                    'contractor_name' => $template->contractor?->name,
-                    'own_company_id' => Schema::hasColumn('print_form_templates', 'own_company_id')
-                        ? $template->own_company_id
-                        : null,
-                    'own_company_name' => Schema::hasColumn('print_form_templates', 'own_company_id')
-                        ? $template->ownCompany?->name
-                        : null,
-                    'transport_scope' => Schema::hasColumn('print_form_templates', 'transport_scope')
-                        ? ($template->transport_scope ?? PrintFormTemplateTransportScope::ANY)
-                        : PrintFormTemplateTransportScope::ANY,
-                    'transport_scope_label' => PrintFormTemplateTransportScope::label(
-                        Schema::hasColumn('print_form_templates', 'transport_scope')
-                            ? $template->transport_scope
+                ->map(function (PrintFormTemplate $template): array {
+                    $placeholders = $this->placeholderExtractor->placeholdersForTemplate($template);
+                    $storedMapping = is_array(data_get($template->settings, 'variable_mapping'))
+                        ? data_get($template->settings, 'variable_mapping')
+                        : [];
+
+                    return [
+                        'id' => $template->id,
+                        'code' => $template->code,
+                        'name' => $template->name,
+                        'entity_type' => $template->entity_type ?? 'order',
+                        'document_type' => $template->document_type,
+                        'document_group' => $template->document_group,
+                        'party' => $template->party,
+                        'source_type' => $template->source_type ?? 'system',
+                        'contractor_id' => $template->contractor_id,
+                        'contractor_name' => $template->contractor?->name,
+                        'own_company_id' => Schema::hasColumn('print_form_templates', 'own_company_id')
+                            ? $template->own_company_id
+                            : null,
+                        'own_company_name' => Schema::hasColumn('print_form_templates', 'own_company_id')
+                            ? $template->ownCompany?->name
+                            : null,
+                        'transport_scope' => Schema::hasColumn('print_form_templates', 'transport_scope')
+                            ? ($template->transport_scope ?? PrintFormTemplateTransportScope::ANY)
                             : PrintFormTemplateTransportScope::ANY,
-                    ),
-                    'is_default' => (bool) $template->is_default,
-                    'requires_internal_signature' => (bool) $template->requires_internal_signature,
-                    'requires_counterparty_signature' => (bool) $template->requires_counterparty_signature,
-                    'is_active' => (bool) $template->is_active,
-                    'version' => (int) $template->version,
-                    'original_filename' => $template->original_filename,
-                    'has_source_file' => filled($template->file_path),
-                    'pipeline_status' => data_get($template->settings, 'pipeline_status', 'draft'),
-                    'variables' => data_get($template->settings, 'variables', []),
-                    'variable_mapping' => $this->placeholderPathResolver->effectiveVariableMapping(
-                        is_array(data_get($template->settings, 'variables')) ? data_get($template->settings, 'variables') : [],
-                        is_array(data_get($template->settings, 'variable_mapping')) ? data_get($template->settings, 'variable_mapping') : [],
-                        (string) ($template->entity_type ?? 'order'),
-                        ($template->entity_type ?? 'order') === 'order' ? $template->party : null,
-                    ),
-                    'internal_signature_placeholder' => data_get(
-                        $template->settings,
-                        'image_overlays.internal_signature.placeholder',
-                        PrintFormImageOverlayPlaceholders::DEFAULT_SIGNATURE,
-                    ),
-                    'internal_stamp_placeholder' => data_get(
-                        $template->settings,
-                        'image_overlays.internal_stamp.placeholder',
-                        PrintFormImageOverlayPlaceholders::DEFAULT_STAMP,
-                    ),
-                    'signature_image_width_mm' => (float) data_get($template->settings, 'image_overlays.internal_signature.width_mm', 42),
-                    'signature_image_height_mm' => (float) data_get($template->settings, 'image_overlays.internal_signature.height_mm', 18),
-                    'signature_image_offset_x_mm' => (float) data_get($template->settings, 'image_overlays.internal_signature.offset_x_mm', 0),
-                    'signature_image_offset_y_mm' => (float) data_get($template->settings, 'image_overlays.internal_signature.offset_y_mm', 0),
-                    'stamp_image_width_mm' => (float) data_get($template->settings, 'image_overlays.internal_stamp.width_mm', 30),
-                    'stamp_image_height_mm' => (float) data_get($template->settings, 'image_overlays.internal_stamp.height_mm', 30),
-                    'stamp_image_offset_x_mm' => (float) data_get($template->settings, 'image_overlays.internal_stamp.offset_x_mm', 0),
-                    'stamp_image_offset_y_mm' => (float) data_get($template->settings, 'image_overlays.internal_stamp.offset_y_mm', 0),
-                    'apply_crm_overlay_offsets' => (bool) data_get($template->settings, 'image_overlays.apply_crm_overlay_offsets', true),
-                    'has_signature_image' => filled(data_get($template->settings, 'image_overlays.internal_signature.path')),
-                    'has_stamp_image' => filled(data_get($template->settings, 'image_overlays.internal_stamp.path')),
-                    'signature_image_preview_url' => filled(data_get($template->settings, 'image_overlays.internal_signature.path'))
-                        ? route('settings.templates.overlay-asset', ['printFormTemplate' => $template->id, 'overlayKey' => 'internal_signature'])
-                        : null,
-                    'stamp_image_preview_url' => filled(data_get($template->settings, 'image_overlays.internal_stamp.path'))
-                        ? route('settings.templates.overlay-asset', ['printFormTemplate' => $template->id, 'overlayKey' => 'internal_stamp'])
-                        : null,
-                    'updated_at' => $template->updated_at?->toIso8601String(),
-                ])
+                        'transport_scope_label' => PrintFormTemplateTransportScope::label(
+                            Schema::hasColumn('print_form_templates', 'transport_scope')
+                                ? $template->transport_scope
+                                : PrintFormTemplateTransportScope::ANY,
+                        ),
+                        'is_default' => (bool) $template->is_default,
+                        'requires_internal_signature' => (bool) $template->requires_internal_signature,
+                        'requires_counterparty_signature' => (bool) $template->requires_counterparty_signature,
+                        'is_active' => (bool) $template->is_active,
+                        'version' => (int) $template->version,
+                        'original_filename' => $template->original_filename,
+                        'has_source_file' => filled($template->file_path),
+                        'pipeline_status' => data_get($template->settings, 'pipeline_status', 'draft'),
+                        'variables' => $placeholders,
+                        'variable_mapping' => $this->placeholderPathResolver->effectiveVariableMapping(
+                            $placeholders,
+                            $storedMapping,
+                            (string) ($template->entity_type ?? 'order'),
+                            ($template->entity_type ?? 'order') === 'order' ? $template->party : null,
+                        ),
+                        'internal_signature_placeholder' => data_get(
+                            $template->settings,
+                            'image_overlays.internal_signature.placeholder',
+                            PrintFormImageOverlayPlaceholders::DEFAULT_SIGNATURE,
+                        ),
+                        'internal_stamp_placeholder' => data_get(
+                            $template->settings,
+                            'image_overlays.internal_stamp.placeholder',
+                            PrintFormImageOverlayPlaceholders::DEFAULT_STAMP,
+                        ),
+                        'signature_image_width_mm' => (float) data_get($template->settings, 'image_overlays.internal_signature.width_mm', 42),
+                        'signature_image_height_mm' => (float) data_get($template->settings, 'image_overlays.internal_signature.height_mm', 18),
+                        'signature_image_offset_x_mm' => (float) data_get($template->settings, 'image_overlays.internal_signature.offset_x_mm', 0),
+                        'signature_image_offset_y_mm' => (float) data_get($template->settings, 'image_overlays.internal_signature.offset_y_mm', 0),
+                        'stamp_image_width_mm' => (float) data_get($template->settings, 'image_overlays.internal_stamp.width_mm', 30),
+                        'stamp_image_height_mm' => (float) data_get($template->settings, 'image_overlays.internal_stamp.height_mm', 30),
+                        'stamp_image_offset_x_mm' => (float) data_get($template->settings, 'image_overlays.internal_stamp.offset_x_mm', 0),
+                        'stamp_image_offset_y_mm' => (float) data_get($template->settings, 'image_overlays.internal_stamp.offset_y_mm', 0),
+                        'apply_crm_overlay_offsets' => (bool) data_get($template->settings, 'image_overlays.apply_crm_overlay_offsets', true),
+                        'has_signature_image' => filled(data_get($template->settings, 'image_overlays.internal_signature.path')),
+                        'has_stamp_image' => filled(data_get($template->settings, 'image_overlays.internal_stamp.path')),
+                        'signature_image_preview_url' => filled(data_get($template->settings, 'image_overlays.internal_signature.path'))
+                            ? route('settings.templates.overlay-asset', ['printFormTemplate' => $template->id, 'overlayKey' => 'internal_signature'])
+                            : null,
+                        'stamp_image_preview_url' => filled(data_get($template->settings, 'image_overlays.internal_stamp.path'))
+                            ? route('settings.templates.overlay-asset', ['printFormTemplate' => $template->id, 'overlayKey' => 'internal_stamp'])
+                            : null,
+                        'updated_at' => $template->updated_at?->toIso8601String(),
+                    ];
+                })
                 ->values();
         }
 

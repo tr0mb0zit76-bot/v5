@@ -6,7 +6,6 @@ use App\Models\PrintFormTemplate;
 use App\Services\DocxPlaceholderExtractor;
 use App\Support\PrintFormPlaceholderPathResolver;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Обновляет сопоставления плейсхолдеров для шаблонов заявок ВЭД в БД (prod-safe).
@@ -34,6 +33,7 @@ class PrintFormVedTemplateMappingSeeder extends Seeder
             ->where('entity_type', 'order')
             ->where(function ($query): void {
                 $query->where('name', 'like', '%ВЭД%')
+                    ->orWhere('name', 'like', '%перевоз%')
                     ->orWhereIn('code', self::TEMPLATE_CODES);
             })
             ->get();
@@ -57,7 +57,7 @@ class PrintFormVedTemplateMappingSeeder extends Seeder
         $settings = is_array($template->settings) ? $template->settings : [];
         $party = is_string($template->party) && $template->party !== '' ? $template->party : null;
 
-        $placeholders = $this->resolvePlaceholders($template, $extractor, $settings);
+        $placeholders = $extractor->placeholdersForTemplate($template);
 
         if ($placeholders === []) {
             $this->command?->warn("Шаблон #{$template->id} «{$template->name}»: плейсхолдеры не найдены.");
@@ -95,34 +95,5 @@ class PrintFormVedTemplateMappingSeeder extends Seeder
         if ($unresolved !== [] && $this->command !== null) {
             $this->command->line('  Без сопоставления: '.implode(', ', $unresolved));
         }
-    }
-
-    /**
-     * @param  array<string, mixed>  $settings
-     * @return list<string>
-     */
-    private function resolvePlaceholders(
-        PrintFormTemplate $template,
-        DocxPlaceholderExtractor $extractor,
-        array $settings,
-    ): array {
-        $fromSettings = collect($settings['variables'] ?? [])
-            ->filter(fn (mixed $value): bool => is_string($value) && $value !== '')
-            ->values()
-            ->all();
-
-        if (filled($template->file_path) && filled($template->file_disk)) {
-            $disk = (string) $template->file_disk;
-            $path = (string) $template->file_path;
-
-            if (Storage::disk($disk)->exists($path)) {
-                $fromFile = $extractor->extractFromDisk($disk, $path);
-                if ($fromFile !== []) {
-                    return $fromFile;
-                }
-            }
-        }
-
-        return $fromSettings;
     }
 }

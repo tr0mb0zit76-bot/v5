@@ -290,6 +290,59 @@ class TemplateManagementTest extends TestCase
         );
     }
 
+    public function test_templates_index_merges_docx_placeholders_with_stored_variables(): void
+    {
+        Storage::fake('local');
+
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'carrier_dp_podpisant_preview',
+            'name' => 'Заявка с перевозчиком тест',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'original_filename' => 'carrier.docx',
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/99/carrier.docx',
+            'settings' => json_encode([
+                'variables' => ['nomer_zayavki'],
+                'variable_mapping' => (object) [],
+                'pipeline_status' => 'placeholders_ready',
+            ], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Storage::disk('local')->put(
+            'print-form-templates/99/carrier.docx',
+            file_get_contents($this->makeDocxPath([
+                'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${dp_podpisant}</w:t></w:r></w:p><w:p><w:r><w:t>${dp_FIO_podpisant_im}</w:t></w:r></w:p></w:body></w:document>',
+            ]))
+        );
+
+        $response = $this->actingAs($admin)->get(route('settings.templates.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Settings/Templates')
+            ->has('templates', 1)
+            ->where('templates.0.id', $templateId)
+            ->where('templates.0.variable_mapping.dp_podpisant', 'carrier.signer_position')
+            ->where('templates.0.variable_mapping.dp_FIO_podpisant_im', 'carrier.signer_name_nominative')
+        );
+    }
+
     public function test_admin_can_create_external_docx_template(): void
     {
         Storage::fake('local');

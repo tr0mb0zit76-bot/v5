@@ -8,7 +8,7 @@
 | --- | --- |
 | **IP** | `91.229.11.16` |
 | **Пользователь** | `root` (по умолчанию в скрипте) |
-| **Ключ (Windows)** | `C:\,ssh\private_key.ppk` |
+| **Ключ (Windows)** | `C:\.ssh\private_key.ppk` |
 | **Формат ключа** | PuTTY **PPK** (не OpenSSH `.pem`) |
 | **Клиент** | PuTTY / `plink.exe` / Pageant |
 | **Сайт CRM** | `https://crm.avtoaliyans.ru` |
@@ -22,7 +22,7 @@
 
 1. Host: `91.229.11.16`, Port: `22`, Connection type: SSH.
 2. Connection → Data → Auto-login username: `root`.
-3. Connection → SSH → Auth → Credentials → Private key file: `C:\,ssh\private_key.ppk`.
+3. Connection → SSH → Auth → Credentials → Private key file: `C:\.ssh\private_key.ppk`.
 4. Save session как «CRM prod».
 5. Если ключ с passphrase — ввести при первом подключении или загрузить ключ в **Pageant** (tray).
 
@@ -43,7 +43,7 @@ cd C:\OSPanel\home\v5.local
 
 ## Pageant (ключ с парольной фразой)
 
-1. Запустить **Pageant** → **Add Key** → `C:\,ssh\private_key.ppk` → ввести passphrase.
+1. Запустить **Pageant** → **Add Key** → `C:\.ssh\private_key.ppk` → ввести passphrase.
 2. После этого `plink` / `prod-plink.ps1` работают без повторного ввода passphrase в сессии.
 
 ## Экспорт публичного ключа
@@ -55,7 +55,7 @@ cd C:\OSPanel\home\v5.local
 ## GitHub vs прод
 
 - **GitHub:** OpenSSH-ключ в `C:\Users\<вы>\.ssh\id_ed25519` (см. handoff).
-- **Прод-сервер:** отдельный PPK в `C:\,ssh\` — это **другой** ключ и другое назначение.
+- **Прод-сервер:** отдельный PPK в `C:\.ssh\` — это **другой** ключ и другое назначение.
 
 ## Command bar: 504 Gateway Timeout
 
