@@ -38,6 +38,67 @@ function matchesOwnCompany(templateOwnCompanyId, orderOwnCompanyId) {
     return Number(templateOwnCompanyId) === Number(orderOwnCompanyId);
 }
 
+function isDualOrientedTemplate(template) {
+    const party = String(template?.party ?? 'internal');
+
+    if (party === 'customer' || party === 'carrier') {
+        return false;
+    }
+
+    const hasCarrier = template?.has_carrier_basic_terms;
+    const hasCustomer = template?.has_customer_basic_terms;
+
+    if (hasCarrier === undefined || hasCustomer === undefined) {
+        return false;
+    }
+
+    return Boolean(hasCustomer) && Boolean(hasCarrier);
+}
+
+export function effectivePrintParty(template) {
+    const party = String(template?.party ?? 'internal');
+
+    if (party === 'customer' || party === 'carrier') {
+        return party;
+    }
+
+    if (isDualOrientedTemplate(template)) {
+        return 'dual';
+    }
+
+    if (isCustomerOrientedTemplate(template)) {
+        return 'customer';
+    }
+
+    if (isCarrierOrientedTemplate(template)) {
+        return 'carrier';
+    }
+
+    return 'internal';
+}
+
+export function matchesPrintSlotParty(template, slotParty) {
+    if (!slotParty) {
+        return true;
+    }
+
+    const effective = effectivePrintParty(template);
+
+    if (effective === 'dual') {
+        return false;
+    }
+
+    if (slotParty === 'customer') {
+        return effective === 'customer' || effective === 'internal';
+    }
+
+    if (slotParty === 'carrier') {
+        return effective === 'carrier' || effective === 'internal';
+    }
+
+    return true;
+}
+
 function matchesParty(templateParty, slotParty) {
     if (!slotParty) {
         return true;
@@ -132,15 +193,7 @@ export function templateMatchesOrderContext(template, context) {
     const party = context?.party ?? null;
     const contractorIds = context?.contractorIds ?? [];
 
-    if (!matchesParty(template.party, party)) {
-        return false;
-    }
-
-    if (party === 'customer' && isCarrierOrientedTemplate(template)) {
-        return false;
-    }
-
-    if (party === 'carrier' && isCustomerOrientedTemplate(template)) {
+    if (!matchesPrintSlotParty(template, party)) {
         return false;
     }
 

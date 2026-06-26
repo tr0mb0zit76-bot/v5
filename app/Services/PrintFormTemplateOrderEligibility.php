@@ -72,17 +72,9 @@ final class PrintFormTemplateOrderEligibility
             return false;
         }
 
-        if (! $this->matchesParty($template->party, $party)) {
-            return false;
-        }
-
         $templateArray = $this->templateToArray($template);
 
-        if ($party === 'customer' && $this->isCarrierOrientedTemplate($templateArray)) {
-            return false;
-        }
-
-        if ($party === 'carrier' && $this->isCustomerOrientedTemplate($templateArray)) {
+        if (! $this->matchesPrintSlotParty($templateArray, $party)) {
             return false;
         }
 
@@ -221,15 +213,7 @@ final class PrintFormTemplateOrderEligibility
             return false;
         }
 
-        if (! $this->matchesParty($template['party'] ?? null, $party)) {
-            return false;
-        }
-
-        if ($party === 'customer' && $this->isCarrierOrientedTemplate($template)) {
-            return false;
-        }
-
-        if ($party === 'carrier' && $this->isCustomerOrientedTemplate($template)) {
+        if (! $this->matchesPrintSlotParty($template, $party)) {
             return false;
         }
 
@@ -337,15 +321,104 @@ final class PrintFormTemplateOrderEligibility
         return false;
     }
 
-    private function matchesParty(?string $templateParty, ?string $slotParty): bool
+    /**
+     * Сторона шаблона для подбора в слот печати и области «по умолчанию».
+     *
+     * @return 'customer'|'carrier'|'internal'|'dual'
+     */
+    public function effectivePrintParty(array $template): string
+    {
+        $party = trim((string) ($template['party'] ?? 'internal'));
+
+        if (in_array($party, [PrintFormBasicTerm::PARTY_CUSTOMER, PrintFormBasicTerm::PARTY_CARRIER], true)) {
+            return $party;
+        }
+
+        if ($this->isDualOrientedTemplate($template)) {
+            return 'dual';
+        }
+
+        if ($this->isCustomerOrientedTemplate($template)) {
+            return PrintFormBasicTerm::PARTY_CUSTOMER;
+        }
+
+        if ($this->isCarrierOrientedTemplate($template)) {
+            return PrintFormBasicTerm::PARTY_CARRIER;
+        }
+
+        return 'internal';
+    }
+
+    /**
+     * Можно ли предлагать шаблон в слоте печати заказчика или перевозчика.
+     */
+    public function matchesPrintSlotParty(array $template, ?string $slotParty): bool
     {
         if ($slotParty === null || $slotParty === '') {
             return true;
         }
 
-        $party = trim((string) ($templateParty ?? 'internal'));
+        $effective = $this->effectivePrintParty($template);
 
-        return $party === $slotParty || $party === 'internal';
+        if ($effective === 'dual') {
+            return false;
+        }
+
+        if ($slotParty === PrintFormBasicTerm::PARTY_CUSTOMER) {
+            return in_array($effective, [PrintFormBasicTerm::PARTY_CUSTOMER, 'internal'], true);
+        }
+
+        if ($slotParty === PrintFormBasicTerm::PARTY_CARRIER) {
+            return in_array($effective, [PrintFormBasicTerm::PARTY_CARRIER, 'internal'], true);
+        }
+
+        return true;
+    }
+
+    public function templatesShareDefaultScope(PrintFormTemplate $left, PrintFormTemplate $right): bool
+    {
+        if ($left->entity_type !== $right->entity_type || $left->document_type !== $right->document_type) {
+            return false;
+        }
+
+        if ($left->own_company_id !== $right->own_company_id) {
+            return false;
+        }
+
+        $leftScope = $left->transport_scope ?? PrintFormTemplateTransportScope::ANY;
+        $rightScope = $right->transport_scope ?? PrintFormTemplateTransportScope::ANY;
+
+        if ($leftScope !== $rightScope) {
+            return false;
+        }
+
+        return $this->effectivePrintParty($this->templateToArray($left))
+            === $this->effectivePrintParty($this->templateToArray($right));
+    }
+
+    /**
+     * @param  array<string, mixed>  $template
+     */
+    public function isDualOrientedTemplate(array $template): bool
+    {
+        $party = trim((string) ($template['party'] ?? 'internal'));
+
+        if (in_array($party, [PrintFormBasicTerm::PARTY_CUSTOMER, PrintFormBasicTerm::PARTY_CARRIER], true)) {
+            return false;
+        }
+
+        $hasCarrier = array_key_exists('has_carrier_basic_terms', $template)
+            ? (bool) $template['has_carrier_basic_terms']
+            : null;
+        $hasCustomer = array_key_exists('has_customer_basic_terms', $template)
+            ? (bool) $template['has_customer_basic_terms']
+            : null;
+
+        if ($hasCarrier === null || $hasCustomer === null) {
+            return false;
+        }
+
+        return $hasCustomer && $hasCarrier;
     }
 
     /**

@@ -1217,6 +1217,95 @@ class TemplateManagementTest extends TestCase
         ]);
     }
 
+    public function test_setting_default_for_carrier_internal_template_does_not_clear_customer_internal_default(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+        $companyId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Наша компания',
+            'is_own_company' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $customerTemplateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'customer_request_internal',
+            'name' => 'Заявка заказчику',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'system',
+            'own_company_id' => $companyId,
+            'transport_scope' => 'domestic',
+            'is_default' => true,
+            'vue_component' => 'SystemPrintFormTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_path' => 'print-form-templates/customer.docx',
+            'file_disk' => 'local',
+            'settings' => json_encode([
+                'variables' => ['cp_basic_terms_row_text'],
+            ], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierTemplateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'carrier_request_internal',
+            'name' => 'Заявка перевозчику',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'system',
+            'own_company_id' => $companyId,
+            'transport_scope' => 'domestic',
+            'is_default' => false,
+            'vue_component' => 'SystemPrintFormTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_path' => 'print-form-templates/carrier.docx',
+            'file_disk' => 'local',
+            'settings' => json_encode([
+                'variables' => ['dp_basic_terms_row_text'],
+            ], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->patch(route('settings.templates.update', $carrierTemplateId), [
+            'code' => 'carrier_request_internal',
+            'name' => 'Заявка перевозчику',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'system',
+            'own_company_id' => $companyId,
+            'transport_scope' => 'domestic',
+            'is_default' => true,
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+        ]);
+
+        $response->assertRedirect(route('settings.templates.index'));
+
+        $this->assertDatabaseHas('print_form_templates', [
+            'id' => $customerTemplateId,
+            'is_default' => true,
+        ]);
+        $this->assertDatabaseHas('print_form_templates', [
+            'id' => $carrierTemplateId,
+            'is_default' => true,
+        ]);
+    }
+
     private function createRole(string $name, string $displayName): int
     {
         return (int) DB::table('roles')->insertGetId([

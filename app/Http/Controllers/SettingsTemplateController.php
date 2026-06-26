@@ -15,6 +15,7 @@ use App\Services\LeadPrintFormDraftService;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Services\PrintFormDraftResponseBuilder;
+use App\Services\PrintFormTemplateOrderEligibility;
 use App\Services\PrintFormVariableCatalog;
 use App\Support\DocumentPreview;
 use App\Support\OrderPrintFormContext;
@@ -680,28 +681,19 @@ class SettingsTemplateController extends Controller
             return;
         }
 
-        $query = PrintFormTemplate::query()
+        /** @var PrintFormTemplateOrderEligibility $eligibility */
+        $eligibility = app(PrintFormTemplateOrderEligibility::class);
+
+        PrintFormTemplate::query()
             ->where('id', '!=', $template->id)
-            ->where('entity_type', $template->entity_type)
-            ->where('document_type', $template->document_type)
-            ->where('party', $template->party)
-            ->where('is_default', true);
+            ->where('is_default', true)
+            ->get()
+            ->each(function (PrintFormTemplate $other) use ($eligibility, $template): void {
+                if (! $eligibility->templatesShareDefaultScope($template, $other)) {
+                    return;
+                }
 
-        if (Schema::hasColumn('print_form_templates', 'own_company_id')) {
-            if ($template->own_company_id === null) {
-                $query->whereNull('own_company_id');
-            } else {
-                $query->where('own_company_id', $template->own_company_id);
-            }
-        }
-
-        if (Schema::hasColumn('print_form_templates', 'transport_scope')) {
-            $query->where(
-                'transport_scope',
-                $template->transport_scope ?? PrintFormTemplateTransportScope::ANY,
-            );
-        }
-
-        $query->update(['is_default' => false]);
+                $other->forceFill(['is_default' => false])->save();
+            });
     }
 }
