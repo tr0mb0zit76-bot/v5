@@ -1,8 +1,8 @@
-import mermaid from 'mermaid';
-
 let initialized = false;
 let lastTheme = null;
 let idCounter = 0;
+let mermaidApi = null;
+let mermaidLoadPromise = null;
 
 function resolveTheme() {
     if (typeof document === 'undefined') {
@@ -12,11 +12,34 @@ function resolveTheme() {
     return document.documentElement.classList.contains('dark') ? 'dark' : 'default';
 }
 
-function ensureMermaid() {
+async function loadMermaid() {
+    if (mermaidApi) {
+        return mermaidApi;
+    }
+
+    if (!mermaidLoadPromise) {
+        mermaidLoadPromise = import('mermaid')
+            .then((module) => {
+                mermaidApi = module.default ?? module;
+
+                return mermaidApi;
+            })
+            .catch((error) => {
+                mermaidLoadPromise = null;
+
+                throw error;
+            });
+    }
+
+    return mermaidLoadPromise;
+}
+
+async function ensureMermaid() {
+    const mermaid = await loadMermaid();
     const theme = resolveTheme();
 
     if (initialized && lastTheme === theme) {
-        return;
+        return mermaid;
     }
 
     mermaid.initialize({
@@ -27,6 +50,8 @@ function ensureMermaid() {
 
     initialized = true;
     lastTheme = theme;
+
+    return mermaid;
 }
 
 export function isMermaidLanguage(language) {
@@ -40,7 +65,7 @@ export async function renderMermaidDiagram(source) {
         return '';
     }
 
-    ensureMermaid();
+    const mermaid = await ensureMermaid();
 
     const id = `sales-book-mermaid-${++idCounter}`;
 

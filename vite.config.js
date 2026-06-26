@@ -22,6 +22,7 @@ export default defineConfig({
         alias: {
             '@': path.resolve(__dirname, 'resources/js'),
             'ag-grid-community/styles': path.resolve(__dirname, 'node_modules/ag-grid-community/styles'),
+            mermaid: path.resolve(__dirname, 'node_modules/mermaid/dist/mermaid.core.mjs'),
         },
     },
     optimizeDeps: {
@@ -31,6 +32,7 @@ export default defineConfig({
             'ag-grid-community/styles/ag-grid.css',
             'grapesjs',
             'grapesjs-preset-newsletter',
+            'mermaid',
         ],
     },
 })
