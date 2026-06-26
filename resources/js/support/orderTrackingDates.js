@@ -2,6 +2,13 @@ import { BASIS_SUMMARY_PHRASE, ensureInstallmentSchedule } from '@/support/order
 
 const TRACK_RECEIVED_BASIS = new Set(['ottn', 'fttn_receipt']);
 
+const TRACK_RECEIVED_SLOT_KINDS = new Set([
+    'customer_request',
+    'customer_closing',
+    'carrier_request',
+    'carrier_closing',
+]);
+
 export function installmentNeedsTrackReceived(basis) {
     return TRACK_RECEIVED_BASIS.has(String(basis ?? '').toLowerCase());
 }
@@ -90,6 +97,26 @@ function carrierTrackBasisKindsForRow(contractorId, contractorsCosts) {
 }
 
 /**
+ * @param {number|null|undefined} contractorId
+ * @param {Array<object>} contractorsCosts
+ */
+function contractorScheduleNeedsTrackReceived(contractorId, contractorsCosts) {
+    const costs = Array.isArray(contractorsCosts) ? contractorsCosts : [];
+    const normalizedContractorId = Number(contractorId ?? 0);
+
+    if (Number.isFinite(normalizedContractorId) && normalizedContractorId > 0) {
+        const cost = costs.find((row) => Number(row?.contractor_id) === normalizedContractorId);
+
+        return scheduleNeedsTrackReceived(cost?.payment_schedule);
+    }
+
+    return costs.some((cost) => scheduleNeedsTrackReceived(cost?.payment_schedule));
+}
+
+/**
+ * Одна дата на сторону (заказчик / перевозчик) — показываем во всех строках заявки и закрывающих,
+ * если график оплаты этой стороны требует «дату получения».
+ *
  * @param {{
  *   party?: string|null,
  *   slotKind?: string|null,
@@ -105,30 +132,16 @@ export function resolveTrackFieldForRegistryRow(rowMeta, context) {
     const party = String(rowMeta.party ?? '');
     const slotKind = String(rowMeta.slotKind ?? '');
 
-    if (party === 'customer') {
-        const kinds = scheduleTrackBasisKinds(context.clientPaymentSchedule);
-
-        if (slotKind === 'customer_request' && kinds.ottn) {
-            return 'track_received_date_customer';
-        }
-
-        if (slotKind === 'customer_closing' && kinds.fttn_receipt) {
-            return 'track_received_date_customer';
-        }
-
+    if (!TRACK_RECEIVED_SLOT_KINDS.has(slotKind)) {
         return null;
     }
 
-    if (party === 'carrier') {
-        const kinds = carrierTrackBasisKindsForRow(rowMeta.contractorId, context.contractorsCosts);
+    if (party === 'customer' && scheduleNeedsTrackReceived(context.clientPaymentSchedule)) {
+        return 'track_received_date_customer';
+    }
 
-        if (slotKind === 'carrier_request' && kinds.ottn) {
-            return 'track_received_date_carrier';
-        }
-
-        if (slotKind === 'carrier_closing' && kinds.fttn_receipt) {
-            return 'track_received_date_carrier';
-        }
+    if (party === 'carrier' && contractorScheduleNeedsTrackReceived(rowMeta.contractorId, context.contractorsCosts)) {
+        return 'track_received_date_carrier';
     }
 
     return null;

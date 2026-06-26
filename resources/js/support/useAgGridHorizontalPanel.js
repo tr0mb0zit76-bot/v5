@@ -68,11 +68,9 @@ export function useAgGridHorizontalPanel({ gridPanel, bottomScrollbar, agGrid, g
         const bottomMax = Math.max(0, bottomScrollbar.value.scrollWidth - bottomScrollbar.value.clientWidth);
         const centerMax = Math.max(0, centerViewport.scrollWidth - centerViewport.clientWidth);
 
-        if (bottomMax > 0 && centerMax > 0) {
-            centerViewport.scrollLeft = (bottomScrollbar.value.scrollLeft / bottomMax) * centerMax;
-        } else {
-            centerViewport.scrollLeft = bottomScrollbar.value.scrollLeft;
-        }
+        centerViewport.scrollLeft = bottomMax > 0 && centerMax > 0
+            ? (bottomScrollbar.value.scrollLeft / bottomMax) * centerMax
+            : bottomScrollbar.value.scrollLeft;
 
         requestAnimationFrame(() => {
             isSyncingHorizontalScroll = false;
