@@ -639,6 +639,103 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $this->assertSame('Предоплата', $suggestion['suggested_candidates'][0]['slot_label'] ?? null);
     }
 
+    public function test_outgoing_partial_payment_matches_short_carrier_name_in_bank_format(): void
+    {
+        $carrier = Contractor::query()->create([
+            'name' => 'ООО "СКЛ"',
+            'full_name' => 'ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "СКЛ"',
+        ]);
+
+        $otherCarrier = Contractor::query()->create([
+            'name' => 'ООО "СПРАВЕДЛИВОСТЬ АВТО ТРАНС"',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-ЗА-01',
+            'carrier_id' => $carrier->id,
+        ]);
+
+        $decoyOrder = Order::query()->create([
+            'order_number' => 'АС-ОН-84',
+            'carrier_id' => $otherCarrier->id,
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 28000,
+            'remaining_amount' => 0,
+            'paid_amount' => 0,
+            'status' => 'pending',
+            'counterparty_id' => $carrier->id,
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $decoyOrder->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 45000,
+            'remaining_amount' => 0,
+            'paid_amount' => 0,
+            'status' => 'pending',
+            'counterparty_id' => $otherCarrier->id,
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-02',
+            'direction' => 'out',
+            'amount' => 20000,
+            'description' => 'СКЛ ООО / Предоплата за транспортные услуги по счету № 154 от 02.06.2026 г.',
+        ]);
+
+        $candidates = $this->matchingService()->operationalCandidatesForLine($line);
+
+        $this->assertCount(1, $candidates);
+        $this->assertSame($schedule->id, $candidates[0]['payment_schedule_id']);
+        $this->assertSame('АС-ЗА-01', $candidates[0]['order_number']);
+        $this->assertSame('contractor', $candidates[0]['match_reason']);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
+    }
+
+    public function test_search_with_unrelated_keyword_keeps_contractor_match_for_outgoing_payment(): void
+    {
+        $carrier = Contractor::query()->create([
+            'name' => 'ООО "СКЛ"',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-ЗА-01',
+            'carrier_id' => $carrier->id,
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'carrier',
+            'amount' => 28000,
+            'remaining_amount' => 0,
+            'paid_amount' => 0,
+            'status' => 'pending',
+            'counterparty_id' => $carrier->id,
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-02',
+            'direction' => 'out',
+            'amount' => 20000,
+            'description' => 'СКЛ ООО / Предоплата за транспортные услуги по счету № 154 от 02.06.2026 г.',
+        ]);
+
+        $candidates = $this->matchingService()->searchOperationalCandidates($line, 'предоплата');
+
+        $this->assertNotEmpty($candidates);
+        $this->assertSame($schedule->id, $candidates[0]['payment_schedule_id']);
+    }
+
     private function matchingService(): ManagementAccountingMatchingService
     {
         return app(ManagementAccountingMatchingService::class);
