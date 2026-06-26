@@ -165,7 +165,8 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Пересборка строк БД: `OrderCompensationService::syncPaymentSchedules()`; сохранение фактических оплат при пересборке — `PaymentScheduleSettlementPreserver` (ключ `installment_sequence` + fallback на `type`).
 - Расчёт `planned_date`: событие (`basis`) + сдвиг, либо якорь через `PaymentInstallmentPlanner`; даты погрузки/выгрузки — `OrderRouteMilestoneDateResolver` (факт точки → план → performers → колонка заказа); синхронизация при сохранении мастера и факта на точке; **наличка** — `PaymentScheduleCashBasis` (базисы документов → `unloading`).
 - Частичные оплаты: `PaymentScheduleSettlementStatus`, колонка «К оплате» в `CashFlowGrid.vue`; после деплоя правок — `payment-schedules:sync-settlement-amounts`.
-- FTTN по сканам — авто (`OrderDocumentRequirementService::paymentPackageAttachedAt`); квиток/OTTN — вручную в гриде документов (`track_received_date_*`), стороны раздельно.
+- FTTN по сканам — авто (`OrderDocumentRequirementService::paymentPackageAttachedAt`); при **наличке** базис `fttn` → срок от выгрузки (`PaymentScheduleCashBasis`).
+- Квиток / OTTN — вручную: `track_received_date_*` (в т.ч. **наличка + ottn** / `fttn_receipt`); стороны раздельно.
 - UI: `PaymentTermsWizardBlock.vue`, `orderPaymentScheduleUi.js` (`applyInstallmentScheduleInPlace` — без deep-watch циклов); грид — `CashFlowGrid.vue`, даты **дд.мм.гггг**.
 - Миграция: `2026_06_08_155321_add_installment_sequence_to_payment_schedules_table.php`.
 

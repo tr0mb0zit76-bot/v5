@@ -83,4 +83,80 @@ class OrderTrackReceivedPaymentScheduleTest extends TestCase
         $this->assertNotNull($after);
         $this->assertSame('2026-06-10', $after->planned_date?->toDateString());
     }
+
+    public function test_cash_carrier_ottn_planned_date_appears_after_track_received_is_set(): void
+    {
+        if (! Schema::hasTable('payment_schedules')) {
+            $this->markTestSkipped('Таблица payment_schedules недоступна.');
+        }
+
+        $role = Role::query()->create([
+            'name' => 'manager',
+            'display_name' => 'Manager',
+            'permissions' => [],
+            'visibility_areas' => ['orders'],
+        ]);
+
+        $manager = User::factory()->create(['role_id' => $role->id]);
+
+        $order = Order::factory()->create([
+            'manager_id' => $manager->id,
+            'order_date' => '2026-06-01',
+            'unloading_date' => '2026-06-17',
+            'carrier_rate' => 8000,
+            'track_received_date_carrier' => null,
+            'wizard_state' => [
+                'financial_term' => [
+                    'contractors_costs' => [
+                        [
+                            'contractor_id' => 63,
+                            'payment_form' => 'cash',
+                            'amount' => 8000,
+                            'payment_schedule' => [
+                                'installments' => [
+                                    [
+                                        'percent' => 100,
+                                        'amount' => 8000,
+                                        'offset_days' => 5,
+                                        'offset_unit' => 'bank_days',
+                                        'anchor' => 'last_unloading',
+                                        'basis' => 'ottn',
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        FinancialTerm::factory()->create([
+            'order_id' => $order->id,
+            'contractors_costs' => data_get($order->wizard_state, 'financial_term.contractors_costs'),
+        ]);
+
+        app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh());
+
+        $before = PaymentSchedule::query()
+            ->where('order_id', $order->id)
+            ->where('party', 'carrier')
+            ->first();
+
+        $this->assertNotNull($before);
+        $this->assertNull($before->planned_date);
+
+        $this->actingAs($manager)->patch(route('orders.inline-update', $order->id), [
+            'field' => 'track_received_date_carrier',
+            'value' => '2026-06-02',
+            'wizard_context' => true,
+        ])->assertRedirect(route('orders.edit', $order->id));
+
+        $after = PaymentSchedule::query()
+            ->where('order_id', $order->id)
+            ->where('party', 'carrier')
+            ->first();
+
+        $this->assertNotNull($after);
+        $this->assertSame('2026-06-09', $after->planned_date?->toDateString());
+    }
 }

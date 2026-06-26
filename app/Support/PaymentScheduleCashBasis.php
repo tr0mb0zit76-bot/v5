@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
- * Для наличной формы оплаты срок считаем от фактической выгрузки, без ожидания УПД/сканов.
+ * Наличная форма оплаты: «по сканам» (fttn) — срок от выгрузки.
+ * «По оригиналам» (ottn) и «сканы + квиток» (fttn_receipt) — как у безнала: дата получения + якорь/сдвиг.
  */
 final class PaymentScheduleCashBasis
 {
@@ -22,7 +23,7 @@ final class PaymentScheduleCashBasis
             return $basis;
         }
 
-        if (in_array($basis, ['fttn', 'fttn_receipt', 'ottn'], true)) {
+        if ($basis === 'fttn') {
             return 'unloading';
         }
 

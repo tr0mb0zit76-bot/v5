@@ -9,11 +9,16 @@ use Tests\TestCase;
 class PaymentScheduleCashBasisTest extends TestCase
 {
     #[Test]
-    public function it_maps_document_bases_to_unloading_for_cash(): void
+    public function it_maps_fttn_to_unloading_for_cash_only(): void
     {
         $this->assertSame('unloading', PaymentScheduleCashBasis::effectiveBasis('cash', 'fttn'));
-        $this->assertSame('unloading', PaymentScheduleCashBasis::effectiveBasis('cash', 'fttn_receipt'));
-        $this->assertSame('unloading', PaymentScheduleCashBasis::effectiveBasis('cash', 'ottn'));
+    }
+
+    #[Test]
+    public function it_keeps_ottn_and_fttn_receipt_for_cash(): void
+    {
+        $this->assertSame('ottn', PaymentScheduleCashBasis::effectiveBasis('cash', 'ottn'));
+        $this->assertSame('fttn_receipt', PaymentScheduleCashBasis::effectiveBasis('cash', 'fttn_receipt'));
     }
 
     #[Test]

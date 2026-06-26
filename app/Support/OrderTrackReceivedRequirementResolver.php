@@ -46,10 +46,6 @@ final class OrderTrackReceivedRequirementResolver
 
     public static function orderNeedsCustomerTrackReceived(Order $order, ?FinancialTerm $financialTerm = null): bool
     {
-        if (PaymentScheduleCashBasis::isCash($order->customer_payment_form)) {
-            return false;
-        }
-
         $schedule = self::resolveClientPaymentSchedule($order, $financialTerm);
 
         return self::scheduleNeedsTrackReceived($schedule);
@@ -59,14 +55,6 @@ final class OrderTrackReceivedRequirementResolver
     {
         foreach (self::resolveContractorsCosts($order, $financialTerm) as $cost) {
             if (! is_array($cost)) {
-                continue;
-            }
-
-            $paymentForm = isset($cost['payment_form']) && is_string($cost['payment_form'])
-                ? $cost['payment_form']
-                : $order->carrier_payment_form;
-
-            if (PaymentScheduleCashBasis::isCash($paymentForm)) {
                 continue;
             }
 

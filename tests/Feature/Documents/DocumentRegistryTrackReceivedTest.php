@@ -107,6 +107,27 @@ class DocumentRegistryTrackReceivedTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_clerk_can_set_track_received_for_cash_carrier_ottn(): void
+    {
+        if (! Schema::hasColumn('orders', 'track_received_date_carrier')) {
+            $this->markTestSkipped('Колонка track_received_date_carrier недоступна.');
+        }
+
+        $clerk = $this->makeClerkUser();
+        $order = $this->makeOrderNeedingCarrierTrackReceivedCash($clerk);
+
+        $this->actingAs($clerk)
+            ->patchJson(route('documents.orders.track-received', $order), [
+                'field' => 'track_received_date_carrier',
+                'value' => '2026-06-02',
+            ])
+            ->assertOk()
+            ->assertJson([
+                'field' => 'track_received_date_carrier',
+                'value' => '2026-06-02',
+            ]);
+    }
+
     public function test_track_received_update_resyncs_payment_schedules(): void
     {
         if (! Schema::hasTable('payment_schedules') || ! Schema::hasColumn('orders', 'track_received_date_customer')) {
@@ -187,6 +208,37 @@ class DocumentRegistryTrackReceivedTest extends TestCase
         FinancialTerm::factory()->create([
             'order_id' => $order->id,
             'payment_terms_snapshot' => $order->payment_terms,
+        ]);
+
+        return $order;
+    }
+
+    private function makeOrderNeedingCarrierTrackReceivedCash(User $manager): Order
+    {
+        $order = Order::factory()->create([
+            'manager_id' => $manager->id,
+            'order_number' => 'DOC-TR-CASH-'.uniqid(),
+            'track_received_date_carrier' => null,
+            'wizard_state' => [
+                'financial_term' => [
+                    'contractors_costs' => [
+                        [
+                            'contractor_id' => 63,
+                            'payment_form' => 'cash',
+                            'payment_schedule' => [
+                                'installments' => [
+                                    ['percent' => 100, 'basis' => 'ottn', 'offset_days' => 5, 'offset_unit' => 'bank_days'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        FinancialTerm::factory()->create([
+            'order_id' => $order->id,
+            'contractors_costs' => data_get($order->wizard_state, 'financial_term.contractors_costs'),
         ]);
 
         return $order;

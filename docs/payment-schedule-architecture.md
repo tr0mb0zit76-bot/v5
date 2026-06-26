@@ -4,7 +4,7 @@
 
 **Пользовательская инструкция:** [`order-wizard-financial-terms-user-guide.md`](./order-wizard-financial-terms-user-guide.md) (Книга продаж → Руководство по CRM). Кратко — раздел 7 в [`order-wizard-user-guide.md`](./order-wizard-user-guide.md).
 
-**Последнее обновление:** 2026-06-13 (наличка → срок от выгрузки, частичные оплаты в гриде)
+**Последнее обновление:** 2026-06-02 (наличка + ottn: срок от даты получения оригиналов)
 
 ---
 
@@ -68,7 +68,9 @@
 
 1. **События документов / погрузки / выгрузки** (`basis` = `fttn`, `fttn_receipt`, `ottn`, `loading`, `unloading`):
    - дата события через `resolveScheduleDate()` (сканы, квиток в гриде документов, факт/план точек маршрута);
-   - **наличная форма оплаты** (`payment_form` = `cash` у стороны заказа): базисы `fttn`, `fttn_receipt`, `ottn` нормализуются в **`unloading`** (`PaymentScheduleCashBasis::effectiveBasisForParty`) — срок считается от фактической выгрузки, без ожидания УПД;
+   - **наличная форма оплаты** (`payment_form` = `cash`):
+     - базис **`fttn`** («по сканам») нормализуется в **`unloading`** — срок от фактической выгрузки;
+     - базисы **`ottn`** и **`fttn_receipt`** **не** подменяются: срок от даты получения оригиналов (`track_received_date_*`) + сдвиг, как у безнала;
    - сдвиг `offset_days` + `offset_unit` (`CalendarBankDayShifter`).
 2. **Якорь + сдвиг** (прочие случаи): `PaymentInstallmentPlanner::plannedDateForInstallment()` по `anchor` и контексту дат заказа.
 
@@ -139,7 +141,7 @@
 | --- | --- |
 | `tests/Unit/PaymentScheduleLegacyConverterTest.php` | legacy → installments |
 | `tests/Feature/PaymentScheduleUnloadingDateTest.php` | `planned_date` при `basis=unloading`, синхронизация дат маршрута |
-| `tests/Unit/PaymentScheduleCashBasisTest.php` | наличка: `fttn`/`ottn` → `unloading` |
+| `tests/Unit/PaymentScheduleCashBasisTest.php` | наличка: только `fttn` → `unloading`; `ottn` / `fttn_receipt` сохраняются |
 
 ---
 
