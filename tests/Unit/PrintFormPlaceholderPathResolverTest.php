@@ -49,6 +49,25 @@ class PrintFormPlaceholderPathResolverTest extends TestCase
     }
 
     #[Test]
+    public function it_maps_dp_podpisant_to_carrier_signer_position_when_fio_placeholder_exists(): void
+    {
+        $resolver = new PrintFormPlaceholderPathResolver;
+
+        $this->assertSame(
+            'carrier.signer_position',
+            $resolver->resolve('dp_podpisant', [], 'order', 'carrier'),
+        );
+        $this->assertSame(
+            'carrier.signer_name_nominative',
+            $resolver->resolve('dp_FIO_podpisant_im', [], 'order', 'carrier'),
+        );
+        $this->assertSame(
+            'customer.signer_position',
+            $resolver->resolve('cp_ceo_title', [], 'order', 'customer'),
+        );
+    }
+
+    #[Test]
     public function it_maps_legacy_special_conditions_placeholders_to_route_fields(): void
     {
         $resolver = new PrintFormPlaceholderPathResolver;

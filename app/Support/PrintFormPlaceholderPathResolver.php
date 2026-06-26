@@ -305,6 +305,8 @@ class PrintFormPlaceholderPathResolver
             $out['dp_pocht_address_perev'] = 'carrier.actual_address';
             $out['dp_r/s'] = 'carrier.account_number';
             $out['dp_k/s'] = 'carrier.correspondent_account';
+            // В макетах перевозчика ФИО — dp_FIO_podpisant_im; dp_podpisant — строка должности (аналог cp_/lp_ceo_title).
+            $out['dp_podpisant'] = 'carrier.signer_position';
         }
 
         return $out;
