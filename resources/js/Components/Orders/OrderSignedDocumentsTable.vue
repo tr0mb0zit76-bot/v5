@@ -3,7 +3,7 @@ import { computed, reactive, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { ExternalLink, Trash2 } from 'lucide-vue-next';
 import { buildRegistryTableRows } from '@/support/orderDocumentRegistryRows.js';
-import { buildTrackingRegistryRows } from '@/support/orderTrackingDates.js';
+import { attachTrackReceivedToRegistryRows } from '@/support/orderTrackingDates.js';
 import {
     documentTypeDisplayLabel,
     isTransportDocumentType,
@@ -26,37 +26,55 @@ const props = defineProps({
 
 const emit = defineEmits(['delete', 'update:field']);
 
-const documentRows = computed(() => buildRegistryTableRows(
-    props.signedDocuments,
-    props.requiredDocumentRules,
-    props.requiredDocumentChecklist,
-    props.documentTypeOptions,
-));
-
-const trackingRows = computed(() => buildTrackingRegistryRows({
+const trackingContext = computed(() => ({
     clientPaymentSchedule: props.clientPaymentSchedule,
     contractorsCosts: props.contractorsCosts,
     order: props.order,
     performers: props.performers,
 }));
 
-const showReceivedDateColumn = computed(() => trackingRows.value.length > 0);
+const rows = computed(() => {
+    const registryRows = buildRegistryTableRows(
+        props.signedDocuments,
+        props.requiredDocumentRules,
+        props.requiredDocumentChecklist,
+        props.documentTypeOptions,
+    );
 
-const rows = computed(() => [
-    ...trackingRows.value,
-    ...documentRows.value,
-]);
+    return attachTrackReceivedToRegistryRows(
+        registryRows,
+        trackingContext.value,
+        props.requiredDocumentRules,
+    );
+});
+
+const showReceivedDateColumn = computed(() => rows.value.some((row) => row.track_field));
 
 const localReceivedDates = reactive({});
 const savingTrackFields = reactive({});
 const trackSaveErrors = reactive({});
 
 watch(
-    trackingRows,
+    rows,
     (nextRows) => {
+        const activeFields = new Set();
+
         for (const row of nextRows) {
+            if (!row.track_field) {
+                continue;
+            }
+
+            activeFields.add(row.track_field);
             localReceivedDates[row.track_field] = row.received_date ?? '';
             delete trackSaveErrors[row.track_field];
+        }
+
+        for (const field of Object.keys(localReceivedDates)) {
+            if (!activeFields.has(field)) {
+                delete localReceivedDates[field];
+                delete savingTrackFields[field];
+                delete trackSaveErrors[field];
+            }
         }
     },
     { immediate: true, deep: true },
@@ -75,10 +93,6 @@ const typeLabelByValue = computed(() => {
 const attachTypeOptions = computed(() => withTransportSubtypeOptions(props.documentTypeOptions || []));
 
 function partyLabel(row) {
-    if (row.is_tracking_row && row.party_label) {
-        return row.party_label;
-    }
-
     return partyLabelFromParty(row.party);
 }
 
@@ -181,25 +195,23 @@ function onReceivedDateBlur(row) {
                 <tr
                     v-for="row in rows"
                     :key="`registry-row-${row.id ?? row._localKey}`"
-                    :class="row.is_placeholder ? 'bg-zinc-50/80 dark:bg-zinc-900/30' : (row.is_tracking_row ? 'bg-sky-50/50 dark:bg-sky-950/20' : '')"
+                    :class="row.is_placeholder ? 'bg-zinc-50/80 dark:bg-zinc-900/30' : ''"
                 >
                     <td class="px-3 py-2.5 text-center align-middle">
                         <input
-                            v-if="!row.is_tracking_row"
                             type="checkbox"
                             class="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600"
                             :checked="row.checklist_completed"
                             disabled
                             :title="row.requirement_label ?? 'Обязательный документ'"
                         >
-                        <span v-else class="text-zinc-300">—</span>
                     </td>
                     <td class="px-3 py-2.5 whitespace-nowrap text-zinc-700 dark:text-zinc-300">
                         {{ partyLabel(row) }}
                     </td>
                     <td class="px-3 py-2.5 text-zinc-700 dark:text-zinc-300">
                         <select
-                            v-if="canEdit && row.id && !row.is_placeholder && !row.is_tracking_row"
+                            v-if="canEdit && row.id && !row.is_placeholder"
                             :value="row.type"
                             class="w-full min-w-[140px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                             @change="onFieldChange(row, 'type', $event.target.value)"
@@ -210,33 +222,33 @@ function onReceivedDateBlur(row) {
                     </td>
                     <td class="px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
                         <input
-                            v-if="canEdit && row.id && !row.is_placeholder && !row.is_tracking_row"
+                            v-if="canEdit && row.id && !row.is_placeholder"
                             :value="row.number ?? ''"
                             type="text"
                             class="w-full min-w-[100px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                             @change="onFieldChange(row, 'number', $event.target.value)"
                         >
-                        <span v-else>{{ row.is_placeholder || row.is_tracking_row ? '—' : (row.number || '—') }}</span>
+                        <span v-else>{{ row.is_placeholder ? '—' : (row.number || '—') }}</span>
                     </td>
                     <td class="px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
                         <input
-                            v-if="canEdit && row.id && !row.is_placeholder && !row.is_tracking_row"
+                            v-if="canEdit && row.id && !row.is_placeholder"
                             :value="row.document_date ?? ''"
                             type="date"
                             class="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                             @change="onFieldChange(row, 'document_date', $event.target.value)"
                         >
-                        <span v-else>{{ row.is_placeholder || row.is_tracking_row ? '—' : (row.document_date || '—') }}</span>
+                        <span v-else>{{ row.is_placeholder ? '—' : (row.document_date || '—') }}</span>
                     </td>
                     <td v-if="showReceivedDateColumn" class="px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
-                        <template v-if="row.is_tracking_row">
+                        <template v-if="row.track_field">
                             <input
                                 v-if="canEdit && order?.id"
                                 :value="localReceivedDates[row.track_field] ?? ''"
                                 type="date"
                                 class="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                                 :disabled="savingTrackFields[row.track_field]"
-                                :title="row.requirement_label"
+                                title="Для расчёта плановой даты оплаты"
                                 @input="onReceivedDateInput(row, $event)"
                                 @blur="onReceivedDateBlur(row)"
                             >
@@ -263,7 +275,7 @@ function onReceivedDateBlur(row) {
                     </td>
                     <td v-if="canEdit" class="px-3 py-2.5 text-right">
                         <button
-                            v-if="row.id && !row.is_placeholder && !row.is_tracking_row"
+                            v-if="row.id && !row.is_placeholder"
                             type="button"
                             class="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
                             :disabled="deletingId === row.id"

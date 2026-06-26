@@ -12,6 +12,29 @@ export function scheduleNeedsTrackReceived(schedule) {
     return (normalized.installments ?? []).some((row) => installmentNeedsTrackReceived(row.basis));
 }
 
+/**
+ * @param {object|null|undefined} schedule
+ * @returns {{ ottn: boolean, fttn_receipt: boolean }}
+ */
+export function scheduleTrackBasisKinds(schedule) {
+    const normalized = ensureInstallmentSchedule(schedule ?? {});
+    const kinds = { ottn: false, fttn_receipt: false };
+
+    for (const row of normalized.installments ?? []) {
+        const basis = String(row.basis ?? '').toLowerCase();
+
+        if (basis === 'ottn') {
+            kinds.ottn = true;
+        }
+
+        if (basis === 'fttn_receipt') {
+            kinds.fttn_receipt = true;
+        }
+    }
+
+    return kinds;
+}
+
 function basisLabelsForSchedule(schedule) {
     const normalized = ensureInstallmentSchedule(schedule ?? {});
     const labels = new Set();
@@ -26,6 +49,125 @@ function basisLabelsForSchedule(schedule) {
     }
 
     return [...labels];
+}
+
+function slotKindFromRequirementKey(requirementKey) {
+    const key = String(requirementKey ?? '').trim();
+
+    if (key === '') {
+        return null;
+    }
+
+    const separatorIndex = key.indexOf(':');
+
+    return separatorIndex > 0 ? key.slice(0, separatorIndex) : null;
+}
+
+/**
+ * @param {number|null|undefined} contractorId
+ * @param {Array<object>} contractorsCosts
+ * @returns {{ ottn: boolean, fttn_receipt: boolean }}
+ */
+function carrierTrackBasisKindsForRow(contractorId, contractorsCosts) {
+    const costs = Array.isArray(contractorsCosts) ? contractorsCosts : [];
+    const normalizedContractorId = Number(contractorId ?? 0);
+
+    if (Number.isFinite(normalizedContractorId) && normalizedContractorId > 0) {
+        const cost = costs.find((row) => Number(row?.contractor_id) === normalizedContractorId);
+
+        return scheduleTrackBasisKinds(cost?.payment_schedule);
+    }
+
+    const merged = { ottn: false, fttn_receipt: false };
+
+    for (const cost of costs) {
+        const kinds = scheduleTrackBasisKinds(cost?.payment_schedule);
+        merged.ottn = merged.ottn || kinds.ottn;
+        merged.fttn_receipt = merged.fttn_receipt || kinds.fttn_receipt;
+    }
+
+    return merged;
+}
+
+/**
+ * @param {{
+ *   party?: string|null,
+ *   slotKind?: string|null,
+ *   contractorId?: number|null,
+ * }} rowMeta
+ * @param {{
+ *   clientPaymentSchedule?: object,
+ *   contractorsCosts?: Array<object>,
+ * }} context
+ * @returns {'track_received_date_customer'|'track_received_date_carrier'|null}
+ */
+export function resolveTrackFieldForRegistryRow(rowMeta, context) {
+    const party = String(rowMeta.party ?? '');
+    const slotKind = String(rowMeta.slotKind ?? '');
+
+    if (party === 'customer') {
+        const kinds = scheduleTrackBasisKinds(context.clientPaymentSchedule);
+
+        if (slotKind === 'customer_request' && kinds.ottn) {
+            return 'track_received_date_customer';
+        }
+
+        if (slotKind === 'customer_closing' && kinds.fttn_receipt) {
+            return 'track_received_date_customer';
+        }
+
+        return null;
+    }
+
+    if (party === 'carrier') {
+        const kinds = carrierTrackBasisKindsForRow(rowMeta.contractorId, context.contractorsCosts);
+
+        if (slotKind === 'carrier_request' && kinds.ottn) {
+            return 'track_received_date_carrier';
+        }
+
+        if (slotKind === 'carrier_closing' && kinds.fttn_receipt) {
+            return 'track_received_date_carrier';
+        }
+    }
+
+    return null;
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} registryRows
+ * @param {{
+ *   clientPaymentSchedule?: object,
+ *   contractorsCosts?: Array<object>,
+ *   order?: object|null,
+ * }} context
+ * @param {Array<Record<string, unknown>>} requiredDocumentRules
+ * @returns {Array<Record<string, unknown>>}
+ */
+export function attachTrackReceivedToRegistryRows(registryRows, context, requiredDocumentRules = []) {
+    const rules = Array.isArray(requiredDocumentRules) ? requiredDocumentRules : [];
+    const ruleByKey = new Map(rules.map((rule) => [String(rule.key ?? ''), rule]));
+    const order = context.order ?? null;
+
+    return (Array.isArray(registryRows) ? registryRows : []).map((row) => {
+        const rule = row.requirement_key ? ruleByKey.get(String(row.requirement_key)) : null;
+        const slotKind = rule?.slot_kind ?? slotKindFromRequirementKey(row.requirement_key);
+        const trackField = resolveTrackFieldForRegistryRow({
+            party: rule?.party ?? row.party,
+            slotKind,
+            contractorId: rule?.contractor_id ?? row.contractor_id ?? null,
+        }, context);
+
+        if (!trackField) {
+            return row;
+        }
+
+        return {
+            ...row,
+            track_field: trackField,
+            received_date: order?.[trackField] ?? '',
+        };
+    });
 }
 
 function resolveCarrierLabel(cost, performers) {
@@ -108,33 +250,4 @@ export function buildOrderTrackingDateRows(context) {
     }
 
     return rows;
-}
-
-/**
- * @param {{
- *   clientPaymentSchedule?: object,
- *   contractorsCosts?: Array<object>,
- *   order?: object|null,
- *   performers?: Array<object>,
- * }} context
- * @returns {Array<Record<string, unknown>>}
- */
-export function buildTrackingRegistryRows(context) {
-    return buildOrderTrackingDateRows(context).map((row) => ({
-        _localKey: `tracking-${row.key}`,
-        is_tracking_row: true,
-        is_placeholder: false,
-        party: row.party,
-        party_label: row.partyLabel,
-        type: 'tracking_received',
-        type_label: row.basisLabels.length === 1 && row.basisLabels[0] === 'по оригиналам'
-            ? 'Оригиналы'
-            : 'Квиток / оригиналы',
-        number: null,
-        document_date: null,
-        received_date: row.value ?? '',
-        track_field: row.field,
-        checklist_completed: false,
-        requirement_label: 'Для расчёта плановой даты оплаты',
-    }));
 }
