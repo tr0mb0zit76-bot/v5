@@ -5,14 +5,17 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreDocumentRegistryRequest;
 use App\Http\Requests\UpdateDocumentRegistryRequest;
 use App\Http\Requests\UpdateOrderEnteredIn1CRequest;
+use App\Http\Requests\UpdateOrderTrackReceivedRequest;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Services\DocumentStorageService;
 use App\Services\OrderClosingDocumentsNotificationService;
 use App\Services\OrderCompensationService;
+use App\Services\Orders\OrderInlineFieldUpdateService;
 use App\Support\DocumentRegistryDocumentLabel;
 use App\Support\OrderClipboardSummaryResolver;
 use App\Support\OrderDocumentAccessAuthorization;
+use App\Support\OrderTrackReceivedRequirementResolver;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -40,7 +43,7 @@ class DocumentRegistryController extends Controller
         $search = trim((string) $request->query('q', ''));
 
         $query = Order::query()
-            ->with(['documents', 'client:id,name', 'carrier:id,name'])
+            ->with(['documents', 'client:id,name', 'carrier:id,name', 'financialTerms'])
             ->orderByDesc('id');
 
         if (! RoleAccess::isAdminUser($user) && $scope !== 'all') {
@@ -63,11 +66,20 @@ class DocumentRegistryController extends Controller
 
         $orders = $query->limit(400)->get();
         $clipboardSummaries = app(OrderClipboardSummaryResolver::class)->mapForOrders($orders);
+        $trackReceivedFlags = OrderTrackReceivedRequirementResolver::mapFlagsForOrders($orders);
 
         return Inertia::render('Documents/Index', [
             'search' => $search,
+            'can_edit_track_received_dates' => RoleAccess::canEditTrackReceivedDates($user),
             'rows' => $orders
-                ->map(fn (Order $order): array => $this->serializeRow($order, $clipboardSummaries[(int) $order->id] ?? ''))
+                ->map(fn (Order $order): array => $this->serializeRow(
+                    $order,
+                    $clipboardSummaries[(int) $order->id] ?? '',
+                    $trackReceivedFlags[(int) $order->id] ?? [
+                        'needs_track_received_date_customer' => false,
+                        'needs_track_received_date_carrier' => false,
+                    ],
+                ))
                 ->values(),
             'orders' => $orders->map(fn (Order $order): array => [
                 'id' => $order->id,
@@ -247,6 +259,45 @@ class DocumentRegistryController extends Controller
         ]);
     }
 
+    public function updateTrackReceived(
+        UpdateOrderTrackReceivedRequest $request,
+        Order $order,
+        OrderInlineFieldUpdateService $orderInlineFieldUpdateService,
+    ): JsonResponse {
+        abort_unless(RoleAccess::canEditTrackReceivedDates($request->user()), 403);
+        $this->ensureCanManageOrder($request, $order);
+
+        $field = (string) $request->validated('field');
+        $order->loadMissing('financialTerms');
+        $financialTerm = $order->financialTerms->first();
+        $flags = OrderTrackReceivedRequirementResolver::flagsForOrder($order, $financialTerm);
+
+        $needsKey = $field === 'track_received_date_customer'
+            ? 'needs_track_received_date_customer'
+            : 'needs_track_received_date_carrier';
+
+        abort_unless((bool) ($flags[$needsKey] ?? false), 422, 'Для этого заказа дата получения по выбранной стороне не требуется.');
+
+        abort_unless(
+            Schema::hasColumn('orders', $field),
+            404,
+        );
+
+        $updated = $orderInlineFieldUpdateService->apply(
+            $request->user(),
+            $order,
+            $field,
+            $request->validated('value'),
+        );
+
+        $dateValue = $updated->{$field};
+
+        return response()->json([
+            'field' => $field,
+            'value' => $dateValue !== null ? $dateValue->toDateString() : null,
+        ]);
+    }
+
     public function destroy(Request $request, OrderDocument $document): RedirectResponse|JsonResponse
     {
         $order = Order::query()->findOrFail((int) $document->order_id);
@@ -294,9 +345,13 @@ class DocumentRegistryController extends Controller
     }
 
     /**
+     * @param  array{
+     *     needs_track_received_date_customer: bool,
+     *     needs_track_received_date_carrier: bool,
+     * }  $trackReceivedFlags
      * @return array<string, mixed>
      */
-    private function serializeRow(Order $order, string $clipboardSummary = ''): array
+    private function serializeRow(Order $order, string $clipboardSummary = '', array $trackReceivedFlags = []): array
     {
         $documents = $order->documents ?? collect();
         $etrn = $this->serializeEtrnSummary($documents);
@@ -307,6 +362,14 @@ class DocumentRegistryController extends Controller
             'order_number' => $order->order_number ?: '#'.$order->id,
             'order_edit_url' => route('orders.edit', $order).'?tab=documents',
             'entered_in_1c' => $this->serializeEnteredIn1C($order),
+            'track_received_date_customer' => Schema::hasColumn('orders', 'track_received_date_customer')
+                ? optional($order->track_received_date_customer)?->toDateString()
+                : null,
+            'track_received_date_carrier' => Schema::hasColumn('orders', 'track_received_date_carrier')
+                ? optional($order->track_received_date_carrier)?->toDateString()
+                : null,
+            'needs_track_received_date_customer' => (bool) ($trackReceivedFlags['needs_track_received_date_customer'] ?? false),
+            'needs_track_received_date_carrier' => (bool) ($trackReceivedFlags['needs_track_received_date_carrier'] ?? false),
             'clipboard_summary' => $clipboardSummary,
             'customer_invoice' => $this->serializeColumnDocs($order, $documents, 'invoice', 'customer', $contractorNamesById),
             'customer_upd' => $this->serializeColumnDocs($order, $documents, 'upd', 'customer', $contractorNamesById),

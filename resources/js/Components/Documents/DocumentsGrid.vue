@@ -205,6 +205,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 const props = defineProps({
     rows: { type: Array, default: () => [] },
     userId: { type: [String, Number], default: 'guest' },
+    canEditTrackReceivedDates: { type: Boolean, default: false },
 });
 
 const page = usePage();
@@ -214,6 +215,8 @@ const emit = defineEmits(['open-create', 'row-dblclick', 'open-order-documents']
 const fallbackColumns = [
     { field: 'order_number', headerName: 'Номер заказа', width: 160, minWidth: 140 },
     { field: 'entered_in_1c', headerName: 'Внесено в 1С', width: 140, minWidth: 120, kind: 'entered-in-1c' },
+    { field: 'track_received_date_customer', headerName: 'Оригиналы заказчика', width: 180, minWidth: 150, kind: 'track-received-date' },
+    { field: 'track_received_date_carrier', headerName: 'Оригиналы перевозчика', width: 190, minWidth: 160, kind: 'track-received-date' },
     { field: 'customer_invoice', headerName: 'Счёт заказчику', width: 220, minWidth: 180 },
     { field: 'customer_upd', headerName: 'УПД с заказчиком', width: 220, minWidth: 180 },
     { field: 'customer_act', headerName: 'Акт с заказчиком', width: 220, minWidth: 180 },
@@ -417,6 +420,63 @@ const defaultColDef = {
     minWidth: 120,
 };
 
+class DateInputEditor {
+    init(params) {
+        this.input = document.createElement('input');
+        this.input.type = 'date';
+        this.input.className = 'orders-grid-date-editor';
+        this.input.value = params.value ?? '';
+    }
+
+    getGui() {
+        return this.input;
+    }
+
+    afterGuiAttached() {
+        this.input.focus();
+        this.input.showPicker?.();
+    }
+
+    getValue() {
+        return this.input.value || null;
+    }
+
+    destroy() {}
+
+    isPopup() {
+        return false;
+    }
+}
+
+function trackReceivedNeedsField(columnField) {
+    return columnField === 'track_received_date_customer'
+        ? 'needs_track_received_date_customer'
+        : 'needs_track_received_date_carrier';
+}
+
+function isTrackReceivedEditable(columnField, row) {
+    if (!props.canEditTrackReceivedDates || !row?.order_id) {
+        return false;
+    }
+
+    return Boolean(row[trackReceivedNeedsField(columnField)]);
+}
+
+function formatTrackReceivedDate(value) {
+    if (value == null || value === '') {
+        return '';
+    }
+
+    const iso = String(value).slice(0, 10);
+    const [year, month, day] = iso.split('-');
+
+    if (!year || !month || !day) {
+        return iso;
+    }
+
+    return `${day}.${month}.${year}`;
+}
+
 const columnDefs = computed(() => {
     void gridViewsRevision.value;
     const saved = readPersistedAgGridColumnState(storageKey.value);
@@ -455,6 +515,47 @@ const columnDefs = computed(() => {
                 filterValueGetter: (params) => params.data?.entered_in_1c ?? 'нет',
                 floatingFilterRow: true,
             });
+            return colDef;
+        }
+        if (column.kind === 'track-received-date') {
+            const needsField = trackReceivedNeedsField(column.field);
+
+            colDef.editable = (params) => isTrackReceivedEditable(column.field, params.data);
+            colDef.singleClickEdit = true;
+            colDef.cellEditor = DateInputEditor;
+            colDef.valueGetter = (params) => {
+                if (!params.data?.[needsField]) {
+                    return null;
+                }
+
+                return params.data?.[column.field] ?? null;
+            };
+            colDef.valueFormatter = (params) => {
+                if (!params.data?.[needsField]) {
+                    return '—';
+                }
+
+                return formatTrackReceivedDate(params.value);
+            };
+            colDef.cellClass = (params) => {
+                const classes = [];
+
+                if (!params.data?.[needsField]) {
+                    return classes;
+                }
+
+                if (isTrackReceivedEditable(column.field, params.data)) {
+                    classes.push('orders-grid-editable-cell');
+                }
+
+                if (!params.value) {
+                    classes.push('documents-grid-track-received--pending');
+                }
+
+                return classes;
+            };
+            colDef.filter = 'agDateColumnFilter';
+
             return colDef;
         }
         if (column.kind === 'etrn-status') {
@@ -808,22 +909,50 @@ function onFilterChanged() {
 }
 
 async function onCellValueChanged(event) {
-    if (event.colDef?.field !== 'entered_in_1c' || event.newValue === event.oldValue) {
+    const field = event.colDef?.field;
+
+    if (field === 'entered_in_1c') {
+        if (event.newValue === event.oldValue) {
+            return;
+        }
+
+        const orderId = event.data?.order_id;
+        if (!orderId) {
+            return;
+        }
+
+        try {
+            await window.axios.patch(route('documents.orders.entered-in-1c', orderId), {
+                entered_in_1c: event.newValue,
+            });
+        } catch (error) {
+            event.node?.setDataValue('entered_in_1c', event.oldValue ?? 'нет');
+            console.error('Failed to update entered_in_1c', error);
+        }
+
         return;
     }
 
-    const orderId = event.data?.order_id;
-    if (!orderId) {
-        return;
-    }
+    if (field === 'track_received_date_customer' || field === 'track_received_date_carrier') {
+        if (event.newValue === event.oldValue) {
+            return;
+        }
 
-    try {
-        await window.axios.patch(route('documents.orders.entered-in-1c', orderId), {
-            entered_in_1c: event.newValue,
-        });
-    } catch (error) {
-        event.node?.setDataValue('entered_in_1c', event.oldValue ?? 'нет');
-        console.error('Failed to update entered_in_1c', error);
+        const orderId = event.data?.order_id;
+        if (!orderId || !props.canEditTrackReceivedDates) {
+            return;
+        }
+
+        try {
+            const response = await window.axios.patch(route('documents.orders.track-received', orderId), {
+                field,
+                value: event.newValue,
+            });
+            event.node?.setDataValue(field, response.data?.value ?? null);
+        } catch (error) {
+            event.node?.setDataValue(field, event.oldValue ?? null);
+            console.error('Failed to update track received date', error);
+        }
     }
 }
 

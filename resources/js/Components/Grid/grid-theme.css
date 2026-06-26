@@ -138,6 +138,14 @@
   );
 }
 
+.orders-grid-theme .documents-grid-track-received--pending {
+  background-color: rgb(254 243 199 / 0.55);
+}
+
+.dark .orders-grid-theme .documents-grid-track-received--pending {
+  background-color: rgb(120 53 15 / 0.28);
+}
+
 .orders-grid-theme .ag-pinned-left-cols-container .ag-cell,
 .orders-grid-theme .ag-pinned-left-header .ag-header-cell {
   box-shadow: 2px 0 0 var(--orders-grid-cell-grid);

@@ -946,6 +946,22 @@ class RoleAccess
     }
 
     /**
+     * Проставление даты получения оригиналов / квитка из реестра документов — делопроизводитель.
+     */
+    public static function canEditTrackReceivedDates(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if (static::isAdminUser($user)) {
+            return true;
+        }
+
+        return static::userHasRoleName($user, 'clerk');
+    }
+
+    /**
      * Редактор сценариев (структура версий, узлы, переходы) — только администраторы и роли с доступом к системным настройкам.
      */
     public static function canManageSalesScripts(?User $user): bool

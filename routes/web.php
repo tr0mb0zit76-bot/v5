@@ -625,6 +625,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/documents/estimate-upload-budget', DocumentUploadBudgetEstimateController::class)->middleware('visibility.area.any:documents|orders')->name('documents.estimate-upload-budget');
     Route::patch('/documents/{document}', [DocumentRegistryController::class, 'update'])->middleware('visibility.area.any:documents|orders')->name('documents.update');
     Route::patch('/documents/orders/{order}/entered-in-1c', [DocumentRegistryController::class, 'updateEnteredIn1C'])->middleware('visibility.area.any:documents|orders')->name('documents.orders.entered-in-1c');
+    Route::patch('/documents/orders/{order}/track-received', [DocumentRegistryController::class, 'updateTrackReceived'])->middleware('visibility.area.any:documents|orders')->name('documents.orders.track-received');
     Route::delete('/documents/{document}', [DocumentRegistryController::class, 'destroy'])->middleware('visibility.area.any:documents|orders')->name('documents.destroy');
     Route::post('/finance/documents', [FinanceDocumentController::class, 'store'])->middleware('visibility.area:documents')->name('finance.documents.store');
     Route::patch('/finance/documents/{financeDocument}', [FinanceDocumentController::class, 'update'])->middleware('visibility.area:documents')->name('finance.documents.update');

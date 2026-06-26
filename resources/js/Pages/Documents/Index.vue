@@ -39,6 +39,7 @@
             <DocumentsGrid
                 :rows="visibleRows"
                 :user-id="userId"
+                :can-edit-track-received-dates="canEditTrackReceivedDates"
                 @open-create="openCreateModal"
                 @open-order-documents="openOrderDocumentsFromGrid"
             />
@@ -187,11 +188,13 @@ defineOptions({
 const props = defineProps({
     rows: { type: Array, default: () => [] },
     orders: { type: Array, default: () => [] },
+    can_edit_track_received_dates: { type: Boolean, default: false },
 });
 
 const page = usePage();
 const uploadGate = useDocumentUploadGate();
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
+const canEditTrackReceivedDates = computed(() => Boolean(props.can_edit_track_received_dates));
 const documentUploadHint = computed(() => page.props.document_upload_limits?.hint_ru ?? '');
 const documentUploadLimits = computed(() => mergeDocumentUploadLimits(
     page.props.document_upload_limits ?? {},
