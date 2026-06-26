@@ -6,6 +6,10 @@
  * @param {HTMLElement | null | undefined} centerViewport
  */
 export function resolveAgGridBottomScrollbarWidth(gridApi, centerViewport) {
+    if (!centerViewport) {
+        return 1;
+    }
+
     let columnTotal = 0;
 
     if (gridApi?.getDisplayedCenterColumns) {
@@ -14,13 +18,63 @@ export function resolveAgGridBottomScrollbarWidth(gridApi, centerViewport) {
         }
     }
 
-    const container = centerViewport?.querySelector?.('.ag-center-cols-container');
-    const fromContainer = container?.scrollWidth ?? 0;
-    const fromViewport = centerViewport?.scrollWidth ?? 0;
-    const viewportWidth = centerViewport?.clientWidth ?? 0;
-    const scrollLeft = centerViewport?.scrollLeft ?? 0;
+    const container = centerViewport.querySelector('.ag-center-cols-container');
+    const fromContainer = Math.max(container?.scrollWidth ?? 0, container?.offsetWidth ?? 0);
+    const fromViewport = centerViewport.scrollWidth ?? 0;
+    const viewportWidth = centerViewport.clientWidth ?? 0;
+    const scrollLeft = centerViewport.scrollLeft ?? 0;
 
-    return Math.max(columnTotal, fromContainer, fromViewport, scrollLeft + viewportWidth, 1);
+    const root = centerViewport.closest('.ag-root-wrapper') ?? centerViewport.closest('.ag-root');
+    const headerContainer = root?.querySelector('.ag-header-viewport .ag-header-container');
+    const headerWidth = Math.max(headerContainer?.scrollWidth ?? 0, headerContainer?.offsetWidth ?? 0);
+
+    let pixelRangeRight = 0;
+
+    if (typeof gridApi?.getHorizontalPixelRange === 'function') {
+        const range = gridApi.getHorizontalPixelRange();
+
+        if (range && Number.isFinite(range.right)) {
+            pixelRangeRight = Math.max(0, range.right);
+        }
+    }
+
+    return Math.max(
+        columnTotal,
+        fromContainer,
+        fromViewport,
+        headerWidth,
+        pixelRangeRight,
+        scrollLeft + viewportWidth,
+        1,
+    ) + 12;
+}
+
+/**
+ * Выравнивает ширину прокручиваемой области ag-grid с расчётной (иначе последняя колонка обрезается).
+ *
+ * @param {HTMLElement | null | undefined} centerViewport
+ * @param {number} scrollableWidth
+ */
+export function applyAgGridCenterScrollableWidth(centerViewport, scrollableWidth) {
+    if (!centerViewport || !Number.isFinite(scrollableWidth) || scrollableWidth <= 0) {
+        return;
+    }
+
+    const viewportWidth = centerViewport.clientWidth ?? 0;
+    const widthPx = `${Math.ceil(scrollableWidth)}px`;
+    const targets = [
+        centerViewport.querySelector('.ag-center-cols-container'),
+        centerViewport.closest('.ag-root-wrapper')?.querySelector('.ag-header-viewport .ag-header-container')
+            ?? centerViewport.closest('.ag-root')?.querySelector('.ag-header-viewport .ag-header-container'),
+    ].filter(Boolean);
+
+    for (const element of targets) {
+        if (scrollableWidth <= viewportWidth + 1) {
+            element.style.removeProperty('min-width');
+        } else {
+            element.style.minWidth = widthPx;
+        }
+    }
 }
 
 /**

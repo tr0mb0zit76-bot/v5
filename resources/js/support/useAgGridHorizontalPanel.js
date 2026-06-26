@@ -1,6 +1,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 
 import {
+    applyAgGridCenterScrollableWidth,
     observeAgGridPanelLayout,
     resolveAgGridBottomScrollbarWidth,
     resolveAgGridViewportHeight,
@@ -42,7 +43,9 @@ export function useAgGridHorizontalPanel({ gridPanel, bottomScrollbar, agGrid, g
             return;
         }
 
-        bottomScrollbarWidth.value = resolveAgGridBottomScrollbarWidth(gridApi.value, centerViewport);
+        const scrollableWidth = resolveAgGridBottomScrollbarWidth(gridApi.value, centerViewport);
+        bottomScrollbarWidth.value = scrollableWidth;
+        applyAgGridCenterScrollableWidth(centerViewport, scrollableWidth);
 
         if (bottomScrollbar.value && !isSyncingHorizontalScroll) {
             bottomScrollbar.value.scrollLeft = centerViewport.scrollLeft;
@@ -56,12 +59,20 @@ export function useAgGridHorizontalPanel({ gridPanel, bottomScrollbar, agGrid, g
 
         const centerViewport = getCenterViewport();
 
-        if (!centerViewport) {
+        if (!centerViewport || !bottomScrollbar.value) {
             return;
         }
 
         isSyncingHorizontalScroll = true;
-        centerViewport.scrollLeft = bottomScrollbar.value?.scrollLeft ?? 0;
+
+        const bottomMax = Math.max(0, bottomScrollbar.value.scrollWidth - bottomScrollbar.value.clientWidth);
+        const centerMax = Math.max(0, centerViewport.scrollWidth - centerViewport.clientWidth);
+
+        if (bottomMax > 0 && centerMax > 0) {
+            centerViewport.scrollLeft = (bottomScrollbar.value.scrollLeft / bottomMax) * centerMax;
+        } else {
+            centerViewport.scrollLeft = bottomScrollbar.value.scrollLeft;
+        }
 
         requestAnimationFrame(() => {
             isSyncingHorizontalScroll = false;
@@ -85,7 +96,14 @@ export function useAgGridHorizontalPanel({ gridPanel, bottomScrollbar, agGrid, g
             isSyncingHorizontalScroll = true;
 
             if (bottomScrollbar.value) {
-                bottomScrollbar.value.scrollLeft = centerViewport.scrollLeft;
+                const bottomMax = Math.max(0, bottomScrollbar.value.scrollWidth - bottomScrollbar.value.clientWidth);
+                const centerMax = Math.max(0, centerViewport.scrollWidth - centerViewport.clientWidth);
+
+                if (bottomMax > 0 && centerMax > 0) {
+                    bottomScrollbar.value.scrollLeft = (centerViewport.scrollLeft / centerMax) * bottomMax;
+                } else {
+                    bottomScrollbar.value.scrollLeft = centerViewport.scrollLeft;
+                }
             }
 
             requestAnimationFrame(() => {

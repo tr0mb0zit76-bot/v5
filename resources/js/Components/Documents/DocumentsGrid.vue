@@ -402,8 +402,18 @@ const gridOptions = {
     animateRows: false,
     preventDefaultOnContextMenu: true,
     onCellContextMenu,
+    onDisplayedColumnsChanged: () => scheduleLayoutRefresh(),
     getRowHeight: (params) => resolveDocumentRowHeight(params.data),
 };
+
+function scheduleLayoutRefresh() {
+    requestAnimationFrame(() => {
+        refreshAgGridPanelLayout();
+        requestAnimationFrame(() => {
+            refreshAgGridPanelLayout();
+        });
+    });
+}
 
 const storageKey = computed(() => `documents_grid_state_v2_${props.userId}`);
 const quickSearchStorageKey = computed(() => `documents_grid_quick_search_${props.userId}`);
@@ -985,9 +995,7 @@ async function onGridReady(params) {
 }
 
 function onFirstDataRendered() {
-    requestAnimationFrame(() => {
-        refreshAgGridPanelLayout();
-    });
+    scheduleLayoutRefresh();
 }
 
 watch(quickSearch, (value) => {
