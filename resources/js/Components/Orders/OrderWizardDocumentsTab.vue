@@ -53,6 +53,7 @@ const props = defineProps({
     customerId: { type: [Number, String, null], default: null },
     documentTypeOptions: { type: Array, default: () => [] },
     customerPaymentForm: { type: String, default: '' },
+    clientPaymentSchedule: { type: Object, default: () => ({}) },
     contractorsCosts: { type: Array, default: () => [] },
     requiredDocumentRules: { type: Array, default: () => [] },
     requiredDocumentChecklist: { type: Array, default: () => [] },
@@ -959,6 +960,10 @@ async function onGlobalDrop(event) {
                 :required-document-checklist="effectiveDocumentChecklist"
                 :can-edit="isOrderFormEditable"
                 :deleting-id="deletingDocId"
+                :order="order"
+                :client-payment-schedule="clientPaymentSchedule"
+                :contractors-costs="contractorsCosts"
+                :performers="performers"
                 @delete="deleteSignedDocument"
                 @update:field="updateSignedField"
             />

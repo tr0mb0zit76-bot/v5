@@ -1790,6 +1790,7 @@
                 :is-international-transport="form.is_international_transport"
                 :customer-id="form.client_id"
                 :customer-payment-form="form.financial_term.client_payment_form"
+                :client-payment-schedule="form.financial_term.client_payment_schedule"
                 :contractors-costs="form.financial_term.contractors_costs"
                 :document-type-options="documentTypeOptions"
                 :document-tab-validation-messages="documentTabValidationMessages"

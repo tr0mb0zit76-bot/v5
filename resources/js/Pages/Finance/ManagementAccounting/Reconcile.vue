@@ -1,6 +1,6 @@
 <template>
-    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-        <div class="space-y-1">
+    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+        <div class="shrink-0 space-y-1">
             <Link
                 href="/finance?section=cashflow&cashflow_tab=reconcile"
                 class="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
@@ -27,7 +27,7 @@
             </div>
         </div>
 
-        <div class="flex flex-wrap gap-2">
+        <div class="flex shrink-0 flex-wrap gap-2">
             <button
                 v-for="filter in lineFilters"
                 :key="filter.key"
@@ -40,7 +40,8 @@
             </button>
         </div>
 
-        <div class="divide-y divide-zinc-200 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
+        <div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <div class="divide-y divide-zinc-200 dark:divide-zinc-800">
             <article
                 v-for="line in filteredLines"
                 :key="line.id"
@@ -284,6 +285,7 @@
             <p v-if="filteredLines.length === 0" class="px-3 py-6 text-center text-sm text-zinc-500">
                 Нет операций для выбранного фильтра.
             </p>
+            </div>
         </div>
     </div>
 </template>
@@ -302,7 +304,7 @@ import {
 
 defineOptions({
     layout: (h, page) =>
-        h(CrmLayout, { activeKey: 'finance', activeSubKey: 'finance-management-accounting' }, () => page),
+        h(CrmLayout, { activeKey: 'finance', activeSubKey: 'finance-management-accounting', mainFill: true }, () => page),
 });
 
 const props = defineProps({

@@ -79,6 +79,7 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'document_title_suffix' => Inertia::always(fn () => InertiaAppSurface::fromRequest($request)->documentTitleSuffix()),
             'can_manage_sales_scripts' => Inertia::always(fn () => $request->user() !== null && RoleAccess::canManageSalesScripts($request->user())),
+            'can_export_grid' => Inertia::always(fn () => $request->user() !== null && RoleAccess::canExportGrid($request->user())),
             'flash' => fn () => $request->session()->get('flash'),
             'cabinet_notification_badges' => Inertia::always(fn () => $request->user() === null
                 ? ['total' => 0, 'orders' => 0, 'tasks' => 0]

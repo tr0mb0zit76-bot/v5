@@ -180,6 +180,10 @@ class OrderWizardController extends Controller
 
         $orderInlineFieldUpdateService->apply($user, $order, $payload['field'], $payload['value']);
 
+        if ($request->boolean('wizard_context')) {
+            return redirect()->route('orders.edit', $order);
+        }
+
         return to_route('orders.index');
     }
 
@@ -771,6 +775,12 @@ class OrderWizardController extends Controller
             'status' => $order->status,
             'manual_status' => Schema::hasColumn('orders', 'manual_status') ? $order->manual_status : null,
             'order_date' => optional($order->order_date)?->toDateString(),
+            'track_received_date_customer' => Schema::hasColumn('orders', 'track_received_date_customer')
+                ? optional($order->track_received_date_customer)?->toDateString()
+                : null,
+            'track_received_date_carrier' => Schema::hasColumn('orders', 'track_received_date_carrier')
+                ? optional($order->track_received_date_carrier)?->toDateString()
+                : null,
             'client_id' => $order->customer_id,
             'client_snapshot' => $order->relationLoaded('client') && $order->client !== null
                 ? [

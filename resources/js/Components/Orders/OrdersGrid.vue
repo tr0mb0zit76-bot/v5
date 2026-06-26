@@ -47,6 +47,17 @@
           </div>
         </div>
 
+        <button
+          v-if="canExportGrid"
+          type="button"
+          :class="crmGridToolbarBtn"
+          title="Экспорт в Excel"
+          @click="openExportModal"
+        >
+          <Download class="h-4 w-4" />
+          Excel
+        </button>
+
         <GridViewsBar
           grid-key="orders"
           :user-id="userId"
@@ -200,6 +211,15 @@
       </div>
     </Teleport>
 
+    <GridExportDialog
+      :show="showExportModal"
+      :columns="exportColumns"
+      :responsible-options="exportResponsibleOptions"
+      responsible-label="Менеджеры"
+      @close="showExportModal = false"
+      @export="handleGridExport"
+    />
+
     <GridContextMenu
       :open="contextMenu.open"
       :x="contextMenu.x"
@@ -215,7 +235,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { usePage, router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { Rows3, Search, Settings2, X } from 'lucide-vue-next';
+import { Rows3, Search, Settings2, Download, X } from 'lucide-vue-next';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -226,6 +246,7 @@ import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } 
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import GridExportDialog from '@/Components/Grid/GridExportDialog.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
@@ -247,6 +268,12 @@ import {
     schedulePersistAgGridDensityToProfile,
     writeLocalAgGridDensity,
 } from '@/support/agGridUserDensity.js';
+import {
+    buildExportColumnsFromGrid,
+    buildResponsibleOptionsFromRows,
+    defaultGridExportFileName,
+    exportAgGridToExcel,
+} from '@/support/gridExcelExport.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -409,6 +436,9 @@ const FLOATING_FILTER_FIELDS = new Set([
 const agGrid = ref(null);
 const gridApi = ref(null);
 const showColumnModal = ref(false);
+const showExportModal = ref(false);
+const exportColumns = ref([]);
+const exportResponsibleOptions = ref([]);
 const columnModalFilterSnapshot = ref(null);
 const showDensityMenu = ref(false);
 const modalColumns = ref([]);
@@ -681,6 +711,7 @@ const densityClass = computed(() => `orders-grid-density--${currentDensity.value
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
 
 const displayData = computed(() => props.rows?.length ? props.rows : props.data ?? []);
+const canExportGrid = computed(() => page.props.can_export_grid === true);
 
 function orderSetFilterLabel(field, row) {
   if (!row) {
@@ -1452,13 +1483,37 @@ const applyColumnModalChanges = () => {
 };
 
 const exportData = () => {
-  if (gridApi.value) {
-    gridApi.value.exportDataAsCsv({
-      fileName: `orders_export_${new Date().toISOString().slice(0, 10)}.csv`,
-      allColumns: true,
-    });
-  }
+  openExportModal();
 };
+
+function openExportModal() {
+  if (!gridApi.value) {
+    return;
+  }
+
+  exportColumns.value = buildExportColumnsFromGrid(gridApi.value, ORDERS_GRID_EXCLUDED_FIELDS);
+  exportResponsibleOptions.value = buildResponsibleOptionsFromRows(displayData.value, {
+    idField: 'manager_id',
+    nameField: 'manager_name',
+  });
+  showExportModal.value = true;
+}
+
+function handleGridExport(payload) {
+  if (!gridApi.value) {
+    return;
+  }
+
+  exportAgGridToExcel({
+    gridApi: gridApi.value,
+    columns: payload.columns,
+    fileName: defaultGridExportFileName('zakazy'),
+    responsibleMode: payload.responsibleMode,
+    responsibleIds: payload.responsibleIds,
+    responsibleIdField: 'manager_id',
+  });
+  showExportModal.value = false;
+}
 
 const refreshGrid = () => {
   if (!gridApi.value) {

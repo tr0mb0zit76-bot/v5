@@ -930,6 +930,22 @@ class RoleAccess
     }
 
     /**
+     * Экспорт реестров из AG Grid в Excel — администратор, руководитель или право «Отчёты».
+     */
+    public static function canExportGrid(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin() || static::userHasRoleName($user, 'supervisor')) {
+            return true;
+        }
+
+        return static::userHasPermission($user, 'view_reports');
+    }
+
+    /**
      * Редактор сценариев (структура версий, узлы, переходы) — только администраторы и роли с доступом к системным настройкам.
      */
     public static function canManageSalesScripts(?User $user): bool

@@ -495,6 +495,9 @@ class ContractorController extends Controller
                     'status_badge_class' => $statusService->resolveStatusBadge($contractor)['badge'],
                     'activity_types_label' => $this->implodeActivityTypes($contractor->activity_types),
                     'primary_contact' => $primary['name'],
+                    'owner_id' => Schema::hasColumn('contractors', 'owner_id')
+                        ? $contractor->owner_id
+                        : null,
                     'owner_name' => Schema::hasColumn('contractors', 'owner_id')
                         ? ($contractor->owner?->name ?? '')
                         : '',

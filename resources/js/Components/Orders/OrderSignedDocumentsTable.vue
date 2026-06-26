@@ -1,7 +1,9 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, reactive, watch } from 'vue';
+import { router } from '@inertiajs/vue3';
 import { ExternalLink, Trash2 } from 'lucide-vue-next';
 import { buildRegistryTableRows } from '@/support/orderDocumentRegistryRows.js';
+import { buildTrackingRegistryRows } from '@/support/orderTrackingDates.js';
 import {
     documentTypeDisplayLabel,
     isTransportDocumentType,
@@ -16,16 +18,49 @@ const props = defineProps({
     documentTypeOptions: { type: Array, default: () => [] },
     canEdit: { type: Boolean, default: true },
     deletingId: { type: [Number, null], default: null },
+    order: { type: Object, default: null },
+    clientPaymentSchedule: { type: Object, default: () => ({}) },
+    contractorsCosts: { type: Array, default: () => [] },
+    performers: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits(['delete', 'update:field']);
 
-const rows = computed(() => buildRegistryTableRows(
+const documentRows = computed(() => buildRegistryTableRows(
     props.signedDocuments,
     props.requiredDocumentRules,
     props.requiredDocumentChecklist,
     props.documentTypeOptions,
 ));
+
+const trackingRows = computed(() => buildTrackingRegistryRows({
+    clientPaymentSchedule: props.clientPaymentSchedule,
+    contractorsCosts: props.contractorsCosts,
+    order: props.order,
+    performers: props.performers,
+}));
+
+const showReceivedDateColumn = computed(() => trackingRows.value.length > 0);
+
+const rows = computed(() => [
+    ...trackingRows.value,
+    ...documentRows.value,
+]);
+
+const localReceivedDates = reactive({});
+const savingTrackFields = reactive({});
+const trackSaveErrors = reactive({});
+
+watch(
+    trackingRows,
+    (nextRows) => {
+        for (const row of nextRows) {
+            localReceivedDates[row.track_field] = row.received_date ?? '';
+            delete trackSaveErrors[row.track_field];
+        }
+    },
+    { immediate: true, deep: true },
+);
 
 const typeLabelByValue = computed(() => {
     const map = new Map();
@@ -39,7 +74,15 @@ const typeLabelByValue = computed(() => {
 
 const attachTypeOptions = computed(() => withTransportSubtypeOptions(props.documentTypeOptions || []));
 
-function partyLabel(party) {
+function partyLabel(row) {
+    if (row.is_tracking_row && row.party_label) {
+        return row.party_label;
+    }
+
+    return partyLabelFromParty(row.party);
+}
+
+function partyLabelFromParty(party) {
     if (party === 'customer') {
         return 'Заказчик';
     }
@@ -74,6 +117,47 @@ function typeOptionsForRow(row) {
 function onFieldChange(doc, field, value) {
     emit('update:field', { id: doc.id, field, value });
 }
+
+function onReceivedDateInput(row, event) {
+    localReceivedDates[row.track_field] = event.target.value;
+}
+
+function onReceivedDateBlur(row) {
+    if (!props.canEdit || !props.order?.id || !row.track_field) {
+        return;
+    }
+
+    const nextValue = localReceivedDates[row.track_field] === ''
+        ? null
+        : localReceivedDates[row.track_field];
+    const currentValue = row.received_date === '' || row.received_date == null
+        ? null
+        : String(row.received_date).slice(0, 10);
+
+    if (nextValue === currentValue) {
+        return;
+    }
+
+    savingTrackFields[row.track_field] = true;
+    delete trackSaveErrors[row.track_field];
+
+    router.patch(route('orders.inline-update', props.order.id), {
+        field: row.track_field,
+        value: nextValue,
+        wizard_context: true,
+    }, {
+        preserveScroll: true,
+        preserveState: true,
+        only: ['order'],
+        onError: (errors) => {
+            trackSaveErrors[row.track_field] = errors?.field ?? errors?.value ?? 'Не удалось сохранить дату.';
+            localReceivedDates[row.track_field] = row.received_date ?? '';
+        },
+        onFinish: () => {
+            savingTrackFields[row.track_field] = false;
+        },
+    });
+}
 </script>
 
 <template>
@@ -87,7 +171,8 @@ function onFieldChange(doc, field, value) {
                     <th class="px-3 py-2.5">Сторона</th>
                     <th class="px-3 py-2.5">Тип</th>
                     <th class="px-3 py-2.5">Номер</th>
-                    <th class="px-3 py-2.5">Дата</th>
+                    <th class="px-3 py-2.5">Дата документа</th>
+                    <th v-if="showReceivedDateColumn" class="px-3 py-2.5">Дата получения</th>
                     <th class="px-3 py-2.5">Файл</th>
                     <th v-if="canEdit" class="px-3 py-2.5 text-right"> </th>
                 </tr>
@@ -96,23 +181,25 @@ function onFieldChange(doc, field, value) {
                 <tr
                     v-for="row in rows"
                     :key="`registry-row-${row.id ?? row._localKey}`"
-                    :class="row.is_placeholder ? 'bg-zinc-50/80 dark:bg-zinc-900/30' : ''"
+                    :class="row.is_placeholder ? 'bg-zinc-50/80 dark:bg-zinc-900/30' : (row.is_tracking_row ? 'bg-sky-50/50 dark:bg-sky-950/20' : '')"
                 >
                     <td class="px-3 py-2.5 text-center align-middle">
                         <input
+                            v-if="!row.is_tracking_row"
                             type="checkbox"
                             class="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600"
                             :checked="row.checklist_completed"
                             disabled
                             :title="row.requirement_label ?? 'Обязательный документ'"
                         >
+                        <span v-else class="text-zinc-300">—</span>
                     </td>
                     <td class="px-3 py-2.5 whitespace-nowrap text-zinc-700 dark:text-zinc-300">
-                        {{ partyLabel(row.party) }}
+                        {{ partyLabel(row) }}
                     </td>
                     <td class="px-3 py-2.5 text-zinc-700 dark:text-zinc-300">
                         <select
-                            v-if="canEdit && row.id && !row.is_placeholder"
+                            v-if="canEdit && row.id && !row.is_placeholder && !row.is_tracking_row"
                             :value="row.type"
                             class="w-full min-w-[140px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                             @change="onFieldChange(row, 'type', $event.target.value)"
@@ -123,23 +210,43 @@ function onFieldChange(doc, field, value) {
                     </td>
                     <td class="px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
                         <input
-                            v-if="canEdit && row.id && !row.is_placeholder"
+                            v-if="canEdit && row.id && !row.is_placeholder && !row.is_tracking_row"
                             :value="row.number ?? ''"
                             type="text"
                             class="w-full min-w-[100px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                             @change="onFieldChange(row, 'number', $event.target.value)"
                         >
-                        <span v-else>{{ row.is_placeholder ? '—' : (row.number || '—') }}</span>
+                        <span v-else>{{ row.is_placeholder || row.is_tracking_row ? '—' : (row.number || '—') }}</span>
                     </td>
                     <td class="px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
                         <input
-                            v-if="canEdit && row.id && !row.is_placeholder"
+                            v-if="canEdit && row.id && !row.is_placeholder && !row.is_tracking_row"
                             :value="row.document_date ?? ''"
                             type="date"
                             class="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                             @change="onFieldChange(row, 'document_date', $event.target.value)"
                         >
-                        <span v-else>{{ row.is_placeholder ? '—' : (row.document_date || '—') }}</span>
+                        <span v-else>{{ row.is_placeholder || row.is_tracking_row ? '—' : (row.document_date || '—') }}</span>
+                    </td>
+                    <td v-if="showReceivedDateColumn" class="px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
+                        <template v-if="row.is_tracking_row">
+                            <input
+                                v-if="canEdit && order?.id"
+                                :value="localReceivedDates[row.track_field] ?? ''"
+                                type="date"
+                                class="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="savingTrackFields[row.track_field]"
+                                :title="row.requirement_label"
+                                @input="onReceivedDateInput(row, $event)"
+                                @blur="onReceivedDateBlur(row)"
+                            >
+                            <span v-else-if="!order?.id" class="text-xs text-zinc-500">Сохраните заказ</span>
+                            <span v-else>{{ localReceivedDates[row.track_field] || '—' }}</span>
+                            <p v-if="trackSaveErrors[row.track_field]" class="mt-1 text-xs text-rose-600">
+                                {{ trackSaveErrors[row.track_field] }}
+                            </p>
+                        </template>
+                        <span v-else>—</span>
                     </td>
                     <td class="max-w-[200px] px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
                         <a
@@ -156,7 +263,7 @@ function onFieldChange(doc, field, value) {
                     </td>
                     <td v-if="canEdit" class="px-3 py-2.5 text-right">
                         <button
-                            v-if="row.id && !row.is_placeholder"
+                            v-if="row.id && !row.is_placeholder && !row.is_tracking_row"
                             type="button"
                             class="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
                             :disabled="deletingId === row.id"
