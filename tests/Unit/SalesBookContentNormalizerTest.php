@@ -14,7 +14,7 @@ class SalesBookContentNormalizerTest extends TestCase
     {
         parent::setUp();
 
-        $this->normalizer = new SalesBookContentNormalizer;
+        $this->normalizer = app(SalesBookContentNormalizer::class);
     }
 
     #[Test]
@@ -157,5 +157,23 @@ MD;
 
         $this->assertStringContainsString('![logo](https://example.com/logo.png)', $result);
         $this->assertStringContainsString('![upload](/sales-assistant/book/assets?path=sales-book-assets%2Fdemo.png)', $result);
+    }
+
+    #[Test]
+    public function it_preserves_mermaid_fenced_code_blocks(): void
+    {
+        $markdown = <<<'MD'
+## Схема
+
+```mermaid
+flowchart LR
+    A[Создание лида] --> B[Квалификация]
+    B --> C[КП]
+```
+MD;
+
+        $this->assertSame($markdown, $this->normalizer->normalize($markdown));
+        $this->assertSame($markdown, $this->normalizer->forEditor($markdown));
+        $this->assertSame($markdown, $this->normalizer->forReader($markdown));
     }
 }

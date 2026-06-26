@@ -117,6 +117,7 @@ import Highlight from '@tiptap/extension-highlight';
 import { TableKit } from '@tiptap/extension-table';
 import { Markdown } from '@tiptap/markdown';
 import { SalesBookOrderedList } from '@/Components/SalesBook/SalesBookOrderedList.js';
+import { SalesBookMermaidCodeBlock } from '@/Components/SalesBook/SalesBookMermaidCodeBlock.js';
 import { SalesBookLink } from '@/Components/SalesBook/salesBookLinkExtension.js';
 import { prepareSalesBookMarkdown } from '@/Components/SalesBook/salesBookMarkdownTables.js';
 
@@ -217,9 +218,11 @@ const editor = useEditor({
         StarterKit.configure({
             heading: { levels: [1, 2, 3] },
             orderedList: false,
+            codeBlock: false,
             link: false,
             underline: false,
         }),
+        SalesBookMermaidCodeBlock,
         SalesBookOrderedList,
         SalesBookLink,
         Placeholder.configure({
@@ -335,6 +338,13 @@ const toolbarItems = computed(() => {
         { key: 'task', label: 'Todo', active: () => editor.value.isActive('taskList'), action: () => editor.value.chain().focus().toggleTaskList().run() },
         { key: 'quote', label: 'Quote', active: () => editor.value.isActive('blockquote'), action: () => editor.value.chain().focus().toggleBlockquote().run() },
         { key: 'code', label: '</>', active: () => editor.value.isActive('codeBlock'), action: () => editor.value.chain().focus().toggleCodeBlock().run() },
+        {
+            key: 'mermaid',
+            label: 'Mermaid',
+            title: 'Диаграмма Mermaid',
+            active: () => editor.value.isActive('codeBlock', { language: 'mermaid' }),
+            action: () => editor.value.chain().focus().toggleCodeBlock({ language: 'mermaid' }).run(),
+        },
         { key: 'table', label: 'Tbl', title: 'Вставить таблицу', active: () => editor.value.isActive('table'), action: () => insertTableWithPrompt() },
     ];
 });
@@ -872,6 +882,101 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
 
 :deep(.dark .tiptap-body .sales-book-editor :not(pre) > code) {
     background: rgb(39 39 42);
+    color: rgb(244 244 245);
+}
+
+:deep(.tiptap-body .sales-book-editor .sales-book-code-block.is-mermaid) {
+    margin: 0.75rem 0;
+}
+
+:deep(.tiptap-body .sales-book-editor .mermaid-block-label) {
+    color: rgb(113 113 122);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin-bottom: 0.375rem;
+    text-transform: uppercase;
+}
+
+:deep(.dark .tiptap-body .sales-book-editor .mermaid-block-label) {
+    color: rgb(161 161 170);
+}
+
+:deep(.tiptap-body .sales-book-editor .mermaid-source) {
+    background: rgb(244 244 245);
+    border: 1px solid rgb(228 228 231);
+    border-radius: 0.5rem;
+    color: rgb(24 24 27);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    margin: 0 0 0.5rem;
+    overflow-x: auto;
+    padding: 0.75rem 1rem;
+}
+
+:deep(.dark .tiptap-body .sales-book-editor .mermaid-source) {
+    background: rgb(39 39 42);
+    border-color: rgb(63 63 70);
+    color: rgb(244 244 245);
+}
+
+:deep(.tiptap-body .sales-book-editor .mermaid-diagram) {
+    background: rgb(250 250 250);
+    border: 1px solid rgb(228 228 231);
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    padding: 0.75rem 1rem;
+}
+
+:deep(.tiptap-body .sales-book-editor .mermaid-diagram-readonly) {
+    background: transparent;
+    border: 0;
+    padding: 0;
+}
+
+:deep(.dark .tiptap-body .sales-book-editor .mermaid-diagram) {
+    background: rgb(24 24 27);
+    border-color: rgb(63 63 70);
+}
+
+:deep(.dark .tiptap-body .sales-book-editor .mermaid-diagram-readonly) {
+    background: transparent;
+    border: 0;
+}
+
+:deep(.tiptap-body .sales-book-editor .mermaid-diagram svg) {
+    display: block;
+    height: auto;
+    max-width: 100%;
+}
+
+:deep(.tiptap-body .sales-book-editor .mermaid-error) {
+    color: rgb(220 38 38);
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+:deep(.dark .tiptap-body .sales-book-editor .mermaid-error) {
+    color: rgb(248 113 113);
+}
+
+:deep(.tiptap-body .sales-book-editor .sales-book-code-block:not(.is-mermaid) pre) {
+    background: rgb(244 244 245);
+    border: 1px solid rgb(228 228 231);
+    border-radius: 0.5rem;
+    color: rgb(24 24 27);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    margin: 0.75rem 0;
+    overflow-x: auto;
+    padding: 0.75rem 1rem;
+}
+
+:deep(.dark .tiptap-body .sales-book-editor .sales-book-code-block:not(.is-mermaid) pre) {
+    background: rgb(39 39 42);
+    border-color: rgb(63 63 70);
     color: rgb(244 244 245);
 }
 
