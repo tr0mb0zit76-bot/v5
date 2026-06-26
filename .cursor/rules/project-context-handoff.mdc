@@ -43,3 +43,14 @@ alwaysApply: true
 - **git → Я.Диск:** `scripts/sync-docs-to-yandex.ps1` (канон в `docs/sync/`).
 - **Я.Диск → MCP:** `scripts/sync-cursor-mcp-from-yandex.ps1` (токены, не документация).
 - Vault Obsidian **не в git** — не ожидай, что знания «приедут» только с Я.Диска без `git pull`.
+
+## Команды одним словом (между ПК)
+
+Пользователь может написать только **ОТДАТЬ** или **ЗАБРАТЬ** — выполни соответствующий сценарий без уточнений.
+
+| Слово | Когда | Действия агента |
+| --- | --- | --- |
+| **ОТДАТЬ** | Конец сессии на ПК, где работали | Обновить `docs/sync/Cursor-handoff-latest.md` и индексы при необходимости → `git add` + `commit` + `push` (если есть изменения; спросить, если неясно) → `pwsh -File scripts/sync-docs-to-yandex.ps1` (с `-ExchangeRoot`, если vault не в дефолтном пути) |
+| **ЗАБРАТЬ** | Старт на другом ПК (большой компьютер) | `git pull` → `pwsh -File scripts/sync-docs-to-yandex.ps1` → при необходимости `sync-cursor-mcp-from-yandex.ps1` → прочитать handoff, `cursor-agent-startup.md`, `AGENTS.md` → кратко резюмировать актуальный контекст |
+
+Подробнее: `docs/sync/cursor-agent-startup.md` → раздел «ОТДАТЬ / ЗАБРАТЬ».

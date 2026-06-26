@@ -16,13 +16,25 @@
 | `v5-local-Components-Utility-Modules.md` | `.../v5-local/Components/Utility Modules.md` |
 | `v5-local-Components-Commercial-Roadmap.md` | `.../v5-local/Components/Commercial Roadmap.md` |
 | `v5-local-Components-Fleet-Own-Fleet.md` | `.../v5-local/Components/Fleet Own Fleet.md` |
+| `v5-local-Components-Documents-Registry.md` | `.../v5-local/Components/Documents Registry.md` |
 | `knowledge-graph-notes.md` | `Yandex.Disk/Exchange/CRM/knowledge-graph-notes.md` |
 
 Путь по умолчанию: `C:\Sync\Yandex.Disk\Exchange`. На другом ПК — `-ExchangeRoot`.
 
 ## Команды
 
-**С ноута / после правок в git:**
+### Одно слово (для Cursor)
+
+| Слово | Смысл |
+| --- | --- |
+| **ОТДАТЬ** | Обновить handoff → commit/push → `sync-docs-to-yandex.ps1` |
+| **ЗАБРАТЬ** | `git pull` → `sync-docs-to-yandex.ps1` → прочитать handoff |
+
+Подробно: `docs/sync/cursor-agent-startup.md`.
+
+### Скрипты
+
+**После правок в git (любой ПК):**
 
 ```powershell
 pwsh -File scripts/sync-docs-to-yandex.ps1

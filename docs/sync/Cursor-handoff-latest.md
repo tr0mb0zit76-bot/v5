@@ -3,7 +3,9 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-02 · **Ветка:** `master` · **HEAD:** `78e7e0a` (после push — см. `git log -1`)
+**Обновлено:** 2026-06-02 · **Ветка:** `master` · **HEAD:** `4536232`
+
+**Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
 ---
 
@@ -14,15 +16,47 @@
 
 **Перед правками кода:**
 
-1. `git pull` (на втором ПК — обязательно).
+1. `git pull` (на втором ПК — обязательно) или команда **ЗАБРАТЬ**.
 2. Прочитать: этот handoff → `cursor-agent-startup.md` → `AGENTS.md` (домен).
 3. По теме — карточку `docs/sync/v5-local-Components-*.md`.
-4. На втором ПК после pull: `pwsh -File scripts/sync-docs-to-yandex.ps1` (с `-ExchangeRoot`, если vault не в `C:\Sync\...`).
+4. После pull: `pwsh -File scripts/sync-docs-to-yandex.ps1` (с `-ExchangeRoot`, если vault не в `C:\Sync\...`).
 
-**После заметной работы:** обновить этот файл + `sync-docs-to-yandex.ps1`.
+**После заметной работы:** обновить этот файл + **ОТДАТЬ** (`commit`/`push` + `sync-docs-to-yandex.ps1`).
 
-**Фраза для нового чата:**  
-*«Перед работой: git pull, прочитай docs/sync/Cursor-handoff-latest.md и cursor-agent-startup.md, сверься с AGENTS.md.»*
+**Фраза для нового чата:** `ЗАБРАТЬ` (или развёрнуто — см. `cursor-agent-startup.md`).
+
+---
+
+## Что сделано недавно (2026-06-02) — документы, гриды, прод
+
+| Коммит | Суть |
+| --- | --- |
+| `ed5dc12` | Экспорт ag-Grid в Excel (заказы, контрагенты); колонка «Дата получения» в таблице учёта документов |
+| `6a9c4ae` | Дата получения встроена в строки учёта (не отдельные строки) |
+| `6f51df9` | Делопроизводитель правит `track_received_date_*` из реестра «Документы» |
+| `a01ba05` | Оптимизация логотипов CRM; первый фикс горизонтального скролла ag-Grid |
+| `4536232` | Точный скролл без «пустого хвоста»; дата получения на всех строках заявки+УПД одной стороны |
+
+**Дата получения оригиналов**
+
+- Одно поле на сторону: `track_received_date_customer`, `track_received_date_carrier`.
+- Нужна при базисах `ottn` / `fttn_receipt` в графике (`OrderTrackReceivedRequirementResolver`).
+- Редактирование: роль **clerk** + admin — реестр `/documents` и таблица «Учёт документов» в мастере.
+- Карточка кода: `docs/sync/v5-local-Components-Documents-Registry.md`.
+
+**ag-Grid горизонтальный скролл**
+
+- `agGridHorizontalScroll.js`, `useAgGridHorizontalPanel.js` — ширина = сумма колонок; `min-width` только у тела, не хедера.
+
+**На проде (задеплоено):** `4536232` — `git pull`, `npm run build`, кэши.
+
+```powershell
+git pull
+npm run build
+php artisan config:cache
+php artisan route:cache
+pwsh -File scripts/sync-docs-to-yandex.ps1
+```
 
 ---
 
@@ -58,7 +92,7 @@
 
 6. **Cursor MCP:** `for_note/cursor-mcp.project.json` → `.cursor/mcp.json` или токены заново
 
-7. **Синхрон индексов vault** (после каждого `git pull`):
+7. **Синхрон индексов vault** (после каждого `git pull` или команды **ЗАБРАТЬ**):
    ```powershell
    pwsh -File scripts/sync-docs-to-yandex.ps1 -ExchangeRoot "$env:USERPROFILE\Yandex.Disk\Exchange"
    pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1
@@ -224,7 +258,9 @@ php artisan optimize:clear
 | **Старт сессии Cursor** | `docs/sync/cursor-agent-startup.md` |
 | **Правило агента** | `.cursor/rules/project-context-handoff.mdc` |
 | **Лиды (механизм, nudges)** | `docs/leads-mechanism.md`, `docs/lead-user-guide.md` |
+| **Документы / track received / Excel** | `docs/sync/v5-local-Components-Documents-Registry.md` |
 | **Fleet / рейсы / дедуп ТС** | `docs/sync/v5-local-Components-Fleet-Own-Fleet.md` |
+| **ОТДАТЬ / ЗАБРАТЬ между ПК** | `docs/sync/cursor-agent-startup.md` |
 | **Граф знаний vs Obsidian** | `docs/sync/knowledge-graph-notes.md` |
 | **Commercial roadmap 1–5** | `docs/sync/v5-local-Components-Commercial-Roadmap.md` |
 | Индекс vault | [[00-index]] |
@@ -270,7 +306,7 @@ b1ab68b Документация QR-проверки печати
 
 ## Следующая сессия (предложение)
 
-1. Ссылка «Открыть карточку ТС» из мастера заказа; merge дубля #50 → #49 на проде
-2. Fleet: автоудаление `fleet_trips` при смене перевозчика на внешнего
-3. График оплат: счётчик «Показано X из Y» при фильтре ag-Grid (localStorage)
-4. Дубликаты номеров заказов (СП/AS, `company_code` vs префикс в форме)
+1. Проверить на проде заказ #14: дата получения у УПД перевозчика в учёте документов
+2. `OrderDocumentsModal` — опционально те же поля track received
+3. Ссылка «Открыть карточку ТС» из мастера заказа; merge дубля #50 → #49 на проде
+4. Fleet: автоудаление `fleet_trips` при смене перевозчика на внешнего

@@ -76,6 +76,7 @@
 | [tz-step-05-scripts-analytics.md](./tz-step-05-scripts-analytics.md) | Аналитика скриптов |
 | [sync/v5-local-Components-Commercial-Roadmap.md](./sync/v5-local-Components-Commercial-Roadmap.md) | Карта кода, маршруты, тесты (Obsidian) |
 | [sync/Cursor-handoff-latest.md](./sync/Cursor-handoff-latest.md) | Handoff на второй ПК |
+| [sync/v5-local-Components-Documents-Registry.md](./sync/v5-local-Components-Documents-Registry.md) | Реестр документов, track received, ag-Grid scroll |
 
 ## Прочее (внутреннее / MVP)
 
@@ -110,7 +111,8 @@ MCP_UPSERT_ONLY=Финансовые php scripts/mcp-prod-upsert-order-wizard.ph
 ## Obsidian / второй компьютер (Yandex Disk)
 
 Vault: `YandexDisk/Exchange/CRM/` — **не в git**, синхронизируется Я.Диском. Канонические копии индексов — в git: [`docs/sync/`](./sync/README.md).  
-**Старт сессии Cursor:** [`docs/sync/cursor-agent-startup.md`](./sync/cursor-agent-startup.md) · правило `.cursor/rules/project-context-handoff.mdc`
+**Старт сессии Cursor:** [`docs/sync/cursor-agent-startup.md`](./sync/cursor-agent-startup.md) · правило `.cursor/rules/project-context-handoff.mdc`  
+**Одно слово между ПК:** **ОТДАТЬ** (поделиться контекстом) · **ЗАБРАТЬ** (подтянуть на другом ПК)
 
 ```powershell
 # После git pull или правок docs/sync/
@@ -126,7 +128,7 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1   # Obsidian MCP bearer
 | `cursor-agent-startup.md` | `CRM/cursor-agent-startup.md` — инструкция старта сессии |
 | `CRM-00-index.md` | `CRM/00-index.md` — навигация vault |
 | `v5-local-00-index.md` | `CRM/v5-local/00-index.md` — карта компонентов |
-| `v5-local-Components-*.md` | `CRM/v5-local/Components/*.md` (Commercial Roadmap, Import Cost, Management Accounting, Print Forms Verification, Utility Modules) |
+| `v5-local-Components-*.md` | `CRM/v5-local/Components/*.md` (Commercial Roadmap, Documents Registry, Fleet, Import Cost, …) |
 
 `Exchange/for_note/README.md` — MCP, tools, scripts-local между ПК.
 

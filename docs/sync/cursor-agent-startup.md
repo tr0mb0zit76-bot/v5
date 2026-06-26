@@ -103,9 +103,46 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1
 
 ---
 
+## ОТДАТЬ / ЗАБРАТЬ (одно слово)
+
+Два триггера для переноса контекста между **основным ПК** и **большим компьютером** (ноутбук / Obsidian). Агент Cursor понимает их без длинной инструкции.
+
+### ОТДАТЬ — «поделиться знаниями»
+
+С конца сессии на ПК, где вы кодили:
+
+1. Обновить `docs/sync/Cursor-handoff-latest.md` (и индексы/карточки, если менялся домен).
+2. Закоммитить и запушить в `master` (если пользователь не запретил).
+3. Скопировать индексы в vault:
+   ```powershell
+   pwsh -File scripts/sync-docs-to-yandex.ps1
+   ```
+
+### ЗАБРАТЬ — «забрать знания»
+
+В начале сессии на **другом** ПК:
+
+1. ```powershell
+   cd C:\OSPanel\home\v5.local
+   git pull
+   pwsh -File scripts/sync-docs-to-yandex.ps1 -ExchangeRoot "$env:USERPROFILE\Yandex.Disk\Exchange"
+   pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1   # по желанию, MCP
+   ```
+2. Агент читает handoff → этот файл → `AGENTS.md` и кратко сообщает, что актуально.
+
+> Я.Диск дублирует файлы из git для Obsidian; **источник правды — git**. Без `git pull` vault может быть свежее handoff в репозитории на другой машине, но код — нет.
+
+---
+
 ## Быстрая фраза для нового чата
 
 Скопируйте в Cursor:
+
+```
+ЗАБРАТЬ
+```
+
+или развёрнуто:
 
 ```
 Перед работой: git pull, прочитай docs/sync/Cursor-handoff-latest.md и docs/sync/cursor-agent-startup.md, сверься с AGENTS.md. Не начинай правки без контекста из handoff.
@@ -113,4 +150,4 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1
 
 ---
 
-*Обновлено: 2026-06-23.*
+*Обновлено: 2026-06-02.*

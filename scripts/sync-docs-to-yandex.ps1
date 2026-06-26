@@ -34,6 +34,7 @@ $map = @{
     'v5-local-Components-Utility-Modules.md'       = (Join-Path $componentsDir 'Utility Modules.md')
     'v5-local-Components-Commercial-Roadmap.md'  = (Join-Path $componentsDir 'Commercial Roadmap.md')
     'v5-local-Components-Fleet-Own-Fleet.md'     = (Join-Path $componentsDir 'Fleet Own Fleet.md')
+    'v5-local-Components-Documents-Registry.md'  = (Join-Path $componentsDir 'Documents Registry.md')
     'knowledge-graph-notes.md'                   = (Join-Path $crmRoot 'knowledge-graph-notes.md')
 }
 

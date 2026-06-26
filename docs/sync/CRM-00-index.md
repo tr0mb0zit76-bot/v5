@@ -42,6 +42,7 @@
 
 - [[v5-local/00-index|Карта компонентов v5-local]]
 - [[v5-local/Components/Fleet Own Fleet|Собственный парк и рейсы (2026-06)]]
+- [[v5-local/Components/Documents Registry|Документы — реестр, учёт, дата получения]]
 - [[v5-local/Components/Commercial Roadmap|Коммерческий контур — шаги 1–5 (2026-06)]]
 - [[v5-local/Components/Import Cost Calculator|Растаможка — калькулятор ввоза]]
 - [[v5-local/Components/Management Accounting|Управленческий учёт — план/факт, split]]
@@ -65,6 +66,8 @@
 | **Handoff второй ПК** | `docs/sync/Cursor-handoff-latest.md` |
 | **Граф знаний (Obsidian vs код)** | `docs/sync/knowledge-graph-notes.md` |
 | **Fleet / рейсы** | `docs/sync/v5-local-Components-Fleet-Own-Fleet.md` |
+| **Документы / реестр** | `docs/sync/v5-local-Components-Documents-Registry.md` |
+| **Синхрон ПК: ОТДАТЬ / ЗАБРАТЬ** | `docs/sync/cursor-agent-startup.md` |
 | AI personas (command bar) | `docs/ai-agent-personas.md` |
 | **Документы (пользователи)** | `docs/documents-user-guide.md` |
 | **Документы (регламент v1)** | `docs/documents-regulation.md` |
