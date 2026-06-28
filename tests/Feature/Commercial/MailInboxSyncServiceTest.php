@@ -70,7 +70,7 @@ class MailInboxSyncServiceTest extends TestCase
 
         Schema::create('mail_threads', function (Blueprint $table): void {
             $table->id();
-            $table->string('subject');
+            $table->text('subject');
             $table->unsignedBigInteger('lead_id')->nullable();
             $table->unsignedBigInteger('contractor_id')->nullable();
             $table->timestamp('last_message_at')->nullable();
@@ -89,7 +89,7 @@ class MailInboxSyncServiceTest extends TestCase
             $table->string('from_email');
             $table->json('to_emails');
             $table->json('cc_emails')->nullable();
-            $table->string('subject');
+            $table->text('subject');
             $table->longText('body_text')->nullable();
             $table->longText('body_html')->nullable();
             $table->json('attachments')->nullable();

@@ -133,7 +133,12 @@ const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRu
 
 const documentChecklistHint = computed(() => {
     if (isOwnFleetCarrierOnly(props.performers)) {
-        return `${effectiveRequiredDocumentRules.value.length} обязательных пункта для этапов «Оплата» и «Завершено» при собственном парке: заявка заказчику, закрывающие (УПД / акт + счёт-фактура), ТСД. Документы перевозчика не требуются.`;
+        const cashCustomer = String(documentPaymentContext.value?.customer ?? '').trim().toLowerCase() === 'cash';
+        const closingHint = cashCustomer
+            ? 'заявка заказчику и ТСД (при наличных закрывающие не требуются)'
+            : 'заявка заказчику, закрывающие (УПД / акт + счёт-фактура), ТСД';
+
+        return `${effectiveRequiredDocumentRules.value.length} обязательных пункта для этапов «Оплата» и «Завершено» при собственном парке: ${closingHint}. Документы перевозчика не требуются.`;
     }
 
     return `${effectiveRequiredDocumentRules.value.length} обязательных пунктов для этапов «Оплата» и «Завершено». Галочка — после подписанного файла или финализации печатной формы. При оплате наличными у контрагента закрывающие документы (УПД, счёт-фактура, акт) не требуются — только заявка.`;

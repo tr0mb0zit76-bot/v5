@@ -22,6 +22,9 @@ use Throwable;
 
 final class MailInboxSyncService
 {
+    /** Safety cap for unusually long IMAP subjects (ATI cargo titles, etc.). */
+    private const SUBJECT_STORAGE_LIMIT = 2000;
+
     public function __construct(
         private readonly MailImapClient $imapClient,
         private readonly MailCounterpartyResolver $counterpartyResolver,
@@ -368,7 +371,7 @@ final class MailInboxSyncService
             'from_email' => $message->fromEmail,
             'to_emails' => $message->toEmails === [] ? [$mailboxEmail] : $message->toEmails,
             'cc_emails' => $message->ccEmails === [] ? null : $message->ccEmails,
-            'subject' => $message->subject !== '' ? $message->subject : '(без темы)',
+            'subject' => $this->storageSubject($message->subject),
             'body_text' => $message->bodyText,
             'body_html' => $message->bodyHtml,
             'sent_at' => $sentAt,
@@ -486,7 +489,7 @@ final class MailInboxSyncService
         }
 
         return MailThread::query()->create([
-            'subject' => $message->subject !== '' ? $message->subject : '(без темы)',
+            'subject' => $this->storageSubject($message->subject),
             'lead_id' => $leadId,
             'contractor_id' => $contractorId,
             'mailbox_user_id' => $mailboxUser->id,
@@ -507,5 +510,16 @@ final class MailInboxSyncService
         }
 
         return $subject;
+    }
+
+    private function storageSubject(string $subject): string
+    {
+        $subject = trim($subject);
+
+        if ($subject === '') {
+            return '(без темы)';
+        }
+
+        return Str::limit($subject, self::SUBJECT_STORAGE_LIMIT, '…');
     }
 }

@@ -38,7 +38,7 @@ final class OrderDocumentRequirementSlotBuilder
         array $paymentContext = [],
     ): array {
         if (OwnFleetCatalog::isOwnFleetCarrierOnly($performers)) {
-            return self::buildOwnFleetCarrierOnlyRules($performers, $mode);
+            return self::buildOwnFleetCarrierOnlyRules($performers, $clientRequestMode, $paymentContext);
         }
 
         $mode = $clientRequestMode === 'split_by_leg' ? 'split_by_leg' : 'single_request';
@@ -158,12 +158,17 @@ final class OrderDocumentRequirementSlotBuilder
     }
 
     /**
-     * Собственный парк: заявка заказчику, закрывающие заказчику, ТСД/ТН — без заявок и закрывающих перевозчика и подрядчиков.
+     * Собственный парк: заявка заказчику, ТСД/ТН; закрывающие заказчику — по форме оплаты (нал — только заявка).
+     * Без заявок и закрывающих перевозчика и подрядчиков.
      *
+     * @param  array{customer?: string|null, carriers?: array<int, string|null>}  $paymentContext
      * @return list<array<string, mixed>>
      */
-    private static function buildOwnFleetCarrierOnlyRules(array $performers, string $clientRequestMode): array
-    {
+    private static function buildOwnFleetCarrierOnlyRules(
+        array $performers,
+        string $clientRequestMode,
+        array $paymentContext = [],
+    ): array {
         $customerSlot = [
             'slotKey' => 'customer-all',
             'orderLegStage' => null,
@@ -172,18 +177,26 @@ final class OrderDocumentRequirementSlotBuilder
             'labelSuffix' => '',
         ];
 
-        return [
+        $customerPaymentForm = isset($paymentContext['customer']) ? (string) $paymentContext['customer'] : null;
+
+        $rules = [
             self::requestRule('customer', $customerSlot, 'customer_request', 'Заявка заказчика', self::REQUEST_TYPES),
-            self::requestRule(
+        ];
+
+        if (self::closingRequiredForPaymentForm($customerPaymentForm)) {
+            $rules[] = self::requestRule(
                 'customer',
                 $customerSlot,
                 'customer_closing',
                 'Закрывающий документ заказчику',
                 self::CLOSING_TYPES,
                 true,
-            ),
-            self::waybillRule($performers, $clientRequestMode),
-        ];
+            );
+        }
+
+        $rules[] = self::waybillRule($performers, $clientRequestMode);
+
+        return $rules;
     }
 
     /**

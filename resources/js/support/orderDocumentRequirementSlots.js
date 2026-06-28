@@ -53,7 +53,7 @@ function buildWaybillRule(performers, clientRequestMode) {
     };
 }
 
-function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_request') {
+function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_request', paymentContext = {}) {
     const customerSlot = {
         slotKey: 'customer-all',
         orderLegStage: null,
@@ -62,7 +62,9 @@ function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_r
         labelSuffix: '',
     };
 
-    return [
+    const customerPaymentForm = paymentContext?.customer ?? null;
+
+    const rules = [
         {
             key: `customer_request:${customerSlot.slotKey}`,
             label: 'Заявка заказчика',
@@ -75,7 +77,10 @@ function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_r
             order_leg_stage: customerSlot.orderLegStage,
             counterparty_label: customerSlot.contractorName,
         },
-        {
+    ];
+
+    if (closingRequiredForPaymentForm(customerPaymentForm)) {
+        rules.push({
             key: `customer_closing:${customerSlot.slotKey}`,
             label: 'Закрывающий документ заказчику',
             description: CLOSING_DESCRIPTION,
@@ -86,9 +91,12 @@ function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_r
             contractor_id: customerSlot.contractorId,
             order_leg_stage: customerSlot.orderLegStage,
             counterparty_label: customerSlot.contractorName,
-        },
-        buildWaybillRule(performers, clientRequestMode),
-    ];
+        });
+    }
+
+    rules.push(buildWaybillRule(performers, clientRequestMode));
+
+    return rules;
 }
 
 /**
@@ -270,7 +278,7 @@ export function buildDocumentRequirementRules(
     paymentContext = {},
 ) {
     if (isOwnFleetCarrierOnly(performers)) {
-        return buildOwnFleetCarrierOnlyRules(performers, clientRequestMode);
+        return buildOwnFleetCarrierOnlyRules(performers, clientRequestMode, paymentContext);
     }
 
     const mode = clientRequestMode === 'split_by_leg' ? 'split_by_leg' : 'single_request';

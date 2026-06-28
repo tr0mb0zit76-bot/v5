@@ -374,6 +374,18 @@ const documentColumnFields = fallbackColumns
     .filter((column) => column.field !== 'order_number' && !column.kind)
     .map((column) => column.field);
 
+function isDocumentColumnNotRequired(row, field) {
+    return row?.column_applicable?.[field] === false;
+}
+
+function createNotRequiredLabel() {
+    const span = document.createElement('span');
+    span.className = 'text-xs italic text-zinc-400 dark:text-zinc-500';
+    span.textContent = 'не требуется';
+
+    return span;
+}
+
 function maxDocumentItemsInRow(row) {
     if (!row) {
         return 1;
@@ -542,7 +554,7 @@ const columnDefs = computed(() => {
             };
             colDef.valueFormatter = (params) => {
                 if (!params.data?.[needsField]) {
-                    return '—';
+                    return 'не требуется';
                 }
 
                 return formatTrackReceivedDate(params.value);
@@ -616,6 +628,10 @@ function valueForQuickFilter(row, field) {
 
     const items = normalizeItems(row[field]);
     if (items.length === 0) {
+        if (isDocumentColumnNotRequired(row, field)) {
+            return 'не требуется';
+        }
+
         return '—';
     }
 
@@ -659,6 +675,11 @@ function documentsCellRenderer(row, field) {
 
     const items = normalizeItems(row?.[field]);
     if (items.length === 0) {
+        if (isDocumentColumnNotRequired(row, field)) {
+            container.appendChild(createNotRequiredLabel());
+            return container;
+        }
+
         const empty = document.createElement('span');
         empty.className = 'text-xs text-zinc-400';
         empty.textContent = '—';

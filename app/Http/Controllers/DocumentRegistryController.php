@@ -13,6 +13,7 @@ use App\Services\OrderClosingDocumentsNotificationService;
 use App\Services\OrderCompensationService;
 use App\Services\Orders\OrderInlineFieldUpdateService;
 use App\Support\DocumentRegistryDocumentLabel;
+use App\Support\DocumentRegistryGridColumnApplicabilityResolver;
 use App\Support\OrderClipboardSummaryResolver;
 use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\OrderTrackReceivedRequirementResolver;
@@ -67,6 +68,7 @@ class DocumentRegistryController extends Controller
         $orders = $query->limit(400)->get();
         $clipboardSummaries = app(OrderClipboardSummaryResolver::class)->mapForOrders($orders);
         $trackReceivedFlags = OrderTrackReceivedRequirementResolver::mapFlagsForOrders($orders);
+        $columnApplicability = app(DocumentRegistryGridColumnApplicabilityResolver::class)->mapForOrders($orders);
 
         return Inertia::render('Documents/Index', [
             'search' => $search,
@@ -79,6 +81,7 @@ class DocumentRegistryController extends Controller
                         'needs_track_received_date_customer' => false,
                         'needs_track_received_date_carrier' => false,
                     ],
+                    $columnApplicability[(int) $order->id] ?? [],
                 ))
                 ->values(),
             'orders' => $orders->map(fn (Order $order): array => [
@@ -349,10 +352,15 @@ class DocumentRegistryController extends Controller
      *     needs_track_received_date_customer: bool,
      *     needs_track_received_date_carrier: bool,
      * }  $trackReceivedFlags
+     * @param  array<string, bool>  $columnApplicability
      * @return array<string, mixed>
      */
-    private function serializeRow(Order $order, string $clipboardSummary = '', array $trackReceivedFlags = []): array
-    {
+    private function serializeRow(
+        Order $order,
+        string $clipboardSummary = '',
+        array $trackReceivedFlags = [],
+        array $columnApplicability = [],
+    ): array {
         $documents = $order->documents ?? collect();
         $etrn = $this->serializeEtrnSummary($documents);
         $contractorNamesById = DocumentRegistryDocumentLabel::contractorNamesByIdFromDocuments($documents);
@@ -370,6 +378,7 @@ class DocumentRegistryController extends Controller
                 : null,
             'needs_track_received_date_customer' => (bool) ($trackReceivedFlags['needs_track_received_date_customer'] ?? false),
             'needs_track_received_date_carrier' => (bool) ($trackReceivedFlags['needs_track_received_date_carrier'] ?? false),
+            'column_applicable' => $columnApplicability,
             'clipboard_summary' => $clipboardSummary,
             'customer_invoice' => $this->serializeColumnDocs($order, $documents, 'invoice', 'customer', $contractorNamesById),
             'customer_upd' => $this->serializeColumnDocs($order, $documents, 'upd', 'customer', $contractorNamesById),
