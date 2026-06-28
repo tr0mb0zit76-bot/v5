@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { Bookmark, ChevronDown, Pin, RotateCcw, Save, Star, Trash2 } from 'lucide-vue-next';
+import { Bookmark, ChevronDown, Pin, RotateCcw, Save, Share2, Star, Trash2 } from 'lucide-vue-next';
+import GridViewSaveModal from '@/Components/Grid/GridViewSaveModal.vue';
 import {
     captureGridStateFromApi,
     createGridView,
@@ -30,10 +31,14 @@ const emit = defineEmits(['update:quickSearch', 'applied', 'pinned-changed']);
 
 const views = ref([]);
 const canShare = ref(false);
+const shareOptions = ref({ roles: [], users: [] });
 const activeViewId = ref(null);
 const menuOpen = ref(false);
 const notice = ref('');
 const loading = ref(false);
+const saveModalOpen = ref(false);
+const saveModalMode = ref('new');
+const saveModalSaving = ref(false);
 
 const storageKeys = computed(() => ({
     columnStorageKey: props.columnStorageKey,
@@ -42,6 +47,12 @@ const storageKeys = computed(() => ({
 }));
 
 const activeView = computed(() => views.value.find((view) => view.id === activeViewId.value) ?? null);
+
+const saveModalInitial = computed(() => ({
+    name: saveModalMode.value === 'new' ? '' : (activeView.value?.name ?? ''),
+    visibility: activeView.value?.visibility ?? 'private',
+    sharedWith: activeView.value?.shared_with ?? { role_ids: [], user_ids: [] },
+}));
 
 let noticeTimeout = null;
 
@@ -65,6 +76,7 @@ async function reloadViews() {
         const data = await fetchGridViews(props.gridKey);
         views.value = data.views ?? [];
         canShare.value = Boolean(data.can_share);
+        shareOptions.value = data.share_options ?? { roles: [], users: [] };
     } finally {
         loading.value = false;
     }
@@ -120,50 +132,56 @@ async function applyViewById(viewId) {
     showNotice(`Применено: ${view.name}`);
 }
 
-async function saveCurrent() {
-    const payload = captureCurrentPayload();
-
-    if (activeView.value?.can_manage) {
-        const updated = await updateGridView(activeView.value.id, payload);
-        views.value = views.value.map((view) => (view.id === updated.id ? updated : view));
-        showNotice('Представление сохранено');
-
-        return;
-    }
-
-    await saveAsNew();
+function openSaveModal(mode) {
+    saveModalMode.value = mode;
+    saveModalOpen.value = true;
 }
 
-async function saveAsNew() {
-    const name = window.prompt('Название представления');
-
-    if (name === null) {
-        return;
-    }
-
-    const trimmed = name.trim();
-
-    if (trimmed === '') {
-        showNotice('Укажите название');
-
-        return;
-    }
+async function handleSaveModalSubmit(formPayload) {
+    saveModalSaving.value = true;
 
     try {
-        const created = await createGridView({
-            grid_key: props.gridKey,
-            name: trimmed,
-            visibility: 'private',
-            ...captureCurrentPayload(),
-        });
+        const gridPayload = captureCurrentPayload();
+        const payload = { ...gridPayload, ...formPayload };
 
-        views.value = [...views.value, created].sort((left, right) => left.name.localeCompare(right.name, 'ru'));
-        activeViewId.value = created.id;
-        writeViewIdToUrl(created.id);
-        showNotice('Представление создано');
+        if (saveModalMode.value === 'update' && activeView.value?.can_manage) {
+            const updated = await updateGridView(activeView.value.id, payload);
+            views.value = views.value.map((view) => (view.id === updated.id ? updated : view));
+            showNotice('Представление сохранено');
+        } else if (saveModalMode.value === 'share' && activeView.value?.can_manage) {
+            const updated = await updateGridView(activeView.value.id, {
+                visibility: formPayload.visibility,
+                shared_with: formPayload.shared_with,
+            });
+            views.value = views.value.map((view) => (view.id === updated.id ? updated : view));
+            showNotice('Настройки доступа сохранены');
+        } else {
+            const created = await createGridView({
+                grid_key: props.gridKey,
+                ...payload,
+            });
+            views.value = [...views.value, created].sort((left, right) => left.name.localeCompare(right.name, 'ru'));
+            activeViewId.value = created.id;
+            writeViewIdToUrl(created.id);
+            showNotice('Представление создано');
+        }
+
+        saveModalOpen.value = false;
     } catch {
         showNotice('Не удалось сохранить');
+    } finally {
+        saveModalSaving.value = false;
     }
+}
+
+async function saveCurrent() {
+    if (activeView.value?.can_manage) {
+        openSaveModal('update');
+
+        return;
+    }
+
+    openSaveModal('new');
 }
 
 async function togglePin(view) {
@@ -288,8 +306,18 @@ watch(
             <Save class="h-4 w-4" />
         </button>
 
-        <button type="button" :class="crmGridToolbarBtn" title="Сохранить как…" @click="saveAsNew">
+        <button type="button" :class="crmGridToolbarBtn" title="Сохранить как…" @click="openSaveModal('new')">
             <span class="text-xs font-medium">+</span>
+        </button>
+
+        <button
+            v-if="activeView?.can_manage && canShare"
+            type="button"
+            :class="crmGridToolbarBtn"
+            title="Поделиться"
+            @click="openSaveModal('share')"
+        >
+            <Share2 class="h-4 w-4" />
         </button>
 
         <button
@@ -318,6 +346,19 @@ watch(
 
         <span v-if="notice" class="text-xs font-medium text-emerald-600 dark:text-emerald-400">{{ notice }}</span>
     </div>
+
+    <GridViewSaveModal
+        :show="saveModalOpen"
+        :mode="saveModalMode"
+        :initial-name="saveModalInitial.name"
+        :initial-visibility="saveModalInitial.visibility"
+        :initial-shared-with="saveModalInitial.sharedWith"
+        :can-share="canShare"
+        :share-options="shareOptions"
+        :saving="saveModalSaving"
+        @close="saveModalOpen = false"
+        @submit="handleSaveModalSubmit"
+    />
 
     <div v-if="menuOpen" class="fixed inset-0 z-10" @click="menuOpen = false" />
 </template>

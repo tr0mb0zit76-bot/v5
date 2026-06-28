@@ -12,6 +12,7 @@ const props = defineProps({
     currencyOptions: { type: Array, default: () => [] },
     paymentFormOptions: { type: Array, default: () => [] },
     expectedMargin: { type: [Number, String, null], default: null },
+    routePriceBenchmark: { type: Object, default: null },
 });
 
 const previewMargin = computed(() => {
@@ -102,6 +103,39 @@ function formatMoney(value) {
                         </option>
                     </select>
                 </div>
+            </div>
+        </section>
+
+        <section
+            v-if="routePriceBenchmark?.available"
+            class="space-y-3 rounded-xl border border-sky-200 bg-sky-50/60 p-4 dark:border-sky-900/40 dark:bg-sky-950/20"
+        >
+            <div>
+                <h4 class="text-sm font-semibold text-sky-950 dark:text-sky-100">Похожие перевозки</h4>
+                <p class="mt-1 text-xs text-sky-900/80 dark:text-sky-100/80">
+                    По маршруту «{{ routePriceBenchmark.loading_location || '—' }} → {{ routePriceBenchmark.unloading_location || '—' }}»
+                    · выборка {{ routePriceBenchmark.sample_size }}
+                </p>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+                <article class="rounded-lg border border-sky-200/70 bg-white/80 p-3 dark:border-sky-900/30 dark:bg-zinc-950/40">
+                    <div class="text-xs uppercase tracking-wide text-zinc-500">Ставка заказчика</div>
+                    <div class="mt-1 text-sm tabular-nums">
+                        {{ formatMoney(routePriceBenchmark.customer_rate.min) }} —
+                        {{ formatMoney(routePriceBenchmark.customer_rate.avg) }} —
+                        {{ formatMoney(routePriceBenchmark.customer_rate.max) }}
+                        {{ routePriceBenchmark.customer_rate.currency }}
+                    </div>
+                </article>
+                <article class="rounded-lg border border-sky-200/70 bg-white/80 p-3 dark:border-sky-900/30 dark:bg-zinc-950/40">
+                    <div class="text-xs uppercase tracking-wide text-zinc-500">Ставка перевозчика</div>
+                    <div class="mt-1 text-sm tabular-nums">
+                        {{ formatMoney(routePriceBenchmark.carrier_rate.min) }} —
+                        {{ formatMoney(routePriceBenchmark.carrier_rate.avg) }} —
+                        {{ formatMoney(routePriceBenchmark.carrier_rate.max) }}
+                        {{ routePriceBenchmark.carrier_rate.currency }}
+                    </div>
+                </article>
             </div>
         </section>
 

@@ -29,6 +29,7 @@ use App\Services\OrderNumberingService;
 use App\Services\OrderPrintDocumentWorkflowService;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\Orders\OrderBasedOnTemplateBuilder;
+use App\Services\Orders\OrderDeletionService;
 use App\Services\Orders\OrderInlineFieldUpdateService;
 use App\Services\OrderWizardService;
 use App\Services\OwnFleetContractorService;
@@ -63,7 +64,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
@@ -192,7 +192,7 @@ class OrderWizardController extends Controller
         $this->syncFinancialTermsFromOrderRates($order);
     }
 
-    public function destroy(Request $request, Order $order): RedirectResponse
+    public function destroy(Request $request, Order $order, OrderDeletionService $orderDeletionService): RedirectResponse
     {
         if ($order->trashed()) {
             return to_route('orders.index');
@@ -200,69 +200,7 @@ class OrderWizardController extends Controller
 
         abort_unless($this->canDeleteOrder($request, $order), 403);
 
-        DB::transaction(function () use ($order): void {
-            $order = $this->loadOrderForEditing($order);
-            $cargoItems = $this->orderCargoItems($order);
-
-            DB::table('cargo_leg')
-                ->when(
-                    $cargoItems->isNotEmpty(),
-                    fn ($query) => $query->whereIn('cargo_id', $cargoItems->pluck('id')),
-                    fn ($query) => $query->whereRaw('1 = 0')
-                )
-                ->delete();
-
-            DB::table('route_points')
-                ->whereIn('order_leg_id', $order->legs->pluck('id'))
-                ->delete();
-
-            $legIds = $order->legs->pluck('id');
-
-            if ($legIds->isNotEmpty()) {
-                if (Schema::hasTable('leg_costs')) {
-                    DB::table('leg_costs')->whereIn('order_leg_id', $legIds)->delete();
-                }
-
-                if (Schema::hasTable('leg_contractor_assignments')) {
-                    DB::table('leg_contractor_assignments')->whereIn('order_leg_id', $legIds)->delete();
-                }
-            }
-
-            if (Schema::hasTable('order_documents')) {
-                $order->documents()->delete();
-            }
-
-            if (Schema::hasTable('payment_schedule_payment_events')) {
-                DB::table('payment_schedule_payment_events')
-                    ->where('order_id', $order->id)
-                    ->delete();
-            }
-
-            if (Schema::hasTable('payment_schedules')) {
-                DB::table('payment_schedules')
-                    ->where('order_id', $order->id)
-                    ->delete();
-            }
-
-            if (Schema::hasTable('financial_terms')) {
-                $order->financialTerms()->delete();
-            }
-
-            if (Schema::hasTable('order_status_logs')) {
-                $order->statusLogs()->delete();
-            }
-
-            if (Schema::hasColumn('cargos', 'order_id')) {
-                $order->cargoItems()->delete();
-            } elseif ($cargoItems->isNotEmpty()) {
-                Cargo::query()->whereIn('id', $cargoItems->pluck('id'))->delete();
-            }
-
-            DB::table('order_legs')
-                ->where('order_id', $order->id)
-                ->delete();
-            $order->delete();
-        });
+        $orderDeletionService->delete($order, fn (Order $target): Order => $this->loadOrderForEditing($target));
 
         return to_route('orders.index');
     }

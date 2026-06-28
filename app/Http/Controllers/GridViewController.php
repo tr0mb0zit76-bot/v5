@@ -31,6 +31,9 @@ class GridViewController extends Controller
         return response()->json([
             'views' => $views,
             'can_share' => $this->gridViews->userCanShare($user),
+            'share_options' => $this->gridViews->userCanShare($user)
+                ? $this->gridViews->shareOptionsFor($user)
+                : null,
         ]);
     }
 

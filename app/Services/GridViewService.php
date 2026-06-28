@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\GridView;
+use App\Models\Role;
 use App\Models\User;
 use App\Support\GridViewCatalog;
 use Illuminate\Database\Eloquent\Builder;
@@ -154,6 +155,47 @@ class GridViewService
     public function userCanShare(User $user): bool
     {
         return $user->isAdmin() || $user->isSupervisor();
+    }
+
+    /**
+     * @return array{
+     *     roles: list<array{id: int, label: string}>,
+     *     users: list<array{id: int, label: string}>
+     * }
+     */
+    public function shareOptionsFor(User $user): array
+    {
+        if (! $this->userCanShare($user)) {
+            return ['roles' => [], 'users' => []];
+        }
+
+        $roles = Role::query()
+            ->orderBy('display_name')
+            ->orderBy('name')
+            ->get(['id', 'name', 'display_name'])
+            ->map(fn (Role $role): array => [
+                'id' => (int) $role->id,
+                'label' => (string) ($role->display_name ?: $role->name),
+            ])
+            ->values()
+            ->all();
+
+        $users = User::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->orderBy('email')
+            ->get(['id', 'name', 'email'])
+            ->map(fn (User $row): array => [
+                'id' => (int) $row->id,
+                'label' => trim($row->name.' · '.$row->email),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'roles' => $roles,
+            'users' => $users,
+        ];
     }
 
     public function assertCanManage(User $user, GridView $view): void

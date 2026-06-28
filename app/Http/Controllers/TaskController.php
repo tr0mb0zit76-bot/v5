@@ -18,8 +18,10 @@ use App\Models\TaskAttachment;
 use App\Models\TaskChecklistItem;
 use App\Models\TaskEvent;
 use App\Models\User;
+use App\Services\ActivityLedgerService;
 use App\Services\CabinetNotifier;
 use App\Services\TaskSlaService;
+use App\Support\ActivityEventType;
 use App\Support\LeadStatus;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
@@ -39,6 +41,7 @@ class TaskController extends Controller
     public function __construct(
         private readonly CabinetNotifier $cabinetNotifier,
         private readonly TaskSlaService $taskSlaService,
+        private readonly ActivityLedgerService $activityLedger,
     ) {}
 
     public function index(Request $request): Response
@@ -104,6 +107,24 @@ class TaskController extends Controller
         $task = Task::query()->create($attributes);
 
         $this->logTaskEvent($task, $request->user()?->id, 'created', 'Создана задача', $task->title);
+
+        if ($task->lead_id !== null) {
+            $lead = Lead::query()->find($task->lead_id);
+
+            if ($lead !== null) {
+                $this->activityLedger->record(
+                    $lead,
+                    ActivityEventType::TaskCreated,
+                    'Создана задача',
+                    $task->title,
+                    ['task_id' => $task->id],
+                    null,
+                    $request->user(),
+                    $task,
+                );
+            }
+        }
+
         $this->syncLinkedLeadStatus($task, $request->user()?->id);
         $this->cabinetNotifier->notifyTaskAssigned($task, $request->user());
 

@@ -222,6 +222,13 @@ function savePortrait() {
                         <div v-if="draft.confidence !== null" class="mt-1 text-xs text-zinc-500">
                             Уверенность: {{ Math.round(draft.confidence * 100) }}%
                         </div>
+                        <a
+                            v-if="draft.source_url"
+                            :href="draft.source_url"
+                            class="mt-1 inline-block text-xs font-medium text-sky-700 hover:underline dark:text-sky-300"
+                        >
+                            Источник: {{ draft.source_label ?? 'открыть' }}
+                        </a>
                     </div>
                     <div class="flex shrink-0 gap-2">
                         <button

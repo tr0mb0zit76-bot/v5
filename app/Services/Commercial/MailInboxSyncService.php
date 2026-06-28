@@ -2,11 +2,13 @@
 
 namespace App\Services\Commercial;
 
+use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\MailMessage;
 use App\Models\MailThread;
 use App\Models\User;
 use App\Services\ActivityLedgerService;
+use App\Services\Contractor\ContractorInsightDraftService;
 use App\Support\ActivityEventType;
 use App\Support\MailSync\ImportedMailMessage;
 use App\Support\MailSync\MailContractorAllowlist;
@@ -422,6 +424,22 @@ final class MailInboxSyncService
                     $sentAt,
                     $mailboxUser,
                     $mailMessage,
+                );
+            }
+        }
+
+        if (
+            config('ai.insight_drafts.auto_extract_from_inbound_mail')
+            && $contractorId !== null
+            && $message->direction === MailMessage::DIRECTION_INBOUND
+        ) {
+            $contractor = Contractor::query()->find($contractorId);
+
+            if ($contractor !== null) {
+                app(ContractorInsightDraftService::class)->extractFromMailMessage(
+                    $mailMessage->fresh(),
+                    $contractor,
+                    $mailboxUser,
                 );
             }
         }

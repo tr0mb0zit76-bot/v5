@@ -90,7 +90,7 @@
 | M4.3 | Split: несколько переводов на одну заявку с UI распределения сумм | ✅ `management_statement_line_splits`, Reconcile |
 | M4.4 | Ручные операции (наличные) — форма на Index | ✅ `ManagementAccountingManualEntryModal` |
 | M4.5 | CNY: курс на дату операции | backlog |
-| M4.6 | Отчёт «полная картина»: операционный + управленческий за период | backlog (частично закрыто variance + Index) |
+| M4.6 | Отчёт «полная картина»: операционный + управленческий за период | ✅ `ManagementAccountingFullPictureService` + блок на Index |
 | M4.7 | Второй банк / другие форматы выписок | backlog |
 
 ---

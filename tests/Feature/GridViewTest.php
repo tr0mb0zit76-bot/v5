@@ -149,6 +149,69 @@ class GridViewTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_supervisor_can_share_view_with_role(): void
+    {
+        $supervisorRole = Role::query()->create([
+            'name' => 'supervisor',
+            'display_name' => 'Руководитель',
+            'visibility_areas' => ['orders'],
+        ]);
+
+        $managerRole = Role::query()->create([
+            'name' => 'manager_share_'.uniqid(),
+            'display_name' => 'Менеджер',
+            'visibility_areas' => ['orders'],
+        ]);
+
+        $supervisor = User::factory()->create([
+            'role_id' => $supervisorRole->id,
+            'is_active' => true,
+        ]);
+
+        $manager = User::factory()->create([
+            'role_id' => $managerRole->id,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($supervisor)->postJson(route('grid-views.store'), [
+            'grid_key' => 'orders',
+            'name' => 'Для менеджеров',
+            'visibility' => 'role',
+            'shared_with' => [
+                'role_ids' => [$managerRole->id],
+            ],
+            'filter_state' => [],
+        ]);
+
+        $response->assertCreated()->assertJsonPath('view.visibility', 'role');
+
+        $viewId = (int) $response->json('view.id');
+
+        $this->actingAs($manager)
+            ->getJson(route('grid-views.index', ['grid_key' => 'orders']))
+            ->assertOk()
+            ->assertJsonFragment(['id' => $viewId, 'name' => 'Для менеджеров']);
+
+        $this->actingAs($supervisor)
+            ->getJson(route('grid-views.index', ['grid_key' => 'orders']))
+            ->assertOk()
+            ->assertJsonPath('can_share', true)
+            ->assertJsonStructure(['share_options' => ['roles', 'users']]);
+    }
+
+    public function test_manager_cannot_set_non_private_visibility(): void
+    {
+        $user = $this->makeUser(['orders']);
+
+        $this->actingAs($user)
+            ->postJson(route('grid-views.store'), [
+                'grid_key' => 'orders',
+                'name' => 'Попытка workspace',
+                'visibility' => 'workspace',
+            ])
+            ->assertStatus(422);
+    }
+
     public function test_non_owner_cannot_update_foreign_view(): void
     {
         $owner = $this->makeUser(['orders']);

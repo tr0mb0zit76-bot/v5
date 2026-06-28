@@ -197,10 +197,35 @@ class ContractorInsightDraftService
             'proposed_display' => $display['text'] ?? '',
             'source_type' => $draft->source_type,
             'source_id' => $draft->source_id,
+            'source_label' => $this->sourceLabel($draft),
+            'source_url' => $this->sourceUrl($draft),
             'confidence' => $draft->confidence !== null ? (float) $draft->confidence : null,
             'status' => $draft->status,
             'created_at' => optional($draft->created_at)?->toIso8601String(),
         ];
+    }
+
+    private function sourceLabel(ContractorInsightDraft $draft): ?string
+    {
+        return match ($draft->source_type) {
+            ContractorInsightDraft::SOURCE_MAIL_MESSAGE => 'Письмо',
+            default => null,
+        };
+    }
+
+    private function sourceUrl(ContractorInsightDraft $draft): ?string
+    {
+        if ($draft->source_type !== ContractorInsightDraft::SOURCE_MAIL_MESSAGE || $draft->source_id === null) {
+            return null;
+        }
+
+        $message = MailMessage::query()->with('thread:id')->find($draft->source_id);
+
+        if ($message?->thread === null) {
+            return null;
+        }
+
+        return route('mail.threads.show', $message->thread);
     }
 
     /**

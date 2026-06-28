@@ -74,6 +74,7 @@
                     :truck-body-type-options="page.props.truckBodyTypeOptions ?? []"
                     :trailer-type-options="page.props.trailerTypeOptions ?? []"
                     :cargo-title-suggestions="page.props.cargoTitleSuggestions ?? []"
+                    :sales-coaching-insights="page.props.salesCoachingInsights ?? null"
                     @close="closeLeadModal"
                 />
             </section>
@@ -129,6 +130,7 @@ const modalPropKeys = [
     'currentUserId',
     'canAssignResponsible',
     'canUseLeadTasks',
+    'salesCoachingInsights',
 ];
 
 watch(selectedLead, (lead) => {

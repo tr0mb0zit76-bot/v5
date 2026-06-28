@@ -35,6 +35,7 @@ use App\Services\LeadLinkedTaskService;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\Leads\LeadBasedOnTemplateBuilder;
 use App\Services\Leads\LeadOperationalBriefService;
+use App\Services\Leads\LeadRoutePriceBenchmarkService;
 use App\Services\Leads\TaskLeadTemplateBuilder;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\ActivityEventType;
@@ -78,6 +79,7 @@ class LeadController extends Controller
         private readonly LeadLinkedTaskService $leadLinkedTaskService,
         private readonly ContractorPortraitService $contractorPortraitService,
         private readonly LeadOperationalBriefService $leadOperationalBriefService,
+        private readonly LeadRoutePriceBenchmarkService $leadRoutePriceBenchmark,
     ) {}
 
     public function index(Request $request): Response
@@ -619,12 +621,6 @@ class LeadController extends Controller
             'selectedLead' => $selectedLead === null ? null : $this->serializeLead($selectedLead),
             'isCreating' => $isCreating,
             'leadTemplate' => $selectedLead === null ? $leadTemplate : null,
-            'salesCoachingInsights' => RoleAccess::canViewSalesCoachingInsights($request->user())
-                ? $this->salesCoachingInsights->insights(
-                    $request->user(),
-                    (int) config('outcome_intelligence.coaching_default_days', 90),
-                )
-                : null,
             'leadAttentionQueue' => $this->leadAttentionQueue->queueForUser(
                 $request->user(),
                 (int) config('commercial_nudges.attention_queue_limit', 15),
@@ -764,6 +760,12 @@ class LeadController extends Controller
                     ->values()
                     ->all()
                 : [],
+            'salesCoachingInsights' => RoleAccess::canViewSalesCoachingInsights(request()->user())
+                ? $this->salesCoachingInsights->insights(
+                    request()->user(),
+                    (int) config('outcome_intelligence.coaching_default_days', 90),
+                )
+                : null,
         ];
     }
 
@@ -1351,6 +1353,7 @@ class LeadController extends Controller
                     'download_url' => route('leads.attachments.download', [$lead, $attachment]),
                 ])->values()->all()
                 : [],
+            'route_price_benchmark' => $this->leadRoutePriceBenchmark->benchmarkForLead($lead),
         ];
     }
 

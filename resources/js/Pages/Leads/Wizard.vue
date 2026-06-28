@@ -56,6 +56,12 @@
             </div>
         </div>
 
+        <LeadSalesCoachingPanel
+            v-if="salesCoachingInsights?.available"
+            class="shrink-0 border-b border-zinc-200 px-5 py-3 dark:border-zinc-800"
+            :insights="salesCoachingInsights"
+        />
+
         <div :class="crmWizardBody">
             <div v-if="activeTab === 'main'" class="space-y-5">
                 <LeadStatusPipeline
@@ -302,6 +308,7 @@
                 :currency-options="currencyOptions"
                 :payment-form-options="paymentFormOptions"
                 :expected-margin="form.expected_margin"
+                :route-price-benchmark="props.selectedLead?.route_price_benchmark ?? null"
             />
 
             <LeadWizardDocumentsTab
@@ -427,6 +434,7 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 import LeadCloseOutcomeFields from '@/Components/Leads/LeadCloseOutcomeFields.vue';
 import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';
 import LeadFocusNowPanel from '@/Components/Leads/LeadFocusNowPanel.vue';
+import LeadSalesCoachingPanel from '@/Components/Leads/LeadSalesCoachingPanel.vue';
 import LeadWizardCargoTab from '@/Components/Leads/LeadWizardCargoTab.vue';
 import LeadWizardNextStepPanel from '@/Components/Leads/LeadWizardNextStepPanel.vue';
 import LeadStatusPipeline from '@/Components/Leads/LeadStatusPipeline.vue';
@@ -524,6 +532,10 @@ const props = defineProps({
     cargoTitleSuggestions: {
         type: Array,
         default: () => [],
+    },
+    salesCoachingInsights: {
+        type: Object,
+        default: null,
     },
 });
 

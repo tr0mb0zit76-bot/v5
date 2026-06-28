@@ -203,6 +203,7 @@ return [
     'insight_drafts' => [
         'max_tokens' => max(256, min(2048, (int) env('AI_INSIGHT_DRAFTS_MAX_TOKENS', 900))),
         'temperature' => (float) env('AI_INSIGHT_DRAFTS_TEMPERATURE', 0.2),
+        'auto_extract_from_inbound_mail' => (bool) env('AI_INSIGHT_DRAFTS_AUTO_EXTRACT', false),
     ],
 
     /*

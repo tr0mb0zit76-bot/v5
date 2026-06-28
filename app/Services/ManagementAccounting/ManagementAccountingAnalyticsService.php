@@ -21,6 +21,7 @@ class ManagementAccountingAnalyticsService
         private readonly ManagementAccountingTotalsSplitter $totalsSplitter,
         private readonly BudgetPlanSnapshotService $snapshotService,
         private readonly BudgetVarianceService $varianceService,
+        private readonly ManagementAccountingFullPictureService $fullPictureService,
     ) {}
 
     public const PERIOD_MONTH = 'month';
@@ -198,6 +199,7 @@ class ManagementAccountingAnalyticsService
             'plan_snapshot' => $planContext['snapshot_meta'],
             'variance_rows' => $varianceRows,
             'payroll_variance' => $payrollVariance,
+            'full_picture' => $this->fullPictureService->build($bounds['start'], $bounds['end']),
         ];
     }
 

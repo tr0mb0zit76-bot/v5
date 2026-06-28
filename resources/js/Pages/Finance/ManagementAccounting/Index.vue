@@ -159,6 +159,59 @@
                 </article>
             </div>
 
+            <section v-if="analytics.full_picture" :class="`${crmPanel} overflow-hidden`">
+                <div class="border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
+                    <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Полная картина за период</h2>
+                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        Операционный контур (график оплат) и управленческий (разнесённые строки выписки) без дублей mgmt:*.
+                    </p>
+                </div>
+                <div class="grid gap-3 p-4 sm:grid-cols-3">
+                    <article class="rounded-lg border border-sky-200/80 bg-sky-50/50 p-3 dark:border-sky-900/40 dark:bg-sky-950/20">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Операционный</div>
+                        <div class="mt-2 text-sm">Поступления: {{ formatMoney(analytics.full_picture.operational.in) }}</div>
+                        <div class="text-sm">Расходы: {{ formatMoney(analytics.full_picture.operational.out) }}</div>
+                        <div class="mt-1 font-semibold">Итого: {{ formatMoney(analytics.full_picture.operational.net) }}</div>
+                    </article>
+                    <article class="rounded-lg border border-violet-200/80 bg-violet-50/50 p-3 dark:border-violet-900/40 dark:bg-violet-950/20">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Управленческий</div>
+                        <div class="mt-2 text-sm">Поступления: {{ formatMoney(analytics.full_picture.management.in) }}</div>
+                        <div class="text-sm">Расходы: {{ formatMoney(analytics.full_picture.management.out) }}</div>
+                        <div class="mt-1 font-semibold">Итого: {{ formatMoney(analytics.full_picture.management.net) }}</div>
+                    </article>
+                    <article class="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/40">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Суммарно</div>
+                        <div class="mt-2 text-sm">Поступления: {{ formatMoney(analytics.full_picture.combined.in) }}</div>
+                        <div class="text-sm">Расходы: {{ formatMoney(analytics.full_picture.combined.out) }}</div>
+                        <div class="mt-1 font-semibold">Итого: {{ formatMoney(analytics.full_picture.combined.net) }}</div>
+                    </article>
+                </div>
+                <div v-if="analytics.full_picture.rows?.length" class="overflow-x-auto border-t border-zinc-200 dark:border-zinc-700">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-900/50">
+                            <tr>
+                                <th class="px-4 py-2">Контур</th>
+                                <th class="px-4 py-2">Статья</th>
+                                <th class="px-4 py-2 text-right">Поступления</th>
+                                <th class="px-4 py-2 text-right">Расходы</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="(row, index) in analytics.full_picture.rows"
+                                :key="`${row.source}-${row.category_id ?? index}`"
+                                class="border-t border-zinc-100 dark:border-zinc-800"
+                            >
+                                <td class="px-4 py-2">{{ row.source_label }}</td>
+                                <td class="px-4 py-2">{{ row.name }}</td>
+                                <td class="px-4 py-2 text-right tabular-nums">{{ formatMoney(row.in) }}</td>
+                                <td class="px-4 py-2 text-right tabular-nums">{{ formatMoney(row.out) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
             <ManagementAccountingLedgerReport :pivot="analytics.pivot ?? { columns: [], rows: [], time_series: [] }" />
 
             <ManagementAccountingVarianceTable
