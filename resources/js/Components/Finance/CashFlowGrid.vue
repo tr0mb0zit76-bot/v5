@@ -23,6 +23,40 @@
                     />
                 </div>
 
+                <div class="flex flex-wrap items-center gap-1">
+                    <button
+                        v-for="option in workModeOptions"
+                        :key="option.key"
+                        type="button"
+                        class="rounded-full border px-2.5 py-1 text-xs font-medium transition"
+                        :class="currentWorkMode === option.key
+                            ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
+                            : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                        @click="currentWorkMode = option.key"
+                    >
+                        {{ option.label }} ({{ countRowsForWorkMode(option.key) }})
+                    </button>
+                </div>
+
+                <button
+                    type="button"
+                    :class="`${crmGridToolbarBtn} gap-1.5 px-3 py-2 text-xs`"
+                    :disabled="!props.canRecordPayment || selectedPaymentScheduleIds.length === 0"
+                    title="Добавить выбранные строки в план оплаты на сегодня"
+                    @click="markSelectedForToday"
+                >
+                    Сегодня
+                </button>
+                <button
+                    type="button"
+                    :class="`${crmGridToolbarBtn} gap-1.5 px-3 py-2 text-xs`"
+                    :disabled="!props.canRecordPayment || selectedPaymentScheduleIds.length === 0"
+                    title="Снять выбранные строки из плана оплаты"
+                    @click="clearSelectedPaymentRun"
+                >
+                    Снять план
+                </button>
+
                 <button
                     type="button"
                     :class="`${crmGridToolbarBtn} gap-1.5 px-3 py-2 text-xs`"
@@ -98,6 +132,7 @@
                     :rowData="gridRows"
                     :columnDefs="dynamicColumnDefs"
                     :defaultColDef="defaultColDef"
+                    :rowSelection="'multiple'"
                     domLayout="normal"
                     :pagination="false"
                     :animateRows="true"
@@ -109,6 +144,7 @@
                     @cell-double-clicked="onCellDoubleClicked"
                     @cell-value-changed="onCellValueChanged"
                     @filter-changed="onFilterChanged"
+                    @selection-changed="onSelectionChanged"
                 />
             </div>
             <div
@@ -196,6 +232,15 @@ const props = defineProps({
 const DIRECTION_FILTER_VALUES = ['Мы', 'Нам'];
 const PAYMENT_TYPE_FILTER_VALUES = ['Предоплата', 'Финальный платёж'];
 const STATUS_FILTER_VALUES = ['По плану', 'Частично оплачено', 'Оплачено', 'Просрочено', 'Отменено'];
+const workModeOptions = [
+    { key: 'due', label: 'К оплате' },
+    { key: 'payment_run_today', label: 'Оплачиваем сегодня' },
+    { key: 'overdue', label: 'Просрочено' },
+    { key: 'today', label: 'План сегодня' },
+    { key: 'upcoming', label: '7 дней' },
+    { key: 'no_date', label: 'Без даты' },
+    { key: 'all', label: 'Все' },
+];
 
 const presetFilterModels = {
     customer_overdue: {
@@ -212,6 +257,8 @@ const currentDensity = ref(defaultGridDensity);
 const showDensityMenu = ref(false);
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
+const currentWorkMode = ref('due');
+const selectedRows = ref([]);
 
 const quickSearch = ref('');
 const agGrid = ref(null);
@@ -231,17 +278,87 @@ let filterModelSaveTimeout = null;
 
 const filterModelStorageKey = computed(() => `cashflow_grid_filter_model_v1_${props.userId}`);
 
-const gridRows = shallowRef([]);
+const allGridRows = shallowRef([]);
 
 watch(
     () => props.rows,
     (rows) => {
-        gridRows.value = Array.isArray(rows) ? rows.map((row) => ({ ...row })) : [];
+        allGridRows.value = Array.isArray(rows) ? rows.map((row) => ({ ...row })) : [];
     },
     { immediate: true },
 );
 
 const todayIsoDate = () => new Date().toISOString().slice(0, 10);
+
+const gridRows = computed(() => allGridRows.value.filter((row) => matchesPaymentWorkMode(row, currentWorkMode.value)));
+const selectedPaymentScheduleIds = computed(() => selectedRows.value.map((row) => Number(row.id)).filter((id) => id > 0));
+
+function normalizeIsoDate(value) {
+    return value ? String(value).slice(0, 10) : '';
+}
+
+function addDaysIso(dateIso, days) {
+    const date = new Date(`${dateIso}T00:00:00`);
+    date.setDate(date.getDate() + days);
+
+    return date.toISOString().slice(0, 10);
+}
+
+function isOpenPaymentRow(row) {
+    if (!row || row.status === 'paid' || row.status === 'cancelled') {
+        return false;
+    }
+
+    return Number(cashFlowRowDisplayAmount(row) || 0) > 0.009;
+}
+
+function matchesPaymentWorkMode(row, mode) {
+    if (mode === 'all') {
+        return true;
+    }
+
+    if (!isOpenPaymentRow(row)) {
+        return false;
+    }
+
+    const today = todayIsoDate();
+    const planned = normalizeIsoDate(row?.planned_date);
+    const paymentRunDate = normalizeIsoDate(row?.payment_run_date);
+
+    if (mode === 'payment_run_today') {
+        return paymentRunDate === today;
+    }
+
+    if (mode === 'no_date') {
+        return planned === '';
+    }
+
+    if (planned === '') {
+        return false;
+    }
+
+    if (mode === 'overdue') {
+        return planned < today || row?.status === 'overdue';
+    }
+
+    if (mode === 'today') {
+        return planned === today;
+    }
+
+    if (mode === 'upcoming') {
+        return planned > today && planned <= addDaysIso(today, 7);
+    }
+
+    if (mode === 'due') {
+        return planned <= today || paymentRunDate === today || row?.status === 'overdue';
+    }
+
+    return true;
+}
+
+function countRowsForWorkMode(mode) {
+    return allGridRows.value.filter((row) => matchesPaymentWorkMode(row, mode)).length;
+}
 
 function formatGridDate(value) {
     const raw = value ? String(value).slice(0, 10) : '';
@@ -257,17 +374,7 @@ function formatGridDate(value) {
 }
 
 const operationalExportRows = computed(() => {
-    const today = todayIsoDate();
-
-    return props.rows.filter((row) => {
-        if (row?.status === 'overdue') {
-            return true;
-        }
-
-        const planned = row?.planned_date ? String(row.planned_date).slice(0, 10) : '';
-
-        return planned === today && row?.status !== 'paid' && row?.status !== 'cancelled';
-    });
+    return gridRows.value.filter((row) => isOpenPaymentRow(row));
 });
 
 function operationalExportTableHtml(rows) {
@@ -560,6 +667,9 @@ function buildBaseColumnDefs() {
         filter: false,
         floatingFilter: false,
         suppressHeaderFilterButton: true,
+        checkboxSelection: (params) => props.canRecordPayment && isOpenPaymentRow(params.data),
+        headerCheckboxSelection: props.canRecordPayment,
+        headerCheckboxSelectionFilteredOnly: true,
         getQuickFilterText: () => '',
         valueFormatter: (p) => (p.value === null || p.value === undefined || p.value === '' ? '—' : String(p.value)),
     }),
@@ -598,6 +708,19 @@ function buildBaseColumnDefs() {
         floatingFilter: true,
         editable: (p) => Boolean(props.canManageActions),
         valueFormatter: (p) => (p.value ? String(p.value) : '—'),
+    },
+    {
+        colId: 'payment_run_date',
+        field: 'payment_run_date',
+        headerName: 'План оплаты',
+        minWidth: 130,
+        sortable: true,
+        filter: 'agDateColumnFilter',
+        floatingFilter: true,
+        valueFormatter: (p) => formatGridDate(p.value),
+        cellClass: (params) => (normalizeIsoDate(params.value) === todayIsoDate()
+            ? ['bg-emerald-50', 'text-emerald-800', 'dark:bg-emerald-950/30', 'dark:text-emerald-200']
+            : []),
     },
     {
         colId: 'planned_date',
@@ -821,12 +944,72 @@ const onCellValueChanged = (event) => {
         });
 };
 
+function onSelectionChanged(event) {
+    selectedRows.value = event.api.getSelectedRows().filter((row) => isOpenPaymentRow(row));
+}
+
+function applyPaymentRunPatch(ids, payload) {
+    if (ids.length === 0) {
+        return;
+    }
+
+    axios
+        .patch(route('payment-schedules.payment-run'), {
+            payment_schedule_ids: ids,
+            ...payload,
+        })
+        .then((response) => {
+            const updatedIds = new Set((response.data?.updated_ids ?? []).map((id) => Number(id)));
+            allGridRows.value = allGridRows.value.map((row) => {
+                if (!updatedIds.has(Number(row.id))) {
+                    return row;
+                }
+
+                return {
+                    ...row,
+                    payment_run_date: response.data?.payment_run_date ?? null,
+                    payment_run_by: response.data?.payment_run_date ? props.userId : null,
+                    payment_run_note: payload.clear ? null : (payload.payment_run_note ?? null),
+                };
+            });
+            selectedRows.value = [];
+            gridApi.value?.deselectAll();
+            router.reload({
+                only: ['cashFlowJournal', 'cash_flow_stats', 'todays_cash_flow'],
+                preserveScroll: true,
+            });
+        })
+        .catch((error) => {
+            console.error('Failed to update payment run', error);
+        });
+}
+
+function markSelectedForToday() {
+    applyPaymentRunPatch(selectedPaymentScheduleIds.value, {
+        payment_run_date: todayIsoDate(),
+    });
+}
+
+function clearSelectedPaymentRun() {
+    applyPaymentRunPatch(selectedPaymentScheduleIds.value, {
+        clear: true,
+    });
+}
+
 watch(quickSearch, (value) => {
     if (!gridApi.value) {
         return;
     }
 
     gridApi.value.setGridOption('quickFilterText', value ?? '');
+});
+
+watch(currentWorkMode, async () => {
+    selectedRows.value = [];
+    gridApi.value?.deselectAll();
+    await nextTick();
+    gridApi.value?.resetRowHeights();
+    refreshAgGridPanelLayout();
 });
 
 function resetGridViewState() {

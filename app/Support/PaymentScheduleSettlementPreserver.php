@@ -22,6 +22,9 @@ final class PaymentScheduleSettlementPreserver
      *         payment_method: ?string,
      *         transaction_reference: ?string,
      *         notes: ?string,
+     *         payment_run_date: ?string,
+     *         payment_run_by: ?int,
+     *         payment_run_note: ?string,
      *         partials: list<array{
      *             amount: float,
      *             paid_amount: float,
@@ -40,7 +43,7 @@ final class PaymentScheduleSettlementPreserver
         }
 
         $columns = ['id', 'party', 'type', 'planned_date', 'amount', 'status'];
-        foreach (['counterparty_id', 'installment_sequence', 'paid_amount', 'remaining_amount', 'actual_date', 'payment_method', 'transaction_reference', 'notes', 'parent_payment_id', 'is_partial'] as $column) {
+        foreach (['counterparty_id', 'installment_sequence', 'paid_amount', 'remaining_amount', 'actual_date', 'payment_method', 'transaction_reference', 'notes', 'parent_payment_id', 'is_partial', 'payment_run_date', 'payment_run_by', 'payment_run_note'] as $column) {
             if (Schema::hasColumn('payment_schedules', $column)) {
                 $columns[] = $column;
             }
@@ -121,6 +124,9 @@ final class PaymentScheduleSettlementPreserver
      *         payment_method: ?string,
      *         transaction_reference: ?string,
      *         notes: ?string,
+     *         payment_run_date: ?string,
+     *         payment_run_by: ?int,
+     *         payment_run_note: ?string,
      *         partials: list<array<string, mixed>>,
      *     }>
      * }  $snapshot
@@ -205,6 +211,15 @@ final class PaymentScheduleSettlementPreserver
             }
             if (Schema::hasColumn('payment_schedules', 'notes') && filled($saved['notes'] ?? null)) {
                 $update['notes'] = $saved['notes'];
+            }
+            if (Schema::hasColumn('payment_schedules', 'payment_run_date')) {
+                $update['payment_run_date'] = $saved['payment_run_date'] ?? null;
+            }
+            if (Schema::hasColumn('payment_schedules', 'payment_run_by')) {
+                $update['payment_run_by'] = $saved['payment_run_by'] ?? null;
+            }
+            if (Schema::hasColumn('payment_schedules', 'payment_run_note')) {
+                $update['payment_run_note'] = $saved['payment_run_note'] ?? null;
             }
 
             DB::table('payment_schedules')
@@ -295,6 +310,9 @@ final class PaymentScheduleSettlementPreserver
      *     payment_method: ?string,
      *     transaction_reference: ?string,
      *     notes: ?string,
+     *     payment_run_date: ?string,
+     *     payment_run_by: ?int,
+     *     payment_run_note: ?string,
      *     partials: list<array<string, mixed>>,
      * }
      */
@@ -317,6 +335,9 @@ final class PaymentScheduleSettlementPreserver
             'payment_method' => isset($row->payment_method) ? (string) $row->payment_method : null,
             'transaction_reference' => isset($row->transaction_reference) ? (string) $row->transaction_reference : null,
             'notes' => isset($row->notes) ? (string) $row->notes : null,
+            'payment_run_date' => isset($row->payment_run_date) && $row->payment_run_date !== null ? (string) $row->payment_run_date : null,
+            'payment_run_by' => isset($row->payment_run_by) && $row->payment_run_by !== null ? (int) $row->payment_run_by : null,
+            'payment_run_note' => isset($row->payment_run_note) && $row->payment_run_note !== null ? (string) $row->payment_run_note : null,
             'partials' => [],
         ];
     }
@@ -331,7 +352,11 @@ final class PaymentScheduleSettlementPreserver
             return true;
         }
 
-        return $row->actual_date !== null && $row->actual_date !== '';
+        if ($row->actual_date !== null && $row->actual_date !== '') {
+            return true;
+        }
+
+        return isset($row->payment_run_date) && $row->payment_run_date !== null && $row->payment_run_date !== '';
     }
 
     private function isPartialRow(object $row): bool

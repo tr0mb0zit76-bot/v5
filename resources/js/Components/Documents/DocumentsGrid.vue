@@ -953,9 +953,11 @@ async function onCellValueChanged(event) {
         }
 
         try {
-            await window.axios.patch(route('documents.orders.entered-in-1c', orderId), {
+            const response = await window.axios.patch(route('documents.orders.entered-in-1c', orderId), {
                 entered_in_1c: event.newValue,
             });
+            event.node?.setDataValue('entered_in_1c', response.data?.entered_in_1c ?? event.newValue);
+            router.reload({ only: ['rows'], preserveScroll: true });
         } catch (error) {
             event.node?.setDataValue('entered_in_1c', event.oldValue ?? 'нет');
             console.error('Failed to update entered_in_1c', error);

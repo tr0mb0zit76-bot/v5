@@ -26,6 +26,9 @@ class PaymentSchedule extends Model
         'remaining_amount',
         'planned_date',
         'actual_date',
+        'payment_run_date',
+        'payment_run_by',
+        'payment_run_note',
         'status',
         'payment_method',
         'transaction_reference',
@@ -46,6 +49,7 @@ class PaymentSchedule extends Model
         'remaining_amount' => 'decimal:2',
         'planned_date' => 'date',
         'actual_date' => 'date',
+        'payment_run_date' => 'date',
         'is_partial' => 'boolean',
     ];
 

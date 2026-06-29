@@ -79,6 +79,7 @@ class PaymentScheduleController extends Controller
                 if ($paymentSchedule->remaining_amount <= 0) {
                     $paymentSchedule->status = 'paid';
                     $paymentSchedule->remaining_amount = 0;
+                    $this->clearPaymentRunMark($paymentSchedule);
 
                     // Обновляем статус заказа, если все платежи оплачены
                     $this->updateOrderPaymentStatus($paymentSchedule->order_id);
@@ -142,6 +143,7 @@ class PaymentScheduleController extends Controller
                 if ($paymentSchedule->remaining_amount <= 0) {
                     $paymentSchedule->status = 'paid';
                     $paymentSchedule->remaining_amount = 0;
+                    $this->clearPaymentRunMark($paymentSchedule);
 
                     // Обновляем статус заказа, если все платежи оплачены
                     $this->updateOrderPaymentStatus($paymentSchedule->order_id);
@@ -208,6 +210,84 @@ class PaymentScheduleController extends Controller
         return response()->json([
             'success' => true,
             'payment_schedule' => $paymentSchedule->fresh(),
+        ]);
+    }
+
+    /**
+     * Mark open schedule rows for a concrete payment run date, or clear that mark.
+     */
+    public function updatePaymentRun(Request $request): JsonResponse
+    {
+        abort_unless(RoleAccess::canRecordPaymentOnPaymentSchedule($request->user()), 403);
+
+        foreach (['payment_run_date', 'payment_run_by', 'payment_run_note'] as $column) {
+            if (! Schema::hasColumn('payment_schedules', $column)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Для планирования оплат выполните миграции графика оплат.',
+                ], 422);
+            }
+        }
+
+        $validated = $request->validate([
+            'payment_schedule_ids' => ['required', 'array', 'min:1'],
+            'payment_schedule_ids.*' => ['integer'],
+            'payment_run_date' => ['nullable', 'date'],
+            'payment_run_note' => ['nullable', 'string', 'max:500'],
+            'clear' => ['nullable', 'boolean'],
+        ]);
+
+        $ids = collect($validated['payment_schedule_ids'])
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Выберите строки графика оплат.',
+            ], 422);
+        }
+
+        $schedules = PaymentSchedule::query()
+            ->whereIn('id', $ids->all())
+            ->get();
+
+        abort_unless($schedules->count() === $ids->count(), 404);
+
+        $clear = (bool) ($validated['clear'] ?? false);
+        $paymentRunDate = $clear
+            ? null
+            : (string) ($validated['payment_run_date'] ?? now()->toDateString());
+        $paymentRunNote = $clear
+            ? null
+            : $this->nullableTrimmedString($validated['payment_run_note'] ?? null);
+
+        $updated = [];
+
+        DB::transaction(function () use ($request, $schedules, $paymentRunDate, $paymentRunNote, $clear, &$updated): void {
+            foreach ($schedules as $schedule) {
+                $this->ensureCanRecordPayment($request, $schedule);
+
+                if (! $clear && in_array($schedule->status, ['paid', 'cancelled'], true)) {
+                    continue;
+                }
+
+                $schedule->forceFill([
+                    'payment_run_date' => $paymentRunDate,
+                    'payment_run_by' => $paymentRunDate !== null ? $request->user()?->id : null,
+                    'payment_run_note' => $paymentRunNote,
+                ])->save();
+
+                $updated[] = (int) $schedule->id;
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'updated_ids' => $updated,
+            'payment_run_date' => $paymentRunDate,
         ]);
     }
 
@@ -373,6 +453,7 @@ class PaymentScheduleController extends Controller
         $this->ensureCanCancelPaymentScheduleRow($request, $paymentSchedule);
 
         $paymentSchedule->status = 'cancelled';
+        $this->clearPaymentRunMark($paymentSchedule);
         $paymentSchedule->save();
 
         PaymentScheduleAutomaticStatus::refreshForOrder((int) $paymentSchedule->order_id);
@@ -476,5 +557,29 @@ class PaymentScheduleController extends Controller
         $order = Order::query()->find((int) $paymentSchedule->order_id);
         abort_if($order === null, 403);
         abort_unless((int) $order->manager_id === (int) $user->id, 403);
+    }
+
+    private function clearPaymentRunMark(PaymentSchedule $paymentSchedule): void
+    {
+        foreach (['payment_run_date', 'payment_run_by', 'payment_run_note'] as $column) {
+            if (! Schema::hasColumn('payment_schedules', $column)) {
+                return;
+            }
+        }
+
+        $paymentSchedule->payment_run_date = null;
+        $paymentSchedule->payment_run_by = null;
+        $paymentSchedule->payment_run_note = null;
+    }
+
+    private function nullableTrimmedString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim((string) $value);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 }

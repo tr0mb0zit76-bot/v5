@@ -743,6 +743,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Payment Schedule Routes
     Route::prefix('payment-schedules')->name('payment-schedules.')->middleware('visibility.area.any:documents|payment_schedules|finance_salary')->group(function () {
+        Route::patch('/payment-run', [PaymentScheduleController::class, 'updatePaymentRun'])->name('payment-run');
         Route::post('/{paymentSchedule}/record-payment', [PaymentScheduleController::class, 'recordPayment'])->name('record-payment');
         Route::patch('/{paymentSchedule}/invoice-number', [PaymentScheduleController::class, 'updateInvoiceNumber'])->name('invoice-number');
         Route::get('/{paymentSchedule}/partial-payments', [PaymentScheduleController::class, 'getPartialPayments'])->name('partial-payments');

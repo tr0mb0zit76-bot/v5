@@ -92,6 +92,18 @@ class FinanceOverviewService
             $select[] = 'payment_schedules.invoice_number';
         }
 
+        if (Schema::hasColumn('payment_schedules', 'payment_run_date')) {
+            $select[] = 'payment_schedules.payment_run_date';
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'payment_run_note')) {
+            $select[] = 'payment_schedules.payment_run_note';
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'payment_run_by')) {
+            $select[] = 'payment_schedules.payment_run_by';
+        }
+
         if (Schema::hasColumn('payment_schedules', 'is_partial')) {
             $select[] = DB::raw('COALESCE(payment_schedules.is_partial, 0) as is_partial');
         } else {
@@ -168,6 +180,9 @@ class FinanceOverviewService
             'has_partial_payments' => $parentPaymentId === null && $paidAmount > 0 && $remainingAmount > 0,
             'is_partially_settled' => $isPartiallySettled,
             'invoice_number' => data_get($row, 'invoice_number'),
+            'payment_run_date' => data_get($row, 'payment_run_date'),
+            'payment_run_note' => data_get($row, 'payment_run_note'),
+            'payment_run_by' => data_get($row, 'payment_run_by'),
         ];
     }
 

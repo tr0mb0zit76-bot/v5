@@ -1,86 +1,97 @@
 <template>
-    <div class="flex min-h-0 flex-1 flex-col gap-4">
+    <div class="flex min-h-0 flex-1 flex-col gap-2">
         <CrmPageHeader
             :title="template ? `Редактор: ${template.name}` : 'Новый HTML-шаблон КП'"
-            lead="Визуальный конструктор на GrapesJS: блоки, колонки, стили. Переменные — {lead.number}, {counterparty.name}. Preview и PDF — на лиде."
+            title-class="crm-page-title--sm"
         >
             <template #actions>
-                <Link :href="route('modules.proposal-templates.index')" :class="crmBtnSecondary">
+                <Link :href="route('modules.proposal-templates.index')" :class="toolbarBtnSecondary">
                     К списку
                 </Link>
+                <button
+                    type="button"
+                    :class="toolbarBtnSecondary"
+                    :disabled="!canPreviewOnLead"
+                    @click="openLeadPreview"
+                >
+                    Preview
+                </button>
+                <button
+                    type="submit"
+                    form="proposal-template-form"
+                    :class="toolbarBtnPrimary"
+                    :disabled="form.processing"
+                >
+                    {{ form.processing ? 'Сохранение…' : 'Сохранить' }}
+                </button>
             </template>
         </CrmPageHeader>
 
-        <form class="flex min-h-0 flex-1 flex-col gap-4" @submit.prevent="submit">
-            <div class="grid gap-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 md:grid-cols-2 xl:grid-cols-4">
-                <div class="space-y-1">
-                    <label :class="crmLabel">Название</label>
-                    <input v-model="form.name" type="text" :class="crmFieldFluid" required />
-                </div>
-                <div class="space-y-1">
-                    <label :class="crmLabel">Slug</label>
-                    <input v-model="form.slug" type="text" :class="crmFieldFluid" placeholder="auto-from-name" />
-                </div>
-                <label class="inline-flex items-end gap-2 pb-2 text-sm">
-                    <input v-model="form.is_active" type="checkbox" class="rounded border-zinc-300" />
+        <form id="proposal-template-form" class="flex min-h-0 flex-1 flex-col gap-2" @submit.prevent="submit">
+            <div class="flex flex-wrap items-center gap-2">
+                <input
+                    v-model="form.name"
+                    type="text"
+                    :class="toolbarFieldClass"
+                    class="min-w-[9rem] max-w-xs flex-1"
+                    placeholder="Название"
+                    required
+                />
+                <input
+                    v-model="form.slug"
+                    type="text"
+                    :class="toolbarFieldClass"
+                    class="w-28 shrink-0"
+                    placeholder="Slug"
+                />
+                <label class="inline-flex shrink-0 items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+                    <input v-model="form.is_active" type="checkbox" class="rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500" />
                     Активен
                 </label>
-                <div class="flex flex-wrap items-end gap-2">
-                    <div class="min-w-[140px] flex-1 space-y-1">
-                        <label :class="crmLabel">Preview на лиде</label>
-                        <select v-model="previewLeadId" :class="crmFieldFluid">
-                            <option value="">Выберите лид</option>
-                            <option v-for="lead in previewLeads" :key="lead.id" :value="String(lead.id)">
-                                {{ lead.label }}
-                            </option>
-                        </select>
-                    </div>
-                    <button
-                        type="button"
-                        :class="crmBtnSecondary"
-                        :disabled="!canPreviewOnLead"
-                        @click="openLeadPreview"
-                    >
-                        Preview
-                    </button>
-                </div>
+                <select v-model="previewLeadId" :class="toolbarFieldClass" class="min-w-[8rem] max-w-[12rem] shrink-0">
+                    <option value="">Лид для preview</option>
+                    <option v-for="lead in previewLeads" :key="lead.id" :value="String(lead.id)">
+                        {{ lead.label }}
+                    </option>
+                </select>
             </div>
 
-            <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[280px,minmax(0,1fr)]">
-                <div class="flex max-h-[720px] flex-col gap-3 overflow-hidden rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                    <div class="text-sm font-semibold">Переменные</div>
-                    <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                        Нажмите, чтобы вставить плейсхолдер в выбранный блок на холсте.
-                    </p>
-                    <input v-model="variableFilter" type="search" :class="crmFieldFluid" placeholder="Поиск переменной" />
-                    <div class="min-h-0 flex-1 space-y-2 overflow-y-auto">
+            <div class="grid min-h-0 flex-1 gap-2 xl:grid-cols-[220px,minmax(0,1fr)]">
+                <aside class="flex max-h-none min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950 xl:max-h-none">
+                    <div class="flex items-center justify-between gap-2 border-b border-zinc-100 bg-zinc-50/80 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900/70">
+                        <div class="text-xs font-semibold text-zinc-900 dark:text-zinc-100">CRM-переменные</div>
+                        <span class="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                            {{ filteredVariables.length }}
+                        </span>
+                    </div>
+                    <div class="px-3 py-2">
+                        <input v-model="variableFilter" type="search" :class="compactFieldClass" placeholder="Поиск" />
+                    </div>
+                    <div class="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-3">
                         <button
                             v-for="variable in filteredVariables"
                             :key="variable.path"
                             type="button"
-                            class="block w-full rounded-xl border border-zinc-200 px-3 py-2 text-left text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                            class="group flex w-full items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-left transition hover:border-emerald-300 hover:bg-emerald-50/40 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/30"
+                            :title="variable.label"
                             @click="insertVariable(variable.path)"
                         >
-                            <div class="font-mono text-emerald-700 dark:text-emerald-300">{ {{ variable.path }} }</div>
-                            <div class="mt-1 text-zinc-500">{{ variable.label }}</div>
-                            <div v-if="variable.group_name" class="mt-0.5 text-[10px] uppercase tracking-wide text-zinc-400">
+                            <span class="truncate font-mono text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">{ {{ variable.path }} }</span>
+                            <span
+                                v-if="variable.group_name"
+                                class="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                            >
                                 {{ variable.group_name }}
-                            </div>
+                            </span>
                         </button>
                     </div>
-                </div>
+                </aside>
 
                 <ProposalGrapesEditor
                     ref="grapesEditorRef"
                     :html-body="initialHtmlBody"
                     :css-inline="initialCssInline"
                 />
-            </div>
-
-            <div class="flex justify-end gap-2">
-                <button type="submit" :class="crmBtnPrimary" :disabled="form.processing">
-                    {{ form.processing ? 'Сохранение…' : 'Сохранить' }}
-                </button>
             </div>
         </form>
     </div>
@@ -92,11 +103,16 @@ import { Link, useForm } from '@inertiajs/vue3';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import ProposalGrapesEditor from '@/Components/ProposalTemplates/ProposalGrapesEditor.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnPrimary, crmBtnSecondary, crmFieldFluid, crmLabel } from '@/support/crmUi.js';
+import { crmBtnPrimary, crmBtnSecondary, crmFieldFluid } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'modules' }, () => page),
 });
+
+const toolbarFieldClass = `${crmFieldFluid} !h-8 !py-1 !text-xs`;
+const toolbarBtnPrimary = `${crmBtnPrimary} !px-3 !py-1.5 !text-xs`;
+const toolbarBtnSecondary = `${crmBtnSecondary} !px-3 !py-1.5 !text-xs`;
+const compactFieldClass = toolbarFieldClass;
 
 const props = defineProps({
     template: {
