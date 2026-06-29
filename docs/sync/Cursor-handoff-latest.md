@@ -3,9 +3,51 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-29 · **Ветка:** локальные правки (не закоммичены) · **Контекст:** миграция PHPUnit на `RefreshDatabase` + реальная схема `u_tromb`
+**Обновлено:** 2026-06-29 · **Ветка:** локальные правки (не закоммичены) · **Контекст:** рабочее наполнение модуля «Скрипты» + PHPUnit на `RefreshDatabase`
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-06-29) — модуль «Скрипты»: рабочие инструкции
+
+### Итог
+
+- `SalesScriptsDemoSeeder` теперь наполняет модуль не черновиками, а **7 рабочими инструкционными сценариями**: «Первичный запрос ставки», «Холодный звонок», «Знакомство», «Растём в бюджете», «Тренажёр», **«Дожим КП после отправки»**, **«Тендер / закупщик»**.
+- Узлы переписаны в формате **цель шага → что сказать → что спросить → что зафиксировать → следующий шаг в CRM**.
+- У каждого перехода есть `customer_label` — кнопки Play показывают живые варианты ответов клиента («Сначала скажите цену», «У нас уже есть перевозчик», «Давайте считать», «Пришлите список документов»), а не внутренние классы реакций.
+- Расширены поля разговора (`route_from`, `route_to`, `loading_date`, `decision_deadline`, `email`, `decision_criteria`, `budget_window`, `next_step_date`, `volume_forecast`, `payment_terms` и др.), чтобы Play собирал данные для лида/заказа.
+- Локальная БД засеяна:
+
+```powershell
+php artisan db:seed --class=SalesScriptsDemoSeeder --no-interaction
+```
+
+### Проверка
+
+```powershell
+vendor\bin\pint --dirty --format agent
+php artisan test --compact tests/Feature/SalesScripts/SalesScriptFlowTest.php
+```
+
+Результат после добавления КП/тендера: **7 passed, 197 assertions**.
+
+### Защита от отката к черновикам
+
+`tests/Feature/SalesScripts/SalesScriptFlowTest.php` добавляет проверку, что:
+
+- опубликовано 7 активных версий;
+- в сидере есть «Дожим КП после отправки» и «Тендер / закупщик»;
+- активные узлы не содержат черновых плейсхолдеров вида `[имя]` / `[..]`;
+- каждый `{code}` в тексте имеет запись в `sales_script_capture_fields`;
+- каждый переход опубликованного сценария имеет клиентскую реплику `customer_label`;
+- сценарии содержат инструкционные узлы, а не только общие фразы.
+
+На другом ПК после `git pull` достаточно выполнить:
+
+```powershell
+php artisan db:seed --class=SalesScriptsDemoSeeder --no-interaction
+```
 
 ---
 

@@ -2,8 +2,12 @@
 
 namespace Tests\Feature\SalesScripts;
 
+use App\Models\SalesScript;
+use App\Models\SalesScriptCaptureField;
+use App\Models\SalesScriptNode;
 use App\Models\SalesScriptPlaySession;
 use App\Models\SalesScriptReactionClass;
+use App\Models\SalesScriptTransition;
 use App\Models\SalesScriptVersion;
 use App\Models\User;
 use Database\Seeders\SalesScriptsDemoSeeder;
@@ -134,6 +138,52 @@ class SalesScriptFlowTest extends TestCase
         $this->assertNotNull($session->completed_at);
         $this->assertSame('progress', $session->outcome->value);
         $this->assertGreaterThanOrEqual(6, $session->events()->count());
+    }
+
+    public function test_demo_scripts_are_published_working_instructions(): void
+    {
+        $this->seed(SalesScriptsDemoSeeder::class);
+
+        $fieldCodes = SalesScriptCaptureField::query()
+            ->pluck('code')
+            ->all();
+
+        $nodes = SalesScriptNode::query()
+            ->whereHas('version', fn ($query) => $query->where('is_active', true)->whereNotNull('published_at'))
+            ->get();
+
+        $this->assertGreaterThanOrEqual(49, $nodes->count());
+        $this->assertSame(7, SalesScriptVersion::query()->where('is_active', true)->whereNotNull('published_at')->count());
+        $this->assertContains('Дожим КП после отправки', SalesScript::query()->pluck('title')->all());
+        $this->assertContains('Тендер / закупщик', SalesScript::query()->pluck('title')->all());
+
+        foreach ($nodes as $node) {
+            $body = (string) $node->body;
+
+            $this->assertDoesNotMatchRegularExpression('/\[[^\]]+\]/u', $body, 'Seed script still contains draft placeholders.');
+
+            preg_match_all('/\{([a-z0-9_]+)\}/u', $body, $matches);
+
+            foreach ($matches[1] as $placeholder) {
+                $this->assertContains($placeholder, $fieldCodes, "Missing capture field for {{$placeholder}}.");
+            }
+        }
+
+        $instructionNodes = $nodes->filter(fn (SalesScriptNode $node): bool => str_contains((string) $node->body, 'Цель шага')
+            || str_contains((string) $node->body, 'После разговора')
+            || str_contains((string) $node->body, 'Тренировка'));
+
+        $this->assertGreaterThanOrEqual(18, $instructionNodes->count());
+
+        $transitionsWithoutClientReply = SalesScriptTransition::query()
+            ->whereHas('version', fn ($query) => $query->where('is_active', true)->whereNotNull('published_at'))
+            ->where(fn ($query) => $query
+                ->whereNull('customer_label')
+                ->orWhere('customer_label', '')
+            )
+            ->count();
+
+        $this->assertSame(0, $transitionsWithoutClientReply, 'Every seeded transition must have a client-facing reply label.');
     }
 
     public function test_trainer_can_start_session_with_manager_as_buyer(): void
