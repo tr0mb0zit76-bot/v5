@@ -3,9 +3,29 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-29 · **Ветка:** локальные правки (не закоммичены) · **Контекст:** рабочее наполнение модуля «Скрипты» + PHPUnit на `RefreshDatabase`
+**Обновлено:** 2026-06-29 · **Ветка:** `master` @ `83dcd86` · **Контекст:** прод-очистка runtime tmp + рабочее наполнение модуля «Скрипты» + PHPUnit на `RefreshDatabase`
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-06-29) — прод: очистка runtime-мусора
+
+### Итог
+
+- Добавлен `scripts/prod-clean-runtime.sh`: удаляет старые `storage/framework/phpword-tmp/php*` старше 120 минут, `storage/app/tmp`, stale `*.tmp` в cache.
+- Скрипт дополнительно чистит только **untracked** dev/probe артефакты (`test_*.php`, `tmp-*.php`, `scripts/debug-*.php`, `scripts/probe-*.php`, `scripts/verify-*.php`) через `git ls-files --others`, tracked код не трогает.
+- На проде выполнена очистка: `storage/framework/phpword-tmp` уменьшился до `8K`, `storage/app/tmp` — `4K`.
+- На проде добавлен cron root:
+
+```cron
+17 * * * * cd /var/www/www-root/data/www/avtoaliyans.ru && bash scripts/prod-clean-runtime.sh --quiet # prod-clean-runtime
+```
+
+### Что осталось сознательно не тронутым
+
+- `node_modules`, `vendor`, `.git`, `tests`, `.cursor` остаются, пока прод работает как git working tree. Чтобы они не появлялись в принципе, нужен следующий шаг: artifact/sparse deploy вместо обычного `git pull` рабочей копии.
+- После очистки untracked на проде остались: `deploy/ntfy/etc/server.yml`, `public/showcase-sla/carrier-offer.pdf`, `public/showcase-sla/customer-offer.pdf` — не удалялись автоматически.
 
 ---
 
