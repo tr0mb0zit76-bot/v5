@@ -39,4 +39,17 @@ clean_old_files "storage/app/tmp" 120
 # only stale temporary files that are safe to regenerate.
 clean_old_files "storage/framework/cache" 1440 -name '*.tmp'
 
+if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  log "Cleaning untracked development artifacts"
+  git ls-files --others --exclude-standard -z -- \
+    'git-status-output.txt' \
+    '*_general_block.txt' \
+    'test_*.php' \
+    'tmp-*.php' \
+    'scripts/debug-*.php' \
+    'scripts/probe-*.php' \
+    'scripts/verify-*.php' \
+    | xargs -0 -r rm -f --
+fi
+
 log "Runtime cleanup complete."
