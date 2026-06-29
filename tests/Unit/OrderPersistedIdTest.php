@@ -4,15 +4,12 @@ namespace Tests\Unit;
 
 use App\Models\Order;
 use App\Support\OrderPersistedId;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class OrderPersistedIdTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function test_resolves_id_from_model_key(): void
     {

@@ -6,69 +6,12 @@ use App\Models\Order;
 use App\Models\PrintFormBasicTerm;
 use App\Models\User;
 use App\Services\PrintForm\PrintFormBasicTermsService;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class PrintFormBasicTermsTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'print_form_basic_terms',
-            'orders',
-            'contractors',
-            'users',
-            'roles',
-        ]);
-
-        Schema::create('roles', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->string('display_name')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->rememberToken();
-            $table->timestamps();
-        });
-
-        Schema::create('contractors', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->timestamps();
-        });
-
-        Schema::create('orders', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('customer_id')->nullable();
-            $table->unsignedBigInteger('carrier_id')->nullable();
-            $table->json('customer_basic_terms')->nullable();
-            $table->json('carrier_basic_terms')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('print_form_basic_terms', function (Blueprint $table) {
-            $table->id();
-            $table->string('party', 16);
-            $table->foreignId('contractor_id')->nullable()->constrained('contractors')->nullOnDelete();
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->text('body');
-            $table->timestamps();
-        });
-    }
-
     public function test_admin_can_open_basic_terms_tab(): void
     {
         $admin = $this->adminUser();
@@ -156,7 +99,7 @@ class PrintFormBasicTermsTest extends TestCase
             ],
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'customer_id' => $customerId,
             'carrier_id' => null,
             'customer_basic_terms' => json_encode(['Переопределение в заказе'], JSON_THROW_ON_ERROR),
@@ -202,7 +145,7 @@ class PrintFormBasicTermsTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'customer_id' => $customerId,
             'carrier_id' => null,
             'customer_basic_terms' => json_encode(['Новая база для контрагента'], JSON_THROW_ON_ERROR),
@@ -243,7 +186,7 @@ class PrintFormBasicTermsTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'customer_id' => $customerId,
             'carrier_id' => null,
             'customer_basic_terms' => null,

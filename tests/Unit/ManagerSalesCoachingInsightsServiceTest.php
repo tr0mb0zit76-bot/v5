@@ -9,15 +9,12 @@ use App\Models\User;
 use App\Services\ActivityLedgerService;
 use App\Services\Commercial\ManagerDealSignalExtractor;
 use App\Services\Commercial\ManagerSalesCoachingInsightsService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class ManagerSalesCoachingInsightsServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function it_detects_hygiene_gaps_on_lost_lead(): void
     {

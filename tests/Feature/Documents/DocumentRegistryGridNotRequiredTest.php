@@ -6,15 +6,12 @@ use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class DocumentRegistryGridNotRequiredTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function documents_index_marks_carrier_closing_as_not_required_for_cash_carrier(): void
     {

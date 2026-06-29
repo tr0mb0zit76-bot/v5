@@ -6,37 +6,11 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\Agents\AgentToolRegistry;
 use App\Services\Commercial\MailThreadAnalysisService;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class AgentToolRegistryMailAnalysisTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany(['users', 'roles']);
-
-        Schema::create('roles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->unique();
-            $table->json('visibility_areas')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-    }
-
     #[Test]
     public function mail_analysis_tools_are_exposed_for_mail_area(): void
     {

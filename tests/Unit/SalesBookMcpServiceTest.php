@@ -7,15 +7,12 @@ use App\Models\SalesBookArticle;
 use App\Models\User;
 use App\Services\Mcp\SalesBookMcpService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Tests\TestCase;
 
 class SalesBookMcpServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     private SalesBookMcpService $service;
 
     protected function setUp(): void

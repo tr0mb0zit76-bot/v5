@@ -5,46 +5,10 @@ namespace Tests\Unit;
 use App\Models\BudgetOpexArticle;
 use App\Models\ManagementExpenseCategory;
 use App\Services\ManagementAccounting\ManagementExpenseCategorySyncService;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ManagementExpenseCategorySyncServiceTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'budget_opex_articles',
-            'management_expense_categories',
-        ]);
-
-        Schema::create('management_expense_categories', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('parent_id')->nullable();
-            $table->string('code', 64)->unique();
-            $table->string('name');
-            $table->string('kind', 32);
-            $table->string('flow', 8)->default('out');
-            $table->boolean('is_system')->default(false);
-            $table->boolean('is_active')->default(true);
-            $table->boolean('include_in_budget')->default(false);
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->timestamps();
-        });
-
-        Schema::create('budget_opex_articles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->string('cost_type', 32)->default('fixed_monthly');
-            $table->decimal('amount_monthly', 14, 2)->default(0);
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->foreignId('management_expense_category_id')->nullable();
-            $table->timestamps();
-        });
-    }
-
     public function test_sync_ensures_system_categories_and_hierarchy_without_budget_clone(): void
     {
         BudgetOpexArticle::query()->create([

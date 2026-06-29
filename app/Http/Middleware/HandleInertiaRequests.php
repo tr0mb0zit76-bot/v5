@@ -10,6 +10,7 @@ use App\Support\CabinetNotificationBadges;
 use App\Support\CommandBarHistoryLimits;
 use App\Support\ContractorTableColumns;
 use App\Support\CrmAppearance;
+use App\Support\CrmFeatureCatalog;
 use App\Support\DocumentUploadLimits;
 use App\Support\InertiaAppSurface;
 use App\Support\LeadTableColumns;
@@ -94,6 +95,7 @@ class HandleInertiaRequests extends Middleware
             'ai_agents' => Inertia::always(fn () => AiAgentCatalog::optionsForUser($request->user())),
             'ai_agent_default_slug' => Inertia::always(fn (): string => AiAgentCatalog::defaultSlug()),
             'ai_command_bar_history' => Inertia::always(fn (): array => CommandBarHistoryLimits::profileForUser($request->user())),
+            'crm_features' => Inertia::always(fn (): array => CrmFeatureCatalog::snapshot($request->user())),
         ];
     }
 

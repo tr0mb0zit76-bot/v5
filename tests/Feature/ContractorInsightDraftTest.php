@@ -12,8 +12,6 @@ use App\Models\Role;
 use App\Models\User;
 use App\Support\ActivityEventType;
 use App\Support\ContractorPortraitDictionary;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ContractorInsightDraftTest extends TestCase
@@ -21,106 +19,6 @@ class ContractorInsightDraftTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->schemaDropMany([
-            'activity_events',
-            'contractor_insight_drafts',
-            'mail_messages',
-            'mail_threads',
-            'contractor_portraits',
-            'contractors',
-            'users',
-            'roles',
-        ]);
-
-        Schema::create('roles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->unique();
-            $table->json('visibility_areas')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('contractors', function (Blueprint $table): void {
-            $table->id();
-            $table->string('type')->default('customer');
-            $table->string('name');
-            $table->boolean('is_active')->default(true);
-            $table->unsignedBigInteger('owner_id')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('contractor_portraits', function (Blueprint $table): void {
-            $table->foreignId('contractor_id')->primary()->constrained('contractors')->cascadeOnDelete();
-            $table->string('communication_style', 32)->default('unknown');
-            $table->string('price_sensitivity', 32)->default('unknown');
-            $table->string('preferred_channel', 32)->default('unknown');
-            $table->string('decision_cadence', 32)->default('unknown');
-            $table->string('relationship_trust', 32)->default('unknown');
-            $table->text('success_criteria')->nullable();
-            $table->json('typical_objections')->nullable();
-            $table->text('internal_notes')->nullable();
-            $table->unsignedTinyInteger('coverage_pct')->default(0);
-            $table->timestamp('portrait_updated_at')->nullable();
-            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamps();
-        });
-
-        Schema::create('mail_threads', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('contractor_id')->nullable();
-            $table->unsignedBigInteger('mailbox_user_id')->nullable();
-            $table->string('subject')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('mail_messages', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('mail_thread_id')->constrained('mail_threads')->cascadeOnDelete();
-            $table->string('direction')->default('inbound');
-            $table->text('body_text')->nullable();
-            $table->string('subject')->nullable();
-            $table->timestamp('sent_at')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('contractor_insight_drafts', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('contractor_id')->constrained('contractors')->cascadeOnDelete();
-            $table->string('field_key', 64);
-            $table->json('proposed_value');
-            $table->string('source_type', 32);
-            $table->unsignedBigInteger('source_id')->nullable();
-            $table->decimal('confidence', 5, 2)->nullable();
-            $table->string('status', 16)->default('pending');
-            $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamp('reviewed_at')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('activity_events', function (Blueprint $table): void {
-            $table->id();
-            $table->string('subject_type');
-            $table->unsignedBigInteger('subject_id');
-            $table->string('event_type');
-            $table->string('title')->nullable();
-            $table->text('summary')->nullable();
-            $table->json('payload')->nullable();
-            $table->timestamp('occurred_at')->nullable();
-            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->string('source_type')->nullable();
-            $table->unsignedBigInteger('source_id')->nullable();
-            $table->timestamps();
-        });
 
         $this->app->bind(ChatCompletionClient::class, fn (): ChatCompletionClient => new class implements ChatCompletionClient
         {
@@ -269,6 +167,8 @@ class ContractorInsightDraftTest extends TestCase
         $message = MailMessage::query()->create([
             'mail_thread_id' => $thread->id,
             'direction' => 'inbound',
+            'from_email' => 'client@example.com',
+            'to_emails' => ['manager@test.local'],
             'body_text' => 'Нужна доставка без срывов, бюджет ограничен.',
             'subject' => 'Ставка',
             'sent_at' => now(),

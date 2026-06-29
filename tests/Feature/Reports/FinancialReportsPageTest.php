@@ -7,14 +7,11 @@ use App\Models\Order;
 use App\Models\PaymentSchedule;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class FinancialReportsPageTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_supervisor_can_open_reports_and_see_abc_payload(): void
     {
         $role = Role::query()->create([

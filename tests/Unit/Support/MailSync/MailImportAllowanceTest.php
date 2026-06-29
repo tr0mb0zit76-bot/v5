@@ -6,8 +6,6 @@ use App\Models\MailBlockedSender;
 use App\Support\MailSync\ImportedMailMessage;
 use App\Support\MailSync\MailImportAllowance;
 use App\Support\MailSync\MailSyncSpamBlocklist;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class MailImportAllowanceTest extends TestCase
@@ -37,16 +35,6 @@ class MailImportAllowanceTest extends TestCase
 
     public function test_blocks_inbound_sender_from_spam_list(): void
     {
-        $this->schemaDropMany(['mail_blocked_senders']);
-
-        Schema::create('mail_blocked_senders', function (Blueprint $table): void {
-            $table->id();
-            $table->string('email', 320)->unique();
-            $table->string('note', 500)->nullable();
-            $table->unsignedBigInteger('created_by')->nullable();
-            $table->timestamps();
-        });
-
         config(['mail_sync.require_contractor_match' => false]);
 
         MailBlockedSender::query()->create([
@@ -77,16 +65,6 @@ class MailImportAllowanceTest extends TestCase
 
     public function test_does_not_block_outbound_messages_by_spam_list(): void
     {
-        $this->schemaDropMany(['mail_blocked_senders']);
-
-        Schema::create('mail_blocked_senders', function (Blueprint $table): void {
-            $table->id();
-            $table->string('email', 320)->unique();
-            $table->string('note', 500)->nullable();
-            $table->unsignedBigInteger('created_by')->nullable();
-            $table->timestamps();
-        });
-
         config(['mail_sync.require_contractor_match' => false]);
 
         MailBlockedSender::query()->create([

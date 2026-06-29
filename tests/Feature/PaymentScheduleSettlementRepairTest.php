@@ -4,22 +4,18 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\PaymentSchedule;
 use App\Models\User;
 use App\Services\OrderCompensationService;
 use App\Services\PaymentSettlementSummaryBuilder;
 use App\Support\PaymentSchedulePaymentEventRelinker;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class PaymentScheduleSettlementRepairTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_resync_relinks_orphaned_ledger_events_and_preserves_partial_customer_payment(): void
     {
         if (! Schema::hasTable('payment_schedules') || ! Schema::hasTable('payment_schedule_payment_events')) {
@@ -28,26 +24,19 @@ class PaymentScheduleSettlementRepairTest extends TestCase
 
         $manager = User::factory()->create();
 
-        $order = Order::factory()->create([
+        $order = $this->createOrderWithPaymentTerms([
             'manager_id' => $manager->id,
             'order_date' => '2026-06-01',
             'customer_rate' => 100000,
-            'payment_terms' => json_encode([
-                'client' => [
-                    'payment_schedule' => [
-                        'installments' => [
-                            ['percent' => 50, 'offset_days' => 0, 'offset_unit' => 'calendar_days', 'anchor' => 'order_date', 'basis' => 'fttn'],
-                            ['percent' => 50, 'offset_days' => 10, 'offset_unit' => 'calendar_days', 'anchor' => 'order_date', 'basis' => 'fttn'],
-                        ],
+        ], [
+            'client' => [
+                'payment_schedule' => [
+                    'installments' => [
+                        ['percent' => 50, 'offset_days' => 0, 'offset_unit' => 'calendar_days', 'anchor' => 'order_date', 'basis' => 'fttn'],
+                        ['percent' => 50, 'offset_days' => 10, 'offset_unit' => 'calendar_days', 'anchor' => 'order_date', 'basis' => 'fttn'],
                     ],
                 ],
-            ], JSON_THROW_ON_ERROR),
-        ]);
-
-        FinancialTerm::factory()->create([
-            'order_id' => $order->id,
-            'client_price' => 100000,
-            'payment_terms_snapshot' => $order->payment_terms,
+            ],
         ]);
 
         app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh());

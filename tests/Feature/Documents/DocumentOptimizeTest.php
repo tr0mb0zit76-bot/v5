@@ -4,7 +4,6 @@ namespace Tests\Feature\Documents;
 
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -12,8 +11,6 @@ use Tests\TestCase;
 
 class DocumentOptimizeTest extends TestCase
 {
-    use RefreshDatabase;
-
     private function userWithDocumentsAccess(): User
     {
         $role = Role::query()->create([

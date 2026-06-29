@@ -4,48 +4,24 @@ namespace Tests\Unit;
 
 use App\Enums\SalesBookArticleStatus;
 use App\Models\SalesBookArticle;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class SalesBookArticleStatusTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany(['sales_book_articles']);
-
-        Schema::create('sales_book_articles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('title');
-            $table->text('markdown_content')->nullable();
-            $table->integer('sort_order')->default(0);
-            $table->string('status', 24)->default(SalesBookArticleStatus::Published->value);
-            $table->json('tags')->nullable();
-            $table->timestamps();
-        });
-    }
-
-    protected function tearDown(): void
-    {
-        $this->schemaDropMany(['sales_book_articles']);
-
-        parent::tearDown();
-    }
-
     public function test_published_scope_excludes_drafts(): void
     {
         DB::table('sales_book_articles')->insert([
             [
                 'title' => 'Опубликованная',
+                'markdown_content' => '',
                 'status' => SalesBookArticleStatus::Published->value,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
                 'title' => 'Черновик',
+                'markdown_content' => '',
                 'status' => SalesBookArticleStatus::Draft->value,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -61,6 +37,7 @@ class SalesBookArticleStatusTest extends TestCase
     {
         $article = SalesBookArticle::query()->create([
             'title' => 'Документы',
+            'markdown_content' => '',
             'tags' => ['CMR', 'документы'],
         ]);
 

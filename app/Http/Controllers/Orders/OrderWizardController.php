@@ -39,6 +39,7 @@ use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormTemplateOrderEligibility;
 use App\Support\AtiDictionaryOptionCatalog;
+use App\Support\CardSmartLinksResolver;
 use App\Support\CargoPerformerAllocationNormalizer;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\CashToCashMarginCalculator;
@@ -53,6 +54,7 @@ use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderFinancialEditAuthorization;
 use App\Support\OrderPaymentTermsConfigResolver;
+use App\Support\OrderPrintFormContext;
 use App\Support\OrderPrintWorkflowLock;
 use App\Support\OwnFleetCatalog;
 use App\Support\PaymentFormDictionary;
@@ -851,6 +853,7 @@ class OrderWizardController extends Controller
                 'comment' => $log->comment,
                 'created_at' => optional($log->created_at)?->toIso8601String(),
             ])->values()->all(),
+            'smart_links' => app(CardSmartLinksResolver::class)->forOrder($order, $request->user()),
         ];
     }
 

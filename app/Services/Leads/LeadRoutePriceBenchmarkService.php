@@ -4,6 +4,7 @@ namespace App\Services\Leads;
 
 use App\Models\Lead;
 use App\Models\Order;
+use App\Support\CarrierRateFromFinancialTerms;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -49,25 +50,37 @@ class LeadRoutePriceBenchmarkService
             ->where(function ($builder) use ($loading, $unloading): void {
                 if ($loading !== null) {
                     $builder->where(function ($match) use ($loading): void {
-                        $match->where('loading_city', 'like', '%'.$loading.'%');
+                        if (Schema::hasColumn('orders', 'loading_city')) {
+                            $match->where('loading_city', 'like', '%'.$loading.'%');
+                        }
 
                         if (Schema::hasColumn('orders', 'loading_location')) {
-                            $match->orWhere('loading_location', 'like', '%'.$loading.'%');
+                            if (Schema::hasColumn('orders', 'loading_city')) {
+                                $match->orWhere('loading_location', 'like', '%'.$loading.'%');
+                            } else {
+                                $match->where('loading_location', 'like', '%'.$loading.'%');
+                            }
                         }
                     });
                 }
 
                 if ($unloading !== null) {
                     $builder->where(function ($match) use ($unloading): void {
-                        $match->where('unloading_city', 'like', '%'.$unloading.'%');
+                        if (Schema::hasColumn('orders', 'unloading_city')) {
+                            $match->where('unloading_city', 'like', '%'.$unloading.'%');
+                        }
 
                         if (Schema::hasColumn('orders', 'unloading_location')) {
-                            $match->orWhere('unloading_location', 'like', '%'.$unloading.'%');
+                            if (Schema::hasColumn('orders', 'unloading_city')) {
+                                $match->orWhere('unloading_location', 'like', '%'.$unloading.'%');
+                            } else {
+                                $match->where('unloading_location', 'like', '%'.$unloading.'%');
+                            }
                         }
                     });
                 }
             })
-            ->whereNotNull('customer_rate')
+            ->when(Schema::hasColumn('orders', 'customer_rate'), fn ($builder) => $builder->whereNotNull('customer_rate'))
             ->orderByDesc('id')
             ->limit(max(20, $limit * 3));
 
@@ -77,17 +90,33 @@ class LeadRoutePriceBenchmarkService
             });
         }
 
-        $orders = $query->get([
+        $selectColumns = array_values(array_filter([
             'id',
             'order_number',
-            'customer_rate',
-            'carrier_rate',
-            'customer_currency',
+            Schema::hasColumn('orders', 'customer_rate') ? 'customer_rate' : null,
+            Schema::hasColumn('orders', 'customer_currency') ? 'customer_currency' : null,
+            Schema::hasColumn('orders', 'carrier_rate') ? 'carrier_rate' : null,
             'updated_at',
-        ])->take($limit);
+        ]));
+
+        $orders = $query->get($selectColumns)->take($limit);
+
+        $carrierRatesByOrderId = Schema::hasColumn('orders', 'carrier_rate')
+            ? collect()
+            : CarrierRateFromFinancialTerms::sumsByOrderId(
+                $orders->pluck('id')->map(fn (mixed $id): int => (int) $id)->all(),
+            );
 
         $customerRates = $orders->pluck('customer_rate')->filter(fn ($value): bool => $value !== null)->map(fn ($value): float => (float) $value);
-        $carrierRates = $orders->pluck('carrier_rate')->filter(fn ($value): bool => $value !== null)->map(fn ($value): float => (float) $value);
+        $carrierRates = $orders->map(function (Order $order) use ($carrierRatesByOrderId): ?float {
+            if (Schema::hasColumn('orders', 'carrier_rate')) {
+                return $order->carrier_rate !== null ? (float) $order->carrier_rate : null;
+            }
+
+            $resolved = $carrierRatesByOrderId->get($order->id);
+
+            return $resolved !== null ? (float) $resolved : null;
+        })->filter(fn (?float $value): bool => $value !== null)->map(fn (float $value): float => $value);
 
         return [
             'available' => $customerRates->isNotEmpty() || $carrierRates->isNotEmpty(),
@@ -96,13 +125,23 @@ class LeadRoutePriceBenchmarkService
             'unloading_location' => $lead->unloading_location,
             'customer_rate' => $this->stats($customerRates, $lead->target_currency ?? 'RUB'),
             'carrier_rate' => $this->stats($carrierRates, $lead->target_currency ?? 'RUB'),
-            'orders' => $orders->map(fn (Order $order): array => [
-                'id' => $order->id,
-                'order_number' => $order->order_number,
-                'customer_rate' => $order->customer_rate !== null ? (float) $order->customer_rate : null,
-                'carrier_rate' => $order->carrier_rate !== null ? (float) $order->carrier_rate : null,
-                'completed_at' => $order->updated_at?->toDateString(),
-            ])->values()->all(),
+            'orders' => $orders->map(function (Order $order) use ($carrierRatesByOrderId): array {
+                $carrierRate = null;
+                if (Schema::hasColumn('orders', 'carrier_rate')) {
+                    $carrierRate = $order->carrier_rate !== null ? (float) $order->carrier_rate : null;
+                } else {
+                    $resolved = $carrierRatesByOrderId->get($order->id);
+                    $carrierRate = $resolved !== null ? (float) $resolved : null;
+                }
+
+                return [
+                    'id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'customer_rate' => $order->customer_rate !== null ? (float) $order->customer_rate : null,
+                    'carrier_rate' => $carrierRate,
+                    'completed_at' => $order->updated_at?->toDateString(),
+                ];
+            })->values()->all(),
         ];
     }
 

@@ -26,6 +26,10 @@
             </div>
         </div>
 
+        <div v-if="selectedLead?.smart_links?.length" class="border-b border-zinc-200 px-5 py-2 dark:border-zinc-800">
+            <CardSmartLinksBar :links="selectedLead.smart_links" />
+        </div>
+
         <div class="border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex flex-wrap gap-2">
@@ -430,6 +434,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ArrowRightLeft, Banknote, ClipboardList, FileText, History, MapPinned, Package, Paperclip, Plus, Save, Trash2, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
+import CardSmartLinksBar from '@/Components/Crm/CardSmartLinksBar.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import LeadCloseOutcomeFields from '@/Components/Leads/LeadCloseOutcomeFields.vue';
 import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';

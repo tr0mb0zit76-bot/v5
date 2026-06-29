@@ -4,14 +4,11 @@ namespace Tests\Unit;
 
 use App\Models\SalesBookArticle;
 use App\Services\SalesBookArticleTreeService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class SalesBookArticleTreeServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_build_tree_nests_articles_by_parent_id(): void
     {
         $parent = SalesBookArticle::query()->create([

@@ -9,9 +9,9 @@ use Tests\TestCase;
 
 class DealTypeClassifierTest extends TestCase
 {
-    public function test_vat_5_and_vat_22_carrier_with_vat_0_customer_is_direct_deal(): void
+    public function test_vat_5_and_vat_22_carrier_with_vat_0_customer_is_vat_zero_22_category(): void
     {
-        $type = (new DealTypeClassifier)->classify([
+        $type = app(DealTypeClassifier::class)->classify([
             'customer_payment_form' => 'vat_0',
             'contractors_costs' => [
                 ['payment_form' => 'vat_0', 'amount' => 840_000],
@@ -20,14 +20,14 @@ class DealTypeClassifierTest extends TestCase
             ],
         ]);
 
-        $this->assertSame('direct', $type);
+        $this->assertSame('vat_zero_22', $type);
         $this->assertFalse(PaymentFormVat::isIndirectDeal('vat_0', ['vat_0', 'vat_22', 'vat_22']));
     }
 
     public function test_vat_customer_and_no_vat_carrier_is_indirect(): void
     {
         $this->assertTrue(PaymentFormVat::isIndirectDeal('vat_22', ['no_vat']));
-        $this->assertSame('indirect', (new DealTypeClassifier)->classify([
+        $this->assertSame('vat', app(DealTypeClassifier::class)->classify([
             'customer_payment_form' => 'vat_22',
             'contractors_costs' => [
                 ['payment_form' => 'no_vat', 'amount' => 100_000],

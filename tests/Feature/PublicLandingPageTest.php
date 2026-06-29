@@ -10,9 +10,16 @@ use Tests\TestCase;
 
 class PublicLandingPageTest extends TestCase
 {
+    private function showcaseUrl(string $path = '/'): string
+    {
+        $host = config('app.showcase_hosts')[0] ?? 'v5.local';
+
+        return 'http://'.$host.$path;
+    }
+
     public function test_guest_can_open_public_landing_page(): void
     {
-        $response = $this->get('/');
+        $response = $this->get($this->showcaseUrl('/'));
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
@@ -25,19 +32,19 @@ class PublicLandingPageTest extends TestCase
 
     public function test_guest_can_open_public_secondary_pages(): void
     {
-        $this->get('/about')
+        $this->get($this->showcaseUrl('/about'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('Public/About'));
 
-        $this->get('/services')
+        $this->get($this->showcaseUrl('/services'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('Public/Services'));
 
-        $this->get('/cases')
+        $this->get($this->showcaseUrl('/cases'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('Public/Cases'));
 
-        $this->get('/contacts')
+        $this->get($this->showcaseUrl('/contacts'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('Public/Contacts'));
     }
@@ -54,7 +61,7 @@ class PublicLandingPageTest extends TestCase
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
 
         try {
-            $this->get('/')
+            $this->get($this->showcaseUrl('/'))
                 ->assertOk()
                 ->assertInertia(fn (Assert $page) => $page
                     ->where('publicSite.texts.welcome_title', 'Тестовый заголовок')

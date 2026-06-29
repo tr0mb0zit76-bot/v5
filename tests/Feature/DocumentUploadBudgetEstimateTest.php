@@ -4,15 +4,12 @@ namespace Tests\Feature;
 
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use setasign\Fpdi\Tcpdf\Fpdi;
 use Tests\TestCase;
 
 class DocumentUploadBudgetEstimateTest extends TestCase
 {
-    use RefreshDatabase;
-
     private ?string $tempPdfPath = null;
 
     protected function tearDown(): void

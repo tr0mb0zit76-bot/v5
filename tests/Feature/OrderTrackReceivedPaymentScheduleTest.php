@@ -5,58 +5,41 @@ namespace Tests\Feature;
 use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\PaymentSchedule;
-use App\Models\Role;
 use App\Models\User;
 use App\Services\OrderCompensationService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class OrderTrackReceivedPaymentScheduleTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_ottn_customer_planned_date_appears_after_track_received_is_set(): void
     {
         if (! Schema::hasTable('payment_schedules')) {
             $this->markTestSkipped('Таблица payment_schedules недоступна.');
         }
 
-        $role = Role::query()->create([
-            'name' => 'manager',
-            'display_name' => 'Manager',
-            'permissions' => [],
-            'visibility_areas' => ['orders'],
-        ]);
+        $manager = $this->makeManagerUser();
 
-        $manager = User::factory()->create(['role_id' => $role->id]);
-
-        $order = Order::factory()->create([
+        $order = $this->createOrderWithPaymentTerms([
             'manager_id' => $manager->id,
             'order_date' => '2026-06-01',
             'customer_rate' => 34000,
             'track_received_date_customer' => null,
-            'payment_terms' => json_encode([
-                'client' => [
-                    'payment_schedule' => [
-                        'installments' => [
-                            [
-                                'percent' => 100,
-                                'offset_days' => 3,
-                                'offset_unit' => 'bank_days',
-                                'anchor' => 'last_unloading',
-                                'basis' => 'ottn',
-                            ],
+        ], [
+            'client' => [
+                'payment_schedule' => [
+                    'installments' => [
+                        [
+                            'percent' => 100,
+                            'offset_days' => 3,
+                            'offset_unit' => 'bank_days',
+                            'anchor' => 'last_unloading',
+                            'basis' => 'ottn',
                         ],
                     ],
                 ],
-            ], JSON_THROW_ON_ERROR),
-        ]);
-
-        FinancialTerm::factory()->create([
-            'order_id' => $order->id,
-            'client_price' => 34000,
-            'payment_terms_snapshot' => $order->payment_terms,
+            ],
         ]);
 
         app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh());
@@ -90,49 +73,52 @@ class OrderTrackReceivedPaymentScheduleTest extends TestCase
             $this->markTestSkipped('Таблица payment_schedules недоступна.');
         }
 
-        $role = Role::query()->create([
-            'name' => 'manager',
-            'display_name' => 'Manager',
-            'permissions' => [],
-            'visibility_areas' => ['orders'],
+        $manager = $this->makeManagerUser();
+
+        $contractorId = (int) DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Перевозчик для OTTN',
+            'is_active' => true,
+            'is_verified' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
-        $manager = User::factory()->create(['role_id' => $role->id]);
-
-        $order = Order::factory()->create([
-            'manager_id' => $manager->id,
-            'order_date' => '2026-06-01',
-            'unloading_date' => '2026-06-17',
-            'carrier_rate' => 8000,
-            'track_received_date_carrier' => null,
-            'wizard_state' => [
-                'financial_term' => [
-                    'contractors_costs' => [
+        $contractorsCosts = [
+            [
+                'contractor_id' => $contractorId,
+                'payment_form' => 'cash',
+                'amount' => 8000,
+                'payment_schedule' => [
+                    'installments' => [
                         [
-                            'contractor_id' => 63,
-                            'payment_form' => 'cash',
+                            'percent' => 100,
                             'amount' => 8000,
-                            'payment_schedule' => [
-                                'installments' => [
-                                    [
-                                        'percent' => 100,
-                                        'amount' => 8000,
-                                        'offset_days' => 5,
-                                        'offset_unit' => 'bank_days',
-                                        'anchor' => 'last_unloading',
-                                        'basis' => 'ottn',
-                                    ],
-                                ],
-                            ],
+                            'offset_days' => 5,
+                            'offset_unit' => 'bank_days',
+                            'anchor' => 'last_unloading',
+                            'basis' => 'ottn',
                         ],
                     ],
                 ],
             ],
-        ]);
+        ];
+
+        $order = Order::factory()->create($this->onlyExistingOrderColumns([
+            'manager_id' => $manager->id,
+            'order_date' => '2026-06-01',
+            'unloading_date' => '2026-06-17',
+            'track_received_date_carrier' => null,
+            'wizard_state' => [
+                'financial_term' => [
+                    'contractors_costs' => $contractorsCosts,
+                ],
+            ],
+        ]));
 
         FinancialTerm::factory()->create([
             'order_id' => $order->id,
-            'contractors_costs' => data_get($order->wizard_state, 'financial_term.contractors_costs'),
+            'contractors_costs' => $contractorsCosts,
         ]);
 
         app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh());
@@ -158,5 +144,22 @@ class OrderTrackReceivedPaymentScheduleTest extends TestCase
 
         $this->assertNotNull($after);
         $this->assertSame('2026-06-09', $after->planned_date?->toDateString());
+    }
+
+    private function makeManagerUser(): User
+    {
+        $roleId = DB::table('roles')->where('name', 'manager')->value('id');
+
+        if ($roleId === null) {
+            $roleId = DB::table('roles')->insertGetId([
+                'name' => 'manager',
+                'display_name' => 'Manager',
+                'visibility_areas' => json_encode(['orders'], JSON_THROW_ON_ERROR),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        return User::factory()->create(['role_id' => $roleId]);
     }
 }

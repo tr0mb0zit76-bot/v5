@@ -8,13 +8,10 @@ use App\Models\FleetVehicle;
 use App\Models\Order;
 use App\Models\OrderLeg;
 use App\Support\OrderGridOneCSummaryResolver;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class OrderGridOneCSummaryResolverTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_grid_summary_uses_leg_metadata_when_order_performers_missing(): void
     {
         $carrier = Contractor::query()->create([
@@ -41,7 +38,6 @@ class OrderGridOneCSummaryResolverTest extends TestCase
             'order_date' => '2026-06-16',
             'customer_rate' => 50000,
             'customer_payment_form' => 'no_vat',
-            'performers' => null,
         ]);
 
         OrderLeg::query()->create([

@@ -6,13 +6,10 @@ use App\Models\Department;
 use App\Models\User;
 use App\Services\Notifications\NotificationRecipientResolver;
 use App\Support\UserDepartmentSync;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class NotificationRecipientResolverTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_resolves_approval_recipients_for_primary_department_only(): void
     {
         $departmentA = Department::query()->where('sort_order', 1)->firstOrFail();

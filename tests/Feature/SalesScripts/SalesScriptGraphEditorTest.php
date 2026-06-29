@@ -5,27 +5,11 @@ namespace Tests\Feature\SalesScripts;
 use App\Models\SalesScriptVersion;
 use App\Models\User;
 use Database\Seeders\SalesScriptsDemoSeeder;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class SalesScriptGraphEditorTest extends TestCase
 {
-    use RefreshDatabase;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        if (Schema::hasTable('users') && ! Schema::hasColumn('users', 'role_id')) {
-            Schema::table('users', function (Blueprint $table): void {
-                $table->unsignedBigInteger('role_id')->nullable()->after('id');
-            });
-        }
-    }
-
     public function test_manager_can_save_visual_graph_payload(): void
     {
         $this->seed(SalesScriptsDemoSeeder::class);
@@ -77,7 +61,7 @@ class SalesScriptGraphEditorTest extends TestCase
             ],
         ]);
 
-        $response->assertRedirect(route('scripts.editor.versions.graph', $version));
+        $response->assertRedirect(route('scripts.editor.versions.show', $version));
 
         $this->assertDatabaseHas('sales_script_nodes', [
             'sales_script_version_id' => $version->id,

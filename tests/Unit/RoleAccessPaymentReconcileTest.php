@@ -5,43 +5,10 @@ namespace Tests\Unit;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\RoleAccess;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class RoleAccessPaymentReconcileTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany(['role_user', 'users', 'roles']);
-
-        Schema::create('roles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->unique();
-            $table->json('visibility_areas')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('role_user', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('role_id');
-            $table->unsignedBigInteger('user_id');
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->boolean('can_management_accounting')->default(false);
-            $table->timestamps();
-        });
-    }
-
     public function test_accountant_default_visibility_includes_payment_reconcile(): void
     {
         $this->assertContains(

@@ -30,6 +30,7 @@ class BusinessProcessStage extends Model
         'no_reply_nudge_days',
         'nudge_triggers',
         'ledger_idle_nudge_days',
+        'automated_actions',
     ];
 
     /**
@@ -41,6 +42,7 @@ class BusinessProcessStage extends Model
             'is_terminal' => 'boolean',
             'auto_create_task' => 'boolean',
             'nudge_triggers' => 'array',
+            'automated_actions' => 'array',
         ];
     }
 

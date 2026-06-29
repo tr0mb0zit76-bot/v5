@@ -6,13 +6,10 @@ use App\Models\Role;
 use App\Models\SalesBookArticle;
 use App\Models\SalesBookQuizAttempt;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SalesBookQuizAttemptTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_reader_can_submit_quiz_attempt_and_score_is_calculated_on_server(): void
     {
         $user = $this->makeReader();
@@ -86,16 +83,16 @@ class SalesBookQuizAttemptTest extends TestCase
             ->assertJsonValidationErrors(['answers']);
     }
 
-    public function test_book_page_exposes_quiz_analytics_for_managers(): void
+    public function test_supervisor_sees_team_quiz_analytics_on_dedicated_page(): void
     {
-        $role = Role::query()->create([
-            'name' => 'book_analytics_'.uniqid(),
-            'display_name' => 'Book analytics',
+        $supervisorRole = Role::query()->create([
+            'name' => 'supervisor',
+            'display_name' => 'Supervisor',
             'permissions' => ['sales_book_read'],
-            'visibility_areas' => ['sales_assistant_book', 'sales_assistant_book_analytics'],
+            'visibility_areas' => ['sales_assistant_book'],
         ]);
 
-        $manager = User::factory()->create(['role_id' => $role->id]);
+        $supervisor = User::factory()->create(['role_id' => $supervisorRole->id]);
         $employee = User::factory()->create(['role_id' => $this->makeReaderRole()->id]);
 
         $article = SalesBookArticle::query()->create([
@@ -113,26 +110,44 @@ class SalesBookQuizAttemptTest extends TestCase
             'completed_at' => now(),
         ]);
 
-        $this->actingAs($manager)
-            ->get(route('sales-assistant.book'))
+        $this->actingAs($supervisor)
+            ->get(route('sales-assistant.book.quiz-analytics'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->where('capabilities.can_view_quiz_analytics', true)
-                ->where('quizInsights.summary.attempts', 1)
-                ->where('quizInsights.summary.unique_users', 1)
+                ->component('SalesAssistant/BookQuizAnalytics')
+                ->where('filters.can_view_all', true)
+                ->where('insights.summary.attempts', 1)
+                ->where('insights.summary.unique_users', 1)
             );
     }
 
-    public function test_book_page_hides_quiz_analytics_without_permission(): void
+    public function test_reader_sees_only_own_quiz_analytics(): void
     {
-        $user = $this->makeReader();
+        $reader = $this->makeReader();
+        $otherUser = User::factory()->create(['role_id' => $this->makeReaderRole()->id]);
 
-        $this->actingAs($user)
-            ->get(route('sales-assistant.book'))
+        $article = SalesBookArticle::query()->create([
+            'title' => 'Тест',
+            'markdown_content' => $this->quizMarkdown(),
+            'sort_order' => 0,
+        ]);
+
+        SalesBookQuizAttempt::query()->create([
+            'sales_book_article_id' => $article->id,
+            'user_id' => $otherUser->id,
+            'score' => 2,
+            'total_questions' => 2,
+            'answers' => ['q1' => 'b', 'q2' => 'b'],
+            'completed_at' => now(),
+        ]);
+
+        $this->actingAs($reader)
+            ->get(route('sales-assistant.book.quiz-analytics'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->where('capabilities.can_view_quiz_analytics', false)
-                ->where('quizInsights', null)
+                ->where('filters.can_view_all', false)
+                ->where('filters.user_id', $reader->id)
+                ->where('insights.summary.attempts', 0)
             );
     }
 

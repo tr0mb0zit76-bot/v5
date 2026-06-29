@@ -5,13 +5,10 @@ namespace Tests\Feature\Orders;
 use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class CarrierSaveTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         parent::setUp();

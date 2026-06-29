@@ -5,13 +5,10 @@ namespace Tests\Unit;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\RoleAccess;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class RoleAccessTrackReceivedDatesTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_clerk_can_edit_track_received_dates(): void
     {
         $role = Role::query()->create([

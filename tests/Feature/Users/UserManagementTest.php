@@ -3,53 +3,12 @@
 namespace Tests\Feature\Users;
 
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class UserManagementTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany(['users', 'roles']);
-
-        Schema::create('roles', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->string('display_name')->nullable();
-            $table->text('description')->nullable();
-            $table->json('permissions')->nullable();
-            $table->json('columns_config')->nullable();
-            $table->boolean('has_signing_authority')->default(false);
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedTinyInteger('site_id')->nullable();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->text('mail_imap_secret')->nullable();
-            $table->boolean('mail_sync_enabled')->default(true);
-            $table->timestamp('mail_last_sync_at')->nullable();
-            $table->string('mail_last_sync_error', 500)->nullable();
-            $table->string('theme', 20)->default('light');
-            $table->boolean('is_active')->default(true);
-            $table->boolean('has_signing_authority')->default(false);
-            $table->json('ai_preferences')->nullable();
-            $table->boolean('ai_learning_enabled')->default(true);
-            $table->rememberToken();
-            $table->timestamps();
-        });
-    }
-
     public function test_admin_can_open_user_management_page(): void
     {
         $adminRoleId = $this->createRole('admin', 'Администратор');

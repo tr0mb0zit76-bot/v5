@@ -5,15 +5,12 @@ namespace Tests\Feature;
 use App\Models\Contractor;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class UserSigningOwnCompanyTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function user_without_restrictions_can_sign_for_any_own_company(): void
     {

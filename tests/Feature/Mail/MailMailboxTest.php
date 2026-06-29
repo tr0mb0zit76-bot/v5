@@ -7,7 +7,6 @@ use App\Models\MailMessage;
 use App\Models\MailThread;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -16,8 +15,6 @@ use Tests\TestCase;
 
 class MailMailboxTest extends TestCase
 {
-    use RefreshDatabase;
-
     private function mailUser(): User
     {
         $role = Role::query()->create([

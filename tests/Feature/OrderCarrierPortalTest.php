@@ -7,15 +7,12 @@ use App\Models\Order;
 use App\Models\OrderPortalInvite;
 use App\Models\User;
 use App\Services\OrderPortalInviteService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class OrderCarrierPortalTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         try {

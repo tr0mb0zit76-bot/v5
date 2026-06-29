@@ -2,156 +2,28 @@
 
 namespace Tests\Unit;
 
-use App\Models\ManagementStatementLine;
 use App\Models\PaymentSchedule;
 use App\Models\PaymentSchedulePaymentEvent;
 use App\Models\User;
 use App\Services\Finance\FinanceOverviewService;
 use App\Services\Finance\PaymentScheduleSettlementSyncService;
 use App\Services\ManagementAccounting\ManagementAccountingAllocationService;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ManagementAccountingOperationalAllocationTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'payment_schedule_payment_events',
-            'management_statement_lines',
-            'management_expense_categories',
-            'payment_schedules',
-            'orders',
-            'contractors',
-            'users',
-            'roles',
-        ]);
-
-        Schema::create('roles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->unique();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('contractors', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('orders', function (Blueprint $table): void {
-            $table->id();
-            $table->string('order_number')->nullable();
-            $table->unsignedBigInteger('manager_id')->nullable();
-            $table->unsignedBigInteger('customer_id')->nullable();
-            $table->unsignedBigInteger('carrier_id')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('payment_schedules', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('order_id');
-            $table->string('party', 16);
-            $table->string('type', 16);
-            $table->decimal('amount', 12, 2);
-            $table->decimal('paid_amount', 12, 2)->default(0);
-            $table->decimal('remaining_amount', 12, 2)->default(0);
-            $table->boolean('is_partial')->default(false);
-            $table->unsignedBigInteger('parent_payment_id')->nullable();
-            $table->unsignedBigInteger('counterparty_id')->nullable();
-            $table->date('planned_date')->nullable();
-            $table->date('actual_date')->nullable();
-            $table->string('status', 16)->default('pending');
-            $table->string('payment_method', 50)->nullable();
-            $table->string('transaction_reference', 100)->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('management_expense_categories', function (Blueprint $table): void {
-            $table->id();
-            $table->string('code')->unique();
-            $table->string('name');
-            $table->string('direction', 8)->default('out');
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('management_statement_lines', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('import_id')->nullable();
-            $table->unsignedBigInteger('bank_account_id')->nullable();
-            $table->string('line_hash');
-            $table->date('operation_date');
-            $table->string('direction', 8);
-            $table->decimal('amount', 12, 2);
-            $table->string('currency', 8)->default('RUB');
-            $table->text('description');
-            $table->string('status', 16)->default('pending');
-            $table->string('source', 16)->default('manual');
-            $table->string('match_type', 32)->nullable();
-            $table->decimal('allocation_amount', 12, 2)->nullable();
-            $table->unsignedBigInteger('allocation_category_id')->nullable();
-            $table->unsignedBigInteger('allocation_order_id')->nullable();
-            $table->unsignedBigInteger('allocation_payment_schedule_id')->nullable();
-            $table->unsignedBigInteger('allocation_user_id')->nullable();
-            $table->unsignedBigInteger('allocated_by')->nullable();
-            $table->timestamp('allocated_at')->nullable();
-            $table->unsignedBigInteger('created_by')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('payment_schedule_payment_events', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('order_id')->nullable();
-            $table->unsignedBigInteger('contractor_id')->nullable();
-            $table->unsignedBigInteger('payment_schedule_id')->nullable();
-            $table->string('party', 16)->nullable();
-            $table->decimal('amount', 12, 2);
-            $table->date('payment_date');
-            $table->string('payment_method', 50)->nullable();
-            $table->string('transaction_reference', 100)->nullable();
-            $table->text('notes')->nullable();
-            $table->unsignedBigInteger('recorded_by')->nullable();
-            $table->timestamp('reversed_at')->nullable();
-            $table->timestamps();
-        });
-
-        DB::table('management_expense_categories')->insert([
-            'code' => 'operational_carrier_out',
-            'name' => 'Перевозчики',
-            'direction' => 'out',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-    }
-
     public function test_partial_allocation_keeps_open_row_with_correct_remaining(): void
     {
-        $userId = DB::table('users')->insertGetId([
-            'name' => 'Бухгалтер',
-            'email' => 'acct@example.test',
+        $user = User::factory()->create();
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Камион',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $user = User::query()->findOrFail($userId);
-        $carrierId = DB::table('contractors')->insertGetId(['name' => 'ООО Камион']);
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'order_number' => 'ORD-KAM',
             'carrier_id' => $carrierId,
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
 
         $scheduleId = DB::table('payment_schedules')->insertGetId([
@@ -160,7 +32,7 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
             'type' => 'final',
             'amount' => 400000,
             'paid_amount' => 0,
-            'remaining_amount' => 0,
+            'remaining_amount' => 400000,
             'status' => 'overdue',
             'planned_date' => '2026-05-01',
             'counterparty_id' => $carrierId,
@@ -168,14 +40,12 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $line = ManagementStatementLine::query()->create([
+        $line = $this->createManagementStatementLine([
             'line_hash' => hash('sha256', 'kamion'),
             'operation_date' => '2026-06-02',
             'direction' => 'out',
             'amount' => 100000,
             'description' => 'Оплата ООО Камион',
-            'status' => 'pending',
-            'source' => 'manual',
         ]);
 
         $schedule = PaymentSchedule::query()->findOrFail($scheduleId);
@@ -203,19 +73,15 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
 
     public function test_full_prepayment_allocation_hides_row_from_cash_flow_journal(): void
     {
-        $userId = DB::table('users')->insertGetId([
-            'name' => 'Бухгалтер',
-            'email' => 'acct@example.test',
+        $user = User::factory()->create();
+        $customerId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Дайтона моторс',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $user = User::query()->findOrFail($userId);
-        $customerId = DB::table('contractors')->insertGetId(['name' => 'ООО Дайтона моторс']);
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'order_number' => 'АС-2606-0001',
             'customer_id' => $customerId,
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
 
         $scheduleId = DB::table('payment_schedules')->insertGetId([
@@ -224,21 +90,19 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
             'type' => 'prepayment',
             'amount' => 617231,
             'paid_amount' => 0,
-            'remaining_amount' => 0,
+            'remaining_amount' => 617231,
             'status' => 'pending',
             'planned_date' => '2026-06-10',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        $line = ManagementStatementLine::query()->create([
+        $line = $this->createManagementStatementLine([
             'line_hash' => hash('sha256', 'daytona'),
             'operation_date' => '2026-06-11',
             'direction' => 'in',
             'amount' => 617231,
             'description' => 'Оплата от Дайтона',
-            'status' => 'pending',
-            'source' => 'manual',
         ]);
 
         app(ManagementAccountingAllocationService::class)->allocateLine($line, [
@@ -257,12 +121,14 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
 
     public function test_sync_command_repairs_row_hidden_after_buggy_allocation(): void
     {
-        $carrierId = DB::table('contractors')->insertGetId(['name' => 'ООО Камион']);
-        $orderId = DB::table('orders')->insertGetId([
-            'order_number' => 'ORD-REPAIR',
-            'carrier_id' => $carrierId,
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Камион',
             'created_at' => now(),
             'updated_at' => now(),
+        ]);
+        $orderId = $this->insertOrderRow([
+            'order_number' => 'ORD-REPAIR',
+            'carrier_id' => $carrierId,
         ]);
 
         $scheduleId = DB::table('payment_schedules')->insertGetId([
@@ -306,19 +172,15 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
 
     public function test_reallocate_operational_payment_moves_settlement_to_another_schedule(): void
     {
-        $userId = DB::table('users')->insertGetId([
-            'name' => 'Бухгалтер',
-            'email' => 'acct@example.test',
+        $user = User::factory()->create();
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Камион',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $user = User::query()->findOrFail($userId);
-        $carrierId = DB::table('contractors')->insertGetId(['name' => 'ООО Камион']);
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'order_number' => 'ORD-REALLOC',
             'carrier_id' => $carrierId,
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
 
         $prepaymentId = DB::table('payment_schedules')->insertGetId([
@@ -327,7 +189,7 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
             'type' => 'prepayment',
             'amount' => 400000,
             'paid_amount' => 0,
-            'remaining_amount' => 0,
+            'remaining_amount' => 400000,
             'status' => 'pending',
             'planned_date' => '2026-05-01',
             'counterparty_id' => $carrierId,
@@ -341,7 +203,7 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
             'type' => 'final',
             'amount' => 400000,
             'paid_amount' => 0,
-            'remaining_amount' => 0,
+            'remaining_amount' => 400000,
             'status' => 'overdue',
             'planned_date' => '2026-06-07',
             'counterparty_id' => $carrierId,
@@ -349,14 +211,12 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $line = ManagementStatementLine::query()->create([
+        $line = $this->createManagementStatementLine([
             'line_hash' => hash('sha256', 'kamion-realloc'),
             'operation_date' => '2026-06-11',
             'direction' => 'out',
             'amount' => 400000,
             'description' => 'Оплата ООО Камион',
-            'status' => 'pending',
-            'source' => 'manual',
         ]);
 
         $service = app(ManagementAccountingAllocationService::class);

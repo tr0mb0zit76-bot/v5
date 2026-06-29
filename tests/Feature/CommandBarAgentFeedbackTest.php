@@ -6,7 +6,6 @@ use App\Models\Role;
 use App\Models\User;
 use App\Support\AiInteractionEventType;
 use App\Support\AiInteractionFeature;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -15,8 +14,6 @@ use Tests\TestCase;
 
 class CommandBarAgentFeedbackTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function user_can_rate_assistant_reply(): void
     {

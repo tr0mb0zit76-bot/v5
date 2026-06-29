@@ -2,14 +2,11 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 
 class PublicSlaDocumentTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_customer_offer_pdf_is_served_inline(): void
     {
         $relativePath = 'documents/sla/customer-offer-test.pdf';

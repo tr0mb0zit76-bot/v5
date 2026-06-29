@@ -5,13 +5,10 @@ namespace Tests\Feature;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\RoleAccess;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class DocumentsModuleAccessTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_admin_can_open_documents_registry(): void
     {
         $role = Role::query()->create([

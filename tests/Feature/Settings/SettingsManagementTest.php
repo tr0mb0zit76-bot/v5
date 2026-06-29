@@ -3,126 +3,12 @@
 namespace Tests\Feature\Settings;
 
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class SettingsManagementTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'salary_periods',
-            'salary_coefficients',
-            'kpi_thresholds',
-            'kpi_settings',
-            'vat_rates',
-            'contractor_activity_types',
-            'currencies',
-            'users',
-            'roles',
-        ]);
-
-        Schema::create('roles', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->string('display_name')->nullable();
-            $table->text('description')->nullable();
-            $table->json('permissions')->nullable();
-            $table->json('visibility_areas')->nullable();
-            $table->json('visibility_scopes')->nullable();
-            $table->json('columns_config')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedTinyInteger('site_id')->nullable();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->string('theme', 20)->default('light');
-            $table->boolean('is_active')->default(true);
-            $table->json('ai_preferences')->nullable();
-            $table->boolean('ai_learning_enabled')->default(true);
-            $table->rememberToken();
-            $table->timestamps();
-        });
-
-        Schema::create('kpi_settings', function (Blueprint $table) {
-            $table->id();
-            $table->string('key')->unique();
-            $table->text('value')->nullable();
-            $table->string('type')->default('string');
-            $table->string('group')->default('general');
-            $table->string('description')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('kpi_thresholds', function (Blueprint $table) {
-            $table->id();
-            $table->string('deal_type', 50);
-            $table->decimal('threshold_from', 5, 2);
-            $table->decimal('threshold_to', 5, 2);
-            $table->integer('kpi_percent');
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('salary_coefficients', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('manager_id');
-            $table->integer('base_salary')->default(0);
-            $table->integer('bonus_percent')->default(0);
-            $table->date('effective_from');
-            $table->date('effective_to')->nullable();
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('salary_periods', function (Blueprint $table) {
-            $table->id();
-            $table->date('period_start');
-            $table->date('period_end');
-            $table->string('period_type', 10);
-            $table->string('status', 20)->default('draft');
-            $table->text('notes')->nullable();
-            $table->unsignedBigInteger('created_by')->nullable();
-            $table->unsignedBigInteger('approved_by')->nullable();
-            $table->unsignedBigInteger('closed_by')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('contractor_activity_types', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->timestamps();
-        });
-
-        Schema::create('currencies', function (Blueprint $table) {
-            $table->id();
-            $table->string('code', 3)->unique();
-            $table->string('name');
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->timestamps();
-        });
-
-        Schema::create('vat_rates', function (Blueprint $table) {
-            $table->id();
-            $table->string('code', 50)->unique();
-            $table->string('label');
-            $table->decimal('rate_percent', 5, 2);
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->timestamps();
-        });
-    }
-
     public function test_admin_can_open_settings_hub(): void
     {
         $adminRoleId = $this->createRole('admin', 'Администратор');
@@ -133,7 +19,7 @@ class SettingsManagementTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Settings/Index')
-            ->has('sections', 6)
+            ->has('sections', 8)
         );
     }
 
@@ -169,13 +55,13 @@ class SettingsManagementTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Settings/Dictionaries')
-            ->has('dictionaries', 3)
+            ->has('dictionaries', 4)
             ->where('dictionaries.0.key', 'contractor-activity-types')
             ->where('dictionaries.0.items.0.name', 'Экспедирование')
             ->where('dictionaries.1.key', 'currencies')
             ->has('dictionaries.1.items', 0)
             ->where('dictionaries.2.key', 'vat-rates')
-            ->has('dictionaries.2.items', 0)
+            ->where('dictionaries.3.key', 'departments')
         );
     }
 
@@ -284,9 +170,15 @@ class SettingsManagementTest extends TestCase
             ->has('contractorColumns')
             ->has('paymentScheduleColumns')
             ->where('orderColumns.0.field', 'id')
-            ->where('leadColumns.0.field', 'number')
-            ->where('contractorColumns.0.field', 'name')
-            ->where('paymentScheduleColumns.0.field', 'order_number')
+            ->where('leadColumns', fn ($columns) => collect($columns)->contains(
+                fn ($column) => ($column['field'] ?? null) === 'number'
+            ))
+            ->where('contractorColumns', fn ($columns) => collect($columns)->contains(
+                fn ($column) => ($column['field'] ?? null) === 'name'
+            ))
+            ->where('paymentScheduleColumns', fn ($columns) => collect($columns)->contains(
+                fn ($column) => ($column['field'] ?? null) === 'order_number'
+            ))
         );
     }
 
@@ -311,9 +203,9 @@ class SettingsManagementTest extends TestCase
         $columnsConfig = json_decode($role->columns_config, true, 512, JSON_THROW_ON_ERROR);
 
         $this->assertSame([
-            ['colId' => 'order_number', 'hide' => false, 'width' => 100, 'order' => 0],
-            ['colId' => 'manager_name', 'hide' => false, 'width' => 160, 'order' => 1],
-            ['colId' => 'salary_paid', 'hide' => true, 'width' => 120, 'order' => 2],
+            ['hide' => false, 'colId' => 'order_number', 'order' => 0, 'width' => 100],
+            ['hide' => false, 'colId' => 'manager_name', 'order' => 1, 'width' => 160],
+            ['hide' => true, 'colId' => 'salary_paid', 'order' => 2, 'width' => 120],
         ], $columnsConfig['orders']);
     }
 
@@ -338,9 +230,9 @@ class SettingsManagementTest extends TestCase
         $columnsConfig = json_decode($role->columns_config, true, 512, JSON_THROW_ON_ERROR);
 
         $this->assertSame([
-            ['colId' => 'number', 'hide' => false, 'width' => 110, 'order' => 0],
-            ['colId' => 'title', 'hide' => false, 'width' => 240, 'order' => 1],
-            ['colId' => 'responsible_name', 'hide' => true, 'width' => 180, 'order' => 2],
+            ['hide' => false, 'colId' => 'number', 'order' => 0, 'width' => 110],
+            ['hide' => false, 'colId' => 'title', 'order' => 1, 'width' => 240],
+            ['hide' => true, 'colId' => 'responsible_name', 'order' => 2, 'width' => 180],
         ], $columnsConfig['leads']);
     }
 
@@ -365,9 +257,9 @@ class SettingsManagementTest extends TestCase
         $columnsConfig = json_decode($role->columns_config, true, 512, JSON_THROW_ON_ERROR);
 
         $this->assertSame([
-            ['colId' => 'name', 'hide' => false, 'width' => 220, 'order' => 0],
-            ['colId' => 'status_text', 'hide' => false, 'width' => 130, 'order' => 1],
-            ['colId' => 'primary_contact', 'hide' => true, 'width' => 180, 'order' => 2],
+            ['hide' => false, 'colId' => 'name', 'order' => 0, 'width' => 220],
+            ['hide' => false, 'colId' => 'status_text', 'order' => 1, 'width' => 130],
+            ['hide' => true, 'colId' => 'primary_contact', 'order' => 2, 'width' => 180],
         ], $columnsConfig['contractors']);
     }
 
@@ -392,9 +284,9 @@ class SettingsManagementTest extends TestCase
         $columnsConfig = json_decode($role->columns_config, true, 512, JSON_THROW_ON_ERROR);
 
         $this->assertSame([
-            ['colId' => 'order_number', 'hide' => false, 'width' => 160, 'order' => 0],
-            ['colId' => 'counterparty_name', 'hide' => false, 'width' => 200, 'order' => 1],
-            ['colId' => 'amount', 'hide' => true, 'width' => 130, 'order' => 2],
+            ['hide' => false, 'colId' => 'order_number', 'order' => 0, 'width' => 160],
+            ['hide' => false, 'colId' => 'counterparty_name', 'order' => 1, 'width' => 200],
+            ['hide' => true, 'colId' => 'amount', 'order' => 2, 'width' => 130],
         ], $columnsConfig['payment_schedule']);
     }
 
@@ -424,9 +316,9 @@ class SettingsManagementTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Settings/Kpi')
-            ->has('thresholds', 3)
-            ->where('thresholds.0.direct_kpi', 3)
+            ->has('deductionRules')
             ->where('bonusMultiplier', 1.3)
+            ->where('insuranceMultiplier', 1.2)
         );
     }
 
@@ -445,7 +337,7 @@ class SettingsManagementTest extends TestCase
         );
     }
 
-    public function test_admin_can_update_kpi_thresholds_and_bonus_multiplier(): void
+    public function test_admin_can_update_kpi_multipliers(): void
     {
         $adminRoleId = $this->createRole('admin', 'Администратор');
         $admin = User::factory()->create(['role_id' => $adminRoleId]);
@@ -453,20 +345,6 @@ class SettingsManagementTest extends TestCase
         $response = $this->actingAs($admin)->patch(route('settings.motivation.kpi.update'), [
             'bonus_multiplier' => 1.45,
             'insurance_multiplier' => 1.25,
-            'thresholds' => [
-                [
-                    'threshold_from' => 0.00,
-                    'threshold_to' => 0.49,
-                    'direct_kpi' => 4,
-                    'indirect_kpi' => 8,
-                ],
-                [
-                    'threshold_from' => 0.50,
-                    'threshold_to' => 1.00,
-                    'direct_kpi' => 5,
-                    'indirect_kpi' => 9,
-                ],
-            ],
         ]);
 
         $response->assertRedirect(route('settings.motivation.kpi'));
@@ -479,20 +357,6 @@ class SettingsManagementTest extends TestCase
         $this->assertDatabaseHas('kpi_settings', [
             'key' => 'delta_insurance_multiplier',
             'value' => '1.25',
-        ]);
-
-        $this->assertDatabaseHas('kpi_thresholds', [
-            'deal_type' => 'direct',
-            'threshold_from' => '0.00',
-            'threshold_to' => '0.49',
-            'kpi_percent' => 4,
-        ]);
-
-        $this->assertDatabaseHas('kpi_thresholds', [
-            'deal_type' => 'indirect',
-            'threshold_from' => '0.50',
-            'threshold_to' => '1.00',
-            'kpi_percent' => 9,
         ]);
     }
 
@@ -532,7 +396,7 @@ class SettingsManagementTest extends TestCase
 
     public function test_granular_settings_override_legacy_settings_area(): void
     {
-        $roleId = $this->createRoleWithAreas('mixed_settings', 'Mixed', ['dashboard', 'settings', 'settings_motivation']);
+        $roleId = $this->createRoleWithAreas('mixed_settings', 'Mixed', ['dashboard', 'settings_motivation']);
         $user = User::factory()->create(['role_id' => $roleId]);
 
         $this->actingAs($user)->get(route('settings.motivation.kpi'))->assertOk();

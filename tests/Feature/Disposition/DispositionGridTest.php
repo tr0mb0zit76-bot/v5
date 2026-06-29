@@ -6,14 +6,12 @@ use App\Models\DispositionEntry;
 use App\Models\Order;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\CreatesInTransitOrders;
 use Tests\TestCase;
 
 class DispositionGridTest extends TestCase
 {
     use CreatesInTransitOrders;
-    use RefreshDatabase;
 
     public function test_disposition_index_requires_orders_visibility(): void
     {

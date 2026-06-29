@@ -8,13 +8,10 @@ use App\Mcp\Tools\UpsertSalesBookArticleTool;
 use App\Models\Role;
 use App\Models\SalesBookArticle;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SalesBookMcpToolsTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_search_sales_book_articles_finds_pages_by_title(): void
     {
         $user = $this->makeUserWithSalesBookRead();
@@ -72,9 +69,11 @@ class SalesBookMcpToolsTest extends TestCase
 
         $updateResponse
             ->assertOk()
-            ->assertSee('"action":"updated"', false)
-            ->assertSee('Вторая версия');
+            ->assertSee('"action":"updated"', false);
 
+        $article->refresh();
+
+        $this->assertStringContainsString('Вторая версия', (string) $article->markdown_content);
         $this->assertSame(1, SalesBookArticle::query()->where('parent_id', $parent->id)->where('title', 'Документы')->count());
     }
 

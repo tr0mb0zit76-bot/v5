@@ -4,13 +4,10 @@ namespace Tests\Unit;
 
 use App\Models\SalesBookArticle;
 use App\Services\SalesBookParentChildLinksService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SalesBookParentChildLinksServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_sync_parent_appends_markdown_links_for_direct_children(): void
     {
         $parent = SalesBookArticle::query()->create([

@@ -4,13 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\OrderDocument;
 use App\Support\PrintFormVerificationCode;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class OrderDocumentVerificationPageTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_public_verification_page_shows_document_hash_for_valid_code(): void
     {
         $document = OrderDocument::factory()->create([

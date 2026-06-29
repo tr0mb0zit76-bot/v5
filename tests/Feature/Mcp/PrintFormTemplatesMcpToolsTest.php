@@ -8,72 +8,11 @@ use App\Models\PrintFormBasicTerm;
 use App\Models\PrintFormTemplate;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class PrintFormTemplatesMcpToolsTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'print_form_basic_terms',
-            'print_form_templates',
-            'users',
-            'roles',
-        ]);
-
-        Schema::create('roles', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->string('display_name')->nullable();
-            $table->json('permissions')->nullable();
-            $table->json('visibility_areas')->nullable();
-            $table->json('visibility_scopes')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->boolean('is_active')->default(true);
-            $table->rememberToken();
-            $table->timestamps();
-        });
-
-        Schema::create('print_form_templates', function (Blueprint $table) {
-            $table->id();
-            $table->string('code')->unique();
-            $table->string('name');
-            $table->string('entity_type')->default('order');
-            $table->string('document_type')->nullable();
-            $table->string('party')->default('internal');
-            $table->boolean('is_default')->default(false);
-            $table->boolean('is_active')->default(true);
-            $table->unsignedInteger('version')->default(1);
-            $table->string('file_disk')->nullable();
-            $table->string('file_path')->nullable();
-            $table->json('settings')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('print_form_basic_terms', function (Blueprint $table) {
-            $table->id();
-            $table->string('party', 16);
-            $table->unsignedBigInteger('contractor_id')->nullable();
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->text('body');
-            $table->timestamps();
-        });
-    }
-
     public function test_insights_reports_missing_basic_terms_placeholder(): void
     {
         $user = $this->settingsSystemUser();
@@ -81,7 +20,12 @@ class PrintFormTemplatesMcpToolsTest extends TestCase
         PrintFormTemplate::query()->create([
             'code' => 'dz_s_perevozom_RF',
             'name' => 'ДЗ с перевозчиком РФ',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
             'party' => PrintFormBasicTerm::PARTY_CARRIER,
+            'source_type' => 'system',
+            'vue_component' => 'SystemPrintFormTemplate',
             'file_disk' => 'local',
             'file_path' => 'print-form-templates/1/test.docx',
             'settings' => [
@@ -117,7 +61,12 @@ class PrintFormTemplatesMcpToolsTest extends TestCase
         PrintFormTemplate::query()->create([
             'code' => 'dz_s_perevozom_RF',
             'name' => 'ДЗ с перевозчиком РФ',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
             'party' => PrintFormBasicTerm::PARTY_CARRIER,
+            'source_type' => 'system',
+            'vue_component' => 'SystemPrintFormTemplate',
             'file_disk' => 'local',
             'file_path' => 'print-form-templates/1/test.docx',
             'settings' => [

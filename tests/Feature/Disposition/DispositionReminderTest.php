@@ -7,14 +7,12 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\Disposition\DispositionReminderService;
 use App\Support\DispositionSlot;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\CreatesInTransitOrders;
 use Tests\TestCase;
 
 class DispositionReminderTest extends TestCase
 {
     use CreatesInTransitOrders;
-    use RefreshDatabase;
 
     protected function setUp(): void
     {

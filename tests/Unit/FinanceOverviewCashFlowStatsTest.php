@@ -3,81 +3,27 @@
 namespace Tests\Unit;
 
 use App\Services\Finance\FinanceOverviewService;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class FinanceOverviewCashFlowStatsTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'payment_schedules',
-            'orders',
-            'contractors',
-            'users',
-            'roles',
-        ]);
-
-        Schema::create('roles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->unique();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->timestamps();
-        });
-
-        Schema::create('contractors', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->nullable();
-        });
-
-        Schema::create('orders', function (Blueprint $table): void {
-            $table->id();
-            $table->string('order_number')->nullable();
-            $table->unsignedBigInteger('manager_id')->nullable();
-            $table->unsignedBigInteger('customer_id')->nullable();
-            $table->unsignedBigInteger('carrier_id')->nullable();
-            $table->timestamps();
-            $table->softDeletes();
-        });
-
-        Schema::create('payment_schedules', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('order_id');
-            $table->string('party', 16);
-            $table->string('type', 16);
-            $table->decimal('amount', 12, 2);
-            $table->decimal('paid_amount', 12, 2)->default(0);
-            $table->decimal('remaining_amount', 12, 2)->default(0);
-            $table->boolean('is_partial')->default(false);
-            $table->unsignedBigInteger('parent_payment_id')->nullable();
-            $table->unsignedBigInteger('counterparty_id')->nullable();
-            $table->date('planned_date')->nullable();
-            $table->date('actual_date')->nullable();
-            $table->string('status', 16)->default('pending');
-            $table->timestamps();
-        });
-    }
-
     public function test_cash_flow_stats_use_row_amount_when_remaining_is_zero_but_status_open(): void
     {
-        $customerId = DB::table('contractors')->insertGetId(['name' => 'Клиент']);
-        $carrierId = DB::table('contractors')->insertGetId(['name' => 'Перевозчик']);
-        $orderId = DB::table('orders')->insertGetId([
+        $customerId = DB::table('contractors')->insertGetId([
+            'name' => 'Клиент',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'Перевозчик',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $orderId = $this->insertOrderRow([
             'order_number' => 'AB-43',
             'customer_id' => $customerId,
             'carrier_id' => $carrierId,
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
 
         DB::table('payment_schedules')->insert([
@@ -117,12 +63,14 @@ class FinanceOverviewCashFlowStatsTest extends TestCase
 
     public function test_cash_flow_journal_maps_positive_remaining_when_set(): void
     {
-        $customerId = DB::table('contractors')->insertGetId(['name' => 'Клиент']);
-        $orderId = DB::table('orders')->insertGetId([
-            'order_number' => 'AB-99',
-            'customer_id' => $customerId,
+        $customerId = DB::table('contractors')->insertGetId([
+            'name' => 'Клиент',
             'created_at' => now(),
             'updated_at' => now(),
+        ]);
+        $orderId = $this->insertOrderRow([
+            'order_number' => 'AB-99',
+            'customer_id' => $customerId,
         ]);
 
         DB::table('payment_schedules')->insert([

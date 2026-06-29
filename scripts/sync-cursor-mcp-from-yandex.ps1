@@ -6,7 +6,17 @@
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$yandexExchange = Join-Path $env:USERPROFILE 'Yandex.Disk\Exchange'
+$candidatePaths = @(
+    'C:\Sync\Yandex.Disk\Exchange',
+    'D:\YandexDisk\Exchange',
+    (Join-Path $env:USERPROFILE 'Yandex.Disk\Exchange')
+)
+
+$yandexExchange = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+if ([string]::IsNullOrWhiteSpace($yandexExchange)) {
+    Write-Error "Yandex Disk vault not found. Checked: $($candidatePaths -join ', ')"
+}
 $obsidianDataJson = Join-Path $yandexExchange '.obsidian\plugins\mcp-tools-istefox\data.json'
 $hivemindConfigSrc = Join-Path $yandexExchange 'config.json'
 $globalMcpPath = Join-Path $env:USERPROFILE '.cursor\mcp.json'

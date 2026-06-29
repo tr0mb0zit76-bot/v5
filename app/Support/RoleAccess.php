@@ -1290,6 +1290,22 @@ class RoleAccess
             }
         }
 
+        $merged = array_values(array_unique($merged));
+
+        foreach ($merged as $permission) {
+            $implied = config("role_implied_permissions.{$permission}", []);
+
+            if (! is_array($implied)) {
+                continue;
+            }
+
+            foreach ($implied as $impliedPermission) {
+                if (is_string($impliedPermission) && $impliedPermission !== '') {
+                    $merged[] = $impliedPermission;
+                }
+            }
+        }
+
         return array_values(array_unique($merged));
     }
 

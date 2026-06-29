@@ -4,13 +4,10 @@ namespace Tests\Unit;
 
 use App\Models\User;
 use App\Services\OrderIntakeLearnedPhrasesService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class OrderIntakeLearnedPhrasesServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_remembers_and_applies_phrase_for_user(): void
     {
         $user = User::factory()->create();

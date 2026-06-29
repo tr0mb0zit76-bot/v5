@@ -6,31 +6,10 @@ use App\Enums\LeadCloseOutcomeFlag;
 use App\Models\Lead;
 use App\Services\ActivityLedgerService;
 use App\Services\Commercial\LeadCloseOutcomeService;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class LeadCloseOutcomeServiceTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany(['leads']);
-
-        Schema::create('leads', function (Blueprint $table): void {
-            $table->id();
-            $table->string('number')->unique();
-            $table->string('status', 50)->default('new');
-            $table->string('title');
-            $table->string('close_outcome_primary_flag')->nullable();
-            $table->json('close_outcome_secondary_flags')->nullable();
-            $table->string('lost_reason')->nullable();
-            $table->unsignedBigInteger('updated_by')->nullable();
-            $table->timestamps();
-        });
-    }
-
     public function test_apply_syncs_status_from_lost_close_outcome_flag(): void
     {
         $lead = Lead::query()->create([

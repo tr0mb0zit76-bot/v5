@@ -2,48 +2,17 @@
 
 namespace Tests\Feature\Integrations;
 
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class EpdIntegrationEndpointsTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany(['order_documents', 'orders']);
-
-        Schema::create('orders', function (Blueprint $table): void {
-            $table->id();
-            $table->string('order_number')->nullable();
-            $table->date('loading_date')->nullable();
-            $table->date('unloading_date')->nullable();
-            $table->unsignedBigInteger('customer_id')->nullable();
-            $table->unsignedBigInteger('carrier_id')->nullable();
-            $table->unsignedBigInteger('driver_id')->nullable();
-            $table->string('waybill_number')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('order_documents', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('order_id');
-            $table->string('type');
-            $table->string('status')->nullable();
-            $table->string('number')->nullable();
-            $table->date('document_date')->nullable();
-            $table->json('metadata')->nullable();
-            $table->timestamps();
-        });
-    }
-
     public function test_astral_webhook_updates_etrn_status_when_signature_is_valid(): void
     {
         config()->set('epd.operator.webhook_secret', 'test-secret');
 
-        $orderId = \DB::table('orders')->insertGetId(['created_at' => now(), 'updated_at' => now()]);
-        $documentId = \DB::table('order_documents')->insertGetId([
+        $orderId = $this->insertOrderRow(['created_at' => now(), 'updated_at' => now()]);
+        $documentId = DB::table('order_documents')->insertGetId([
             'order_id' => $orderId,
             'type' => 'etrn',
             'status' => 'draft',
@@ -108,8 +77,8 @@ class EpdIntegrationEndpointsTest extends TestCase
     {
         config()->set('epd.integration.one_c_fresh_token', 'one-c-token');
 
-        $orderId = \DB::table('orders')->insertGetId(['created_at' => now(), 'updated_at' => now()]);
-        \DB::table('order_documents')->insert([
+        $orderId = $this->insertOrderRow(['created_at' => now(), 'updated_at' => now()]);
+        DB::table('order_documents')->insert([
             [
                 'order_id' => $orderId,
                 'type' => 'etrn',
@@ -144,7 +113,7 @@ class EpdIntegrationEndpointsTest extends TestCase
     {
         config()->set('epd.integration.one_c_fresh_token', 'one-c-token');
 
-        $orderId = \DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'order_number' => 'ORD-100',
             'loading_date' => '2026-05-06',
             'unloading_date' => '2026-05-07',
@@ -172,7 +141,7 @@ class EpdIntegrationEndpointsTest extends TestCase
     {
         config()->set('epd.integration.one_c_fresh_token', 'one-c-token');
 
-        $orderId = \DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'order_number' => null,
             'loading_date' => null,
             'unloading_date' => null,
@@ -194,8 +163,8 @@ class EpdIntegrationEndpointsTest extends TestCase
     {
         config()->set('epd.integration.one_c_fresh_token', 'one-c-token');
 
-        $orderId = \DB::table('orders')->insertGetId(['created_at' => now(), 'updated_at' => now()]);
-        \DB::table('order_documents')->insert([
+        $orderId = $this->insertOrderRow(['created_at' => now(), 'updated_at' => now()]);
+        DB::table('order_documents')->insert([
             [
                 'order_id' => $orderId,
                 'type' => 'etrn',
@@ -229,10 +198,10 @@ class EpdIntegrationEndpointsTest extends TestCase
     {
         config()->set('epd.integration.one_c_fresh_token', 'one-c-token');
 
-        $orderIdOne = \DB::table('orders')->insertGetId(['created_at' => now(), 'updated_at' => now()]);
-        $orderIdTwo = \DB::table('orders')->insertGetId(['created_at' => now(), 'updated_at' => now()]);
+        $orderIdOne = $this->insertOrderRow(['created_at' => now(), 'updated_at' => now()]);
+        $orderIdTwo = $this->insertOrderRow(['created_at' => now(), 'updated_at' => now()]);
 
-        \DB::table('order_documents')->insert([
+        DB::table('order_documents')->insert([
             [
                 'order_id' => $orderIdOne,
                 'type' => 'etrn',

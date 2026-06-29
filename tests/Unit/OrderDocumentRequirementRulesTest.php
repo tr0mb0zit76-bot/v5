@@ -8,14 +8,11 @@ use App\Models\OrderDocument;
 use App\Services\OrderDocumentRequirementService;
 use App\Support\OrderDocumentRequirementSlotBuilder;
 use App\Support\OrderDocumentTransportTypes;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class OrderDocumentRequirementRulesTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function closing_rules_do_not_accept_transport_documents(): void
     {

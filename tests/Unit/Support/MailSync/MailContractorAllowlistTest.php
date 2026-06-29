@@ -7,9 +7,7 @@ use App\Models\ContractorContact;
 use App\Support\MailSync\ImportedMailMessage;
 use App\Support\MailSync\MailContractorAllowlist;
 use App\Support\MailSync\MailImportAllowance;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class MailContractorAllowlistTest extends TestCase
@@ -85,27 +83,6 @@ class MailContractorAllowlistTest extends TestCase
 
     public function test_build_fresh_includes_contractor_contact_emails_via_chunk_by_id(): void
     {
-        $this->schemaDropMany(['contractor_contacts', 'contractors']);
-
-        Schema::create('contractors', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->string('email')->nullable();
-            $table->string('contact_person_email')->nullable();
-            $table->json('mail_sync_domains')->nullable();
-            $table->boolean('is_own_company')->default(false);
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('contractor_contacts', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('contractor_id')->constrained('contractors')->cascadeOnDelete();
-            $table->string('full_name')->nullable();
-            $table->string('email')->nullable();
-            $table->timestamps();
-        });
-
         $contractor = Contractor::query()->create([
             'name' => 'Клиент',
             'email' => null,

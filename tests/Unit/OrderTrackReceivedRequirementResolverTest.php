@@ -5,26 +5,18 @@ namespace Tests\Unit;
 use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Support\OrderTrackReceivedRequirementResolver;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class OrderTrackReceivedRequirementResolverTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_customer_ottn_schedule_requires_track_received(): void
     {
-        $order = Order::factory()->create([
+        $order = $this->createOrderWithClientSchedule([
+            'installments' => [
+                ['percent' => 100, 'basis' => 'ottn', 'offset_days' => 3],
+            ],
+        ], [
             'customer_payment_form' => 'bank_transfer',
-            'payment_terms' => json_encode([
-                'client' => [
-                    'payment_schedule' => [
-                        'installments' => [
-                            ['percent' => 100, 'basis' => 'ottn', 'offset_days' => 3],
-                        ],
-                    ],
-                ],
-            ], JSON_THROW_ON_ERROR),
         ]);
 
         $this->assertTrue(OrderTrackReceivedRequirementResolver::orderNeedsCustomerTrackReceived($order));
@@ -33,17 +25,12 @@ class OrderTrackReceivedRequirementResolverTest extends TestCase
 
     public function test_cash_customer_fttn_schedule_does_not_require_track_received(): void
     {
-        $order = Order::factory()->create([
+        $order = $this->createOrderWithClientSchedule([
+            'installments' => [
+                ['percent' => 100, 'basis' => 'fttn', 'offset_days' => 3],
+            ],
+        ], [
             'customer_payment_form' => 'cash',
-            'payment_terms' => json_encode([
-                'client' => [
-                    'payment_schedule' => [
-                        'installments' => [
-                            ['percent' => 100, 'basis' => 'fttn', 'offset_days' => 3],
-                        ],
-                    ],
-                ],
-            ], JSON_THROW_ON_ERROR),
         ]);
 
         $this->assertFalse(OrderTrackReceivedRequirementResolver::orderNeedsCustomerTrackReceived($order));
@@ -51,17 +38,12 @@ class OrderTrackReceivedRequirementResolverTest extends TestCase
 
     public function test_cash_customer_ottn_schedule_requires_track_received(): void
     {
-        $order = Order::factory()->create([
+        $order = $this->createOrderWithClientSchedule([
+            'installments' => [
+                ['percent' => 100, 'basis' => 'ottn', 'offset_days' => 5],
+            ],
+        ], [
             'customer_payment_form' => 'cash',
-            'payment_terms' => json_encode([
-                'client' => [
-                    'payment_schedule' => [
-                        'installments' => [
-                            ['percent' => 100, 'basis' => 'ottn', 'offset_days' => 5],
-                        ],
-                    ],
-                ],
-            ], JSON_THROW_ON_ERROR),
         ]);
 
         $this->assertTrue(OrderTrackReceivedRequirementResolver::orderNeedsCustomerTrackReceived($order));
@@ -69,12 +51,22 @@ class OrderTrackReceivedRequirementResolverTest extends TestCase
 
     public function test_carrier_fttn_receipt_in_contractors_costs_requires_track_received(): void
     {
-        $order = Order::factory()->create([
-            'carrier_payment_form' => 'bank_transfer',
-        ]);
+        $orderId = $this->insertOrderRow([]);
+        $order = Order::query()->findOrFail($orderId);
+        $order->wizard_state = [
+            'financial_term' => [
+                'client_payment_schedule' => [
+                    'installments' => [
+                        ['percent' => 100, 'basis' => 'fttn', 'offset_days' => 0],
+                    ],
+                ],
+            ],
+        ];
+        $order->save();
 
-        FinancialTerm::factory()->create([
-            'order_id' => $order->id,
+        $financialTerm = FinancialTerm::factory()->create([
+            'order_id' => $orderId,
+            'payment_terms_snapshot' => null,
             'contractors_costs' => [
                 [
                     'contractor_id' => 50,
@@ -88,9 +80,29 @@ class OrderTrackReceivedRequirementResolverTest extends TestCase
             ],
         ]);
 
-        $order->load('financialTerms');
+        $this->assertFalse(
+            OrderTrackReceivedRequirementResolver::orderNeedsCustomerTrackReceived($order, $financialTerm),
+        );
+        $this->assertTrue(
+            OrderTrackReceivedRequirementResolver::orderNeedsCarrierTrackReceived($order, $financialTerm),
+        );
+    }
 
-        $this->assertFalse(OrderTrackReceivedRequirementResolver::orderNeedsCustomerTrackReceived($order));
-        $this->assertTrue(OrderTrackReceivedRequirementResolver::orderNeedsCarrierTrackReceived($order));
+    /**
+     * @param  array<string, mixed>  $schedule
+     * @param  array<string, mixed>  $orderAttributes
+     */
+    private function createOrderWithClientSchedule(array $schedule, array $orderAttributes = []): Order
+    {
+        $orderId = $this->insertOrderRow($orderAttributes);
+        $order = Order::query()->findOrFail($orderId);
+        $order->wizard_state = [
+            'financial_term' => [
+                'client_payment_schedule' => $schedule,
+            ],
+        ];
+        $order->save();
+
+        return $order->fresh();
     }
 }

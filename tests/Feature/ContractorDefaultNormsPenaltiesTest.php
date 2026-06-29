@@ -4,14 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Contractor;
 use App\Support\PartyNormsPenalties;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class ContractorDefaultNormsPenaltiesTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function it_stores_default_customer_norms_penalties_on_contractor(): void
     {

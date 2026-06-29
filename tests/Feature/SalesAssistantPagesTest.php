@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\SalesBookArticle;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -13,8 +12,6 @@ use Tests\TestCase;
 
 class SalesAssistantPagesTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_guest_is_redirected_from_sales_assistant_book(): void
     {
         $this->get(route('sales-assistant.book'))->assertRedirect();

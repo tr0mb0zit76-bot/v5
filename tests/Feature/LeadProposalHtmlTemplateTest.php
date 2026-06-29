@@ -8,7 +8,6 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\Commercial\LeadProposalPdfService;
 use Database\Seeders\ProposalHtmlTemplateVariableSeeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
@@ -16,8 +15,6 @@ use Tests\TestCase;
 
 class LeadProposalHtmlTemplateTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         parent::setUp();

@@ -4,13 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Notifications\CabinetInAppNotification;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class CabinetInAppNotificationsTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_cabinet_summary_requires_authentication(): void
     {
         $this->getJson(route('cabinet-notifications.summary'))

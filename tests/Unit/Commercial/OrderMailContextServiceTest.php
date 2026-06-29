@@ -9,14 +9,11 @@ use App\Models\Order;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Commercial\OrderMailContextService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class OrderMailContextServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function it_returns_threads_and_compose_defaults_for_order(): void
     {

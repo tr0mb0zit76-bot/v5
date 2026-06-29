@@ -6,13 +6,10 @@ use App\Models\SalesBookArticle;
 use App\Models\SalesBookQuizAttempt;
 use App\Models\User;
 use App\Services\SalesBook\SalesBookQuizInsightsService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SalesBookQuizInsightsServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_it_builds_summary_by_user_and_recent_attempts(): void
     {
         $article = SalesBookArticle::query()->create([

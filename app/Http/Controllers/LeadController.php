@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\LeadCloseOutcomeFlag;
 use App\Http\Requests\AdvanceLeadProcessStageRequest;
+use App\Http\Requests\ConvertLeadRequest;
 use App\Http\Requests\MergeLeadPortraitRequest;
 use App\Http\Requests\StoreInlineOrderContractorRequest;
 use App\Http\Requests\StoreLeadAttachmentRequest;
@@ -40,6 +41,7 @@ use App\Services\Leads\TaskLeadTemplateBuilder;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\ActivityEventType;
 use App\Support\AtiDictionaryOptionCatalog;
+use App\Support\CardSmartLinksResolver;
 use App\Support\ContractorDecisionMakerLabel;
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
@@ -584,7 +586,17 @@ class LeadController extends Controller
         abort_if(blank($printFormTemplate->file_path), 422, 'У шаблона не загружен исходный DOCX-файл.');
         abort_unless($this->isTemplateAvailableForLead($printFormTemplate, $lead), 404);
 
+        $offer = $this->prepareOrUpdateLeadOffer($lead, $request->user(), $printFormTemplate);
         $generatedFile = $draftService->generate($printFormTemplate, $lead);
+
+        $offer->update([
+            'generated_file_path' => $generatedFile['path'],
+            'payload' => array_merge(is_array($offer->payload) ? $offer->payload : [], [
+                'print_form_template_id' => $printFormTemplate->id,
+                'print_form_template_name' => $printFormTemplate->name,
+                'generated_disk' => $generatedFile['disk'],
+            ]),
+        ]);
 
         return $draftResponseBuilder->fromGeneratedFile($request, $generatedFile);
     }
@@ -1354,6 +1366,7 @@ class LeadController extends Controller
                 ])->values()->all()
                 : [],
             'route_price_benchmark' => $this->leadRoutePriceBenchmark->benchmarkForLead($lead),
+            'smart_links' => app(CardSmartLinksResolver::class)->forLead($lead, request()->user()),
         ];
     }
 

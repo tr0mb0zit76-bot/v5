@@ -27,7 +27,7 @@ class OrderClosingDocumentsNotificationService
             return false;
         }
 
-        $order->refresh();
+        $order->loadMissing(['legs.routePoints', 'documents', 'client']);
 
         if ($this->alreadyNotified($order) || ! $this->isTransportCompleted($order)) {
             return false;

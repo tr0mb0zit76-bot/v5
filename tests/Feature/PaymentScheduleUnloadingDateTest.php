@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\OrderLeg;
 use App\Models\PaymentSchedule;
@@ -11,14 +10,11 @@ use App\Models\User;
 use App\Services\OrderCompensationService;
 use App\Support\OrderRouteMilestoneDateResolver;
 use App\Support\PaymentInstallmentPlanner;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class PaymentScheduleUnloadingDateTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_customer_planned_date_uses_actual_unloading_on_route_when_order_column_empty(): void
     {
         if (! Schema::hasTable('payment_schedules')) {
@@ -28,32 +24,25 @@ class PaymentScheduleUnloadingDateTest extends TestCase
         $manager = User::factory()->create();
         $unloadingActual = '2026-06-02';
 
-        $order = Order::factory()->create([
+        $order = $this->createOrderWithPaymentTerms([
             'manager_id' => $manager->id,
             'order_date' => '2026-06-01',
             'customer_rate' => 100000,
             'unloading_date' => null,
-            'payment_terms' => json_encode([
-                'client' => [
-                    'payment_schedule' => [
-                        'installments' => [
-                            [
-                                'percent' => 100,
-                                'offset_days' => 5,
-                                'offset_unit' => 'calendar_days',
-                                'anchor' => 'last_unloading',
-                                'basis' => 'unloading',
-                            ],
+        ], [
+            'client' => [
+                'payment_schedule' => [
+                    'installments' => [
+                        [
+                            'percent' => 100,
+                            'offset_days' => 5,
+                            'offset_unit' => 'calendar_days',
+                            'anchor' => 'last_unloading',
+                            'basis' => 'unloading',
                         ],
                     ],
                 ],
-            ], JSON_THROW_ON_ERROR),
-        ]);
-
-        FinancialTerm::factory()->create([
-            'order_id' => $order->id,
-            'client_price' => 100000,
-            'payment_terms_snapshot' => $order->payment_terms,
+            ],
         ]);
 
         $leg = OrderLeg::factory()->create([
@@ -77,7 +66,7 @@ class PaymentScheduleUnloadingDateTest extends TestCase
             ->where('party', 'customer')
             ->first();
         $this->assertNotNull($row);
-        $this->assertSame('2026-06-09', $row->planned_date?->toDateString());
+        $this->assertSame('2026-06-07', $row->planned_date?->toDateString());
     }
 
     public function test_cash_customer_schedule_uses_unloading_instead_of_fttn_documents(): void
@@ -89,33 +78,26 @@ class PaymentScheduleUnloadingDateTest extends TestCase
         $manager = User::factory()->create();
         $unloadingActual = '2026-06-02';
 
-        $order = Order::factory()->create([
+        $order = $this->createOrderWithPaymentTerms([
             'manager_id' => $manager->id,
             'order_date' => '2026-06-01',
             'customer_rate' => 100000,
             'customer_payment_form' => 'cash',
             'unloading_date' => null,
-            'payment_terms' => json_encode([
-                'client' => [
-                    'payment_schedule' => [
-                        'installments' => [
-                            [
-                                'percent' => 100,
-                                'offset_days' => 3,
-                                'offset_unit' => 'calendar_days',
-                                'anchor' => 'last_unloading',
-                                'basis' => 'fttn',
-                            ],
+        ], [
+            'client' => [
+                'payment_schedule' => [
+                    'installments' => [
+                        [
+                            'percent' => 100,
+                            'offset_days' => 3,
+                            'offset_unit' => 'calendar_days',
+                            'anchor' => 'last_unloading',
+                            'basis' => 'fttn',
                         ],
                     ],
                 ],
-            ], JSON_THROW_ON_ERROR),
-        ]);
-
-        FinancialTerm::factory()->create([
-            'order_id' => $order->id,
-            'client_price' => 100000,
-            'payment_terms_snapshot' => $order->payment_terms,
+            ],
         ]);
 
         $leg = OrderLeg::factory()->create([

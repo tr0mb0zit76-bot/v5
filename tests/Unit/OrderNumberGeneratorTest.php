@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\Contractor;
 use App\Services\OrderNumberGenerator;
+use App\Services\OrderNumberingService;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
@@ -35,7 +36,7 @@ class OrderNumberGeneratorTest extends TestCase
             'metadata' => $metadata,
         ]);
 
-        $generator = new OrderNumberGenerator;
+        $generator = new OrderNumberGenerator($this->createMock(OrderNumberingService::class));
         $method = new ReflectionMethod(OrderNumberGenerator::class, 'resolveCompanyCode');
         $result = $method->invoke($generator, $contractor);
 
@@ -49,7 +50,7 @@ class OrderNumberGeneratorTest extends TestCase
             'metadata' => ['order_company_code' => '  XX '],
         ]);
 
-        $generator = new OrderNumberGenerator;
+        $generator = new OrderNumberGenerator($this->createMock(OrderNumberingService::class));
         $method = new ReflectionMethod(OrderNumberGenerator::class, 'resolveCompanyCode');
 
         $this->assertSame('XX', $method->invoke($generator, $contractor));

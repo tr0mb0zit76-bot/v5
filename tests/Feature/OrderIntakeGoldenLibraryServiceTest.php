@@ -8,14 +8,11 @@ use App\Models\OrderIntakeDraft;
 use App\Models\OrderIntakeGoldenRecord;
 use App\Models\User;
 use App\Services\OrderIntakeGoldenLibraryService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class OrderIntakeGoldenLibraryServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     private OrderIntakeGoldenLibraryService $library;
 
     protected function setUp(): void

@@ -5,13 +5,10 @@ namespace Tests\Feature;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\RoleAccess;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class UserMultipleRolesTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_user_with_manager_and_dispatcher_roles_merges_visibility_areas(): void
     {
         $managerRole = Role::query()->create([

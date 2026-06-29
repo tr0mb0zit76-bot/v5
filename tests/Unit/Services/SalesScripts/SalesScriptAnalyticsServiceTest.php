@@ -11,14 +11,11 @@ use App\Models\SalesScriptVersion;
 use App\Models\User;
 use App\Services\SalesScripts\SalesScriptAnalyticsService;
 use Database\Seeders\SalesScriptsDemoSeeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class SalesScriptAnalyticsServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_reaction_matrix_calculates_success_and_lost_rates(): void
     {
         if (! Schema::hasTable('sales_script_play_sessions')) {

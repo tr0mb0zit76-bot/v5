@@ -115,24 +115,24 @@ class BackfillContractorDefaults extends Command
         $updates = [];
 
         $customerOrder = DB::table('orders')
-            ->select([
-                'customer_payment_form',
-                'customer_payment_term',
-                'payment_terms',
-                'special_notes',
-            ])
+            ->select(array_values(array_filter([
+                Schema::hasColumn('orders', 'customer_payment_form') ? 'customer_payment_form' : null,
+                Schema::hasColumn('orders', 'customer_payment_term') ? 'customer_payment_term' : null,
+                Schema::hasColumn('orders', 'payment_terms') ? 'payment_terms' : null,
+                Schema::hasColumn('orders', 'special_notes') ? 'special_notes' : null,
+            ])))
             ->where('customer_id', $contractor->id)
             ->orderByDesc('order_date')
             ->orderByDesc('id')
             ->first();
 
         $carrierOrder = DB::table('orders')
-            ->select([
-                'carrier_payment_form',
-                'carrier_payment_term',
-                'payment_terms',
-                'special_notes',
-            ])
+            ->select(array_values(array_filter([
+                Schema::hasColumn('orders', 'carrier_payment_form') ? 'carrier_payment_form' : null,
+                Schema::hasColumn('orders', 'carrier_payment_term') ? 'carrier_payment_term' : null,
+                Schema::hasColumn('orders', 'payment_terms') ? 'payment_terms' : null,
+                Schema::hasColumn('orders', 'special_notes') ? 'special_notes' : null,
+            ])))
             ->where('carrier_id', $contractor->id)
             ->orderByDesc('order_date')
             ->orderByDesc('id')

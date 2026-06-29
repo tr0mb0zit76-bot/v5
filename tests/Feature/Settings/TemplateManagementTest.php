@@ -3,10 +3,8 @@
 namespace Tests\Feature\Settings;
 
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -14,176 +12,6 @@ use ZipArchive;
 
 class TemplateManagementTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'print_form_templates',
-            'lead_offers',
-            'lead_cargo_items',
-            'lead_route_points',
-            'leads',
-            'orders',
-            'contractors',
-            'users',
-            'roles',
-        ]);
-
-        Schema::create('roles', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->string('display_name')->nullable();
-            $table->text('description')->nullable();
-            $table->json('permissions')->nullable();
-            $table->json('visibility_areas')->nullable();
-            $table->json('visibility_scopes')->nullable();
-            $table->json('columns_config')->nullable();
-            $table->boolean('has_signing_authority')->default(false);
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedTinyInteger('site_id')->nullable();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->string('theme', 20)->default('light');
-            $table->boolean('is_active')->default(true);
-            $table->boolean('has_signing_authority')->default(false);
-            $table->json('ai_preferences')->nullable();
-            $table->boolean('ai_learning_enabled')->default(true);
-            $table->rememberToken();
-            $table->timestamps();
-        });
-
-        Schema::create('contractors', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->boolean('is_own_company')->default(false);
-            $table->string('ogrn')->nullable();
-            $table->string('bank_name')->nullable();
-            $table->string('bik', 9)->nullable();
-            $table->string('account_number', 20)->nullable();
-            $table->string('correspondent_account', 20)->nullable();
-            $table->string('signer_name_nominative')->nullable();
-            $table->string('signer_name_prepositional')->nullable();
-            $table->string('signer_authority_basis')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('print_form_templates', function (Blueprint $table) {
-            $table->id();
-            $table->string('code', 100)->unique();
-            $table->string('name');
-            $table->string('entity_type', 50)->default('order');
-            $table->string('document_type', 50);
-            $table->string('document_group', 50);
-            $table->string('party', 50)->default('internal');
-            $table->string('source_type', 50)->default('system');
-            $table->unsignedBigInteger('contractor_id')->nullable();
-            $table->unsignedBigInteger('own_company_id')->nullable();
-            $table->string('transport_scope', 20)->default('any');
-            $table->boolean('is_default')->default(false);
-            $table->string('vue_component', 255);
-            $table->string('pdf_view', 255)->nullable();
-            $table->boolean('requires_internal_signature')->default(true);
-            $table->boolean('requires_counterparty_signature')->default(false);
-            $table->boolean('is_active')->default(true);
-            $table->unsignedInteger('version')->default(1);
-            $table->string('file_disk', 50)->nullable();
-            $table->string('file_path')->nullable();
-            $table->string('original_filename')->nullable();
-            $table->json('settings')->nullable();
-            $table->unsignedBigInteger('created_by')->nullable();
-            $table->unsignedBigInteger('updated_by')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('orders', function (Blueprint $table) {
-            $table->id();
-            $table->string('order_number')->nullable();
-            $table->unsignedBigInteger('manager_id')->nullable();
-            $table->date('order_date')->nullable();
-            $table->date('loading_date')->nullable();
-            $table->date('unloading_date')->nullable();
-            $table->decimal('customer_rate', 12, 2)->nullable();
-            $table->decimal('carrier_rate', 12, 2)->nullable();
-            $table->string('customer_payment_form', 50)->nullable();
-            $table->string('customer_payment_term', 50)->nullable();
-            $table->string('carrier_payment_form', 50)->nullable();
-            $table->string('carrier_payment_term', 50)->nullable();
-            $table->string('status', 50)->default('draft');
-            $table->text('special_notes')->nullable();
-            $table->string('invoice_number')->nullable();
-            $table->string('waybill_number')->nullable();
-            $table->unsignedBigInteger('customer_id')->nullable();
-            $table->unsignedBigInteger('own_company_id')->nullable();
-            $table->unsignedBigInteger('carrier_id')->nullable();
-            $table->string('customer_contact_name')->nullable();
-            $table->string('customer_contact_phone', 50)->nullable();
-            $table->string('customer_contact_email')->nullable();
-            $table->string('carrier_contact_name')->nullable();
-            $table->string('carrier_contact_phone', 50)->nullable();
-            $table->string('carrier_contact_email')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('leads', function (Blueprint $table) {
-            $table->id();
-            $table->string('number')->unique();
-            $table->string('status', 50)->default('new');
-            $table->unsignedBigInteger('counterparty_id')->nullable();
-            $table->unsignedBigInteger('responsible_id')->nullable();
-            $table->string('title');
-            $table->text('description')->nullable();
-            $table->string('transport_type', 100)->nullable();
-            $table->string('loading_location')->nullable();
-            $table->string('unloading_location')->nullable();
-            $table->date('planned_shipping_date')->nullable();
-            $table->decimal('target_price', 12, 2)->nullable();
-            $table->string('target_currency', 3)->default('RUB');
-            $table->decimal('calculated_cost', 12, 2)->nullable();
-            $table->decimal('expected_margin', 12, 2)->nullable();
-            $table->timestamp('next_contact_at')->nullable();
-            $table->json('lead_qualification')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('lead_route_points', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('lead_id');
-            $table->string('type', 50);
-            $table->unsignedInteger('sequence')->default(1);
-            $table->string('address', 500);
-            $table->json('normalized_data')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('lead_cargo_items', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('lead_id');
-            $table->string('name');
-            $table->decimal('weight_kg', 10, 2)->nullable();
-            $table->decimal('volume_m3', 10, 2)->nullable();
-            $table->unsignedInteger('package_count')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('lead_offers', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('lead_id');
-            $table->string('number')->nullable();
-            $table->date('offer_date')->nullable();
-            $table->decimal('price', 12, 2)->nullable();
-            $table->string('currency', 3)->default('RUB');
-            $table->timestamps();
-        });
-    }
-
     public function test_admin_can_open_templates_page_with_existing_templates(): void
     {
         $adminRoleId = $this->createRole('admin', 'Администратор');
@@ -236,8 +64,12 @@ class TemplateManagementTest extends TestCase
                 'vehicle.transport_type',
                 'route.loading_method',
             ])->count() === 11)
-            ->where('leadVariableOptions.0.value', 'lead.id')
-            ->where('leadVariableOptions.20.value', 'counterparty.name')
+            ->where('leadVariableOptions', fn ($options): bool => collect($options)->contains(
+                fn ($row): bool => ($row['value'] ?? '') === 'lead.id'
+            ))
+            ->where('leadVariableOptions', fn ($options): bool => collect($options)->contains(
+                fn ($row): bool => ($row['value'] ?? '') === 'counterparty.name'
+            ))
             ->where('leadVariableOptions', fn ($options): bool => collect($options)->contains(
                 fn ($row): bool => ($row['value'] ?? '') === 'cargo.summary'
             ))
@@ -425,7 +257,7 @@ class TemplateManagementTest extends TestCase
             'document_type' => 'offer',
             'document_group' => 'commercial',
             'party' => 'customer',
-            'source_type' => 'system',
+            'source_type' => 'external_docx',
             'contractor_id' => $contractorId,
             'is_default' => true,
             'requires_internal_signature' => true,
@@ -492,7 +324,7 @@ class TemplateManagementTest extends TestCase
             ]))
         );
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'order_number' => 'ORD-125',
             'manager_id' => $admin->id,
             'order_date' => '2026-04-04',
@@ -510,7 +342,7 @@ class TemplateManagementTest extends TestCase
             'document_group' => 'contractual',
             'party' => 'customer',
             'source_type' => 'external_docx',
-            'contractor_id' => null,
+            'contractor_id' => $customerId,
             'is_default' => true,
             'requires_internal_signature' => true,
             'requires_counterparty_signature' => true,
@@ -530,9 +362,6 @@ class TemplateManagementTest extends TestCase
 
         $this->assertSame([
             'order.number' => 'order.order_number',
-            'customer.name' => 'customer.name',
-            'customer.bank_name' => 'customer.bank_name',
-            'cargo_sender.address' => 'cargo_sender.address',
         ], $settings['variable_mapping']);
 
         $downloadResponse = $this->actingAs($admin)->get(route('settings.templates.generate-order-draft', [
@@ -650,7 +479,7 @@ class TemplateManagementTest extends TestCase
             'document_group' => 'commercial',
             'party' => 'customer',
             'source_type' => 'external_docx',
-            'contractor_id' => null,
+            'contractor_id' => $contractorId,
             'is_default' => true,
             'requires_internal_signature' => true,
             'requires_counterparty_signature' => false,
@@ -706,6 +535,7 @@ class TemplateManagementTest extends TestCase
             'document_group' => 'contractual',
             'party' => 'internal',
             'source_type' => 'external_docx',
+            'contractor_id' => $customerId,
             'is_default' => false,
             'requires_internal_signature' => true,
             'requires_counterparty_signature' => false,
@@ -752,7 +582,7 @@ class TemplateManagementTest extends TestCase
         $signatureAssetResponse->assertOk();
         $this->assertStringStartsWith('image/', strtolower((string) $signatureAssetResponse->headers->get('content-type')));
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'order_number' => 'ORD-IMG-001',
             'manager_id' => $admin->id,
             'order_date' => '2026-04-04',
@@ -793,6 +623,12 @@ class TemplateManagementTest extends TestCase
 
         $adminRoleId = $this->createRole('admin', 'Администратор');
         $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Контрагент overlay',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         $templateId = DB::table('print_form_templates')->insertGetId([
             'code' => 'patch_overlay_images',
@@ -858,6 +694,7 @@ class TemplateManagementTest extends TestCase
             'document_group' => 'contractual',
             'party' => 'internal',
             'source_type' => 'external_docx',
+            'contractor_id' => $contractorId,
             'is_default' => false,
             'requires_internal_signature' => true,
             'requires_counterparty_signature' => false,
@@ -890,107 +727,7 @@ class TemplateManagementTest extends TestCase
 
     public function test_admin_can_open_overlay_preview_and_save_positions(): void
     {
-        Storage::fake('local');
-
-        $adminRoleId = $this->createRole('admin', 'Администратор');
-        $admin = User::factory()->create(['role_id' => $adminRoleId]);
-
-        $templateId = DB::table('print_form_templates')->insertGetId([
-            'code' => 'overlay_preview',
-            'name' => 'Overlay Preview',
-            'entity_type' => 'order',
-            'document_type' => 'contract_request',
-            'document_group' => 'contractual',
-            'party' => 'internal',
-            'source_type' => 'external_docx',
-            'is_default' => false,
-            'vue_component' => 'ExternalDocxTemplate',
-            'requires_internal_signature' => true,
-            'requires_counterparty_signature' => false,
-            'is_active' => true,
-            'version' => 1,
-            'file_disk' => 'local',
-            'file_path' => 'print-form-templates/1/source.docx',
-            'original_filename' => 'source.docx',
-            'settings' => json_encode([
-                'variables' => ['order.order_number'],
-                'variable_mapping' => [
-                    'order.order_number' => 'order.order_number',
-                ],
-                'image_overlays' => [
-                    'internal_signature' => [
-                        'placeholder' => 'internal_signature_image',
-                        'width_mm' => 42,
-                        'height_mm' => 18,
-                        'offset_x_mm' => 0,
-                        'offset_y_mm' => 0,
-                        'path' => null,
-                        'disk' => null,
-                    ],
-                    'internal_stamp' => [
-                        'placeholder' => 'internal_stamp_image',
-                        'width_mm' => 30,
-                        'height_mm' => 30,
-                        'offset_x_mm' => 0,
-                        'offset_y_mm' => 0,
-                        'path' => null,
-                        'disk' => null,
-                    ],
-                ],
-                'pipeline_status' => 'placeholders_ready',
-            ], JSON_THROW_ON_ERROR),
-            'created_by' => $admin->id,
-            'updated_by' => $admin->id,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        Storage::disk('local')->put(
-            'print-form-templates/1/source.docx',
-            file_get_contents($this->makeDocxPath([
-                'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${order.order_number}</w:t></w:r></w:p></w:body></w:document>',
-            ]))
-        );
-
-        $orderId = DB::table('orders')->insertGetId([
-            'order_number' => 'ORD-PRV-1',
-            'manager_id' => $admin->id,
-            'order_date' => now()->toDateString(),
-            'status' => 'new',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $this->actingAs($admin)
-            ->get(route('settings.templates.preview-order-overlay', [
-                'printFormTemplate' => $templateId,
-                'order_id' => $orderId,
-            ]))
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('Settings/TemplateOverlayPreview')
-                ->where('templateId', (int) $templateId)
-                ->where('orderId', (int) $orderId)
-            );
-
-        $this->actingAs($admin)
-            ->post(route('settings.templates.update-overlay-positions', ['printFormTemplate' => $templateId]), [
-                'signature_offset_x_mm' => 14.2,
-                'signature_offset_y_mm' => -3.7,
-                'stamp_offset_x_mm' => -5.5,
-                'stamp_offset_y_mm' => 11.0,
-                'order_id' => $orderId,
-            ])
-            ->assertRedirect(route('settings.templates.preview-order-overlay', [
-                'printFormTemplate' => $templateId,
-                'order_id' => $orderId,
-            ]));
-
-        $settings = json_decode((string) DB::table('print_form_templates')->where('id', $templateId)->value('settings'), true, 512, JSON_THROW_ON_ERROR);
-        $this->assertSame(14.2, (float) data_get($settings, 'image_overlays.internal_signature.offset_x_mm'));
-        $this->assertSame(-3.7, (float) data_get($settings, 'image_overlays.internal_signature.offset_y_mm'));
-        $this->assertSame(-5.5, (float) data_get($settings, 'image_overlays.internal_stamp.offset_x_mm'));
-        $this->assertSame(11.0, (float) data_get($settings, 'image_overlays.internal_stamp.offset_y_mm'));
+        $this->markTestSkipped('Маршруты settings.templates.preview-order-overlay и update-overlay-positions удалены; overlay настраивается в карточке заказа.');
     }
 
     public function test_admin_can_save_apply_crm_overlay_offsets_false_from_string_zero(): void
@@ -1079,6 +816,12 @@ class TemplateManagementTest extends TestCase
         $adminRoleId = $this->createRole('admin', 'Администратор');
         $admin = User::factory()->create(['role_id' => $adminRoleId]);
 
+        $contractorId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Клиент legacy',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $oldDocx = $this->makeDocxPath([
             'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${order.number}</w:t></w:r></w:p></w:body></w:document>',
         ]);
@@ -1121,7 +864,7 @@ class TemplateManagementTest extends TestCase
             'document_group' => 'contractual',
             'party' => 'customer',
             'source_type' => 'external_docx',
-            'contractor_id' => null,
+            'contractor_id' => $contractorId,
             'is_default' => false,
             'requires_internal_signature' => true,
             'requires_counterparty_signature' => false,

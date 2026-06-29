@@ -7,14 +7,11 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\Mcp\TaskMcpService;
 use Illuminate\Auth\AuthenticationException;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class TaskMcpServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         try {

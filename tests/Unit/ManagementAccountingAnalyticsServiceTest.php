@@ -2,128 +2,27 @@
 
 namespace Tests\Unit;
 
+use App\Models\BudgetOpexArticle;
 use App\Models\ManagementExpenseCategory;
-use App\Models\ManagementStatementLine;
 use App\Models\PaymentSchedulePaymentEvent;
 use App\Services\ManagementAccounting\ManagementAccountingAnalyticsService;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ManagementAccountingAnalyticsServiceTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'payment_schedule_payment_events',
-            'management_statement_lines',
-            'management_expense_categories',
-            'budget_plan_snapshot_lines',
-            'budget_plan_snapshots',
-            'budget_scenarios',
-            'budget_opex_articles',
-        ]);
-
-        Schema::create('management_expense_categories', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('parent_id')->nullable();
-            $table->string('code', 64)->unique();
-            $table->string('name');
-            $table->string('kind', 32);
-            $table->string('flow', 8)->default('out');
-            $table->boolean('is_system')->default(false);
-            $table->boolean('is_active')->default(true);
-            $table->boolean('include_in_budget')->default(false);
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->timestamps();
-        });
-
-        Schema::create('management_statement_lines', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('bank_account_id')->default(1);
-            $table->string('line_hash', 64);
-            $table->date('operation_date');
-            $table->string('direction', 8);
-            $table->decimal('amount', 14, 2);
-            $table->string('status', 16)->default('pending');
-            $table->unsignedBigInteger('allocation_category_id')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('payment_schedule_payment_events', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('order_id');
-            $table->unsignedBigInteger('contractor_id')->nullable();
-            $table->unsignedBigInteger('payment_schedule_id')->nullable();
-            $table->string('party', 16);
-            $table->decimal('amount', 14, 2);
-            $table->date('payment_date');
-            $table->string('payment_method', 50)->nullable();
-            $table->string('transaction_reference', 100)->nullable();
-            $table->text('notes')->nullable();
-            $table->timestamp('reversed_at')->nullable();
-            $table->unsignedBigInteger('reversed_by')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('budget_opex_articles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->string('cost_type', 32);
-            $table->decimal('amount_monthly', 14, 2)->default(0);
-            $table->decimal('percent_of_margin', 8, 2)->nullable();
-            $table->unsignedTinyInteger('ramp_months')->nullable();
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->unsignedBigInteger('management_expense_category_id')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('budget_scenarios', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->json('inputs');
-            $table->timestamps();
-        });
-
-        Schema::create('budget_plan_snapshots', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('scenario_id');
-            $table->string('period_label');
-            $table->date('period_start');
-            $table->date('period_end');
-            $table->timestamp('approved_at');
-            $table->unsignedBigInteger('approved_by_user_id')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('budget_plan_snapshot_lines', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('snapshot_id');
-            $table->date('month');
-            $table->unsignedBigInteger('opex_article_id')->nullable();
-            $table->unsignedBigInteger('category_id')->nullable();
-            $table->string('article_name');
-            $table->decimal('planned_amount', 14, 2)->default(0);
-            $table->timestamps();
-        });
-    }
-
     public function test_builds_monthly_actuals_and_plan_totals(): void
     {
-        $category = ManagementExpenseCategory::query()->create([
-            'code' => 'bank_fees',
-            'name' => 'Банковские комиссии',
+        $category = $this->createManagementExpenseCategory([
+            'name' => 'Банковские комиссии тест',
             'kind' => 'overhead',
-            'is_system' => true,
-            'is_active' => true,
             'include_in_budget' => true,
             'sort_order' => 10,
         ]);
 
-        ManagementStatementLine::query()->create([
-            'bank_account_id' => 1,
+        $bankAccountId = $this->createManagementBankAccount()->id;
+
+        $this->createManagementStatementLine([
+            'bank_account_id' => $bankAccountId,
             'line_hash' => 'hash-out',
             'operation_date' => '2026-06-05',
             'direction' => 'out',
@@ -132,8 +31,8 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
             'allocation_category_id' => $category->id,
         ]);
 
-        ManagementStatementLine::query()->create([
-            'bank_account_id' => 1,
+        $this->createManagementStatementLine([
+            'bank_account_id' => $bankAccountId,
             'line_hash' => 'hash-in',
             'operation_date' => '2026-06-10',
             'direction' => 'in',
@@ -142,14 +41,12 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
             'allocation_category_id' => $category->id,
         ]);
 
-        \DB::table('budget_opex_articles')->insert([
+        BudgetOpexArticle::query()->create([
             'name' => 'Офис',
-            'cost_type' => 'fixed_monthly',
+            'cost_type' => BudgetOpexArticle::COST_FIXED_MONTHLY,
             'amount_monthly' => 100000,
             'sort_order' => 10,
             'management_expense_category_id' => $category->id,
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
 
         $result = app(ManagementAccountingAnalyticsService::class)->build('month', '2026-06-01');
@@ -169,17 +66,11 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
 
     public function test_uses_snapshot_plan_when_available(): void
     {
-        $category = ManagementExpenseCategory::query()->create([
-            'code' => 'bank_fees',
-            'name' => 'Банковские комиссии',
-            'kind' => 'overhead',
-            'is_system' => true,
-            'is_active' => true,
-            'include_in_budget' => true,
-            'sort_order' => 10,
-        ]);
+        $category = ManagementExpenseCategory::query()
+            ->where('code', 'bank_fees')
+            ->firstOrFail();
 
-        \DB::table('budget_scenarios')->insert([
+        $scenarioId = \DB::table('budget_scenarios')->insertGetId([
             'name' => 'Основной',
             'inputs' => json_encode(['horizon_months' => 12]),
             'created_at' => now(),
@@ -187,7 +78,7 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
         ]);
 
         $snapshotId = \DB::table('budget_plan_snapshots')->insertGetId([
-            'scenario_id' => 1,
+            'scenario_id' => $scenarioId,
             'period_label' => 'Июнь 2026',
             'period_start' => '2026-06-01',
             'period_end' => '2026-12-31',
@@ -225,17 +116,14 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
 
     public function test_includes_customer_payments_from_payment_schedule_events(): void
     {
-        $customerCategory = ManagementExpenseCategory::query()->create([
-            'code' => 'operational_customer_in',
-            'name' => 'Оплата от заказчика',
-            'kind' => 'operational_in',
-            'is_system' => true,
-            'is_active' => true,
-            'sort_order' => 5,
-        ]);
+        $customerCategory = ManagementExpenseCategory::query()
+            ->where('code', 'operational_customer_in')
+            ->firstOrFail();
+
+        $orderId = $this->insertOrderRow([]);
 
         PaymentSchedulePaymentEvent::query()->create([
-            'order_id' => 5,
+            'order_id' => $orderId,
             'party' => 'customer',
             'amount' => 620000,
             'payment_date' => '2026-03-15',
@@ -243,7 +131,7 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
         ]);
 
         PaymentSchedulePaymentEvent::query()->create([
-            'order_id' => 5,
+            'order_id' => $orderId,
             'party' => 'customer',
             'amount' => 620000,
             'payment_date' => '2026-03-16',
@@ -260,18 +148,10 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
 
     public function test_pivot_includes_payment_events_when_date_is_datetime_string(): void
     {
-        ManagementExpenseCategory::query()->create([
-            'code' => 'operational_customer_in',
-            'name' => 'Оплата от заказчика',
-            'kind' => 'operational_in',
-            'flow' => 'in',
-            'is_system' => true,
-            'is_active' => true,
-            'sort_order' => 5,
-        ]);
+        $orderId = $this->insertOrderRow([]);
 
         PaymentSchedulePaymentEvent::query()->create([
-            'order_id' => 1,
+            'order_id' => $orderId,
             'party' => 'customer',
             'amount' => 10000,
             'payment_date' => '2026-06-03',
@@ -293,17 +173,10 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
 
     public function test_excludes_reversed_payment_schedule_events_from_actuals(): void
     {
-        ManagementExpenseCategory::query()->create([
-            'code' => 'operational_customer_in',
-            'name' => 'Оплата от заказчика',
-            'kind' => 'operational_in',
-            'is_system' => true,
-            'is_active' => true,
-            'sort_order' => 5,
-        ]);
+        $orderId = $this->insertOrderRow([]);
 
         PaymentSchedulePaymentEvent::query()->create([
-            'order_id' => 5,
+            'order_id' => $orderId,
             'party' => 'customer',
             'amount' => 620000,
             'payment_date' => '2026-03-15',

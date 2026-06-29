@@ -28,6 +28,7 @@ use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadOfferMailController;
 use App\Http\Controllers\LoadingPlannerController;
 use App\Http\Controllers\MailMailboxController;
+use App\Http\Controllers\MailThreadAnalysisController;
 use App\Http\Controllers\ManagementAccountingController;
 use App\Http\Controllers\ManagementAccountingImportController;
 use App\Http\Controllers\MessengerController;
@@ -249,6 +250,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/messages/{mailMessage}/attachments/{attachmentIndex}/preview', [MailMailboxController::class, 'previewAttachment'])
             ->whereNumber('attachmentIndex')
             ->name('messages.attachments.preview');
+        Route::post('/threads/{mailThread}/ai/summarize', [MailThreadAnalysisController::class, 'summarize'])->name('threads.ai.summarize');
+        Route::post('/threads/{mailThread}/ai/draft-reply', [MailThreadAnalysisController::class, 'draftReply'])->name('threads.ai.draft-reply');
+        Route::post('/threads/{mailThread}/ai/next-step', [MailThreadAnalysisController::class, 'suggestNextStep'])->name('threads.ai.next-step');
+        Route::post('/ai/feedback', [MailThreadAnalysisController::class, 'feedback'])->name('ai.feedback');
     });
 
     Route::middleware('visibility.area:sales_assistant_scripts')->group(function () {
@@ -409,6 +414,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/orders/{order}/documents/{orderDocument}/overlay-positions', 'updateOverlayPositions')->name('orders.documents.update-overlay-positions');
         Route::get('/orders/{order}/documents/{orderDocument}/download-draft', 'downloadDraft')->name('orders.documents.download-draft');
         Route::get('/orders/{order}/documents/{orderDocument}/download-final', 'downloadFinal')->name('orders.documents.download-final');
+        Route::post('/orders/{order}/documents/{orderDocument}/send-email', 'sendByEmail')->name('orders.documents.send-email');
     });
 
     Route::controller(UserManagementController::class)->middleware('visibility.area:settings')->group(function () {

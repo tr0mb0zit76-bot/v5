@@ -3,127 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class SalaryPayrollManagementTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'salary_payout_allocations',
-            'salary_payouts',
-            'salary_accruals',
-            'salary_periods',
-            'payment_schedules',
-            'orders',
-            'users',
-            'roles',
-        ]);
-
-        Schema::create('roles', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->string('display_name')->nullable();
-            $table->json('permissions')->nullable();
-            $table->json('visibility_areas')->nullable();
-            $table->json('visibility_scopes')->nullable();
-            $table->json('columns_config')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->boolean('is_active')->default(true);
-            $table->rememberToken();
-            $table->timestamps();
-        });
-
-        Schema::create('orders', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('manager_id')->nullable();
-            $table->date('order_date')->nullable();
-            $table->decimal('delta', 12, 2)->nullable();
-            $table->decimal('kpi_percent', 5, 2)->nullable();
-            $table->decimal('salary_accrued', 12, 2)->default(0);
-            $table->decimal('customer_rate', 12, 2)->nullable();
-            $table->softDeletes();
-            $table->timestamps();
-        });
-
-        Schema::create('payment_schedules', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('order_id');
-            $table->unsignedBigInteger('parent_payment_id')->nullable();
-            $table->enum('party', ['customer', 'carrier']);
-            $table->decimal('amount', 12, 2);
-            $table->decimal('paid_amount', 12, 2)->nullable();
-            $table->boolean('is_partial')->default(false);
-            $table->date('actual_date')->nullable();
-            $table->enum('status', ['pending', 'paid', 'overdue', 'cancelled'])->default('pending');
-            $table->timestamps();
-        });
-
-        Schema::create('salary_periods', function (Blueprint $table) {
-            $table->id();
-            $table->date('period_start');
-            $table->date('period_end');
-            $table->string('period_type', 10);
-            $table->string('status', 20)->default('draft');
-            $table->text('notes')->nullable();
-            $table->unsignedBigInteger('created_by')->nullable();
-            $table->unsignedBigInteger('approved_by')->nullable();
-            $table->unsignedBigInteger('closed_by')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('salary_accruals', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('period_id');
-            $table->unsignedBigInteger('user_id');
-            $table->unsignedBigInteger('order_id');
-            $table->date('order_date_snapshot')->nullable();
-            $table->decimal('delta_snapshot', 14, 2)->default(0);
-            $table->decimal('salary_amount', 14, 2)->default(0);
-            $table->decimal('customer_rate_snapshot', 14, 2)->default(0);
-            $table->decimal('paid_customer_amount_at_accrual', 14, 2)->default(0);
-            $table->decimal('payable_amount_computed', 14, 2)->default(0);
-            $table->decimal('paid_amount_fact', 14, 2)->default(0);
-            $table->decimal('unpaid_amount', 14, 2)->default(0);
-            $table->json('meta')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('salary_payouts', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('period_id');
-            $table->unsignedBigInteger('user_id');
-            $table->decimal('amount', 14, 2);
-            $table->date('payout_date');
-            $table->string('type', 20)->default('salary');
-            $table->text('comment')->nullable();
-            $table->unsignedBigInteger('created_by')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('salary_payout_allocations', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('payout_id');
-            $table->unsignedBigInteger('accrual_id');
-            $table->decimal('amount', 14, 2);
-            $table->timestamps();
-        });
-    }
-
     public function test_can_create_recalculate_and_pay_salary_period(): void
     {
         $roleId = DB::table('roles')->insertGetId([
@@ -137,7 +22,7 @@ class SalaryPayrollManagementTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $user->id,
             'order_date' => '2026-02-20',
             'delta' => 500000,
@@ -147,15 +32,16 @@ class SalaryPayrollManagementTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        DB::table('payment_schedules')->insert([
+        DB::table('payment_schedules')->insert(array_filter([
             'order_id' => $orderId,
             'party' => 'customer',
             'amount' => 1000000,
+            'paid_amount' => Schema::hasColumn('payment_schedules', 'paid_amount') ? 1000000 : null,
             'actual_date' => '2026-02-22',
             'status' => 'paid',
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ], fn (mixed $value): bool => $value !== null));
 
         $createResponse = $this->actingAs($user)->post(route('finance.salary.periods.store'), [
             'period_start' => '2026-02-16',
@@ -207,7 +93,7 @@ class SalaryPayrollManagementTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $user->id,
             'order_date' => '2026-03-05',
             'delta' => 200000,
@@ -274,7 +160,7 @@ class SalaryPayrollManagementTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $user->id,
             'order_date' => '2026-04-10',
             'delta' => 200000,
@@ -320,7 +206,7 @@ class SalaryPayrollManagementTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $user->id,
             'order_date' => '2026-04-10',
             'delta' => 359800,

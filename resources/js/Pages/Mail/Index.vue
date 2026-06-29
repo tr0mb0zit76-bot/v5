@@ -119,6 +119,16 @@
                                 <Reply class="h-4 w-4" />
                                 Ответить
                             </button>
+                            <template v-if="mailAiEnabled">
+                                <button
+                                    type="button"
+                                    :class="threadActionButtonClass(showAiPanel)"
+                                    :disabled="aiBusy"
+                                    @click="toggleAiPanel"
+                                >
+                                    AI
+                                </button>
+                            </template>
                             <button
                                 type="button"
                                 :class="`${crmBtnSecondaryOutline} ml-auto`"
@@ -127,6 +137,53 @@
                                 <Trash2 class="h-4 w-4" />
                                 Удалить
                             </button>
+                        </div>
+
+                        <div
+                            v-if="showAiPanel && mailAiEnabled"
+                            class="space-y-3 border-t border-zinc-200 pt-3 dark:border-zinc-800"
+                        >
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" :class="crmBtnSecondary" :disabled="aiBusy" @click="runAiAction('summarize')">
+                                    Резюме
+                                </button>
+                                <button type="button" :class="crmBtnSecondary" :disabled="aiBusy" @click="runAiAction('draft')">
+                                    Черновик
+                                </button>
+                                <button
+                                    v-if="selectedThread.lead_id"
+                                    type="button"
+                                    :class="crmBtnSecondary"
+                                    :disabled="aiBusy"
+                                    @click="runAiAction('next_step')"
+                                >
+                                    Следующий шаг
+                                </button>
+                            </div>
+                            <div v-if="aiError" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">
+                                {{ aiError }}
+                            </div>
+                            <div v-if="aiResult" class="space-y-2 rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900/40">
+                                <div v-if="aiResult.summary" class="whitespace-pre-wrap text-zinc-800 dark:text-zinc-100">{{ aiResult.summary }}</div>
+                                <ul v-if="aiResult.key_points?.length" class="list-disc space-y-1 pl-5 text-zinc-700 dark:text-zinc-200">
+                                    <li v-for="(point, index) in aiResult.key_points" :key="`point-${index}`">{{ point }}</li>
+                                </ul>
+                                <div v-if="aiResult.subject" class="font-medium text-zinc-900 dark:text-zinc-50">{{ aiResult.subject }}</div>
+                                <div v-if="aiResult.body" class="whitespace-pre-wrap text-zinc-800 dark:text-zinc-100">{{ aiResult.body }}</div>
+                                <div v-if="aiResult.next_step" class="space-y-1">
+                                    <div class="font-medium text-zinc-900 dark:text-zinc-50">{{ aiResult.next_step }}</div>
+                                    <div v-if="aiResult.rationale" class="text-zinc-600 dark:text-zinc-300">{{ aiResult.rationale }}</div>
+                                </div>
+                                <div v-if="aiSuggestionKey" class="flex flex-wrap gap-2 border-t border-zinc-200 pt-2 dark:border-zinc-700">
+                                    <span class="text-xs text-zinc-500 dark:text-zinc-400">Полезно?</span>
+                                    <button type="button" class="text-xs text-indigo-600 hover:underline dark:text-indigo-400" @click="submitAiFeedback('helpful')">
+                                        Да
+                                    </button>
+                                    <button type="button" class="text-xs text-zinc-600 hover:underline dark:text-zinc-300" @click="submitAiFeedback('not_helpful')">
+                                        Нет
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <form
@@ -418,7 +475,7 @@
 </template>
 
 <script setup>
-import { Link, router, useForm } from '@inertiajs/vue3';
+import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { Link2, Paperclip, Reply, Star, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
@@ -506,7 +563,15 @@ const linkForm = useForm({
 const messageViewMode = reactive({});
 const showLinkPanel = ref(false);
 const showReplyForm = ref(false);
+const showAiPanel = ref(false);
 const attachmentPreview = ref(null);
+const aiBusy = ref(false);
+const aiError = ref('');
+const aiResult = ref(null);
+const aiSuggestionKey = ref('');
+const page = usePage();
+
+const mailAiEnabled = computed(() => Boolean(page.props.crm_features?.commercial_mail_ai?.enabled));
 
 const threadHasLinks = computed(() => Boolean(props.selectedThread?.lead_id || props.selectedThread?.order_id));
 
@@ -575,6 +640,10 @@ watch(
         if (!thread) {
             showLinkPanel.value = false;
             showReplyForm.value = false;
+            showAiPanel.value = false;
+            aiResult.value = null;
+            aiSuggestionKey.value = '';
+            aiError.value = '';
 
             return;
         }
@@ -583,6 +652,10 @@ watch(
         linkForm.order_id = thread.order_id ?? null;
         showLinkPanel.value = !thread.lead_id && !thread.order_id;
         showReplyForm.value = false;
+        showAiPanel.value = false;
+        aiResult.value = null;
+        aiSuggestionKey.value = '';
+        aiError.value = '';
     },
     { immediate: true },
 );
@@ -610,6 +683,7 @@ function toggleLinkPanel() {
 
     if (showLinkPanel.value) {
         showReplyForm.value = false;
+        showAiPanel.value = false;
     }
 }
 
@@ -618,6 +692,103 @@ function toggleReplyForm() {
 
     if (showReplyForm.value) {
         showLinkPanel.value = false;
+        showAiPanel.value = false;
+    }
+}
+
+function toggleAiPanel() {
+    showAiPanel.value = !showAiPanel.value;
+
+    if (showAiPanel.value) {
+        showLinkPanel.value = false;
+        showReplyForm.value = false;
+    }
+}
+
+function csrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+}
+
+async function runAiAction(action) {
+    if (!props.selectedThread || aiBusy.value) {
+        return;
+    }
+
+    aiBusy.value = true;
+    aiError.value = '';
+    aiResult.value = null;
+    aiSuggestionKey.value = '';
+
+    const routeName = action === 'summarize'
+        ? 'mail.threads.ai.summarize'
+        : action === 'draft'
+            ? 'mail.threads.ai.draft-reply'
+            : 'mail.threads.ai.next-step';
+
+    try {
+        const response = await fetch(route(routeName, props.selectedThread.id), {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken(),
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({}),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || Object.values(data.errors ?? {})?.flat()?.[0] || 'Не удалось получить подсказку');
+        }
+
+        aiResult.value = data;
+        aiSuggestionKey.value = data.suggestion_key ?? '';
+
+        if (action === 'draft' && data.body) {
+            showReplyForm.value = true;
+            replyForm.body = data.body;
+        }
+    } catch (error) {
+        aiError.value = error?.message || 'Ошибка AI-подсказки';
+    } finally {
+        aiBusy.value = false;
+    }
+}
+
+async function submitAiFeedback(rating) {
+    if (!aiSuggestionKey.value || aiBusy.value) {
+        return;
+    }
+
+    aiBusy.value = true;
+
+    try {
+        const response = await fetch(route('mail.ai.feedback'), {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken(),
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                suggestion_key: aiSuggestionKey.value,
+                rating,
+            }),
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || 'Не удалось сохранить отзыв');
+        }
+    } catch (error) {
+        aiError.value = error?.message || 'Не удалось сохранить отзыв';
+    } finally {
+        aiBusy.value = false;
     }
 }
 

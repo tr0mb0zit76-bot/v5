@@ -7,36 +7,11 @@ use App\Models\User;
 use App\Services\Commercial\HeadOfSalesInsightsService;
 use App\Support\AiAgentCatalog;
 use App\Support\RoleAccess;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class HeadOfSalesInsightsServiceTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany(['users', 'roles']);
-
-        Schema::create('roles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->unique();
-            $table->json('visibility_areas')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->timestamps();
-        });
-    }
-
     public function test_denies_access_without_head_of_sales_permission(): void
     {
         $managerRoleId = DB::table('roles')->insertGetId([

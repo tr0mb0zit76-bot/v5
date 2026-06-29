@@ -6,15 +6,12 @@ use App\Models\Lead;
 use App\Models\ProposalHtmlTemplate;
 use App\Services\Commercial\LeadProposalHtmlRenderer;
 use App\Services\LeadPrintFormDraftService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Mockery;
 use Tests\TestCase;
 
 class LeadProposalHtmlRendererTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_replaces_lead_placeholders_in_html_body(): void
     {
         if (! Schema::hasTable('leads')) {

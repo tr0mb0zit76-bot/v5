@@ -5,8 +5,6 @@ namespace Tests\Feature\SalesScripts;
 use App\Models\SalesScriptVersion;
 use App\Models\User;
 use Database\Seeders\SalesScriptsDemoSeeder;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -14,19 +12,6 @@ use Tests\TestCase;
 
 class SalesScriptAnalyticsPageTest extends TestCase
 {
-    use RefreshDatabase;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        if (Schema::hasTable('users') && ! Schema::hasColumn('users', 'role_id')) {
-            Schema::table('users', function (Blueprint $table): void {
-                $table->unsignedBigInteger('role_id')->nullable()->after('id');
-            });
-        }
-    }
-
     public function test_script_manager_can_open_version_analytics_page(): void
     {
         if (! Schema::hasTable('sales_script_versions')) {

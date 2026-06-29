@@ -3,6 +3,8 @@
 namespace App\Services\Epd;
 
 use App\Models\Order;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class EtrnDraftBuilder
 {
@@ -48,12 +50,7 @@ class EtrnDraftBuilder
                     'package_count' => $cargo->package_count,
                 ])->values()->all()
                 : [],
-            'driver' => [
-                'id' => $order->driver_id,
-                'full_name' => $order->driver?->full_name,
-                'phone' => $order->driver?->phone,
-                'license_number' => $order->driver?->license_number,
-            ],
+            'driver' => $this->driverPayload($order),
         ];
 
         return [
@@ -85,5 +82,46 @@ class EtrnDraftBuilder
         }
 
         return $missing;
+    }
+
+    /**
+     * @return array{id: mixed, full_name: ?string, phone: ?string, license_number: ?string}
+     */
+    private function driverPayload(Order $order): array
+    {
+        $driverId = (int) ($order->driver_id ?? 0);
+
+        if ($driverId <= 0 || ! Schema::hasTable('drivers')) {
+            return [
+                'id' => $order->driver_id,
+                'full_name' => null,
+                'phone' => null,
+                'license_number' => null,
+            ];
+        }
+
+        $driver = DB::table('drivers')->where('id', $driverId)->first();
+
+        if ($driver === null) {
+            return [
+                'id' => $order->driver_id,
+                'full_name' => null,
+                'phone' => null,
+                'license_number' => null,
+            ];
+        }
+
+        $fullName = trim(implode(' ', array_filter([
+            $driver->last_name ?? null,
+            $driver->first_name ?? null,
+            $driver->patronymic ?? null,
+        ])));
+
+        return [
+            'id' => $order->driver_id,
+            'full_name' => $fullName !== '' ? $fullName : null,
+            'phone' => $driver->phone ?? null,
+            'license_number' => $driver->license_number ?? null,
+        ];
     }
 }

@@ -8,7 +8,6 @@ use App\Models\PaymentSchedule;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Pipeline\PipelineKpiService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\Support\CreatesInTransitOrders;
 use Tests\TestCase;
@@ -16,7 +15,6 @@ use Tests\TestCase;
 class PipelineKpiServiceTest extends TestCase
 {
     use CreatesInTransitOrders;
-    use RefreshDatabase;
 
     public function test_metrics_include_overdue_payments_percent(): void
     {

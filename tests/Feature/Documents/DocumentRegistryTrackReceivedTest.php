@@ -4,17 +4,15 @@ namespace Tests\Feature\Documents;
 
 use App\Models\FinancialTerm;
 use App\Models\Order;
+use App\Models\PaymentSchedule;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\OrderCompensationService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class DocumentRegistryTrackReceivedTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_clerk_can_set_track_received_date_from_documents_registry(): void
     {
         if (! Schema::hasColumn('orders', 'track_received_date_customer')) {
@@ -80,23 +78,30 @@ class DocumentRegistryTrackReceivedTest extends TestCase
 
         $clerk = $this->makeClerkUser();
 
-        $order = Order::factory()->create([
-            'manager_id' => $clerk->id,
-            'customer_payment_form' => 'bank_transfer',
-            'payment_terms' => json_encode([
-                'client' => [
-                    'payment_schedule' => [
-                        'installments' => [
-                            ['percent' => 100, 'basis' => 'fttn', 'offset_days' => 3],
-                        ],
+        $paymentTerms = json_encode([
+            'client' => [
+                'payment_schedule' => [
+                    'installments' => [
+                        ['percent' => 100, 'basis' => 'fttn', 'offset_days' => 3],
                     ],
                 ],
-            ], JSON_THROW_ON_ERROR),
-        ]);
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $orderAttributes = [
+            'manager_id' => $clerk->id,
+            'customer_payment_form' => 'bank_transfer',
+        ];
+
+        if (Schema::hasColumn('orders', 'payment_terms')) {
+            $orderAttributes['payment_terms'] = $paymentTerms;
+        }
+
+        $order = Order::factory()->create($orderAttributes);
 
         FinancialTerm::factory()->create([
             'order_id' => $order->id,
-            'payment_terms_snapshot' => $order->payment_terms,
+            'payment_terms_snapshot' => $paymentTerms,
         ]);
 
         $this->actingAs($clerk)
@@ -137,10 +142,13 @@ class DocumentRegistryTrackReceivedTest extends TestCase
         $clerk = $this->makeClerkUser();
         $order = $this->makeOrderNeedingCustomerTrackReceived($clerk);
 
-        app(OrderCompensationService::class)->syncPaymentSchedules($order->fresh());
+        app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh());
 
         $this->assertNull(
-            $order->fresh()->paymentSchedules()->where('party', 'customer')->value('planned_date'),
+            PaymentSchedule::query()
+                ->where('order_id', $order->id)
+                ->where('party', 'customer')
+                ->value('planned_date'),
         );
 
         $this->actingAs($clerk)
@@ -151,7 +159,10 @@ class DocumentRegistryTrackReceivedTest extends TestCase
             ->assertOk();
 
         $this->assertNotNull(
-            $order->fresh()->paymentSchedules()->where('party', 'customer')->value('planned_date'),
+            PaymentSchedule::query()
+                ->where('order_id', $order->id)
+                ->where('party', 'customer')
+                ->value('planned_date'),
         );
     }
 
@@ -189,25 +200,33 @@ class DocumentRegistryTrackReceivedTest extends TestCase
 
     private function makeOrderNeedingCustomerTrackReceived(User $manager): Order
     {
-        $order = Order::factory()->create([
+        $paymentTerms = json_encode([
+            'client' => [
+                'payment_schedule' => [
+                    'installments' => [
+                        ['percent' => 100, 'basis' => 'ottn', 'offset_days' => 3, 'offset_unit' => 'bank_days'],
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $orderAttributes = [
             'manager_id' => $manager->id,
             'order_number' => 'DOC-TR-'.uniqid(),
             'customer_payment_form' => 'bank_transfer',
+            'customer_rate' => 150_000,
             'track_received_date_customer' => null,
-            'payment_terms' => json_encode([
-                'client' => [
-                    'payment_schedule' => [
-                        'installments' => [
-                            ['percent' => 100, 'basis' => 'ottn', 'offset_days' => 3, 'offset_unit' => 'bank_days'],
-                        ],
-                    ],
-                ],
-            ], JSON_THROW_ON_ERROR),
-        ]);
+        ];
+
+        if (Schema::hasColumn('orders', 'payment_terms')) {
+            $orderAttributes['payment_terms'] = $paymentTerms;
+        }
+
+        $order = Order::factory()->create($orderAttributes);
 
         FinancialTerm::factory()->create([
             'order_id' => $order->id,
-            'payment_terms_snapshot' => $order->payment_terms,
+            'payment_terms_snapshot' => $paymentTerms,
         ]);
 
         return $order;

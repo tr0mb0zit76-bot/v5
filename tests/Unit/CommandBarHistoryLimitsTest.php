@@ -5,14 +5,11 @@ namespace Tests\Unit;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\CommandBarHistoryLimits;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class CommandBarHistoryLimitsTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function it_returns_default_limits_for_regular_user(): void
     {

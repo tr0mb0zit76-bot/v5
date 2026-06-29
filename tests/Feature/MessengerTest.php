@@ -3,13 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class MessengerTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_open_direct_creates_conversation_and_lists_it(): void
     {
         $a = User::factory()->create();

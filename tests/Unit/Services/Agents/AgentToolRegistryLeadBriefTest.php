@@ -6,53 +6,10 @@ use App\Models\Lead;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Agents\AgentToolRegistry;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class AgentToolRegistryLeadBriefTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany(['leads', 'users', 'roles']);
-
-        Schema::create('roles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->unique();
-            $table->json('visibility_areas')->nullable();
-            $table->json('visibility_scopes')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('leads', function (Blueprint $table): void {
-            $table->id();
-            $table->string('number')->unique();
-            $table->string('status', 50)->default('new');
-            $table->unsignedBigInteger('counterparty_id')->nullable();
-            $table->unsignedBigInteger('responsible_id')->nullable();
-            $table->string('title');
-            $table->decimal('target_price', 12, 2)->nullable();
-            $table->string('target_currency', 3)->default('RUB');
-            $table->timestamp('proposal_sent_at')->nullable();
-            $table->timestamp('next_contact_at')->nullable();
-            $table->json('lead_qualification')->nullable();
-            $table->string('close_outcome_primary_flag')->nullable();
-            $table->timestamps();
-        });
-    }
-
     public function test_leads_user_can_invoke_operational_brief_tool(): void
     {
         $user = $this->makeUser(['leads']);

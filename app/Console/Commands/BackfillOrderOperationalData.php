@@ -30,20 +30,20 @@ class BackfillOrderOperationalData extends Command
 
         $dryRun = (bool) $this->option('dry-run');
         $orders = DB::table('orders')
-            ->select([
+            ->select(array_values(array_filter([
                 'id',
-                'order_date',
-                'customer_rate',
-                'customer_payment_form',
-                'customer_payment_term',
-                'payment_terms',
-                'carrier_rate',
-                'carrier_payment_form',
-                'carrier_payment_term',
-                'performers',
-                'kpi_percent',
-                'delta',
-            ])
+                Schema::hasColumn('orders', 'order_date') ? 'order_date' : null,
+                Schema::hasColumn('orders', 'customer_rate') ? 'customer_rate' : null,
+                Schema::hasColumn('orders', 'customer_payment_form') ? 'customer_payment_form' : null,
+                Schema::hasColumn('orders', 'customer_payment_term') ? 'customer_payment_term' : null,
+                Schema::hasColumn('orders', 'payment_terms') ? 'payment_terms' : null,
+                Schema::hasColumn('orders', 'carrier_rate') ? 'carrier_rate' : null,
+                Schema::hasColumn('orders', 'carrier_payment_form') ? 'carrier_payment_form' : null,
+                Schema::hasColumn('orders', 'carrier_payment_term') ? 'carrier_payment_term' : null,
+                Schema::hasColumn('orders', 'performers') ? 'performers' : null,
+                Schema::hasColumn('orders', 'kpi_percent') ? 'kpi_percent' : null,
+                Schema::hasColumn('orders', 'delta') ? 'delta' : null,
+            ])))
             ->orderBy('id')
             ->get();
 
@@ -127,11 +127,11 @@ class BackfillOrderOperationalData extends Command
     {
         $existing = DB::table('financial_terms')->where('order_id', $order->id)->first();
 
-        $decodedPaymentTerms = $this->decodeJsonObject($order->payment_terms);
+        $decodedPaymentTerms = $this->decodeJsonObject($order->payment_terms ?? null);
         $existingCosts = is_array($existing?->contractors_costs ?? null)
             ? $existing->contractors_costs
             : $this->decodeJsonArray($existing?->contractors_costs ?? null);
-        $performers = $this->decodeJsonArray($order->performers);
+        $performers = $this->decodeJsonArray($order->performers ?? null);
 
         $contractorsCosts = $existingCosts;
 
@@ -141,21 +141,21 @@ class BackfillOrderOperationalData extends Command
                     fn (array $performer, int $index): array => [
                         'stage' => $performer['stage'] ?? 'leg_'.($index + 1),
                         'contractor_id' => $performer['contractor_id'] ?? null,
-                        'amount' => $index === 0 ? $this->decimalOrNull($order->carrier_rate) : null,
+                        'amount' => $index === 0 ? $this->decimalOrNull($order->carrier_rate ?? null) : null,
                         'currency' => 'RUB',
-                        'payment_form' => $order->carrier_payment_form ?: 'no_vat',
+                        'payment_form' => ($order->carrier_payment_form ?? null) ?: 'no_vat',
                         'payment_schedule' => [],
                     ],
                     $performers,
                     array_keys($performers)
                 );
-            } elseif ($this->decimalOrNull($order->carrier_rate) !== null) {
+            } elseif ($this->decimalOrNull($order->carrier_rate ?? null) !== null) {
                 $contractorsCosts = [[
                     'stage' => 'leg_1',
                     'contractor_id' => null,
-                    'amount' => $this->decimalOrNull($order->carrier_rate),
+                    'amount' => $this->decimalOrNull($order->carrier_rate ?? null),
                     'currency' => 'RUB',
-                    'payment_form' => $order->carrier_payment_form ?: 'no_vat',
+                    'payment_form' => ($order->carrier_payment_form ?? null) ?: 'no_vat',
                     'payment_schedule' => [],
                 ]];
             }
@@ -164,10 +164,10 @@ class BackfillOrderOperationalData extends Command
         $clientPaymentTerms = $existing?->client_payment_terms
             ?: ($decodedPaymentTerms['client']['payment_schedule']['postpayment_days'] ?? null
                 ? $this->buildScheduleSummary($decodedPaymentTerms['client']['payment_schedule'])
-                : $order->customer_payment_term);
+                : ($order->customer_payment_term ?? null));
 
         $totalCost = $existing?->total_cost ?? collect($contractorsCosts)->sum(fn (array $row): float => (float) ($row['amount'] ?? 0));
-        $margin = $existing?->margin ?? $this->decimalOrZero($order->delta);
+        $margin = $existing?->margin ?? $this->decimalOrZero($order->delta ?? null);
 
         if (
             $existing !== null
@@ -180,7 +180,7 @@ class BackfillOrderOperationalData extends Command
         }
 
         return [
-            'client_price' => $existing?->client_price ?? $this->decimalOrNull($order->customer_rate),
+            'client_price' => $existing?->client_price ?? $this->decimalOrNull($order->customer_rate ?? null),
             'client_currency' => $existing?->client_currency ?? 'RUB',
             'client_payment_terms' => $clientPaymentTerms,
             'contractors_costs' => json_encode($contractorsCosts, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),

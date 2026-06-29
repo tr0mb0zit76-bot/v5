@@ -7,15 +7,12 @@ use App\Models\SalaryPayout;
 use App\Models\SalaryPeriod;
 use App\Models\User;
 use App\Services\SalaryPayrollService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class FinanceSalaryAdvancePayoutTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function finance_can_store_advance_payout_for_period(): void
     {

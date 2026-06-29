@@ -7,71 +7,10 @@ use App\Models\BusinessProcessStage;
 use App\Models\Lead;
 use App\Services\ActivityLedgerService;
 use App\Services\LeadBusinessProcessService;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class LeadBusinessProcessProgressTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'lead_process_stage_logs',
-            'lead_activities',
-            'activity_events',
-            'leads',
-            'business_process_stages',
-            'business_processes',
-        ]);
-
-        Schema::create('business_processes', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->string('slug')->unique();
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('business_process_stages', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('business_process_id');
-            $table->string('name');
-            $table->text('description')->nullable();
-            $table->string('stage_goal', 500)->nullable();
-            $table->text('success_criteria')->nullable();
-            $table->unsignedInteger('sequence')->default(0);
-            $table->unsignedSmallInteger('duration_days')->default(0);
-            $table->boolean('is_terminal')->default(false);
-            $table->string('terminal_outcome', 20)->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('leads', function (Blueprint $table): void {
-            $table->id();
-            $table->string('number')->unique();
-            $table->string('status', 50)->default('new');
-            $table->string('title');
-            $table->unsignedBigInteger('business_process_id')->nullable();
-            $table->unsignedBigInteger('business_process_stage_id')->nullable();
-            $table->timestamp('process_started_at')->nullable();
-            $table->timestamp('stage_entered_at')->nullable();
-            $table->timestamp('stage_due_at')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('lead_process_stage_logs', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('lead_id');
-            $table->unsignedBigInteger('business_process_stage_id');
-            $table->timestamp('entered_at');
-            $table->timestamp('exited_at')->nullable();
-            $table->timestamp('due_at')->nullable();
-            $table->timestamps();
-        });
-    }
-
     public function test_terminal_refusal_stage_reports_full_progress(): void
     {
         $process = BusinessProcess::query()->create([

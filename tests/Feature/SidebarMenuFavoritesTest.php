@@ -6,14 +6,11 @@ use App\Models\Role;
 use App\Models\User;
 use App\Support\SidebarMenuCatalog;
 use App\Support\SidebarMenuFavoritesResolver;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class SidebarMenuFavoritesTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_user_can_save_sidebar_favorite_menu_keys(): void
     {
         if (! Schema::hasColumn('users', 'ui_preferences')) {

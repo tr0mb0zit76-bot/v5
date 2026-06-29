@@ -5,61 +5,11 @@ namespace Tests\Feature\Feature\Leads;
 use App\Models\Lead;
 use App\Models\Task;
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class LeadTaskSyncTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany(['tasks', 'leads', 'users', 'roles']);
-
-        Schema::create('roles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->unique();
-            $table->json('visibility_areas')->nullable();
-            $table->json('visibility_scopes')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->timestamps();
-        });
-
-        Schema::create('leads', function (Blueprint $table): void {
-            $table->id();
-            $table->string('number')->unique();
-            $table->string('status', 50)->default('new');
-            $table->string('title');
-            $table->unsignedBigInteger('updated_by')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('tasks', function (Blueprint $table): void {
-            $table->id();
-            $table->string('number')->nullable();
-            $table->string('title');
-            $table->string('status', 50)->default('new');
-            $table->string('priority', 50)->default('medium');
-            $table->timestamp('completed_at')->nullable();
-            $table->unsignedBigInteger('lead_id')->nullable();
-            $table->unsignedBigInteger('responsible_id')->nullable();
-            $table->unsignedBigInteger('created_by')->nullable();
-            $table->json('meta')->nullable();
-            $table->timestamps();
-            $table->softDeletes();
-        });
-    }
-
     public function test_completing_task_does_not_overwrite_lost_lead_status(): void
     {
         $adminRoleId = DB::table('roles')->insertGetId([

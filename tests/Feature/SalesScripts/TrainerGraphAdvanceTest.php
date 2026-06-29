@@ -12,15 +12,12 @@ use App\Services\SalesScripts\TrainerClientReactionMatcher;
 use App\Services\SalesScripts\TrainerGraphCoordinatorService;
 use Database\Seeders\SalesScriptsDemoSeeder;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class TrainerGraphAdvanceTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         parent::setUp();

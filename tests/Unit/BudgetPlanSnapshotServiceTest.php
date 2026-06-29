@@ -5,97 +5,19 @@ namespace Tests\Unit;
 use App\Models\BudgetOpexArticle;
 use App\Models\BudgetPlanSnapshot;
 use App\Models\BudgetScenario;
-use App\Models\ManagementExpenseCategory;
 use App\Models\User;
 use App\Services\Budgeting\BudgetPlanSnapshotService;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class BudgetPlanSnapshotServiceTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'budget_plan_snapshot_lines',
-            'budget_plan_snapshots',
-            'budget_opex_articles',
-            'budget_scenarios',
-            'management_expense_categories',
-            'users',
-        ]);
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->string('email')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('management_expense_categories', function (Blueprint $table): void {
-            $table->id();
-            $table->string('code', 64)->unique();
-            $table->string('name');
-            $table->string('kind', 32)->nullable();
-            $table->boolean('include_in_budget')->default(false);
-            $table->timestamps();
-        });
-
-        Schema::create('budget_scenarios', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->string('plan_type', 32)->default('company');
-            $table->unsignedBigInteger('parent_scenario_id')->nullable();
-            $table->json('inputs');
-            $table->unsignedBigInteger('updated_by_user_id')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('budget_opex_articles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->string('cost_type', 32);
-            $table->decimal('amount_monthly', 14, 2)->default(0);
-            $table->decimal('percent_of_margin', 8, 2)->nullable();
-            $table->unsignedTinyInteger('ramp_months')->nullable();
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->unsignedBigInteger('management_expense_category_id')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('budget_plan_snapshots', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('scenario_id');
-            $table->string('period_label');
-            $table->date('period_start');
-            $table->date('period_end');
-            $table->timestamp('approved_at');
-            $table->unsignedBigInteger('approved_by_user_id')->nullable();
-            $table->text('notes')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('budget_plan_snapshot_lines', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('snapshot_id');
-            $table->date('month');
-            $table->unsignedBigInteger('opex_article_id')->nullable();
-            $table->unsignedBigInteger('category_id')->nullable();
-            $table->string('article_name');
-            $table->decimal('planned_amount', 14, 2)->default(0);
-            $table->timestamps();
-        });
-    }
-
     public function test_freeze_creates_monthly_snapshot_lines(): void
     {
-        $user = User::query()->create(['name' => 'CFO', 'email' => 'cfo@test']);
-        $category = ManagementExpenseCategory::query()->create([
-            'code' => 'bank_fees',
-            'name' => 'Банк',
+        $user = User::factory()->create(['name' => 'CFO', 'email' => 'cfo-freeze@test']);
+        $category = $this->createManagementExpenseCategory([
+            'name' => 'Банк freeze',
+            'kind' => 'overhead',
             'include_in_budget' => true,
         ]);
 
@@ -130,7 +52,7 @@ class BudgetPlanSnapshotServiceTest extends TestCase
 
     public function test_resolve_snapshot_for_period_returns_latest_approved(): void
     {
-        $user = User::query()->create(['name' => 'CFO', 'email' => 'cfo@test']);
+        $user = User::factory()->create(['name' => 'CFO', 'email' => 'cfo2@test']);
         $scenario = BudgetScenario::query()->create([
             'name' => 'Основной',
             'inputs' => ['horizon_months' => 12],

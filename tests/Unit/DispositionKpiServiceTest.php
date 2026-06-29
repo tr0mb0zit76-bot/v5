@@ -4,20 +4,19 @@ namespace Tests\Unit;
 
 use App\Models\DispositionEntry;
 use App\Models\Order;
+use App\Models\OrderLeg;
+use App\Models\RoutePoint;
 use App\Models\User;
 use App\Services\Disposition\DispositionInProgressOrderScope;
 use App\Services\Disposition\DispositionKpiService;
 use App\Services\Disposition\DispositionReminderService;
 use App\Support\DispositionSlot;
 use Carbon\Carbon;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class DispositionKpiServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         try {
@@ -36,14 +35,8 @@ class DispositionKpiServiceTest extends TestCase
         $user = User::factory()->create();
         $date = Carbon::today()->toDateString();
 
-        $filledOrder = Order::factory()->create([
-            'manager_id' => $user->id,
-            'status' => 'in_progress',
-        ]);
-        $emptyOrder = Order::factory()->create([
-            'manager_id' => $user->id,
-            'status' => 'in_progress',
-        ]);
+        $filledOrder = $this->createInTransitOrder($user);
+        $emptyOrder = $this->createInTransitOrder($user);
 
         DispositionEntry::query()->create([
             'order_id' => $filledOrder->id,
@@ -72,5 +65,34 @@ class DispositionKpiServiceTest extends TestCase
         $this->assertSame(2, $metrics['orders_in_progress']);
         $this->assertSame(1, $metrics['both_slots_filled_count']);
         $this->assertSame(50.0, $metrics['both_slots_fill_percent']);
+    }
+
+    private function createInTransitOrder(User $user): Order
+    {
+        $order = Order::factory()->create([
+            'manager_id' => $user->id,
+            'status' => 'in_progress',
+        ]);
+
+        $leg = OrderLeg::factory()->create([
+            'order_id' => $order->id,
+            'sequence' => 1,
+        ]);
+
+        RoutePoint::factory()->create([
+            'order_leg_id' => $leg->id,
+            'type' => 'loading',
+            'sequence' => 0,
+            'actual_date' => Carbon::today()->toDateString(),
+        ]);
+
+        RoutePoint::factory()->create([
+            'order_leg_id' => $leg->id,
+            'type' => 'unloading',
+            'sequence' => 1,
+            'actual_date' => null,
+        ]);
+
+        return $order;
     }
 }

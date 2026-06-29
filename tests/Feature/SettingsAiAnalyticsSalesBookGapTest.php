@@ -6,15 +6,12 @@ use App\Models\User;
 use App\Support\AiInteractionEventType;
 use App\Support\AiInteractionFeature;
 use App\Support\AiInteractionOutcome;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class SettingsAiAnalyticsSalesBookGapTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         parent::setUp();
@@ -61,7 +58,7 @@ class SettingsAiAnalyticsSalesBookGapTest extends TestCase
             ->delete(route('settings.ai-analytics.sales-book-gaps.dismiss', $eventId), ['days' => 30])
             ->assertRedirect(route('settings.ai-analytics', ['days' => 30]));
 
-        $metadata = json_decode((string) DB::table('ai_interaction_events')->whereKey($eventId)->value('metadata'), true);
+        $metadata = json_decode((string) DB::table('ai_interaction_events')->where('id', $eventId)->value('metadata'), true);
 
         $this->assertFalse($metadata['sales_book']['gap']);
         $this->assertTrue($metadata['sales_book']['gap_dismissed']);

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-// use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -12,8 +11,15 @@ class ExampleTest extends TestCase
      */
     public function test_the_application_returns_a_successful_response(): void
     {
-        $response = $this->get('/');
+        $response = $this->get($this->showcaseUrl('/'));
 
-        $response->assertStatus(200);
+        $response->assertOk();
+    }
+
+    private function showcaseUrl(string $path = '/'): string
+    {
+        $host = config('app.showcase_hosts')[0] ?? 'v5.local';
+
+        return 'http://'.$host.$path;
     }
 }

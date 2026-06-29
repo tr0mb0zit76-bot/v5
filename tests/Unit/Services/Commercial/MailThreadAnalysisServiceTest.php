@@ -12,47 +12,11 @@ use App\Services\Inference\ExternalLlmPayloadSanitizer;
 use App\Services\Mcp\MailMcpService;
 use App\Services\Mcp\McpAccessGate;
 use App\Support\AiChannel;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class MailThreadAnalysisServiceTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany(['leads', 'users', 'roles']);
-
-        Schema::create('roles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->unique();
-            $table->json('visibility_areas')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('leads', function (Blueprint $table): void {
-            $table->id();
-            $table->string('number')->nullable();
-            $table->string('status')->default('new');
-            $table->unsignedBigInteger('responsible_id')->nullable();
-            $table->string('title')->nullable();
-            $table->json('lead_qualification')->nullable();
-            $table->timestamps();
-        });
-    }
-
     #[Test]
     public function it_summarizes_mail_thread_via_llm(): void
     {

@@ -6,13 +6,10 @@ use App\Models\GridView;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\GridViewService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class GridViewTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_user_can_create_and_list_private_orders_view(): void
     {
         $user = $this->makeUser(['orders']);

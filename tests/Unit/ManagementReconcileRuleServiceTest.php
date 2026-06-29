@@ -2,72 +2,17 @@
 
 namespace Tests\Unit;
 
-use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementReconcileRule;
 use App\Models\User;
 use App\Services\ManagementAccounting\ManagementReconcileRuleService;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ManagementReconcileRuleServiceTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'management_reconcile_rules',
-            'management_expense_categories',
-            'users',
-        ]);
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('management_expense_categories', function (Blueprint $table): void {
-            $table->id();
-            $table->string('code', 64)->unique();
-            $table->string('name');
-            $table->string('kind', 32);
-            $table->boolean('is_system')->default(false);
-            $table->boolean('is_active')->default(true);
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->timestamps();
-        });
-
-        Schema::create('management_reconcile_rules', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('created_by')->nullable();
-            $table->string('keyword', 128);
-            $table->string('direction', 8)->nullable();
-            $table->string('allocation_type', 16);
-            $table->foreignId('category_id')->nullable();
-            $table->foreignId('user_id')->nullable();
-            $table->string('order_number', 32)->nullable();
-            $table->unsignedBigInteger('payment_schedule_id')->nullable();
-            $table->string('notes')->nullable();
-            $table->unsignedSmallInteger('priority')->default(100);
-            $table->unsignedInteger('times_applied')->default(0);
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-    }
-
     public function test_matches_keyword_with_higher_priority_first(): void
     {
-        $category = ManagementExpenseCategory::query()->create([
-            'code' => 'bank_fees',
+        $category = $this->createManagementExpenseCategory([
             'name' => 'Комиссии',
-            'kind' => 'overhead',
-            'is_active' => true,
-            'sort_order' => 1,
         ]);
 
         ManagementReconcileRule::query()->create([
@@ -107,11 +52,8 @@ class ManagementReconcileRuleServiceTest extends TestCase
             'password' => bcrypt('secret'),
         ]);
 
-        $category = ManagementExpenseCategory::query()->create([
-            'code' => 'ati',
+        $category = $this->createManagementExpenseCategory([
             'name' => 'АТИ',
-            'kind' => 'overhead',
-            'is_active' => true,
             'sort_order' => 2,
         ]);
 

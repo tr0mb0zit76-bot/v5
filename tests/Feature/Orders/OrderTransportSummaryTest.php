@@ -9,15 +9,12 @@ use App\Models\Order;
 use App\Models\OrderLeg;
 use App\Models\RoutePoint;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class OrderTransportSummaryTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_transport_summary_endpoint_returns_clerk_format(): void
     {
         $user = $this->createManagerUser();

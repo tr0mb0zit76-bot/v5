@@ -113,7 +113,6 @@ class OneCFreshEtrnController extends Controller
         $order->load([
             'client',
             'carrier',
-            'driver',
             'routePoints',
             'cargoItems',
         ]);

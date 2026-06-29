@@ -3,115 +3,14 @@
 namespace Tests\Unit;
 
 use App\Models\Contractor;
-use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementStatementLine;
 use App\Models\Order;
 use App\Models\PaymentSchedule;
 use App\Services\ManagementAccounting\ManagementAccountingMatchingService;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ManagementAccountingMatchingServiceTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'management_reconcile_rules',
-            'management_statement_lines',
-            'payment_schedules',
-            'orders',
-            'contractors',
-            'management_expense_categories',
-            'users',
-        ]);
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('contractors', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->nullable();
-            $table->string('full_name')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('orders', function (Blueprint $table): void {
-            $table->id();
-            $table->string('order_number')->nullable();
-            $table->unsignedBigInteger('customer_id')->nullable();
-            $table->unsignedBigInteger('carrier_id')->nullable();
-            $table->json('performers')->nullable();
-            $table->decimal('salary_accrued', 12, 2)->default(0);
-            $table->timestamps();
-        });
-
-        Schema::create('payment_schedules', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('order_id')->nullable();
-            $table->string('party', 16)->nullable();
-            $table->string('type', 16)->nullable();
-            $table->unsignedTinyInteger('installment_sequence')->nullable();
-            $table->decimal('amount', 14, 2)->default(0);
-            $table->decimal('remaining_amount', 14, 2)->nullable();
-            $table->decimal('paid_amount', 14, 2)->nullable();
-            $table->string('invoice_number', 120)->nullable();
-            $table->date('planned_date')->nullable();
-            $table->string('status', 16)->default('pending');
-            $table->unsignedBigInteger('counterparty_id')->nullable();
-            $table->unsignedBigInteger('parent_payment_id')->nullable();
-            $table->boolean('is_partial')->default(false);
-            $table->timestamps();
-        });
-
-        Schema::create('management_expense_categories', function (Blueprint $table): void {
-            $table->id();
-            $table->string('code', 64)->unique();
-            $table->string('name');
-            $table->string('kind', 32);
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('management_statement_lines', function (Blueprint $table): void {
-            $table->id();
-            $table->date('operation_date');
-            $table->string('direction', 8);
-            $table->decimal('amount', 14, 2);
-            $table->text('description');
-            $table->timestamps();
-        });
-
-        ManagementExpenseCategory::query()->create([
-            'code' => 'operational_customer_in',
-            'name' => 'Оплата от заказчика',
-            'kind' => 'operational_in',
-            'is_active' => true,
-        ]);
-
-        ManagementExpenseCategory::query()->create([
-            'code' => 'operational_carrier_out',
-            'name' => 'Привлечённый транспорт',
-            'kind' => 'operational_out_hired',
-            'is_active' => true,
-        ]);
-
-        ManagementExpenseCategory::query()->create([
-            'code' => 'cost_own_fleet',
-            'name' => 'Собственный парк',
-            'kind' => 'operational_out_own_fleet',
-            'is_active' => true,
-        ]);
-    }
-
     public function test_suggests_operational_match_by_contractor_name_and_exact_amount_for_incoming_payment(): void
     {
         $customer = Contractor::query()->create([
@@ -127,6 +26,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $schedule = PaymentSchedule::query()->create([
             'order_id' => $order->id,
             'party' => 'customer',
+            'type' => 'final',
             'amount' => 120000,
             'remaining_amount' => 120000,
             'planned_date' => '2026-06-10',
@@ -164,6 +64,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $schedule = PaymentSchedule::query()->create([
             'order_id' => $order->id,
             'party' => 'carrier',
+            'type' => 'final',
             'amount' => 85000,
             'remaining_amount' => 85000,
             'planned_date' => '2026-06-12',
@@ -198,6 +99,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         PaymentSchedule::query()->create([
             'order_id' => $order->id,
             'party' => 'customer',
+            'type' => 'final',
             'amount' => 120000,
             'remaining_amount' => 120000,
             'status' => 'pending',
@@ -231,6 +133,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $schedule = PaymentSchedule::query()->create([
             'order_id' => $order->id,
             'party' => 'carrier',
+            'type' => 'final',
             'amount' => 156000,
             'remaining_amount' => 156000,
             'invoice_number' => 'СЧ-78000',
@@ -268,6 +171,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $schedule = PaymentSchedule::query()->create([
             'order_id' => $order->id,
             'party' => 'carrier',
+            'type' => 'final',
             'amount' => 78000,
             'remaining_amount' => 78000,
             'invoice_number' => 'СЧ-45821',
@@ -308,6 +212,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         PaymentSchedule::query()->create([
             'order_id' => $firstOrder->id,
             'party' => 'customer',
+            'type' => 'final',
             'amount' => 100000,
             'remaining_amount' => 100000,
             'planned_date' => '2026-06-20',
@@ -317,6 +222,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         PaymentSchedule::query()->create([
             'order_id' => $secondOrder->id,
             'party' => 'customer',
+            'type' => 'final',
             'amount' => 100000,
             'remaining_amount' => 100000,
             'planned_date' => '2026-06-05',
@@ -358,6 +264,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $scheduleByNumber = PaymentSchedule::query()->create([
             'order_id' => $orderByNumber->id,
             'party' => 'customer',
+            'type' => 'final',
             'amount' => 100000,
             'remaining_amount' => 100000,
             'status' => 'pending',
@@ -366,6 +273,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         PaymentSchedule::query()->create([
             'order_id' => $orderByNameOnly->id,
             'party' => 'customer',
+            'type' => 'final',
             'amount' => 100000,
             'remaining_amount' => 100000,
             'status' => 'pending',
@@ -391,20 +299,19 @@ class ManagementAccountingMatchingServiceTest extends TestCase
             'full_name' => 'Общество с ограниченной ответственностью Транспортная компания Тандем',
         ]);
 
-        $order = Order::query()->create([
+        $orderId = $this->insertOrderRow([
             'order_number' => 'АС-2506-0301',
             'carrier_id' => null,
-            'performers' => [
-                ['contractor_id' => $carrier->id, 'name' => 'Тандем'],
-            ],
         ]);
 
         $schedule = PaymentSchedule::query()->create([
-            'order_id' => $order->id,
+            'order_id' => $orderId,
             'party' => 'carrier',
+            'type' => 'final',
             'amount' => 78000,
             'remaining_amount' => 78000,
             'status' => 'pending',
+            'counterparty_id' => $carrier->id,
         ]);
 
         $line = ManagementStatementLine::query()->make([
@@ -434,6 +341,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         PaymentSchedule::query()->create([
             'order_id' => $order->id,
             'party' => 'carrier',
+            'type' => 'final',
             'amount' => 78000,
             'remaining_amount' => 78000,
             'status' => 'pending',
@@ -468,6 +376,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $schedule = PaymentSchedule::query()->create([
             'order_id' => $order->id,
             'party' => 'customer',
+            'type' => 'final',
             'amount' => 100000,
             'remaining_amount' => 100000,
             'status' => 'pending',
@@ -503,6 +412,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $schedule = PaymentSchedule::query()->create([
             'order_id' => $order->id,
             'party' => 'customer',
+            'type' => 'final',
             'amount' => 400000,
             'remaining_amount' => 400000,
             'invoice_number' => '1',
@@ -536,6 +446,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         PaymentSchedule::query()->create([
             'order_id' => $order->id,
             'party' => 'customer',
+            'type' => 'final',
             'amount' => 400000,
             'remaining_amount' => 0,
             'paid_amount' => 0,
@@ -570,6 +481,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         PaymentSchedule::query()->create([
             'order_id' => $order->id,
             'party' => 'customer',
+            'type' => 'final',
             'type' => 'final',
             'amount' => 250000,
             'remaining_amount' => 250000,
@@ -606,6 +518,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $prepayment = PaymentSchedule::query()->create([
             'order_id' => $order->id,
             'party' => 'customer',
+            'type' => 'final',
             'type' => 'prepayment',
             'installment_sequence' => 1,
             'amount' => 617231,
@@ -617,6 +530,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         PaymentSchedule::query()->create([
             'order_id' => $order->id,
             'party' => 'customer',
+            'type' => 'final',
             'type' => 'final',
             'installment_sequence' => 2,
             'amount' => 617230.5,
@@ -664,6 +578,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
             'order_id' => $order->id,
             'party' => 'carrier',
             'type' => 'final',
+            'type' => 'final',
             'amount' => 28000,
             'remaining_amount' => 0,
             'paid_amount' => 0,
@@ -674,6 +589,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         PaymentSchedule::query()->create([
             'order_id' => $decoyOrder->id,
             'party' => 'carrier',
+            'type' => 'final',
             'type' => 'final',
             'amount' => 45000,
             'remaining_amount' => 0,
@@ -716,6 +632,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $schedule = PaymentSchedule::query()->create([
             'order_id' => $order->id,
             'party' => 'carrier',
+            'type' => 'final',
             'amount' => 28000,
             'remaining_amount' => 0,
             'paid_amount' => 0,

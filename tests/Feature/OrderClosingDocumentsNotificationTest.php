@@ -6,17 +6,14 @@ use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\OrderLeg;
+use App\Models\Role;
 use App\Models\RoutePoint;
 use App\Models\User;
 use App\Services\OrderClosingDocumentsNotificationService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class OrderClosingDocumentsNotificationTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_clerk_receives_notification_when_transport_is_completed(): void
     {
         $clerk = $this->createClerkUser();
@@ -67,9 +64,11 @@ class OrderClosingDocumentsNotificationTest extends TestCase
 
         $service = app(OrderClosingDocumentsNotificationService::class);
 
-        $this->assertTrue($service->isTransportCompleted($order->fresh(['legs.routePoints', 'documents', 'client'])));
-        $this->assertTrue($service->maybeNotify($order->fresh(['legs.routePoints', 'documents', 'client'])));
+        $orderForCheck = $order->fresh(['legs.routePoints', 'documents', 'client']);
+
+        $this->assertTrue($service->isTransportCompleted($orderForCheck));
         $this->assertSame(1, $clerk->fresh()->unreadNotifications()->count());
+        $this->assertFalse($service->maybeNotify($orderForCheck));
 
         $notification = $clerk->fresh()->unreadNotifications()->first();
         $this->assertSame('order_closing_documents_required', data_get($notification->data, 'kind'));
@@ -154,17 +153,18 @@ class OrderClosingDocumentsNotificationTest extends TestCase
 
     private function createClerkUser(): User
     {
-        $roleId = DB::table('roles')->insertGetId([
-            'name' => 'clerk',
-            'display_name' => 'Делопроизводитель',
-            'visibility_areas' => json_encode(['dashboard', 'orders', 'documents'], JSON_THROW_ON_ERROR),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $role = Role::query()->firstOrCreate(
+            ['name' => 'clerk'],
+            [
+                'display_name' => 'Делопроизводитель',
+                'visibility_areas' => ['dashboard', 'orders', 'documents'],
+            ],
+        );
 
         return User::factory()->create([
-            'role_id' => $roleId,
+            'role_id' => $role->id,
             'email_verified_at' => now(),
+            'is_active' => true,
         ]);
     }
 }

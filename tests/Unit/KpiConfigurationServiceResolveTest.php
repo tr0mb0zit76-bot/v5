@@ -3,39 +3,29 @@
 namespace Tests\Unit;
 
 use App\Services\KpiConfigurationService;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 class KpiConfigurationServiceResolveTest extends TestCase
 {
-    public function test_when_two_ranges_overlap_at_boundary_picks_row_with_higher_threshold_from(): void
+    public function test_cash_category_uses_sequential_primary_and_secondary_deduction(): void
     {
-        $mock = $this->getMockBuilder(KpiConfigurationService::class)
-            ->onlyMethods(['groupedThresholds'])
-            ->getMock();
+        $service = app(KpiConfigurationService::class);
 
-        $mock->method('groupedThresholds')->willReturn([
-            ['threshold_from' => 0.0, 'threshold_to' => 0.5, 'direct_kpi' => 7, 'indirect_kpi' => 11],
-            ['threshold_from' => 0.5, 'threshold_to' => 1.0, 'direct_kpi' => 3, 'indirect_kpi' => 7],
-        ]);
+        $amount = $service->kpiDeductionAmount(100_000.0, 'cash');
+        $percent = $service->effectiveKpiPercent(100_000.0, 'cash');
 
-        $this->assertSame(3.0, $mock->resolveKpiPercentForDeal('direct', 0.5));
-        $this->assertSame(3.0, $mock->resolveKpiPercentForDeal('direct', 1.0));
-        $this->assertSame(7.0, $mock->resolveKpiPercentForDeal('direct', 0.25));
+        $this->assertSame(23_370.0, round($amount, 2));
+        $this->assertSame(23.37, $percent);
     }
 
-    public function test_single_match_uses_that_row(): void
+    public function test_vat_all_category_uses_single_percent_deduction(): void
     {
-        $mock = $this->getMockBuilder(KpiConfigurationService::class)
-            ->onlyMethods(['groupedThresholds'])
-            ->getMock();
+        $service = app(KpiConfigurationService::class);
 
-        $mock->method('groupedThresholds')->willReturn([
-            ['threshold_from' => 0.0, 'threshold_to' => 0.24, 'direct_kpi' => 3, 'indirect_kpi' => 7],
-            ['threshold_from' => 0.25, 'threshold_to' => 0.49, 'direct_kpi' => 4, 'indirect_kpi' => 8],
-            ['threshold_from' => 0.5, 'threshold_to' => 1.0, 'direct_kpi' => 5, 'indirect_kpi' => 9],
-        ]);
+        $amount = $service->kpiDeductionAmount(100_000.0, 'vat_all');
+        $percent = $service->effectiveKpiPercent(100_000.0, 'vat_all');
 
-        $this->assertSame(5.0, $mock->resolveKpiPercentForDeal('direct', 1.0));
-        $this->assertSame(9.0, $mock->resolveKpiPercentForDeal('indirect', 1.0));
+        $this->assertSame(4_000.0, round($amount, 2));
+        $this->assertSame(4.0, $percent);
     }
 }

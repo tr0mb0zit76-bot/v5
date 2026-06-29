@@ -138,6 +138,10 @@
                 </div>
             </div>
 
+            <div v-if="order?.smart_links?.length" class="border-b border-zinc-200 px-5 py-2 dark:border-zinc-800">
+                <CardSmartLinksBar :links="order.smart_links" />
+            </div>
+
             <div class="flex flex-col gap-2 border-b border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-x-3 sm:gap-y-2">
                 <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                     <button
@@ -1924,6 +1928,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, w
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ClipboardList, FileText, Gavel, History, Mail, MapPinned, OctagonAlert, Package, Paperclip, Save, ScrollText, Wallet, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
+import CardSmartLinksBar from '@/Components/Crm/CardSmartLinksBar.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import PaymentTermsWizardBlock from '@/Pages/Orders/Components/PaymentTermsWizardBlock.vue';
 import OrderStatusIcon from '@/Components/Orders/OrderStatusIcon.vue';

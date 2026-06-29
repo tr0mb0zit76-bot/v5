@@ -7,102 +7,11 @@ use App\Models\ContractorContact;
 use App\Models\ContractorPortrait;
 use App\Models\User;
 use App\Services\Contractor\ContractorPortraitCoverage;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ContractorPortraitTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'contractor_interactions',
-            'contractor_contacts',
-            'contractor_portraits',
-            'contractors',
-            'users',
-            'roles',
-        ]);
-
-        Schema::create('roles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->unique();
-            $table->string('display_name')->nullable();
-            $table->json('visibility_areas')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('contractors', function (Blueprint $table): void {
-            $table->id();
-            $table->string('type')->default('customer');
-            $table->string('name');
-            $table->boolean('is_active')->default(true);
-            $table->unsignedBigInteger('owner_id')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('contractor_portraits', function (Blueprint $table): void {
-            $table->foreignId('contractor_id')->primary()->constrained('contractors')->cascadeOnDelete();
-            $table->string('communication_style', 32)->default('unknown');
-            $table->string('price_sensitivity', 32)->default('unknown');
-            $table->string('preferred_channel', 32)->default('unknown');
-            $table->string('decision_cadence', 32)->default('unknown');
-            $table->string('relationship_trust', 32)->default('unknown');
-            $table->text('success_criteria')->nullable();
-            $table->json('typical_objections')->nullable();
-            $table->text('internal_notes')->nullable();
-            $table->unsignedTinyInteger('coverage_pct')->default(0);
-            $table->timestamp('portrait_updated_at')->nullable();
-            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamps();
-        });
-
-        Schema::create('contractor_contacts', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('contractor_id')->constrained('contractors')->cascadeOnDelete();
-            $table->string('full_name');
-            $table->string('position')->nullable();
-            $table->string('phone', 50)->nullable();
-            $table->string('email')->nullable();
-            $table->boolean('is_primary')->default(false);
-            $table->boolean('is_decision_maker')->default(false);
-            $table->string('role_in_deal', 32)->nullable();
-            $table->text('communication_notes')->nullable();
-            $table->text('notes')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('contractor_interactions', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('contractor_id')->constrained('contractors')->cascadeOnDelete();
-            $table->foreignId('contractor_contact_id')->nullable()->constrained('contractor_contacts')->nullOnDelete();
-            $table->timestamp('contacted_at');
-            $table->string('channel', 50);
-            $table->string('outcome_code', 32)->nullable();
-            $table->timestamp('next_contact_at')->nullable();
-            $table->string('subject')->nullable();
-            $table->text('summary')->nullable();
-            $table->string('result')->nullable();
-            $table->json('objection_tags')->nullable();
-            $table->boolean('merge_to_portrait')->default(false);
-            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamps();
-        });
-    }
-
     public function test_portrait_update_recalculates_coverage(): void
     {
         $user = $this->makeAdminUser();

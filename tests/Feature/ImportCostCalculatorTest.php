@@ -53,6 +53,7 @@ class ImportCostCalculatorTest extends TestCase
                 'invoice_amount' => 1000,
                 'currency' => 'RUB',
                 'tn_ved_code' => '8429520000',
+                'include_utilization_fee' => false,
             ])
             ->assertOk()
             ->assertJsonStructure(['summary', 'breakdown']);

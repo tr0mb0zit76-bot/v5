@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-use App\Models\Role;
-use App\Models\User;
-use Illuminate\Contracts\Console\Kernel;
-use Illuminate\Support\Facades\Hash;
-
 require __DIR__.'/../vendor/autoload.php';
 
 $app = require __DIR__.'/../bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
+
+use App\Models\Role;
+use App\Models\User;
+use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Support\Facades\Hash;
 
 $role = Role::query()->where('name', 'admin')->first();
 

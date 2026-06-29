@@ -3,9 +3,106 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-02 · **Ветка:** `master` · **HEAD:** `71feabd`
+**Обновлено:** 2026-06-29 · **Ветка:** локальные правки (не закоммичены) · **Контекст:** миграция PHPUnit на `RefreshDatabase` + реальная схема `u_tromb`
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-06-29) — PHPUnit: RefreshDatabase + `u_tromb`
+
+### Итог
+
+| Метрика | Было | Стало |
+| --- | --- | --- |
+| Failed | ~82 → ~58 | **0** |
+| Passed | ~1060 | **1141** |
+| Skipped | — | 19 |
+| Warning | — | 1 (не блокирует) |
+
+Полный прогон (~159 с):
+
+```powershell
+php artisan migrate:fresh --env=testing --force   # при смене схемы / первый раз
+php artisan test --compact                        # последовательно, не параллельно
+```
+
+**Не параллелить** suite — deadlock на schema dump. **Не задавать `DB_HOST` в PowerShell** — перебьёт `.env.testing` (OSPanel: `127.0.1.21`).
+
+### Архитектура тестов
+
+- Глобальный **`RefreshDatabase`** в `tests/TestCase.php` (БД из `.env.testing`, шаблон `u_tromb.env.example`).
+- **`schemaDropMany()` в unit/feature** — убрать; MySQL не откатывает DDL в транзакции.
+- **`payment_terms`** на заказах — **нет** в актуальной схеме → только `financial_terms.payment_terms_snapshot` (хелпер `createOrderWithPaymentTerms()`).
+- **`carrier_rate` / `performers` / `carrier_payment_form`** на `orders` — проверять `Schema::hasColumn` перед insert/select.
+- **FK:** не вставлять `user_id` / `template_id` / `scenario_id` «наугад» — factory или `insertGetId` родителя.
+- **Seeded data:** миграции уже создают `transport-intake`, `kpi_deduction_rules`, departments 1–3, роли — тесты не дублировать slug/unique.
+
+### Хелперы `tests/TestCase.php`
+
+| Метод | Назначение |
+| --- | --- |
+| `onlyExistingOrderColumns()` | Фильтр атрибутов по колонкам `orders` |
+| `insertOrderRow()` | INSERT заказа без несуществующих колонок |
+| `assertDatabaseHasOrder()` | assert с фильтром колонок |
+| `assertOrderCarrierRate()` | `orders.carrier_rate` или `financial_terms.contractors_costs` |
+| `createOrderWithPaymentTerms()` | Условия оплаты в `financial_terms` |
+| `createManagementBankAccount/StatementLine/ExpenseCategory()` | Управленка |
+| `restoreTestDatabaseSchema()` | alias → `refreshTestDatabase()` |
+
+### Типичные фиксы тестов (паттерны)
+
+1. **`vat_22`** → `PaymentFormDictionary::defaultClientVatCode()` или `'vat'`.
+2. **Лиды POST/PATCH** — обязателен `business_process_id` (seeded BP).
+3. **`Role::create` с `name: manager`** — `firstOrCreate` / uniqid (unique на `roles.name`).
+4. **Sales scripts editor** — `sales_assistant_scripts` в `visibility_areas`; redirect после graph save → `scripts.editor.versions.show`.
+5. **Книга продаж / quiz analytics** — доступ: `canReadSalesBook` (свои попытки), `canViewAll` только admin/supervisor (`Role::hasRole('supervisor')`); отдельная страница `book.quiz-analytics`, не пропсы на `/book`.
+6. **`DealTypeClassifier`** — через `app(DealTypeClassifier::class)`; категории KPI (`vat_zero_22`, `vat`), не legacy `direct`/`indirect`.
+7. **`KpiDeductionRuleResolver` «unknown»** — `KpiDeductionRule::query()->delete()` перед assert (seeded rules).
+8. **Public landing** — запросы на хост витрины: `http://v5.local/...` (`config('app.showcase_hosts')[0]`), не `localhost` (302).
+9. **Roles** — `visibilityScopeOptions` = **3** (`own`, `department`, `all`); `documents.index` блокируется middleware `visibility.area.any:documents|orders` — без `orders` в areas будет 200.
+10. **Disposition KPI** — заказ «в пути»: loading `actual_date` + unloading `actual_date = null` на route points.
+11. **Print forms catalog** — `financial.carrier_norms_penalties.*`, не `carrier_norms_by_leg.N.*`.
+12. **Salary payroll** — `payable_amount_computed` > 0 только при полной оплате заказчика (`paid_amount` на `payment_schedules` или ledger events).
+13. **Import cost calculator** — в тесте `include_utilization_fee: false` или sync references; иначе 500 без `base_fee_rub`.
+14. **Order closing docs notification** — `OrderDocumentObserver` уже вызывает `maybeNotify` при create waybill; в тесте проверять уведомление после create, не повторный `maybeNotify` (metadata `closing_documents_notified_at`).
+15. **MCP / print templates** — при `PrintFormTemplate::create` нужны `entity_type`, `document_type`, `vue_component`, `source_type`.
+
+### App fixes (не только тесты)
+
+| Файл | Суть |
+| --- | --- |
+| `BackfillOrderOperationalData.php` | SELECT колонок через `Schema::hasColumn`; nullable `payment_terms`/`performers` |
+| `BackfillContractorDefaults.php` | То же для SELECT из `orders` |
+| `OneCFreshEtrnController` | Убран eager load несуществующего `driver` relation |
+| `EtrnDraftBuilder` | Водитель из таблицы `drivers` (legacy), не Eloquent relation |
+| `MailInboxSyncService` | `CarbonImmutable` → `Carbon` для `ActivityLedgerService::record` |
+| `OrderClosingDocumentsNotificationService` | `loadMissing` без лишнего `refresh()` |
+| `LeadController` | import `ConvertLeadRequest` (ранее) |
+| `LeadRoutePriceBenchmarkService` | schema-aware колонки (ранее) |
+
+### Скрипты автоматизации (следующий шаг)
+
+| Скрипт | Назначение |
+| --- | --- |
+| `scripts/fix-order-schema-assertions.php` | `assertDatabaseHas` → `assertDatabaseHasOrder`, raw insert → `insertOrderRow` |
+| `scripts/fix-order-wizard-inserts.php` | Правки wizard-тестов |
+
+После массовых правок: `vendor/bin/pint --dirty --format agent`.
+
+### На ноутбуке после **ЗАБРАТЬ**
+
+```powershell
+git pull
+copy u_tromb.env.example .env.testing    # DB_DATABASE=u_tromb, DB_HOST=127.0.1.21
+php artisan migrate:fresh --env=testing --force
+php artisan test --compact
+pwsh -File scripts/sync-docs-to-yandex.ps1 -ExchangeRoot "$env:USERPROFILE\Yandex.Disk\Exchange"
+```
+
+В новом чате Cursor: **«ЗАБРАТЬ»** или *прочитай `docs/sync/Cursor-handoff-latest.md` и продолжай миграцию тестов / скрипты*.
+
+**Незакоммиченный diff** на основном ПК — перед `git pull` на ноутбуке нужен `git push` с большого ПК (или перенос patch).
 
 ---
 
@@ -117,9 +214,10 @@ pwsh -File scripts/sync-docs-to-yandex.ps1
 
 3. **`.env`** — свой на каждой машине (не копировать с другого ПК). OSPanel MySQL: **`DB_HOST=127.0.1.21`**, не `127.0.0.1`.
 
-4. **Тестовая БД:** скопировать `u_tromb.env.example` → `.env.testing`, **`DB_DATABASE=u_tromb_test`** (рабочая `u_tromb` не трогать). После pull с миграциями:
+4. **Тестовая БД:** скопировать `u_tromb.env.example` → `.env.testing`, **`DB_DATABASE=u_tromb`** (та же схема, изолированный инстанс; альтернатива — `u_tromb_test`). После pull с миграциями:
    ```powershell
-   php artisan migrate --env=testing --schema-path=database/schema/.skip-mysql-cli-load
+   php artisan migrate:fresh --env=testing --force
+   php artisan test --compact
    ```
    **Не задавать `DB_HOST` в PowerShell** перед тестами — перебьёт `.env.testing`.  
    `phpunit.xml`: `ORDER_WIZARD_TEST_DATABASE=u_tromb_test`.
@@ -266,7 +364,8 @@ php artisan optimize:clear
 - `2026_06_21_230000_create_proposal_html_templates_table`
 - `2026_06_21_240000_add_ab_and_context_to_sales_scripts`
 
-**Тесты roadmap (21 шт.):** см. карточку Commercial Roadmap — гонять **по файлам**, не одной командой (конфликт `schemaDropMany` vs `RefreshDatabase` в shared `u_tromb`).
+**Тесты roadmap (21 шт.):** см. карточку Commercial Roadmap — гонять **по файлам**.  
+**Актуально (2026-06-29):** полный suite **1141 passed** на `RefreshDatabase` + `u_tromb` через `.env.testing` — см. § 2026-06-29 выше.
 
 ---
 
@@ -290,6 +389,7 @@ php artisan optimize:clear
 
 | Что | Где |
 | --- | --- |
+| **PHPUnit / RefreshDatabase / u_tromb** | этот handoff § 2026-06-29, `tests/TestCase.php`, `u_tromb.env.example` |
 | **Handoff (этот файл)** | `docs/sync/Cursor-handoff-latest.md` |
 | **Старт сессии Cursor** | `docs/sync/cursor-agent-startup.md` |
 | **Правило агента** | `.cursor/rules/project-context-handoff.mdc` |

@@ -9,13 +9,10 @@ use App\Models\User;
 use App\Services\PrintFormTemplateOrderEligibility;
 use App\Support\PrintFormTemplateTransportScope;
 use App\Support\RoleAccess;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class PrintFormTemplateOrderEligibilityTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_international_carrier_template_available_when_order_flagged_ved(): void
     {
         $order = Order::factory()->create([
@@ -209,7 +206,9 @@ class PrintFormTemplateOrderEligibilityTest extends TestCase
 
     public function test_internal_carrier_basic_terms_template_is_not_available_for_customer_print_slot(): void
     {
-        $order = Order::factory()->create();
+        $order = Order::factory()->create([
+            'is_international_transport' => true,
+        ]);
 
         $template = PrintFormTemplate::query()->create([
             'name' => 'ВЭД перевозчик (внутренняя)',

@@ -7,14 +7,11 @@ use App\Models\Lead;
 use App\Models\User;
 use App\Services\ActivityLedgerService;
 use App\Support\ActivityEventType;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ActivityLedgerServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_record_persists_activity_event_for_lead(): void
     {
         if (! Schema::hasTable('activity_events') || ! Schema::hasTable('leads')) {

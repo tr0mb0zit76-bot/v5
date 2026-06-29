@@ -8,66 +8,12 @@ use App\Models\PrintFormBasicTerm;
 use App\Models\User;
 use App\Services\PrintForm\ContractorPrintFormChangeRequestService;
 use App\Services\PrintForm\PrintFormBasicTermsService;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Mockery;
 use Tests\TestCase;
 
 class ContractorPrintFormChangeRequestServiceTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'contractor_print_form_change_requests',
-            'print_form_basic_terms',
-            'contractors',
-            'users',
-        ]);
-
-        Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->nullable();
-            $table->string('email')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('contractors', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->timestamps();
-        });
-
-        Schema::create('print_form_basic_terms', function (Blueprint $table) {
-            $table->id();
-            $table->string('party', 16);
-            $table->unsignedBigInteger('contractor_id')->nullable();
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->text('body');
-            $table->timestamps();
-        });
-
-        Schema::create('contractor_print_form_change_requests', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('contractor_id')->constrained('contractors')->cascadeOnDelete();
-            $table->string('party', 16);
-            $table->string('change_type', 32)->default('basic_terms');
-            $table->string('status', 32)->default('pending_approval');
-            $table->json('payload')->nullable();
-            $table->text('manager_notes')->nullable();
-            $table->text('yurik_summary')->nullable();
-            $table->text('rejection_reason')->nullable();
-            $table->foreignId('submitted_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamp('submitted_at')->nullable();
-            $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamp('reviewed_at')->nullable();
-            $table->unsignedBigInteger('task_id')->nullable();
-            $table->timestamps();
-        });
-    }
-
     protected function tearDown(): void
     {
         Mockery::close();
@@ -192,7 +138,7 @@ class ContractorPrintFormChangeRequestServiceTest extends TestCase
 
     private function adminUser(): User
     {
-        $user = User::query()->create([
+        $user = User::factory()->create([
             'name' => 'Admin',
             'email' => 'admin-'.uniqid('', true).'@test.local',
         ]);
@@ -206,7 +152,7 @@ class ContractorPrintFormChangeRequestServiceTest extends TestCase
 
     private function managerUser(): User
     {
-        $user = User::query()->create([
+        $user = User::factory()->create([
             'name' => 'Manager',
             'email' => 'manager-'.uniqid('', true).'@test.local',
         ]);

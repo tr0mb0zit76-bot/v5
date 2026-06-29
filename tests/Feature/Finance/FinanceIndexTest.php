@@ -4,9 +4,7 @@ namespace Tests\Feature\Finance;
 
 use App\Models\User;
 use Carbon\Carbon;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -15,98 +13,6 @@ class FinanceIndexTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->schemaDropMany([
-            'payment_schedules',
-            'leg_contractor_assignments',
-            'order_legs',
-            'orders',
-            'contractors',
-            'users',
-            'roles',
-        ]);
-
-        Schema::create('roles', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->string('display_name')->nullable();
-            $table->json('permissions')->nullable();
-            $table->json('visibility_areas')->nullable();
-            $table->json('visibility_scopes')->nullable();
-            $table->json('columns_config')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->rememberToken();
-            $table->timestamps();
-        });
-
-        Schema::create('contractors', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->nullable();
-            $table->string('full_name')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('orders', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('manager_id')->nullable();
-            $table->unsignedBigInteger('customer_id')->nullable();
-            $table->unsignedBigInteger('carrier_id')->nullable();
-            $table->string('order_number')->nullable();
-            $table->date('order_date')->nullable();
-            $table->decimal('customer_rate', 12, 2)->nullable();
-            $table->decimal('carrier_rate', 12, 2)->nullable();
-            $table->string('customer_payment_form', 50)->nullable();
-            $table->string('carrier_payment_form', 50)->nullable();
-            $table->string('invoice_number')->nullable();
-            $table->string('upd_number')->nullable();
-            $table->string('upd_carrier_number')->nullable();
-            $table->string('status', 50)->default('new');
-            $table->timestamps();
-            $table->softDeletes();
-        });
-
-        Schema::create('order_legs', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('order_id');
-            $table->unsignedInteger('sequence')->default(1);
-            $table->timestamps();
-        });
-
-        Schema::create('leg_contractor_assignments', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('order_leg_id');
-            $table->unsignedBigInteger('contractor_id')->nullable();
-            $table->unsignedBigInteger('assigned_by');
-            $table->string('status', 20)->default('pending');
-            $table->timestamps();
-        });
-
-        Schema::create('payment_schedules', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('order_id');
-            $table->unsignedBigInteger('counterparty_id')->nullable();
-            $table->unsignedBigInteger('parent_payment_id')->nullable();
-            $table->boolean('is_partial')->default(false);
-            $table->enum('party', ['customer', 'carrier']);
-            $table->enum('type', ['prepayment', 'final']);
-            $table->decimal('amount', 12, 2);
-            $table->string('invoice_number', 120)->nullable();
-            $table->decimal('paid_amount', 12, 2)->nullable();
-            $table->decimal('remaining_amount', 12, 2)->nullable();
-            $table->date('planned_date')->nullable();
-            $table->date('actual_date')->nullable();
-            $table->enum('status', ['pending', 'paid', 'overdue', 'cancelled'])->default('pending');
-            $table->timestamps();
-        });
 
         Carbon::setTestNow('2026-04-15 12:00:00');
     }
@@ -150,7 +56,7 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $manager->id,
             'customer_id' => $customerId,
             'carrier_id' => $carrierId,
@@ -168,7 +74,7 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        DB::table('orders')->insert([
+        $this->insertOrderRow([
             'manager_id' => $otherManager->id,
             'customer_id' => $customerId,
             'carrier_id' => $carrierId,
@@ -180,8 +86,6 @@ class FinanceIndexTest extends TestCase
             'carrier_payment_form' => 'no_vat',
             'invoice_number' => 'INV-200',
             'status' => 'new',
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
 
         DB::table('payment_schedules')->insert([
@@ -240,7 +144,7 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $user->id,
             'customer_id' => $customerId,
             'carrier_id' => $carrierId,
@@ -304,7 +208,7 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $manager->id,
             'customer_id' => $customerId,
             'carrier_id' => $carrierId,
@@ -367,7 +271,7 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $manager->id,
             'customer_id' => $customerId,
             'carrier_id' => $carrierId,
@@ -430,7 +334,7 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $user->id,
             'customer_id' => $customerId,
             'carrier_id' => $carrierId,
@@ -450,8 +354,6 @@ class FinanceIndexTest extends TestCase
             'party' => 'customer',
             'type' => 'final',
             'amount' => 120000,
-            'paid_amount' => null,
-            'remaining_amount' => null,
             'planned_date' => '2026-04-20',
             'status' => 'pending',
             'created_at' => now(),
@@ -493,7 +395,7 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $user->id,
             'customer_id' => $customerId,
             'carrier_id' => $carrierId,
@@ -556,7 +458,7 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $user->id,
             'customer_id' => $customerId,
             'carrier_id' => null,
@@ -636,7 +538,7 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $user->id,
             'customer_id' => $customerId,
             'carrier_id' => $carrierId,
@@ -706,7 +608,7 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $user->id,
             'customer_id' => $customerId,
             'carrier_id' => $oldCarrierId,
@@ -768,7 +670,7 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $manager->id,
             'customer_id' => $customerId,
             'carrier_id' => $carrierId,
@@ -831,7 +733,7 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $manager->id,
             'customer_id' => $customerId,
             'carrier_id' => $carrierId,
@@ -907,7 +809,7 @@ class FinanceIndexTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        $orderId = DB::table('orders')->insertGetId([
+        $orderId = $this->insertOrderRow([
             'manager_id' => $manager->id,
             'order_number' => 'ORD-LOCK',
             'order_date' => '2026-04-05',

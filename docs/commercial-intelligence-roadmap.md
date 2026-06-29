@@ -284,16 +284,16 @@
 
 ---
 
-## Фаза 6 — AI-ассистент в контуре коммерции 📋
+## Фаза 6 — AI-ассистент в контуре коммерции ✅ (MVP)
 
 **Цель:** черновики ответов, резюме переписки, следующий шаг — с опорой на Ledger и почту.
 
-| # | Задача | Готово, когда |
-|---|--------|----------------|
-| 6.1 | Tooling: «резюме цепочки», «черновик ответа», «что сделать дальше по лиду» | API + UI в лиде/почте |
-| 6.2 | Контекст: `activity_events` + важные `mail_messages` + книга продаж / скрипты | Лимит токенов, цитаты источников |
-| 6.3 | Политика данных: L2 vs L3 по [ai-platform-architecture.md](./ai-platform-architecture.md) | Нет утечки ПД во внешний API без решения |
-| 6.4 | Обратная связь (полезно/нет) для улучшения подсказок | Логи в CRM |
+| # | Задача | Статус |
+|---|--------|--------|
+| 6.1 | Tooling: «резюме цепочки», «черновик ответа», «что сделать дальше по лиду» | ✅ `MailThreadAnalysisController` + UI в `Mail/Index.vue` |
+| 6.2 | Контекст: `activity_events` + важные `mail_messages` + книга продаж / скрипты | ✅ через `MailThreadAnalysisService` + `AiRequestGate` / sanitizer |
+| 6.3 | Политика данных: L2 vs L3 по [ai-platform-architecture.md](./ai-platform-architecture.md) | ✅ канал `command_bar`, local-only gate |
+| 6.4 | Обратная связь (полезно/нет) для улучшения подсказок | ✅ `commercial_ai_suggestion_logs` + `mail.ai.feedback` |
 
 **Не смешивать с:** тренажёром продавца (отдельный модуль `sales_assistant_*`).
 
@@ -301,31 +301,31 @@
 
 ---
 
-## Фаза 7 — Сквозные доработки (backlog) 📋
+## Фаза 7 — Сквозные доработки (backlog) ✅
 
 Мелкие, но полезные пункты без отдельной «большой» фазы:
 
-| # | Задача | Примечание |
-|---|--------|------------|
-| 7.1 | Отправка документов заказа (подписанный PDF) по e-mail | Переиспользовать `CommercialMailService` |
-| 7.2 | Activity timeline на **заказе** | Тот же `ActivityLedgerService` |
-| 7.3 | Запись в Ledger при создании задачи из лида | `TaskCreated` |
-| 7.4 | После `generateCommercialDraft` — путь файла в `lead_offers.generated_file_path` | Чтобы вложение в письме было стабильным |
-| 7.5 | NC: ссылка «открыть в OnlyOffice» без встраивания CRM | Если понадобится юристам |
+| # | Задача | Статус |
+|---|--------|--------|
+| 7.1 | Отправка документов заказа (подписанный PDF) по e-mail | ✅ `OrderDocumentMailService`, `orders.documents.send-email` |
+| 7.2 | Activity timeline на **заказе** | ✅ (ранее) |
+| 7.3 | Запись в Ledger при создании задачи из лида | ✅ `TaskCreated` |
+| 7.4 | После `generateCommercialDraft` — путь файла в `lead_offers.generated_file_path` | ✅ как в `storeCommercialFromTemplate` |
+| 7.5 | NC: ссылка «открыть в OnlyOffice» без встраивания CRM | 📋 опционально |
 
 ---
 
-## Фаза 8 — Платформа CRM (идеи Odoo без монолита) 📋
+## Фаза 8 — Платформа CRM (идеи Odoo без монолита) ✅ (MVP)
 
 **Цель:** декларативность, события, связи записей — по всей CRM, не только коммерция.
 
-| # | Задача | Готово, когда |
-|---|--------|----------------|
-| 8.1 | Каталог **features** (вкл/выкл, `depends`) — routes, MCP, menu | Включение модуля без правки PHP |
-| 8.2 | **Smart links** на карточках (статьи, coaching, gaps, задачи по лиду) | Счётчики на лиде/заказе |
-| 8.3 | Правила на этапе БП: поле + статья + задача (automated actions) | Данные в `business_process_stages` |
-| 8.4 | Наборы permissions в роли (implied groups) | Меньше ручной настройки |
-| 8.5 | Тяжёлые job: reindex книги, отчёты | Очередь Laravel |
+| # | Задача | Статус |
+|---|--------|--------|
+| 8.1 | Каталог **features** (вкл/выкл, `depends`) — routes, MCP, menu | ✅ `config/crm_features.php`, `CrmFeatureCatalog`, prop `crm_features` |
+| 8.2 | **Smart links** на карточках (статьи, coaching, gaps, задачи по лиду) | ✅ `CardSmartLinksResolver`, `CardSmartLinksBar` |
+| 8.3 | Правила на этапе БП: поле + статья + задача (automated actions) | ✅ колонка `business_process_stages.automated_actions` |
+| 8.4 | Наборы permissions в роли (implied groups) | ✅ `config/role_implied_permissions.php` |
+| 8.5 | Тяжёлые job: reindex книги, отчёты | ✅ `ReindexSalesBookArticlesJob`, `sales-book:reindex` |
 
 **Критерий фазы:** новый модуль включается флагом; менеджер видит связанные подсказки с карточки лида/заказа.
 

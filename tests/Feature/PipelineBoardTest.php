@@ -12,7 +12,6 @@ use App\Models\PaymentSchedule;
 use App\Models\Role;
 use App\Models\RoutePoint;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\Support\CreatesInTransitOrders;
 use Tests\TestCase;
@@ -20,7 +19,6 @@ use Tests\TestCase;
 class PipelineBoardTest extends TestCase
 {
     use CreatesInTransitOrders;
-    use RefreshDatabase;
 
     public function test_pipeline_index_requires_pipeline_visibility(): void
     {

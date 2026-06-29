@@ -5,14 +5,11 @@ namespace Tests\Unit;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Agents\CommandBarAttachmentService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class CommandBarAttachmentServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function it_detects_order_intake_intent_from_user_message(): void
     {

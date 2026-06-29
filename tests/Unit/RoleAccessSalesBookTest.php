@@ -5,13 +5,10 @@ namespace Tests\Unit;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\RoleAccess;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class RoleAccessSalesBookTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_sales_book_visibility_without_granular_permissions_allows_read_only(): void
     {
         $user = $this->makeUserWithRole(

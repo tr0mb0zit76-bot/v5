@@ -5,7 +5,6 @@ namespace Tests\Unit;
 use App\Models\Order;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\PrintFormVariableCatalog;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionMethod;
@@ -13,8 +12,6 @@ use Tests\TestCase;
 
 class OrderPrintFormFinancialSnapshotTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function build_snapshot_includes_financial_norms_from_wizard_state(): void
     {
@@ -82,7 +79,7 @@ class OrderPrintFormFinancialSnapshotTest extends TestCase
         $values = array_column($catalog->orderOptions(), 'value');
 
         $this->assertContains('financial.client_norms_penalties.miss_amount_with_currency', $values);
-        $this->assertContains('financial.carrier_norms_by_leg.0.norm_unloading_hours', $values);
-        $this->assertContains('financial.carrier_norms_by_leg.14.penalty_terms', $values);
+        $this->assertContains('financial.carrier_norms_penalties.norm_unloading_hours', $values);
+        $this->assertContains('financial.carrier_norms_penalties.penalty_terms', $values);
     }
 }

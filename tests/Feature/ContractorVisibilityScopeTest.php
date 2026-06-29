@@ -6,13 +6,10 @@ use App\Models\Contractor;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\RoleAccess;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ContractorVisibilityScopeTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_manager_with_own_contractors_scope_sees_only_own_customers_in_search(): void
     {
         $managerRole = Role::query()->create([

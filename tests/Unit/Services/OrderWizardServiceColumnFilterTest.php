@@ -2,39 +2,20 @@
 
 namespace Tests\Unit\Services;
 
+use App\Services\DocumentStorageService;
+use App\Services\FleetTripService;
+use App\Services\OrderClosingDocumentsNotificationService;
 use App\Services\OrderCompensationService;
 use App\Services\OrderNumberGenerator;
 use App\Services\OrderStatusService;
 use App\Services\OrderWizardService;
 use App\Services\OrderWizardStateService;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionMethod;
 use Tests\TestCase;
 
 class OrderWizardServiceColumnFilterTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany(['orders']);
-
-        Schema::create('orders', function (Blueprint $table): void {
-            $table->id();
-            $table->string('order_number')->nullable();
-            $table->json('metadata')->nullable();
-        });
-    }
-
-    protected function tearDown(): void
-    {
-        $this->schemaDropMany(['orders']);
-
-        parent::tearDown();
-    }
-
     #[Test]
     public function it_filters_order_attributes_to_existing_columns(): void
     {
@@ -43,6 +24,9 @@ class OrderWizardServiceColumnFilterTest extends TestCase
             $this->createMock(OrderStatusService::class),
             $this->createMock(OrderCompensationService::class),
             $this->createMock(OrderWizardStateService::class),
+            $this->createMock(DocumentStorageService::class),
+            $this->createMock(FleetTripService::class),
+            $this->createMock(OrderClosingDocumentsNotificationService::class),
         );
 
         $method = new ReflectionMethod(OrderWizardService::class, 'onlyExistingOrderColumns');
@@ -70,6 +54,9 @@ class OrderWizardServiceColumnFilterTest extends TestCase
             $this->createMock(OrderStatusService::class),
             $this->createMock(OrderCompensationService::class),
             $this->createMock(OrderWizardStateService::class),
+            $this->createMock(DocumentStorageService::class),
+            $this->createMock(FleetTripService::class),
+            $this->createMock(OrderClosingDocumentsNotificationService::class),
         );
 
         $method = new ReflectionMethod(OrderWizardService::class, 'onlyExistingOrderColumns');

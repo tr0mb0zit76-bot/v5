@@ -4,116 +4,13 @@ namespace Tests\Feature\Tasks;
 
 use App\Models\Task;
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class TaskManagementTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'tasks',
-            'task_events',
-            'task_comments',
-            'task_checklist_items',
-            'task_attachments',
-            'users',
-            'roles',
-        ]);
-
-        Schema::create('roles', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->string('display_name')->nullable();
-            $table->json('visibility_areas')->nullable();
-            $table->json('visibility_scopes')->nullable();
-            $table->json('columns_config')->nullable();
-            $table->json('permissions')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->rememberToken();
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('tasks', function (Blueprint $table) {
-            $table->id();
-            $table->string('number', 40)->unique();
-            $table->string('title');
-            $table->text('description')->nullable();
-            $table->string('status', 30)->default('new');
-            $table->string('priority', 20)->default('medium');
-            $table->timestamp('due_at')->nullable();
-            $table->timestamp('sla_deadline_at')->nullable();
-            $table->timestamp('sla_escalated_at')->nullable();
-            $table->timestamp('completed_at')->nullable();
-            $table->unsignedBigInteger('created_by')->nullable();
-            $table->unsignedBigInteger('responsible_id')->nullable();
-            $table->unsignedBigInteger('lead_id')->nullable();
-            $table->unsignedBigInteger('order_id')->nullable();
-            $table->unsignedBigInteger('contractor_id')->nullable();
-            $table->json('meta')->nullable();
-            $table->timestamps();
-            $table->softDeletes();
-        });
-
-        Schema::create('task_checklist_items', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('task_id');
-            $table->string('title');
-            $table->boolean('is_done')->default(false);
-            $table->unsignedBigInteger('created_by')->nullable();
-            $table->unsignedBigInteger('completed_by')->nullable();
-            $table->timestamp('completed_at')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('task_comments', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('task_id');
-            $table->unsignedBigInteger('user_id')->nullable();
-            $table->text('body');
-            $table->timestamps();
-        });
-
-        Schema::create('task_attachments', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('task_id');
-            $table->unsignedBigInteger('user_id')->nullable();
-            $table->string('disk', 50)->default('public');
-            $table->string('path');
-            $table->string('original_name');
-            $table->string('mime_type', 120)->nullable();
-            $table->unsignedBigInteger('size_bytes')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('task_events', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('task_id');
-            $table->unsignedBigInteger('user_id')->nullable();
-            $table->string('type', 40);
-            $table->string('title');
-            $table->text('description')->nullable();
-            $table->json('meta')->nullable();
-            $table->timestamps();
-        });
-    }
-
     public function test_tasks_index_forbidden_without_visibility(): void
     {
         $roleId = DB::table('roles')->insertGetId([

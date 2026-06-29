@@ -9,14 +9,11 @@ use App\Models\OrderLeg;
 use App\Models\RoutePoint;
 use App\Models\User;
 use App\Services\Orders\OrderRouteActualDateUpdateService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class OrderRouteActualDateClosingNotificationTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_clerk_receives_notification_when_unloading_actual_is_set_via_route_service(): void
     {
         $clerk = $this->createClerkUser();

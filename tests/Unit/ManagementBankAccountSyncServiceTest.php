@@ -5,39 +5,10 @@ namespace Tests\Unit;
 use App\Models\Contractor;
 use App\Models\ManagementBankAccount;
 use App\Services\ManagementAccounting\ManagementBankAccountSyncService;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ManagementBankAccountSyncServiceTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany(['management_bank_accounts', 'contractors']);
-
-        Schema::create('contractors', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->boolean('is_active')->default(true);
-            $table->boolean('is_own_company')->default(false);
-            $table->json('bank_accounts')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('management_bank_accounts', function (Blueprint $table): void {
-            $table->id();
-            $table->string('bank_name');
-            $table->string('account_number', 32)->unique();
-            $table->string('account_mask', 16)->nullable();
-            $table->string('currency', 3)->default('RUB');
-            $table->boolean('is_active')->default(true);
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->timestamps();
-        });
-    }
-
     public function test_syncs_primary_bank_account_from_own_company(): void
     {
         Contractor::query()->create([

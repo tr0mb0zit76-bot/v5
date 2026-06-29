@@ -9,14 +9,11 @@ use App\Services\ActivityLedgerService;
 use App\Services\OrderActivityTimelineService;
 use App\Services\OrderStatusService;
 use App\Support\ActivityEventType;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class OrderActivityTimelineServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         try {

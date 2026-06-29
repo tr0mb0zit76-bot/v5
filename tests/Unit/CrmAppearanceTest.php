@@ -4,7 +4,7 @@ namespace Tests\Unit;
 
 use App\Support\CrmAppearance;
 use PHPUnit\Framework\Attributes\Test;
-use Tests\TestCase;
+use PHPUnit\Framework\TestCase;
 
 class CrmAppearanceTest extends TestCase
 {
@@ -13,10 +13,10 @@ class CrmAppearanceTest extends TestCase
     {
         $resolved = CrmAppearance::resolve(null);
 
-        $this->assertSame('sharp', $resolved['button_radius']);
-        $this->assertSame('emerald', $resolved['primary_accent']);
+        $this->assertSame('rounded', $resolved['button_radius']);
+        $this->assertSame('sky', $resolved['primary_accent']);
         $this->assertSame('filled', $resolved['tab_style']);
-        $this->assertSame('classic', $resolved['workspace_skin']);
+        $this->assertSame('sky', $resolved['workspace_skin']);
         $this->assertSame('normal', $resolved['ag_grid_density']);
     }
 
@@ -31,7 +31,7 @@ class CrmAppearanceTest extends TestCase
         $this->assertSame('rounded', $merged['button_radius']);
         $this->assertSame('sky', $merged['primary_accent']);
         $this->assertSame('underline', $merged['tab_style']);
-        $this->assertSame('classic', $merged['workspace_skin']);
+        $this->assertSame('sky', $merged['workspace_skin']);
     }
 
     #[Test]

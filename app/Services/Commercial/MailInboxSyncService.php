@@ -17,6 +17,7 @@ use App\Support\MailSync\MailImportAllowance;
 use App\Support\MailSync\MailSyncMailboxEligibility;
 use App\Support\MailSync\MailSyncSinceResolver;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -421,7 +422,9 @@ final class MailInboxSyncService
                         'subject' => $message->subject,
                         'mailbox_user_id' => $mailboxUser->id,
                     ],
-                    $sentAt,
+                    $sentAt instanceof CarbonImmutable
+                        ? Carbon::instance($sentAt)
+                        : $sentAt,
                     $mailboxUser,
                     $mailMessage,
                 );

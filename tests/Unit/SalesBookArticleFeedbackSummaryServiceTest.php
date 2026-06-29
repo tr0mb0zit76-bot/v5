@@ -7,52 +7,11 @@ use App\Models\User;
 use App\Services\SalesBook\SalesBookArticleFeedbackRecorder;
 use App\Services\SalesBook\SalesBookArticleFeedbackSummaryService;
 use App\Services\SalesBook\SalesBookQualityInsightsService;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class SalesBookArticleFeedbackSummaryServiceTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'sales_book_article_feedback',
-            'sales_book_articles',
-        ]);
-
-        Schema::create('sales_book_articles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('title');
-            $table->text('markdown_content')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('sales_book_article_feedback', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('sales_book_article_id');
-            $table->foreignId('user_id');
-            $table->string('rating', 32);
-            $table->text('comment')->nullable();
-            $table->string('source', 32)->default('web');
-            $table->uuid('turn_id')->nullable();
-            $table->json('metadata')->nullable();
-            $table->timestamps();
-        });
-    }
-
-    protected function tearDown(): void
-    {
-        $this->schemaDropMany([
-            'sales_book_article_feedback',
-            'sales_book_articles',
-        ]);
-
-        parent::tearDown();
-    }
-
     public function test_it_summarizes_single_article_feedback(): void
     {
         $articleId = $this->insertArticle('Перевозчик с НДС');
@@ -90,8 +49,7 @@ class SalesBookArticleFeedbackSummaryServiceTest extends TestCase
     public function test_it_records_command_bar_feedback_for_read_articles(): void
     {
         $articleId = $this->insertArticle('CMR');
-        $user = new User;
-        $user->id = 42;
+        $user = User::factory()->create();
 
         $stored = (new SalesBookArticleFeedbackRecorder)->recordCommandBarFeedback(
             $user,
@@ -141,6 +99,8 @@ class SalesBookArticleFeedbackSummaryServiceTest extends TestCase
     {
         return (int) DB::table('sales_book_articles')->insertGetId([
             'title' => $title,
+            'markdown_content' => '# '.$title,
+            'sort_order' => 0,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -152,9 +112,11 @@ class SalesBookArticleFeedbackSummaryServiceTest extends TestCase
         string $source = 'web',
         ?string $comment = null,
     ): void {
+        $userId = User::factory()->create()->id;
+
         DB::table('sales_book_article_feedback')->insert([
             'sales_book_article_id' => $articleId,
-            'user_id' => random_int(1, 100000),
+            'user_id' => $userId,
             'rating' => $rating->value,
             'comment' => $comment,
             'source' => $source,

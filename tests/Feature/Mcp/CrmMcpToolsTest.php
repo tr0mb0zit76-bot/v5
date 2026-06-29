@@ -12,13 +12,10 @@ use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class CrmMcpToolsTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_get_user_context_returns_visibility_areas(): void
     {
         $user = $this->makeUserWithOrdersAccess();

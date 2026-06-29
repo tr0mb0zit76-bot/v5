@@ -1,11 +1,16 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Seed Hive Mind architecture notes into Obsidian vault (UTF-8 safe on Windows)."""
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
-VAULT = Path("C:/Users/tr0mb/Yandex.Disk/Exchange")
+VAULT_CANDIDATES = [
+    Path("C:/Sync/Yandex.Disk/Exchange"),
+    Path("D:/YandexDisk/Exchange"),
+    Path.home() / "Yandex.Disk" / "Exchange",
+]
+VAULT = next((path for path in VAULT_CANDIDATES if path.exists()), VAULT_CANDIDATES[0])
 BASE = VAULT / "CRM" / "v5-local"
 PS1 = Path(__file__).with_name("hivemind-seed-v5-docs.ps1")
 
@@ -23,7 +28,7 @@ def main() -> None:
     for sub in ("Systems", "Components", "Decisions", "Interfaces", "Constraints"):
         (BASE / sub).mkdir(parents=True, exist_ok=True)
 
-    # Do not overwrite vault config.json вЂ” template is managed via hivemind CLI.
+    # Do not overwrite vault config.json — template is managed via hivemind CLI.
 
     # Write-Note 'path' @' ... '@
     for match in re.finditer(
@@ -45,4 +50,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

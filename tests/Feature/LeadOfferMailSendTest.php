@@ -5,15 +5,12 @@ namespace Tests\Feature;
 use App\Models\Lead;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class LeadOfferMailSendTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_send_offer_email_creates_mail_records_and_ledger_event(): void
     {
         if (! Schema::hasTable('mail_threads') || ! Schema::hasTable('leads') || ! Schema::hasTable('roles')) {

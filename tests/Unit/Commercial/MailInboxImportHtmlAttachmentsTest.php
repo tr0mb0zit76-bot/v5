@@ -8,15 +8,12 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\Commercial\MailInboxSyncService;
 use App\Support\MailSync\ImportedMailMessage;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class MailInboxImportHtmlAttachmentsTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function it_imports_html_body_and_inbound_attachments(): void
     {

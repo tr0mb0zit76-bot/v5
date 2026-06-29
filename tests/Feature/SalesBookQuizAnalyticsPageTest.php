@@ -6,20 +6,17 @@ use App\Models\Role;
 use App\Models\SalesBookArticle;
 use App\Models\SalesBookQuizAttempt;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SalesBookQuizAnalyticsPageTest extends TestCase
 {
-    use RefreshDatabase;
-
-    public function test_quiz_analytics_page_is_forbidden_without_analytics_area(): void
+    public function test_quiz_analytics_page_is_forbidden_without_book_visibility(): void
     {
         $role = Role::query()->create([
-            'name' => 'book_reader_'.uniqid(),
-            'display_name' => 'Book reader',
+            'name' => 'no_book_'.uniqid(),
+            'display_name' => 'No book',
             'permissions' => ['sales_book_read'],
-            'visibility_areas' => ['sales_assistant_book'],
+            'visibility_areas' => ['sales_assistant_scripts'],
         ]);
 
         $user = User::factory()->create(['role_id' => $role->id]);
@@ -103,10 +100,10 @@ class SalesBookQuizAnalyticsPageTest extends TestCase
     private function makeManagerWithQuizAnalytics(): User
     {
         $role = Role::query()->create([
-            'name' => 'book_analytics_'.uniqid(),
-            'display_name' => 'Book analytics',
+            'name' => 'supervisor',
+            'display_name' => 'Supervisor',
             'permissions' => ['sales_book_read'],
-            'visibility_areas' => ['sales_assistant_book', 'sales_assistant_book_analytics'],
+            'visibility_areas' => ['sales_assistant_book'],
         ]);
 
         return User::factory()->create(['role_id' => $role->id]);

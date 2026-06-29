@@ -3,15 +3,12 @@
 namespace Tests\Feature\Documents;
 
 use App\Models\Order;
-use App\Models\Role;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class DocumentRegistryEnteredIn1CTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_manager_can_mark_order_as_entered_in_1c(): void
     {
         $manager = $this->makeUser(['documents', 'orders'], ['documents' => 'own', 'orders' => 'own']);
@@ -100,16 +97,22 @@ class DocumentRegistryEnteredIn1CTest extends TestCase
      */
     private function makeUser(array $areas, array $scopes = []): User
     {
-        $role = Role::query()->create([
-            'name' => 'documents_entered_1c_'.uniqid(),
-            'display_name' => 'Documents Entered 1C',
-            'permissions' => [],
-            'visibility_areas' => $areas,
-            'visibility_scopes' => $scopes,
-        ]);
+        $roleId = DB::table('roles')->where('name', 'manager')->value('id');
+
+        if ($roleId === null) {
+            $roleId = DB::table('roles')->insertGetId([
+                'name' => 'manager',
+                'display_name' => 'Manager',
+                'permissions' => json_encode([], JSON_THROW_ON_ERROR),
+                'visibility_areas' => json_encode($areas, JSON_THROW_ON_ERROR),
+                'visibility_scopes' => json_encode($scopes, JSON_THROW_ON_ERROR),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
 
         return User::factory()->create([
-            'role_id' => $role->id,
+            'role_id' => $roleId,
             'is_active' => true,
         ]);
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Orders;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\SendOrderDocumentMailRequest;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
@@ -11,6 +12,7 @@ use App\Services\CabinetNotifier;
 use App\Services\DocumentStorageService;
 use App\Services\OrderCompensationService;
 use App\Services\OrderPrintDocumentWorkflowService;
+use App\Services\Orders\OrderDocumentMailService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormTemplateOrderEligibility;
 use App\Support\DocumentPreview;
@@ -470,6 +472,39 @@ class OrderDocumentWorkflowController extends Controller
             $orderDocument->generated_pdf_path,
             'order-'.$order->id.'-document-'.$orderDocument->id.'.pdf'
         );
+    }
+
+    public function sendByEmail(
+        SendOrderDocumentMailRequest $request,
+        Order $order,
+        OrderDocument $orderDocument,
+        OrderDocumentMailService $documentMail,
+    ): RedirectResponse {
+        $this->ensureCanEditOrder($request, $order);
+        $this->ensureDocumentBelongsToOrder($order, $orderDocument);
+
+        $this->workflowService->ensureApprovedWorkflowPdf($orderDocument);
+        $orderDocument->refresh();
+
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        $validated = $request->validated();
+
+        $documentMail->sendSignedPdf(
+            $user,
+            $order,
+            $orderDocument,
+            $validated['to'],
+            $validated['cc'] ?? [],
+            $validated['subject'] ?? null,
+            $validated['body'] ?? null,
+        );
+
+        return back()->with('flash', [
+            'type' => 'success',
+            'message' => 'Документ отправлен по e-mail.',
+        ]);
     }
 
     private function documentIsPrintWorkflow(OrderDocument $document): bool

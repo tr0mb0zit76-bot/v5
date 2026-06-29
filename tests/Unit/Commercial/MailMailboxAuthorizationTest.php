@@ -7,14 +7,11 @@ use App\Models\MailThread;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Commercial\MailMailboxAuthorization;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class MailMailboxAuthorizationTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function manager_can_access_own_thread_but_not_another_users_thread(): void
     {

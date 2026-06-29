@@ -4,13 +4,10 @@ namespace Tests\Unit\Support;
 
 use App\Models\User;
 use App\Support\AiAgentCatalog;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class AiAgentCatalogTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_options_for_user_includes_jarvis(): void
     {
         $user = User::factory()->create();

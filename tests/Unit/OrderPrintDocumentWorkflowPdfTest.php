@@ -7,6 +7,7 @@ use App\Services\DocumentStorageService;
 use App\Services\DocxPdfPreviewService;
 use App\Services\OrderPrintDocumentWorkflowService;
 use App\Services\OrderPrintFormDraftService;
+use App\Services\Pdf\PdfVerificationQrStampService;
 use App\Support\OrderDocumentWorkflowStatus;
 use Tests\TestCase;
 
@@ -46,6 +47,7 @@ class OrderPrintDocumentWorkflowPdfTest extends TestCase
             $this->createMock(OrderPrintFormDraftService::class),
             $storage,
             $this->createMock(DocxPdfPreviewService::class),
+            $this->createMock(PdfVerificationQrStampService::class),
         );
 
         $service->persistGeneratedApprovedPdf($document, '%PDF-1.4', 'request-order-3-draft.docx');
@@ -89,6 +91,7 @@ class OrderPrintDocumentWorkflowPdfTest extends TestCase
             $this->createMock(OrderPrintFormDraftService::class),
             $storage,
             $preview,
+            $this->createMock(PdfVerificationQrStampService::class),
         );
 
         $service->ensureApprovedWorkflowPdf($document);
@@ -103,6 +106,7 @@ class OrderPrintDocumentWorkflowPdfTest extends TestCase
             $this->createMock(OrderPrintFormDraftService::class),
             $this->createMock(DocumentStorageService::class),
             $preview,
+            $this->createMock(PdfVerificationQrStampService::class),
         );
 
         $document = new OrderDocument([

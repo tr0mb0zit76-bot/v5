@@ -11,15 +11,12 @@ use App\Notifications\Channels\NtfyChannel;
 use App\Services\CabinetNotifier;
 use App\Services\Contractor\ContractorLimitApprovalService;
 use App\Support\UserDepartmentSync;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class NotificationDepartmentRoutingTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function contractor_limit_approval_notifies_only_department_supervisor(): void
     {

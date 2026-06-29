@@ -17,165 +17,10 @@ use App\Models\ManagementStatementImport;
 use App\Models\ManagementStatementLine;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ManagementAccountingMcpToolsTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'management_reconcile_rules',
-            'management_statement_lines',
-            'management_statement_imports',
-            'management_expense_categories',
-            'management_bank_accounts',
-            'budget_opex_articles',
-            'payment_schedules',
-            'orders',
-            'role_user',
-            'users',
-            'roles',
-        ]);
-
-        Schema::create('roles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->unique();
-            $table->string('display_name')->nullable();
-            $table->json('permissions')->nullable();
-            $table->json('visibility_areas')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('role_id')->nullable();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->boolean('is_active')->default(true);
-            $table->boolean('belongs_to_management')->default(false);
-            $table->boolean('can_management_accounting')->default(false);
-            $table->timestamps();
-        });
-
-        Schema::create('role_user', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('role_id');
-            $table->foreignId('user_id');
-            $table->timestamps();
-        });
-
-        Schema::create('management_bank_accounts', function (Blueprint $table): void {
-            $table->id();
-            $table->string('bank_name');
-            $table->string('account_number', 32)->unique();
-            $table->string('account_mask', 16)->nullable();
-            $table->string('currency', 3)->default('RUB');
-            $table->boolean('is_active')->default(true);
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->timestamps();
-        });
-
-        Schema::create('management_expense_categories', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('parent_id')->nullable();
-            $table->string('code', 64)->unique();
-            $table->string('name');
-            $table->string('kind', 32);
-            $table->string('flow', 8)->default('out');
-            $table->boolean('is_system')->default(false);
-            $table->boolean('is_active')->default(true);
-            $table->boolean('include_in_budget')->default(false);
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->timestamps();
-        });
-
-        Schema::create('management_statement_imports', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('bank_account_id');
-            $table->string('format', 32);
-            $table->string('file_name');
-            $table->date('period_from')->nullable();
-            $table->date('period_to')->nullable();
-            $table->foreignId('imported_by');
-            $table->string('status', 16)->default('draft');
-            $table->unsignedInteger('lines_count')->default(0);
-            $table->unsignedInteger('lines_allocated')->default(0);
-            $table->decimal('total_in', 14, 2)->default(0);
-            $table->decimal('total_out', 14, 2)->default(0);
-            $table->timestamps();
-        });
-
-        Schema::create('orders', function (Blueprint $table): void {
-            $table->id();
-            $table->string('order_number')->nullable();
-            $table->unsignedBigInteger('manager_id')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('payment_schedules', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('order_id')->nullable();
-            $table->string('party', 16)->nullable();
-            $table->decimal('amount', 14, 2)->default(0);
-            $table->timestamps();
-        });
-
-        Schema::create('management_statement_lines', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('import_id')->nullable();
-            $table->foreignId('bank_account_id');
-            $table->string('line_hash', 64);
-            $table->unsignedInteger('row_number')->nullable();
-            $table->date('operation_date');
-            $table->string('direction', 8);
-            $table->decimal('amount', 14, 2);
-            $table->string('currency', 3)->default('RUB');
-            $table->text('description');
-            $table->string('status', 16)->default('pending');
-            $table->string('match_type', 24)->nullable();
-            $table->unsignedTinyInteger('match_confidence')->default(0);
-            $table->string('match_notes')->nullable();
-            $table->unsignedBigInteger('suggested_order_id')->nullable();
-            $table->unsignedBigInteger('suggested_payment_schedule_id')->nullable();
-            $table->unsignedBigInteger('suggested_category_id')->nullable();
-            $table->unsignedBigInteger('suggested_user_id')->nullable();
-            $table->unsignedBigInteger('allocation_category_id')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('management_reconcile_rules', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('created_by')->nullable();
-            $table->string('keyword', 128);
-            $table->string('direction', 8)->nullable();
-            $table->string('allocation_type', 16);
-            $table->foreignId('category_id')->nullable();
-            $table->foreignId('user_id')->nullable();
-            $table->string('order_number', 32)->nullable();
-            $table->unsignedBigInteger('payment_schedule_id')->nullable();
-            $table->string('notes')->nullable();
-            $table->unsignedSmallInteger('priority')->default(100);
-            $table->unsignedInteger('times_applied')->default(0);
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
-
-        Schema::create('budget_opex_articles', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->string('cost_type', 32);
-            $table->decimal('amount_monthly', 14, 2)->default(0);
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->unsignedBigInteger('management_expense_category_id')->nullable();
-            $table->timestamps();
-        });
-    }
-
     public function test_get_user_context_exposes_management_accounting_flag(): void
     {
         $user = $this->makeManagementUser();
@@ -273,13 +118,9 @@ class ManagementAccountingMcpToolsTest extends TestCase
     {
         $user = $this->makeManagementUser();
 
-        $category = ManagementExpenseCategory::query()->create([
-            'code' => 'bank_fees',
-            'name' => 'Банковские комиссии',
-            'kind' => 'overhead',
-            'is_active' => true,
-            'sort_order' => 1,
-        ]);
+        $category = ManagementExpenseCategory::query()
+            ->where('code', 'bank_fees')
+            ->firstOrFail();
 
         $bank = ManagementBankAccount::query()->create([
             'bank_name' => 'Сбер',

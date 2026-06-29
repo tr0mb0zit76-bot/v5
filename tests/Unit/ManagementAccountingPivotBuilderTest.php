@@ -5,56 +5,20 @@ namespace Tests\Unit;
 use App\Models\ManagementExpenseCategory;
 use App\Services\ManagementAccounting\ManagementAccountingPivotBuilder;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ManagementAccountingPivotBuilderTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->schemaDropMany([
-            'management_statement_lines',
-            'management_expense_categories',
-            'budget_opex_articles',
-        ]);
-
-        Schema::create('management_expense_categories', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('parent_id')->nullable();
-            $table->string('code', 64)->unique();
-            $table->string('name');
-            $table->string('kind', 32);
-            $table->string('flow', 8)->default('out');
-            $table->boolean('is_system')->default(false);
-            $table->boolean('is_active')->default(true);
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->timestamps();
-        });
-    }
-
     public function test_pivot_shows_percent_only_for_expense_rows(): void
     {
-        $income = ManagementExpenseCategory::query()->create([
-            'code' => 'operational_customer_in',
-            'name' => 'Доходы',
-            'kind' => 'operational_in',
-            'flow' => 'in',
-            'is_active' => true,
-            'sort_order' => 10,
-        ]);
+        $income = ManagementExpenseCategory::query()
+            ->where('code', 'operational_customer_in')
+            ->firstOrFail();
 
-        $expense = ManagementExpenseCategory::query()->create([
-            'code' => 'bank_fees',
-            'name' => 'Банк',
-            'kind' => 'overhead',
-            'flow' => 'out',
-            'is_active' => true,
-            'sort_order' => 20,
-        ]);
+        $expense = ManagementExpenseCategory::query()
+            ->where('code', 'bank_fees')
+            ->firstOrFail();
 
         $categories = new Collection([$income, $expense]);
         $start = CarbonImmutable::parse('2026-06-01');

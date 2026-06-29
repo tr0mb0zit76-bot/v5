@@ -6,27 +6,11 @@ use App\Models\SalesScript;
 use App\Models\SalesScriptNode;
 use App\Models\SalesScriptVersion;
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class SalesScriptEditorTest extends TestCase
 {
-    use RefreshDatabase;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        if (Schema::hasTable('users') && ! Schema::hasColumn('users', 'role_id')) {
-            Schema::table('users', function (Blueprint $table): void {
-                $table->unsignedBigInteger('role_id')->nullable()->after('id');
-            });
-        }
-    }
-
     public function test_manager_with_scripts_only_cannot_open_editor(): void
     {
         $roleId = DB::table('roles')->insertGetId([
@@ -50,7 +34,7 @@ class SalesScriptEditorTest extends TestCase
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'editor_allowed',
             'display_name' => 'Editor allowed',
-            'visibility_areas' => json_encode(['dashboard', 'settings_system'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'settings_system', 'sales_assistant_scripts'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -113,7 +97,7 @@ class SalesScriptEditorTest extends TestCase
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'editor_tags',
             'display_name' => 'Editor tags',
-            'visibility_areas' => json_encode(['dashboard', 'settings_system'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'settings_system', 'sales_assistant_scripts'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -167,7 +151,7 @@ class SalesScriptEditorTest extends TestCase
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'editor_autosave',
             'display_name' => 'Editor autosave',
-            'visibility_areas' => json_encode(['dashboard', 'settings_system'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'settings_system', 'sales_assistant_scripts'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
         ]);

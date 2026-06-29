@@ -11,15 +11,12 @@ use App\Models\SalesScriptVersion;
 use App\Models\User;
 use App\Services\SalesScripts\TrainerCoachingInsightsService;
 use App\Services\SalesScripts\TrainerDialogLoopDetector;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class TrainerCoachingInsightsServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function it_denies_access_without_trainer_analytics_area(): void
     {

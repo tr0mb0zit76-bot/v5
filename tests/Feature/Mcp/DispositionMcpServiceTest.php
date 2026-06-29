@@ -7,7 +7,6 @@ use App\Models\User;
 use App\Services\Mcp\DispositionMcpService;
 use App\Support\DispositionSlot;
 use Carbon\Carbon;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\Support\CreatesInTransitOrders;
 use Tests\TestCase;
@@ -15,7 +14,6 @@ use Tests\TestCase;
 class DispositionMcpServiceTest extends TestCase
 {
     use CreatesInTransitOrders;
-    use RefreshDatabase;
 
     protected function setUp(): void
     {
