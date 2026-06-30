@@ -3,9 +3,54 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-29 · **Ветка:** `master` @ `83dcd86` · **Контекст:** прод-очистка runtime tmp + рабочее наполнение модуля «Скрипты» + PHPUnit на `RefreshDatabase`
+**Обновлено:** 2026-06-30 · **Ветка:** `master` @ `1e02dbd` · **Контекст:** прод-сборка: OOM-killer, swap 2G, зависшие `mail:sync` + локальный предохранитель scheduler
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-06-30) — прод: сборку убивал OOM
+
+### Диагностика
+
+- На проде `npm run build` периодически убивался kernel OOM-killer:
+  `Out of memory: Killed process ... (node)` около 09:23, 09:26, 09:29, 09:38, 09:51.
+- На сервере было `3.8GiB` RAM и **0B swap**.
+- Дополнительно накопились 16 зависших процессов `php artisan mail:sync` вместе с родительскими `schedule:run`; каждый висел часами/днями и держал около `45MB` RSS.
+- Причина накопления в коде: `Schedule::command('mail:sync')->everyTenMinutes()->withoutOverlapping(15)`. Если IMAP зависает дольше 15 минут, lock истекает и scheduler запускает новый sync.
+
+### Что сделано на проде
+
+- Остановлены зависшие `mail:sync` / `schedule:run`.
+- Выполнен `php artisan schedule:clear-cache`.
+- Добавлен и включён persistent swap:
+
+```text
+/swapfile none swap sw 0 0
+```
+
+- После этого `free -h`: RAM available около `1.9GiB`, swap `2.0GiB`.
+- Контрольная `npm run build` на проде прошла успешно (`vite build`, ~7 секунд), свежих OOM в последнем окне после сборки нет.
+
+### Локальный кодовый предохранитель
+
+- `routes/console.php`: `mail:sync` lock увеличен до `withoutOverlapping(60)`.
+- `app/Console/Commands/SyncMailInboxesCommand.php`: добавлен `--time-limit`, default из `MAIL_SYNC_COMMAND_TIME_LIMIT_SECONDS` (`900` секунд).
+- `config/mail_sync.php`: добавлены IMAP timeout env-настройки.
+- `app/Support/MailSync/MailImapClient.php`: перед `imap_open` применяются `imap_timeout(...)`.
+
+### Проверка
+
+```powershell
+vendor\bin\pint --dirty --format agent
+php -l app\Console\Commands\SyncMailInboxesCommand.php
+php -l app\Support\MailSync\MailImapClient.php
+php -l config\mail_sync.php
+php -l routes\console.php
+php artisan schedule:list
+```
+
+Следующий шаг: включить этот кодовый предохранитель в ближайший commit/deploy, иначе swap спасает сборку, но старый `withoutOverlapping(15)` на прод-коде может снова накапливать зависшие IMAP sync-процессы.
 
 ---
 

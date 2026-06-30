@@ -14,7 +14,13 @@ return [
         'port' => (int) env('MAIL_SYNC_IMAP_PORT', 993),
         'encryption' => env('MAIL_SYNC_IMAP_ENCRYPTION', 'ssl'),
         'validate_cert' => filter_var(env('MAIL_SYNC_IMAP_VALIDATE_CERT', true), FILTER_VALIDATE_BOOL),
+        'open_timeout_seconds' => max(5, min(120, (int) env('MAIL_SYNC_IMAP_OPEN_TIMEOUT_SECONDS', 30))),
+        'read_timeout_seconds' => max(5, min(300, (int) env('MAIL_SYNC_IMAP_READ_TIMEOUT_SECONDS', 60))),
+        'write_timeout_seconds' => max(5, min(120, (int) env('MAIL_SYNC_IMAP_WRITE_TIMEOUT_SECONDS', 30))),
+        'close_timeout_seconds' => max(5, min(120, (int) env('MAIL_SYNC_IMAP_CLOSE_TIMEOUT_SECONDS', 10))),
     ],
+
+    'command_time_limit_seconds' => max(60, min(3600, (int) env('MAIL_SYNC_COMMAND_TIME_LIMIT_SECONDS', 900))),
 
     /*
     | Папки для чтения (первая существующая wins). reg.ru часто: INBOX + Sent или INBOX.Sent.

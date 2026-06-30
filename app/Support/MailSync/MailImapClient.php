@@ -201,6 +201,7 @@ final class MailImapClient
         }
 
         $this->disconnect();
+        $this->configureTimeouts();
 
         $mailbox = MailSyncMailboxUri::folder($folder);
 
@@ -214,6 +215,18 @@ final class MailImapClient
 
         $this->connection = $connection;
         $this->connectedFolder = $folder;
+    }
+
+    private function configureTimeouts(): void
+    {
+        if (! function_exists('imap_timeout')) {
+            return;
+        }
+
+        imap_timeout(IMAP_OPENTIMEOUT, (int) config('mail_sync.imap.open_timeout_seconds', 30));
+        imap_timeout(IMAP_READTIMEOUT, (int) config('mail_sync.imap.read_timeout_seconds', 60));
+        imap_timeout(IMAP_WRITETIMEOUT, (int) config('mail_sync.imap.write_timeout_seconds', 30));
+        imap_timeout(IMAP_CLOSETIMEOUT, (int) config('mail_sync.imap.close_timeout_seconds', 10));
     }
 
     private function parseMessage(int $uid, string $direction, string $folder): ?ImportedMailMessage

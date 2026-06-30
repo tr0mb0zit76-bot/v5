@@ -13,7 +13,7 @@ Schedule::command('commercial:process-nudges')->dailyAt('08:30');
 Schedule::command('mail:purge-non-important-bodies')->monthlyOn(1, '03:00');
 Schedule::command('mail:sync')
     ->everyTenMinutes()
-    ->withoutOverlapping(15);
+    ->withoutOverlapping(60);
 Schedule::command('contractors:sync-operational-status')->dailyAt('02:30');
 Schedule::command('import-cost:sync-references')->weeklyOn(1, '03:15');
 

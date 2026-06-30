@@ -9,7 +9,8 @@ class SyncMailInboxesCommand extends Command
 {
     protected $signature = 'mail:sync
                             {--user= : ID пользователя (один ящик)}
-                            {--days= : Глубина синхронизации в днях}';
+                            {--days= : Глубина синхронизации в днях}
+                            {--time-limit= : Максимальная длительность команды в секундах}';
 
     protected $description = 'Синхронизирует переписку из IMAP (reg.ru) в CRM для активных пользователей с паролем почты';
 
@@ -23,9 +24,15 @@ class SyncMailInboxesCommand extends Command
 
         $userId = $this->option('user');
         $days = $this->option('days');
+        $timeLimit = $this->option('time-limit');
 
         $parsedUserId = is_numeric($userId) ? (int) $userId : null;
         $parsedDays = is_numeric($days) ? (int) $days : null;
+        $parsedTimeLimit = is_numeric($timeLimit)
+            ? max(60, (int) $timeLimit)
+            : (int) config('mail_sync.command_time_limit_seconds', 900);
+
+        set_time_limit($parsedTimeLimit);
 
         if ($parsedUserId !== null && $parsedUserId > 0) {
             $eligibility = $syncService->syncEligibilityForUserId($parsedUserId);
