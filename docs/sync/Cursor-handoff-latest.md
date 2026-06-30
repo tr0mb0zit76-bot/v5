@@ -3,9 +3,28 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-30 · **Ветка:** `master` @ `1e02dbd` · **Контекст:** прод-сборка: OOM-killer, swap 2G, зависшие `mail:sync` + локальный предохранитель scheduler
+**Обновлено:** 2026-06-30 · **Ветка:** `master` @ `b4499a1` · **Контекст:** grid context actions задеплоены + prod OOM/mail-sync guard
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-06-30) — гриды: контекстные меню и bulk actions
+
+### Итог
+
+- Коммит `b4499a1` запушен и задеплоен на прод (`git pull --ff-only`, затем `npm run build`).
+- Добавлен общий composable `resources/js/Components/Grid/useGridContextMenu.js`.
+- На общий слой переведены контекстные меню гридов: заказы, контрагенты, документы, задачи, лиды, водители/ТС собственного парка, диспозиция.
+- В заказах сохранён пункт «Сводка по перевозке» / копирование в буфер.
+- В графике оплат чекбоксы вынесены из ID в отдельную колонку выбора; фильтры режима сведены в select; bulk actions собраны в выпадающее меню с планом оплаты на сегодня / дату / снятием плана.
+- На проде после сборки свежих OOM нет; swap `2G` активен.
+
+### Проверка
+
+```powershell
+npm run build
+```
 
 ---
 
@@ -32,12 +51,13 @@
 - После этого `free -h`: RAM available около `1.9GiB`, swap `2.0GiB`.
 - Контрольная `npm run build` на проде прошла успешно (`vite build`, ~7 секунд), свежих OOM в последнем окне после сборки нет.
 
-### Локальный кодовый предохранитель
+### Кодовый предохранитель
 
 - `routes/console.php`: `mail:sync` lock увеличен до `withoutOverlapping(60)`.
 - `app/Console/Commands/SyncMailInboxesCommand.php`: добавлен `--time-limit`, default из `MAIL_SYNC_COMMAND_TIME_LIMIT_SECONDS` (`900` секунд).
 - `config/mail_sync.php`: добавлены IMAP timeout env-настройки.
 - `app/Support/MailSync/MailImapClient.php`: перед `imap_open` применяются `imap_timeout(...)`.
+- Коммит `ee096ed` запушен и задеплоен на прод.
 
 ### Проверка
 
@@ -50,7 +70,7 @@ php -l routes\console.php
 php artisan schedule:list
 ```
 
-Следующий шаг: включить этот кодовый предохранитель в ближайший commit/deploy, иначе swap спасает сборку, но старый `withoutOverlapping(15)` на прод-коде может снова накапливать зависшие IMAP sync-процессы.
+Состояние после деплоя: `php artisan mail:sync --help` показывает `--time-limit`; зависшие старые sync-процессы убраны; новый `mail:sync` идёт по расписанию под timeout/lock.
 
 ---
 
