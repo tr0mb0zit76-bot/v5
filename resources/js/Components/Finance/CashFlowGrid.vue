@@ -23,39 +23,65 @@
                     />
                 </div>
 
-                <div class="flex flex-wrap items-center gap-1">
-                    <button
-                        v-for="option in workModeOptions"
-                        :key="option.key"
-                        type="button"
-                        class="rounded-full border px-2.5 py-1 text-xs font-medium transition"
-                        :class="currentWorkMode === option.key
-                            ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
-                            : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'"
-                        @click="currentWorkMode = option.key"
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Показать</span>
+                    <select
+                        v-model="currentWorkMode"
+                        class="h-9 min-w-[14rem] rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-800 outline-none transition focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                     >
-                        {{ option.label }} ({{ countRowsForWorkMode(option.key) }})
-                    </button>
+                        <option
+                            v-for="option in workModeOptions"
+                            :key="option.key"
+                            :value="option.key"
+                        >
+                            {{ option.label }} ({{ countRowsForWorkMode(option.key) }})
+                        </option>
+                    </select>
                 </div>
 
-                <button
-                    type="button"
-                    :class="`${crmGridToolbarBtn} gap-1.5 px-3 py-2 text-xs`"
-                    :disabled="!props.canRecordPayment || selectedPaymentScheduleIds.length === 0"
-                    title="Добавить выбранные строки в план оплаты на сегодня"
-                    @click="markSelectedForToday"
-                >
-                    Сегодня
-                </button>
-                <button
-                    type="button"
-                    :class="`${crmGridToolbarBtn} gap-1.5 px-3 py-2 text-xs`"
-                    :disabled="!props.canRecordPayment || selectedPaymentScheduleIds.length === 0"
-                    title="Снять выбранные строки из плана оплаты"
-                    @click="clearSelectedPaymentRun"
-                >
-                    Снять план
-                </button>
+                <div class="relative">
+                    <button
+                        type="button"
+                        :class="`${crmGridToolbarBtn} gap-1.5 px-3 py-2 text-xs`"
+                        :disabled="!props.canRecordPayment || selectedPaymentScheduleIds.length === 0"
+                        title="Групповые действия с выбранными строками"
+                        @click="togglePaymentRunActionsMenu"
+                    >
+                        Действия
+                        <span v-if="selectedPaymentScheduleIds.length > 0" class="text-xs text-zinc-500 dark:text-zinc-400">
+                            {{ selectedPaymentScheduleIds.length }}
+                        </span>
+                    </button>
+                    <div
+                        v-if="showPaymentRunActionsMenu"
+                        :class="crmGridDropdown"
+                    >
+                        <button
+                            type="button"
+                            class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-zinc-800"
+                            :disabled="selectedPaymentScheduleIds.length === 0"
+                            @click="markSelectedForToday"
+                        >
+                            <span>Поставить на сегодня</span>
+                        </button>
+                        <button
+                            type="button"
+                            class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-zinc-800"
+                            :disabled="selectedPaymentScheduleIds.length === 0"
+                            @click="openPaymentRunDateModal"
+                        >
+                            <span>Поставить на дату…</span>
+                        </button>
+                        <button
+                            type="button"
+                            class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                            :disabled="selectedPaymentScheduleIds.length === 0"
+                            @click="clearSelectedPaymentRun"
+                        >
+                            <span>Снять план оплаты</span>
+                        </button>
+                    </div>
+                </div>
 
                 <button
                     type="button"
@@ -117,6 +143,52 @@
             </div>
         </div>
 
+        <Teleport to="body">
+            <div
+                v-if="showPaymentRunDateModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+                @click.self="closePaymentRunDateModal"
+            >
+                <div class="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
+                    <div class="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+                        <div class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Поставить в оплату</div>
+                        <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                            Выбрано строк: {{ selectedPaymentScheduleIds.length }}
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 p-5">
+                        <label class="block text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                            Дата оплаты
+                        </label>
+                        <input
+                            v-model="paymentRunDateInput"
+                            type="date"
+                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        />
+                    </div>
+
+                    <div class="flex items-center justify-end gap-3 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
+                        <button
+                            type="button"
+                            :class="crmGridToolbarBtn"
+                            @click="closePaymentRunDateModal"
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="button"
+                            :class="`${crmGridToolbarBtn} bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200`"
+                            :disabled="selectedPaymentScheduleIds.length === 0 || paymentRunDateInput === ''"
+                            @click="markSelectedForDate"
+                        >
+                            Поставить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
         <div v-if="props.rows.length === 0" class="shrink-0 px-1 py-10 text-sm text-zinc-500 dark:text-zinc-400">
             График оплат пока не заполнен — задайте платежи в финансовом блоке заказа.
         </div>
@@ -124,6 +196,7 @@
             v-else
             ref="gridPanel"
             :class="crmGridInnerPanel"
+            @contextmenu.capture="suppressNativeContextMenuCapture"
         >
             <div class="ag-theme-alpine orders-grid-theme min-h-0 min-w-0 shrink-0 overflow-hidden" :class="densityClass" :style="gridContainerStyle">
                 <AgGridVue
@@ -142,6 +215,7 @@
                     @grid-ready="onGridReady"
                     @first-data-rendered="onFirstDataRendered"
                     @cell-double-clicked="onCellDoubleClicked"
+                    @cell-context-menu="onCellContextMenu"
                     @cell-value-changed="onCellValueChanged"
                     @filter-changed="onFilterChanged"
                     @selection-changed="onSelectionChanged"
@@ -158,6 +232,14 @@
                 />
             </div>
         </div>
+
+        <GridContextMenu
+            :open="contextMenu.open"
+            :x="contextMenu.x"
+            :y="contextMenu.y"
+            :items="contextMenu.items"
+            @close="closeContextMenu"
+        />
     </div>
 </template>
 
@@ -185,7 +267,10 @@ import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/sup
 import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
 import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
 import { cashFlowRowDisplayAmount, cashFlowRowStatusLabel } from '@/support/cashFlowJournalStats.js';
+import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
+import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
+import { useGridContextMenu } from '@/Components/Grid/useGridContextMenu.js';
 import { PRINT_DOCUMENT_BASE_STYLES, printHtmlDocument } from '@/support/printHtmlDocument.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -255,6 +340,9 @@ const presetFilterModels = {
 
 const currentDensity = ref(defaultGridDensity);
 const showDensityMenu = ref(false);
+const showPaymentRunActionsMenu = ref(false);
+const showPaymentRunDateModal = ref(false);
+const paymentRunDateInput = ref('');
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
 const currentWorkMode = ref('due');
@@ -273,6 +361,11 @@ const { bottomScrollbarWidth, gridContainerStyle, onBottomScrollbarScroll, refre
     agGrid,
     gridApi,
 });
+const {
+    contextMenu,
+    closeContextMenu,
+    openContextMenu,
+} = useGridContextMenu();
 
 let filterModelSaveTimeout = null;
 
@@ -658,6 +751,25 @@ function buildBaseColumnDefs() {
     });
 
     return [
+    {
+        colId: '__selection',
+        headerName: '',
+        width: 48,
+        minWidth: 48,
+        maxWidth: 48,
+        pinned: 'left',
+        sortable: false,
+        filter: false,
+        resizable: false,
+        suppressSizeToFit: true,
+        suppressMovable: true,
+        suppressHeaderFilterButton: true,
+        checkboxSelection: (params) => props.canRecordPayment && isOpenPaymentRow(params.data),
+        headerCheckboxSelection: props.canRecordPayment,
+        headerCheckboxSelectionFilteredOnly: true,
+        getQuickFilterText: () => '',
+        valueGetter: () => '',
+    },
     applyAgGridIdColumnSizing({
         colId: 'id',
         field: 'id',
@@ -667,9 +779,6 @@ function buildBaseColumnDefs() {
         filter: false,
         floatingFilter: false,
         suppressHeaderFilterButton: true,
-        checkboxSelection: (params) => props.canRecordPayment && isOpenPaymentRow(params.data),
-        headerCheckboxSelection: props.canRecordPayment,
-        headerCheckboxSelectionFilteredOnly: true,
         getQuickFilterText: () => '',
         valueFormatter: (p) => (p.value === null || p.value === undefined || p.value === '' ? '—' : String(p.value)),
     }),
@@ -806,10 +915,17 @@ const dynamicColumnDefs = computed(() => {
 
     const allowedColumnIds = props.availableColumns.map((column) => column.field);
     if (allowedColumnIds.length > 0) {
-        ordered = ordered.filter((column) => allowedColumnIds.includes(column.colId));
+        ordered = ordered.filter((column) => column.colId === '__selection' || allowedColumnIds.includes(column.colId));
     }
 
     return ordered.map((column) => {
+        if (column.colId === '__selection') {
+            return {
+                ...column,
+                hide: !props.canRecordPayment,
+            };
+        }
+
         if (column.colId === 'actions') {
             const savedWidth = Number(column.width) || 88;
 
@@ -919,6 +1035,40 @@ const onCellDoubleClicked = (event) => {
     }
 };
 
+function onCellContextMenu(params) {
+    const row = params.node?.data;
+    if (!row?.id) {
+        closeContextMenu();
+
+        return;
+    }
+
+    const items = [];
+    if (row.order_id) {
+        items.push({
+            label: 'Открыть заказ',
+            run: () => router.visit(route('orders.edit', row.order_id)),
+        });
+    }
+
+    if (props.canRecordPayment && isOpenPaymentRow(row)) {
+        items.push(
+            {
+                label: 'Поставить в оплату сегодня',
+                run: () => applyPaymentRunPatch([Number(row.id)], { payment_run_date: todayIsoDate() }),
+            },
+            {
+                label: 'Снять план оплаты',
+                danger: true,
+                disabled: !row.payment_run_date,
+                run: () => applyPaymentRunPatch([Number(row.id)], { clear: true }),
+            },
+        );
+    }
+
+    openContextMenu(params.event, items);
+}
+
 const onCellValueChanged = (event) => {
     if (event.colDef.colId !== 'invoice_number' || !props.canManageActions) {
         return;
@@ -985,15 +1135,51 @@ function applyPaymentRunPatch(ids, payload) {
 }
 
 function markSelectedForToday() {
+    showPaymentRunActionsMenu.value = false;
     applyPaymentRunPatch(selectedPaymentScheduleIds.value, {
         payment_run_date: todayIsoDate(),
     });
 }
 
+function openPaymentRunDateModal() {
+    if (selectedPaymentScheduleIds.value.length === 0) {
+        return;
+    }
+
+    showPaymentRunActionsMenu.value = false;
+    paymentRunDateInput.value = todayIsoDate();
+    showPaymentRunDateModal.value = true;
+}
+
+function closePaymentRunDateModal() {
+    showPaymentRunDateModal.value = false;
+}
+
+function markSelectedForDate() {
+    if (paymentRunDateInput.value === '') {
+        return;
+    }
+
+    applyPaymentRunPatch(selectedPaymentScheduleIds.value, {
+        payment_run_date: paymentRunDateInput.value,
+    });
+    showPaymentRunDateModal.value = false;
+}
+
 function clearSelectedPaymentRun() {
+    showPaymentRunActionsMenu.value = false;
     applyPaymentRunPatch(selectedPaymentScheduleIds.value, {
         clear: true,
     });
+}
+
+function togglePaymentRunActionsMenu() {
+    if (!props.canRecordPayment || selectedPaymentScheduleIds.value.length === 0) {
+        return;
+    }
+
+    showPaymentRunActionsMenu.value = !showPaymentRunActionsMenu.value;
+    showDensityMenu.value = false;
 }
 
 watch(quickSearch, (value) => {
@@ -1050,6 +1236,7 @@ const applyDensity = (densityKey) => {
 
 const toggleDensityMenu = () => {
     showDensityMenu.value = !showDensityMenu.value;
+    showPaymentRunActionsMenu.value = false;
 };
 
 const onGlobalDensityChanged = (event) => {

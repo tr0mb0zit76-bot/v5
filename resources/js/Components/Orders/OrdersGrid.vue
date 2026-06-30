@@ -231,7 +231,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage, router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -250,6 +250,7 @@ import GridExportDialog from '@/Components/Grid/GridExportDialog.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
+import { useGridContextMenu } from '@/Components/Grid/useGridContextMenu.js';
 import {
     crmBtnCreate,
     crmBtnNeutral,
@@ -548,12 +549,12 @@ function ordersGridStaleRowClass(data) {
   return '';
 }
 
-const contextMenu = reactive({
-  open: false,
-  x: 0,
-  y: 0,
-  items: [],
-});
+const {
+  contextMenu,
+  closeContextMenu: closeRowContextMenu,
+  openContextMenu,
+  openEmptyContextMenu,
+} = useGridContextMenu();
 
 const copyNotice = ref('');
 
@@ -590,43 +591,16 @@ async function copyTransportSummary(row) {
   }, 2500);
 }
 
-function closeRowContextMenu() {
-  contextMenu.open = false;
-  contextMenu.items = [];
-}
-
 /** ПКМ по пустому месту таблицы (не по ячейке) — только быстрые действия без строки. */
 function onGridPanelEmptyContextMenu(event) {
-  if (event?.target?.closest?.('.ag-cell')) {
-    return;
-  }
-
-  if (
-    event?.target?.closest?.('.ag-header')
-    || event?.target?.closest?.('.ag-header-container')
-    || event?.target?.closest?.('.ag-floating-top')
-    || event?.target?.closest?.('.ag-floating-filter')
-  ) {
-    return;
-  }
-
-  if (event?.preventDefault) {
-    event.preventDefault();
-  }
-
-  const items = [
+  openEmptyContextMenu(event, [
     {
       label: 'Новый заказ',
       run: () => {
         emit('create-request');
       },
     },
-  ];
-
-  contextMenu.x = event.clientX;
-  contextMenu.y = event.clientY;
-  contextMenu.items = items;
-  contextMenu.open = true;
+  ]);
 }
 
 function onCellContextMenu(params) {
@@ -686,10 +660,7 @@ function onCellContextMenu(params) {
     });
   }
 
-  contextMenu.x = ev.clientX;
-  contextMenu.y = ev.clientY;
-  contextMenu.items = items;
-  contextMenu.open = true;
+  openContextMenu(ev, items);
 }
 
 const gridOptions = {

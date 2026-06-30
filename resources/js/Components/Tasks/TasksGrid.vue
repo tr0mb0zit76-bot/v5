@@ -91,7 +91,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -111,6 +111,7 @@ import {
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { AgSetListFilter, setListFilterParams } from '@/Components/Grid/agSetListFilter.js';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
+import { useGridContextMenu } from '@/Components/Grid/useGridContextMenu.js';
 import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
 import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
 import {
@@ -232,17 +233,11 @@ function canEditResponsible(row) {
   return Boolean(row.can_mutate) || props.canBulkMutateTasks;
 }
 
-const contextMenu = reactive({
-  open: false,
-  x: 0,
-  y: 0,
-  items: [],
-});
-
-function closeRowContextMenu() {
-  contextMenu.open = false;
-  contextMenu.items = [];
-}
+const {
+  contextMenu,
+  closeContextMenu: closeRowContextMenu,
+  openContextMenu,
+} = useGridContextMenu();
 
 const gridOptions = {
   theme: 'legacy',
@@ -567,10 +562,7 @@ function onCellContextMenu(params) {
     });
   }
 
-  contextMenu.x = ev.clientX;
-  contextMenu.y = ev.clientY;
-  contextMenu.items = items;
-  contextMenu.open = true;
+  openContextMenu(ev, items);
 }
 
 function applyDensity(key) {

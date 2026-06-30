@@ -166,7 +166,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage, router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -183,6 +183,7 @@ import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js'
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
+import { useGridContextMenu } from '@/Components/Grid/useGridContextMenu.js';
 import {
     crmBtnCreate,
     crmBtnNeutral,
@@ -260,17 +261,12 @@ let copyNoticeTimeout = null;
 let saveTimeout = null;
 let filterModelSaveTimeout = null;
 
-const contextMenu = reactive({
-    open: false,
-    x: 0,
-    y: 0,
-    items: [],
-});
-
-function closeRowContextMenu() {
-    contextMenu.open = false;
-    contextMenu.items = [];
-}
+const {
+    contextMenu,
+    closeContextMenu: closeRowContextMenu,
+    openContextMenu,
+    openEmptyContextMenu,
+} = useGridContextMenu();
 
 async function copyOrderSummary(row) {
     const copied = await copyTextToClipboard(row?.clipboard_summary ?? '');
@@ -293,34 +289,14 @@ async function copyOrderSummary(row) {
 
 /** ПКМ по пустой области грида (не по ячейке) — добавить документ без привязки к строке. */
 function onGridPanelEmptyContextMenu(event) {
-    if (event?.target?.closest?.('.ag-cell')) {
-        return;
-    }
-
-    if (
-        event?.target?.closest?.('.ag-header')
-        || event?.target?.closest?.('.ag-header-container')
-        || event?.target?.closest?.('.ag-floating-top')
-        || event?.target?.closest?.('.ag-floating-filter')
-    ) {
-        return;
-    }
-
-    if (event?.preventDefault) {
-        event.preventDefault();
-    }
-
-    contextMenu.x = event.clientX;
-    contextMenu.y = event.clientY;
-    contextMenu.items = [
+    openEmptyContextMenu(event, [
         {
             label: 'Добавить документ',
             run: () => {
                 emit('open-create', null);
             },
         },
-    ];
-    contextMenu.open = true;
+    ]);
 }
 
 function onCellContextMenu(params) {
@@ -364,10 +340,7 @@ function onCellContextMenu(params) {
         },
     });
 
-    contextMenu.x = ev.clientX;
-    contextMenu.y = ev.clientY;
-    contextMenu.items = items;
-    contextMenu.open = true;
+    openContextMenu(ev, items);
 }
 
 const documentColumnFields = fallbackColumns

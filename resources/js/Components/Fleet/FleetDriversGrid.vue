@@ -102,7 +102,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -122,6 +122,7 @@ import {
 } from '@/support/agGridFilterModelPersistence.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
+import { useGridContextMenu } from '@/Components/Grid/useGridContextMenu.js';
 import { crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
 import {
   CRM_AG_GRID_DENSITY_CHANGED,
@@ -158,45 +159,20 @@ const { bottomScrollbarWidth, gridContainerStyle, onBottomScrollbarScroll, refre
   gridApi,
 });
 
-const contextMenu = reactive({
-  open: false,
-  x: 0,
-  y: 0,
-  items: [],
-});
-
-function closeRowContextMenu() {
-  contextMenu.open = false;
-  contextMenu.items = [];
-}
+const {
+  contextMenu,
+  closeContextMenu: closeRowContextMenu,
+  openContextMenu,
+  openEmptyContextMenu,
+} = useGridContextMenu();
 
 function onGridPanelEmptyContextMenu(event) {
-  if (event?.target?.closest?.('.ag-cell')) {
-    return;
-  }
-
-  if (
-    event?.target?.closest?.('.ag-header')
-    || event?.target?.closest?.('.ag-header-container')
-    || event?.target?.closest?.('.ag-floating-top')
-    || event?.target?.closest?.('.ag-floating-filter')
-  ) {
-    return;
-  }
-
-  if (event?.preventDefault) {
-    event.preventDefault();
-  }
-
-  contextMenu.x = event.clientX;
-  contextMenu.y = event.clientY;
-  contextMenu.items = [
+  openEmptyContextMenu(event, [
     {
       label: 'Добавить водителя',
       run: () => emit('create-request'),
     },
-  ];
-  contextMenu.open = true;
+  ]);
 }
 
 function onCellContextMenu(params) {
@@ -220,10 +196,7 @@ function onCellContextMenu(params) {
     run: () => emit('create-request'),
   });
 
-  contextMenu.x = ev.clientX;
-  contextMenu.y = ev.clientY;
-  contextMenu.items = items;
-  contextMenu.open = true;
+  openContextMenu(ev, items);
 }
 
 const columnStorageKey = computed(() => `fleet_drivers_grid_columns_v2_${props.userId}`);

@@ -68,7 +68,11 @@
             {{ lastSaveError }}
         </p>
 
-        <div ref="gridPanel" :class="crmGridInnerPanel">
+        <div
+            ref="gridPanel"
+            :class="crmGridInnerPanel"
+            @contextmenu.capture="suppressNativeContextMenuCapture"
+        >
             <div
                 class="ag-theme-alpine orders-grid-theme disposition-grid-theme min-h-0 min-w-0 shrink-0 overflow-hidden"
                 :style="gridContainerStyle"
@@ -91,6 +95,7 @@
                     @grid-ready="onGridReady"
                     @first-data-rendered="onFirstDataRendered"
                     @filter-changed="onFilterChanged"
+                    @cell-context-menu="onCellContextMenu"
                     @cell-value-changed="onCellValueChanged"
                 />
             </div>
@@ -106,6 +111,14 @@
                 />
             </div>
         </div>
+
+        <GridContextMenu
+            :open="contextMenu.open"
+            :x="contextMenu.x"
+            :y="contextMenu.y"
+            :items="contextMenu.items"
+            @close="closeContextMenu"
+        />
     </div>
 </template>
 
@@ -121,7 +134,10 @@ import '@/Components/Grid/grid-theme.css';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
+import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
+import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
+import { useGridContextMenu } from '@/Components/Grid/useGridContextMenu.js';
 import {
     CRM_AG_GRID_DENSITY_CHANGED,
     readPersistedAgGridDensity,
@@ -158,6 +174,11 @@ const { bottomScrollbarWidth, gridContainerStyle, onBottomScrollbarScroll, refre
     agGrid,
     gridApi,
 });
+const {
+    contextMenu,
+    closeContextMenu,
+    openContextMenu,
+} = useGridContextMenu();
 const savingCells = ref(new Set());
 const lastSaveError = ref('');
 const currentDensity = ref(defaultGridDensity);
@@ -197,8 +218,28 @@ const gridOptions = {
     localeText: agGridLocaleRu,
     animateRows: false,
     enterNavigatesHorizontallyAfterEdit: true,
+    preventDefaultOnContextMenu: true,
     getRowClass: (params) => (isPlannedArrivalPast(params.data) ? 'ag-row-disposition-planned-overdue' : ''),
 };
+
+function onCellContextMenu(params) {
+    const row = params.node?.data;
+    const items = [];
+
+    if (row?.order_id) {
+        items.push({
+            label: 'Открыть заказ',
+            run: () => router.visit(route('orders.edit', row.order_id)),
+        });
+    }
+
+    items.push({
+        label: 'Сбросить фильтры',
+        run: resetGridViewState,
+    });
+
+    openContextMenu(params.event, items);
+}
 
 function todayIso() {
     if (props.today) {

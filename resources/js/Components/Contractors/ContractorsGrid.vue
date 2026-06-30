@@ -288,7 +288,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { AgGridVue } from 'ag-grid-vue3';
@@ -307,6 +307,7 @@ import GridExportDialog from '@/Components/Grid/GridExportDialog.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
+import { useGridContextMenu } from '@/Components/Grid/useGridContextMenu.js';
 import {
     crmBtnCreate,
     crmBtnNeutral,
@@ -429,17 +430,11 @@ let saveTimeout = null;
 let filterModelSaveTimeout = null;
 let removeGridScrollbarSyncListeners = null;
 
-const contextMenu = reactive({
-  open: false,
-  x: 0,
-  y: 0,
-  items: [],
-});
-
-function closeRowContextMenu() {
-  contextMenu.open = false;
-  contextMenu.items = [];
-}
+const {
+  contextMenu,
+  closeContextMenu: closeRowContextMenu,
+  openContextMenu,
+} = useGridContextMenu();
 
 function onCellContextMenu(params) {
   const ev = params.event;
@@ -469,10 +464,7 @@ function onCellContextMenu(params) {
     },
   ];
 
-  contextMenu.x = ev.clientX;
-  contextMenu.y = ev.clientY;
-  contextMenu.items = items;
-  contextMenu.open = true;
+  openContextMenu(ev, items);
 }
 
 const gridOptions = {
