@@ -20,6 +20,7 @@ class StoreSalesScriptPlaySessionRequest extends FormRequest
         return [
             'sales_script_version_id' => ['required', 'integer', 'exists:sales_script_versions,id'],
             'contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
+            'lead_id' => ['nullable', 'integer', 'exists:leads,id'],
             'order_id' => ['nullable', 'integer', 'exists:orders,id'],
             'return_to' => ['nullable', 'string', Rule::in(['trainer'])],
             'trainer_profile_key' => ['nullable', 'string', 'max:100', Rule::requiredIf(fn (): bool => $this->input('return_to') === 'trainer')],

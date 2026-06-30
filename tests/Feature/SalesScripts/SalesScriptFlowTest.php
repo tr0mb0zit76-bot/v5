@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\SalesScripts;
 
+use App\Models\Lead;
 use App\Models\SalesScript;
 use App\Models\SalesScriptCaptureField;
 use App\Models\SalesScriptNode;
@@ -9,6 +10,7 @@ use App\Models\SalesScriptPlaySession;
 use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptTransition;
 use App\Models\SalesScriptVersion;
+use App\Models\Task;
 use App\Models\User;
 use Database\Seeders\SalesScriptsDemoSeeder;
 use Illuminate\Support\Facades\DB;
@@ -209,6 +211,77 @@ class SalesScriptFlowTest extends TestCase
             ->count();
 
         $this->assertSame(0, $transitionsWithoutClientReply, 'Every seeded transition must have a client-facing reply label.');
+    }
+
+    public function test_completion_creates_crm_next_step_from_captured_date(): void
+    {
+        $this->seed(SalesScriptsDemoSeeder::class);
+
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'manager_scripts_crm_actions',
+            'display_name' => 'Manager scripts CRM actions',
+            'visibility_areas' => json_encode(['dashboard', 'scripts'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $lead = Lead::factory()->create(['responsible_id' => $user->id]);
+        $scriptId = (int) SalesScript::query()->where('title', 'Возврат уснувшего лида')->value('id');
+        $version = SalesScriptVersion::query()
+            ->where('sales_script_id', $scriptId)
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('scripts.sessions.store'), [
+                'sales_script_version_id' => $version->id,
+                'lead_id' => $lead->id,
+            ])
+            ->assertRedirect();
+
+        $session = SalesScriptPlaySession::query()->firstOrFail();
+        $nextStepDate = now()->addDays(3)->toDateString();
+
+        $this->actingAs($user)
+            ->post(route('scripts.sessions.advance', $session), [
+                'sales_script_reaction_class_id' => null,
+                'field_values' => [
+                    'next_step_date' => $nextStepDate,
+                ],
+            ])
+            ->assertRedirect(route('scripts.sessions.show', $session));
+
+        $this->actingAs($user)
+            ->post(route('scripts.sessions.complete', $session), [
+                'outcome' => 'progress',
+                'notes' => 'Клиент просит вернуться позже',
+                'lead_id' => $lead->id,
+            ])
+            ->assertRedirect(route('scripts.index'));
+
+        $session->refresh();
+        $lead->refresh();
+
+        $this->assertSame($lead->id, $session->lead_id);
+        $this->assertNotNull($lead->next_contact_at);
+        $this->assertSame($nextStepDate, $lead->next_contact_at->toDateString());
+
+        $this->assertDatabaseHas('lead_activities', [
+            'lead_id' => $lead->id,
+            'type' => 'note',
+            'subject' => 'Итог прохождения скрипта',
+        ]);
+
+        $task = Task::query()->where('lead_id', $lead->id)->first();
+        $this->assertNotNull($task);
+        $this->assertSame($nextStepDate, $task->due_at?->toDateString());
+        $this->assertSame('high', $task->priority);
+        $this->assertSame($session->id, $task->meta['sales_script_play_session_id'] ?? null);
     }
 
     public function test_trainer_can_start_session_with_manager_as_buyer(): void

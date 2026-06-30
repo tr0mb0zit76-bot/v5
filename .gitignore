@@ -36,6 +36,16 @@ Thumbs.db
 /u_tromb.env.example
 /.tmp_*
 
+# Одноразовые диагностические скрипты агентов/ручных проверок
+/scripts/check-*.php
+/scripts/debug-*
+/scripts/dump-*
+/scripts/inspect-*
+/scripts/probe-*
+/scripts/try-*
+/scripts/eec-metadata-titles.txt
+/scripts/prod-check-payments.sh
+
 # Локальные MCP / Hive Mind (токены и пути машины — не в git)
 /.cursor/mcp.local.json
 /.cursor/hivemind.config.json

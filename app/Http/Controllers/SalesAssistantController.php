@@ -26,6 +26,7 @@ use App\Services\SalesBookArticleTreeService;
 use App\Services\SalesBookParentChildLinksService;
 use App\Services\SalesMarginCounterService;
 use App\Services\SalesScripts\TrainerCoachingInsightsService;
+use App\Services\SalesScripts\TrainerRubricService;
 use App\Support\RoleAccess;
 use App\Support\SalesBookContentNormalizer;
 use Carbon\CarbonImmutable;
@@ -539,8 +540,11 @@ class SalesAssistantController extends Controller
         ]);
     }
 
-    public function trainerAnalytics(Request $request, TrainerCoachingInsightsService $coachingInsights): Response
-    {
+    public function trainerAnalytics(
+        Request $request,
+        TrainerCoachingInsightsService $coachingInsights,
+        TrainerRubricService $trainerRubrics,
+    ): Response {
         $auth = $request->user();
         abort_if($auth === null, 403);
 
@@ -650,6 +654,48 @@ class SalesAssistantController extends Controller
             'avg_score' => round((float) ($row->avg_score ?? 0), 1),
         ])->values()->all();
 
+        $byRubric = [];
+        $rubricSessions = (clone $baseQuery)
+            ->with('version.script')
+            ->limit(1000)
+            ->get();
+        foreach ($rubricSessions as $session) {
+            $rubric = $trainerRubrics->forSession($session);
+            $key = $rubric['key'];
+
+            if (! isset($byRubric[$key])) {
+                $byRubric[$key] = [
+                    'key' => $key,
+                    'label' => $rubric['label'],
+                    'total' => 0,
+                    'completed' => 0,
+                    'score_sum' => 0.0,
+                    'score_count' => 0,
+                ];
+            }
+
+            $byRubric[$key]['total']++;
+            if ($session->completed_at !== null) {
+                $byRubric[$key]['completed']++;
+            }
+            if ($session->trainer_score !== null) {
+                $byRubric[$key]['score_sum'] += (float) $session->trainer_score;
+                $byRubric[$key]['score_count']++;
+            }
+        }
+
+        $by_rubric = collect($byRubric)
+            ->map(fn (array $row): array => [
+                'key' => $row['key'],
+                'label' => $row['label'],
+                'total' => $row['total'],
+                'completed' => $row['completed'],
+                'avg_score' => $row['score_count'] > 0 ? round($row['score_sum'] / $row['score_count'], 1) : 0.0,
+            ])
+            ->sortByDesc('total')
+            ->values()
+            ->all();
+
         /** @var Collection<int, SalesScriptPlaySession> */
         $recentSessions = (clone $baseQuery)
             ->with(['user:id,name', 'version:id,version_number,sales_script_id'])
@@ -657,9 +703,10 @@ class SalesAssistantController extends Controller
             ->orderByDesc('created_at')
             ->limit(80)
             ->get()
-            ->map(function (SalesScriptPlaySession $session): array {
+            ->map(function (SalesScriptPlaySession $session) use ($trainerRubrics): array {
                 $version = $session->version;
                 $scriptTitle = $version?->script?->title;
+                $rubric = $trainerRubrics->forSession($session);
 
                 return [
                     'id' => $session->id,
@@ -671,6 +718,7 @@ class SalesAssistantController extends Controller
                     'outcome' => $session->outcome?->value,
                     'trainer_dialog_quality' => $session->trainer_dialog_quality?->value,
                     'trainer_score' => $session->trainer_score,
+                    'trainer_rubric_label' => $rubric['label'],
                     'script_label' => $scriptTitle
                         ? "{$scriptTitle} · v{$version?->version_number}"
                         : ($version ? "v{$version->version_number}" : '—'),
@@ -788,6 +836,7 @@ class SalesAssistantController extends Controller
             'summary' => $summary,
             'daily' => $daily,
             'by_profile' => $by_profile,
+            'by_rubric' => $by_rubric,
             'by_user' => $by_user,
             'recent_sessions' => $recentSessions,
             'filterUsers' => $filterUsers,

@@ -17,6 +17,7 @@ class SalesScriptPlaySession extends Model
         'sales_script_version_id',
         'current_node_id',
         'contractor_id',
+        'lead_id',
         'order_id',
         'context_tags',
         'is_trainer',
@@ -64,6 +65,14 @@ class SalesScriptPlaySession extends Model
     public function contractor(): BelongsTo
     {
         return $this->belongsTo(Contractor::class);
+    }
+
+    /**
+     * @return BelongsTo<Lead, $this>
+     */
+    public function lead(): BelongsTo
+    {
+        return $this->belongsTo(Lead::class);
     }
 
     /**

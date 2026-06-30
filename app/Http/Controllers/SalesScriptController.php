@@ -20,6 +20,7 @@ use App\Models\SalesScriptTrainerMessage;
 use App\Models\SalesScriptVersion;
 use App\Services\Ai\AiInteractionRecorder;
 use App\Services\SalesScripts\SalesScriptAnalyticsService;
+use App\Services\SalesScripts\SalesScriptCrmActionService;
 use App\Services\SalesScripts\SalesScriptNodeBodyResolver;
 use App\Services\SalesScripts\SalesScriptPlayPresentationService;
 use App\Services\SalesScripts\SalesScriptPlaySessionService;
@@ -28,6 +29,7 @@ use App\Services\SalesScripts\TrainerChatCompletionService;
 use App\Services\SalesScripts\TrainerCoachingHintService;
 use App\Services\SalesScripts\TrainerDialogHintService;
 use App\Services\SalesScripts\TrainerGraphCoordinatorService;
+use App\Services\SalesScripts\TrainerRubricService;
 use App\Services\SalesScripts\TrainerScenarioGuidanceService;
 use App\Services\SalesScripts\TrainerScoreCalculator;
 use App\Support\AiChannel;
@@ -45,6 +47,7 @@ class SalesScriptController extends Controller
 {
     public function __construct(
         private readonly SalesScriptPlaySessionService $playSessionService,
+        private readonly SalesScriptCrmActionService $crmActionService,
         private readonly SalesScriptPlayPresentationService $playPresentationService,
         private readonly SalesScriptAnalyticsService $scriptAnalyticsService,
         private readonly SalesScriptNodeBodyResolver $nodeBodyResolver,
@@ -52,6 +55,7 @@ class SalesScriptController extends Controller
         private readonly TrainerAssistantAutoReactionService $trainerAssistantAutoReactionService,
         private readonly TrainerCoachingHintService $trainerCoachingHintService,
         private readonly TrainerGraphCoordinatorService $trainerGraphCoordinatorService,
+        private readonly TrainerRubricService $trainerRubricService,
         private readonly TrainerScenarioGuidanceService $trainerScenarioGuidanceService,
         private readonly TrainerChatCompletionService $trainerChatCompletionService,
         private readonly TrainerScoreCalculator $trainerScoreCalculator,
@@ -120,6 +124,7 @@ class SalesScriptController extends Controller
                 $version,
                 $request->user(),
                 $validated['contractor_id'] ?? null,
+                $validated['lead_id'] ?? null,
                 $validated['order_id'] ?? null,
             );
         } catch (InvalidArgumentException $e) {
@@ -254,12 +259,14 @@ class SalesScriptController extends Controller
                 'trainer_contextual_hints' => $trainerContextualHints,
                 'trainer_entry_preview' => $trainerEntryPreview,
                 'trainer_step_hints' => $trainerStepHints,
+                'trainer_rubric' => $session->is_trainer ? $this->trainerRubricService->forSession($session) : null,
             ],
             'session' => [
                 'id' => $session->id,
                 'completed_at' => $session->completed_at?->toIso8601String(),
                 'outcome' => $session->outcome?->value,
                 'notes' => $session->notes,
+                'lead_id' => $session->lead_id,
                 'order_id' => $session->order_id,
                 'script_title' => $session->version?->script?->title,
                 'version_number' => $session->version?->version_number,
@@ -738,11 +745,12 @@ class SalesScriptController extends Controller
         $outcome = SalesPlaySessionOutcome::from($validated['outcome']);
 
         try {
-            $this->playSessionService->complete(
+            $session = $this->playSessionService->complete(
                 $session,
                 $outcome,
                 $validated['primary_reaction_class_id'] ?? null,
                 $validated['notes'] ?? null,
+                $validated['lead_id'] ?? null,
                 $validated['order_id'] ?? null,
             );
             if ($session->is_trainer) {
@@ -750,7 +758,9 @@ class SalesScriptController extends Controller
                 $session->update([
                     'trainer_score' => $this->trainerScoreCalculator->calculate($session, $outcome),
                 ]);
+                $session->refresh();
             }
+            $this->crmActionService->syncAfterCompletion($session);
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['complete' => $e->getMessage()]);
         }

@@ -124,6 +124,23 @@
                         </span>
                     </div>
 
+                    <div
+                        v-if="trainerRubric"
+                        class="rounded-xl border border-indigo-200 bg-indigo-50/80 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/30"
+                    >
+                        <div class="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700 dark:text-indigo-300">
+                            Рубрика оценки: {{ trainerRubric.label }}
+                        </div>
+                        <p class="mt-1 text-xs text-indigo-900/80 dark:text-indigo-100/80">
+                            {{ trainerRubric.description }}
+                        </p>
+                        <ul class="mt-3 list-disc space-y-1 pl-5 text-xs text-zinc-700 dark:text-zinc-200">
+                            <li v-for="criterion in trainerRubric.criteria" :key="criterion">
+                                {{ criterion }}
+                            </li>
+                        </ul>
+                    </div>
+
                     <div class="rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-700 dark:bg-zinc-900/30">
                         <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Как прошла тренировка</div>
                         <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
@@ -310,6 +327,29 @@
                             <option :value="null">—</option>
                             <option v-for="rc in reactionClasses" :key="rc.id" :value="rc.id">{{ rc.label }}</option>
                         </select>
+                    </div>
+
+                    <div class="grid gap-3 md:grid-cols-2">
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">Лид (ID, необязательно)</label>
+                            <input
+                                v-model="completeForm.lead_id"
+                                type="number"
+                                min="1"
+                                class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                placeholder="Для заметки и задачи в лиде"
+                            />
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">Заказ (ID, необязательно)</label>
+                            <input
+                                v-model="completeForm.order_id"
+                                type="number"
+                                min="1"
+                                class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                placeholder="Для связки с заказом"
+                            />
+                        </div>
                     </div>
 
                     <div class="space-y-2">
@@ -505,6 +545,17 @@
             </div>
 
             <div class="space-y-2">
+                <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">Лид (ID, необязательно)</label>
+                <input
+                    v-model="completeForm.lead_id"
+                    type="number"
+                    min="1"
+                    class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                    placeholder="Для заметки и задачи в лиде"
+                />
+            </div>
+
+            <div class="space-y-2">
                 <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">Заказ (ID, необязательно)</label>
                 <input
                     v-model="completeForm.order_id"
@@ -619,6 +670,7 @@ const trainerContextualHints = ref(
     Array.isArray(props.playContext?.trainer_contextual_hints) ? [...props.playContext.trainer_contextual_hints] : [],
 );
 const trainerCoaching = ref(props.playContext?.trainer_coaching ?? null);
+const trainerRubric = computed(() => props.playContext?.trainer_rubric ?? null);
 const trainerStepHints = ref(
     Array.isArray(props.playContext?.trainer_step_hints) ? [...props.playContext.trainer_step_hints] : [],
 );
@@ -697,6 +749,7 @@ const completeForm = reactive({
     outcome: '',
     primary_reaction_class_id: null,
     notes: '',
+    lead_id: props.session.lead_id ?? '',
     order_id: props.session.order_id ?? '',
 });
 
@@ -907,6 +960,7 @@ function submitComplete() {
         outcome: completeForm.outcome,
         primary_reaction_class_id: completeForm.primary_reaction_class_id,
         notes: completeForm.notes || null,
+        lead_id: completeForm.lead_id ? Number(completeForm.lead_id) : null,
         order_id: completeForm.order_id ? Number(completeForm.order_id) : null,
     });
 }

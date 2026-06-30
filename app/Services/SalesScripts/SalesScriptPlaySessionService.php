@@ -4,6 +4,7 @@ namespace App\Services\SalesScripts;
 
 use App\Enums\SalesPlayEventType;
 use App\Enums\SalesPlaySessionOutcome;
+use App\Models\Order;
 use App\Models\SalesScriptCaptureField;
 use App\Models\SalesScriptNode;
 use App\Models\SalesScriptPlayEvent;
@@ -14,6 +15,7 @@ use App\Models\SalesScriptVersion;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 
 class SalesScriptPlaySessionService
@@ -26,6 +28,7 @@ class SalesScriptPlaySessionService
         SalesScriptVersion $version,
         User $user,
         ?int $contractorId = null,
+        ?int $leadId = null,
         ?int $orderId = null,
     ): SalesScriptPlaySession {
         if (! $version->isPublished()) {
@@ -43,7 +46,8 @@ class SalesScriptPlaySessionService
             throw new InvalidArgumentException('Стартовый узел не найден.');
         }
 
-        return DB::transaction(function () use ($version, $user, $contractorId, $orderId, $entry): SalesScriptPlaySession {
+        return DB::transaction(function () use ($version, $user, $contractorId, $leadId, $orderId, $entry): SalesScriptPlaySession {
+            $resolvedLeadId = $leadId ?? $this->leadIdFromOrder($orderId);
             $contextTags = $this->playContextResolver->resolveForSession($orderId, $contractorId);
 
             $session = SalesScriptPlaySession::query()->create([
@@ -51,6 +55,7 @@ class SalesScriptPlaySessionService
                 'sales_script_version_id' => $version->id,
                 'current_node_id' => $entry->id,
                 'contractor_id' => $contractorId,
+                'lead_id' => $resolvedLeadId,
                 'order_id' => $orderId,
                 'context_tags' => $contextTags === [] ? null : $contextTags,
                 'started_at' => Carbon::now(),
@@ -191,19 +196,25 @@ class SalesScriptPlaySessionService
         SalesPlaySessionOutcome $outcome,
         ?int $primaryReactionClassId = null,
         ?string $notes = null,
+        ?int $leadId = null,
         ?int $orderId = null,
     ): SalesScriptPlaySession {
         if ($session->isComplete()) {
             throw new InvalidArgumentException('Сессия уже завершена.');
         }
 
-        return DB::transaction(function () use ($session, $outcome, $primaryReactionClassId, $notes, $orderId): SalesScriptPlaySession {
+        return DB::transaction(function () use ($session, $outcome, $primaryReactionClassId, $notes, $leadId, $orderId): SalesScriptPlaySession {
             $updates = [
                 'outcome' => $outcome,
                 'primary_reaction_class_id' => $primaryReactionClassId,
                 'notes' => $notes,
                 'completed_at' => Carbon::now(),
             ];
+
+            $resolvedLeadId = $leadId ?? $this->leadIdFromOrder($orderId);
+            if ($resolvedLeadId !== null) {
+                $updates['lead_id'] = $resolvedLeadId;
+            }
 
             if ($orderId !== null) {
                 $updates['order_id'] = $orderId;
@@ -250,6 +261,19 @@ class SalesScriptPlaySessionService
         }
 
         return $t;
+    }
+
+    private function leadIdFromOrder(?int $orderId): ?int
+    {
+        if ($orderId === null || ! Schema::hasTable('orders') || ! Schema::hasColumn('orders', 'lead_id')) {
+            return null;
+        }
+
+        $leadId = Order::query()
+            ->whereKey($orderId)
+            ->value('lead_id');
+
+        return is_numeric($leadId) ? (int) $leadId : null;
     }
 
     private function logEvent(

@@ -30,6 +30,8 @@ const isMobileMenuOpen = ref(false);
 const isReady = ref(false);
 const authLogoUrl = '/assets/logo_black.png?v=2';
 const headerLogoUrl = '/assets/logo_white.png?v=2';
+const companyPhoneLabel = '+7 8482 55 99 99';
+const companyPhoneHref = 'tel:+78482559999';
 
 const isNonEmptyTextMap = (value) =>
     value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
@@ -157,6 +159,8 @@ const t = (key, fallback = '') => {
 };
 
 const companyBrand = computed(() => t('site_brand', 'Автоальянс Смоленск'));
+const companyEmailLabel = computed(() => t('footer_email', '').trim());
+const companyEmailHref = computed(() => `mailto:${companyEmailLabel.value}`);
 
 const interpolateCompany = (value) =>
     String(value ?? '')
@@ -597,7 +601,12 @@ onBeforeUnmount(() => {
 
                     <div class="contact-item">
                         <h3>{{ t('email') }}</h3>
-                        <p>{{ t('footer_email') }}</p>
+                        <p><a :href="companyEmailHref">{{ companyEmailLabel }}</a></p>
+                    </div>
+
+                    <div class="contact-item">
+                        <h3>{{ t('phone', 'Телефон') }}</h3>
+                        <p><a :href="companyPhoneHref">{{ companyPhoneLabel }}</a></p>
                     </div>
 
                     <div class="contact-item">
@@ -667,7 +676,8 @@ onBeforeUnmount(() => {
                 <div class="footer-info">
                     <p>{{ t('footer_name') }}</p>
                     <p>{{ t('footer_address') }}</p>
-                    <p>{{ t('footer_email') }}</p>
+                    <p><a :href="companyEmailHref">{{ companyEmailLabel }}</a></p>
+                    <p><a :href="companyPhoneHref">{{ companyPhoneLabel }}</a></p>
                 </div>
 
                 <div class="footer-end">
@@ -1408,6 +1418,15 @@ onBeforeUnmount(() => {
   color: #ddd;
 }
 
+.contact-item a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.contact-item a:hover {
+  color: #ff8c5a;
+}
+
 .contacts-map {
   border-radius: 10px;
   overflow: hidden;
@@ -1660,6 +1679,15 @@ onBeforeUnmount(() => {
   margin: 5px 0;
   font-size: 0.9rem;
   color: #aaa;
+}
+
+.footer-info a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.footer-info a:hover {
+  color: #ff8c5a;
 }
 
 .auth-modal {

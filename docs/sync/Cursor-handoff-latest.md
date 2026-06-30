@@ -3,9 +3,35 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-30 · **Ветка:** `master` @ `b4499a1` · **Контекст:** расширение скриптов/тренажёра в работе + grid/prod fixes задеплоены
+**Обновлено:** 2026-06-30 · **Ветка:** `master` @ `b4499a1` · **Контекст:** CRM actions для скриптов/тренажёра + rubric analytics + artifact preview
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-06-30) — скрипты → CRM, рубрики тренажёра, artifact preview
+
+### Итог
+
+- Добавлена миграция `lead_id` на `sales_script_play_sessions` без FK, по текущему паттерну `contractor_id/order_id`.
+- `SalesScriptCrmActionService`: после завершения Play/Trainer создаёт заметку в лиде, обновляет `next_contact_at` и создаёт задачу, если в полях разговора есть `next_step_date`.
+- Complete-форма в `SalesScripts/Play.vue` теперь принимает `lead_id` и `order_id`; при `order_id` связанный лид подтягивается через `orders.lead_id`.
+- `TrainerRubricService`: рубрики `price`, `documents`, `conflict`, `upsell`, `discovery` с чек-листами критериев.
+- В Play тренажёра показывается текущая рубрика оценки; в `TrainerAnalytics.vue` добавлен отчёт «По рубрикам» и колонка рубрики в последних сессиях.
+- В `management-accounting-implementation-plan.md` убран устаревший backlog «второй банк»; оставлен только «другие форматы общей выписки». UID/счета/курсы не трогались.
+- `.gitattributes`: добавлен `export-ignore` для dev/test/Cursor/docs/debug/probe путей.
+- `scripts/build-prod-artifact.ps1`: dry-run проверяет, что `git archive` не включает dev-only пути; обычный режим создаёт tar-артефакт.
+
+### Проверка
+
+```powershell
+vendor\bin\pint --dirty --format agent
+php -l ...
+pwsh -File scripts/build-prod-artifact.ps1 -DryRun
+npm run build
+```
+
+`php artisan test --compact ...` локально по-прежнему упирается в отсутствие `mysql` CLI в `PATH` для schema dump.
 
 ---
 

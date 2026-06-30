@@ -237,6 +237,32 @@
 
         <section class="grid gap-6 lg:grid-cols-2">
             <div class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 md:p-6">
+                <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">По рубрикам</h2>
+                <div v-if="by_rubric.length === 0" class="mt-4 text-sm text-zinc-500 dark:text-zinc-400">Нет данных.</div>
+                <table v-else class="mt-4 w-full text-left text-sm">
+                    <thead>
+                        <tr class="border-b border-zinc-200 text-xs uppercase text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                            <th class="pb-2 pr-2 font-medium">Рубрика</th>
+                            <th class="pb-2 pr-2 font-medium">Сессий</th>
+                            <th class="pb-2 pr-2 font-medium">Завершено</th>
+                            <th class="pb-2 font-medium">Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr
+                            v-for="row in by_rubric"
+                            :key="row.key"
+                            class="border-b border-zinc-100 dark:border-zinc-800"
+                        >
+                            <td class="py-2 pr-2 text-zinc-900 dark:text-zinc-100">{{ row.label }}</td>
+                            <td class="py-2 pr-2 text-zinc-600 dark:text-zinc-300">{{ row.total }}</td>
+                            <td class="py-2 pr-2 text-zinc-600 dark:text-zinc-300">{{ row.completed }}</td>
+                            <td class="py-2 text-zinc-600 dark:text-zinc-300">{{ row.avg_score }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 md:p-6">
                 <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">По профилю клиента</h2>
                 <div v-if="by_profile.length === 0" class="mt-4 text-sm text-zinc-500 dark:text-zinc-400">Нет данных.</div>
                 <table v-else class="mt-4 w-full text-left text-sm">
@@ -295,12 +321,13 @@
             <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Последние сессии</h2>
             <div v-if="recent_sessions.length === 0" class="mt-4 text-sm text-zinc-500 dark:text-zinc-400">Нет данных.</div>
             <div v-else class="mt-4 overflow-x-auto">
-                <table class="min-w-[48rem] w-full text-left text-sm">
+                <table class="min-w-[54rem] w-full text-left text-sm">
                     <thead>
                         <tr class="border-b border-zinc-200 text-xs uppercase text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
                             <th v-if="filters.can_view_all" class="pb-2 pr-2 font-medium">Менеджер</th>
                             <th class="pb-2 pr-2 font-medium">Дата</th>
                             <th class="pb-2 pr-2 font-medium">Профиль</th>
+                            <th class="pb-2 pr-2 font-medium">Рубрика</th>
                             <th class="pb-2 pr-2 font-medium">Сценарий</th>
                             <th class="pb-2 pr-2 font-medium">Исход</th>
                             <th class="pb-2 pr-2 font-medium">Тренировка</th>
@@ -321,6 +348,9 @@
                             </td>
                             <td class="max-w-[12rem] truncate py-2 pr-2 text-zinc-600 dark:text-zinc-300">
                                 {{ s.trainer_profile_title ?? '—' }}
+                            </td>
+                            <td class="max-w-[10rem] truncate py-2 pr-2 text-zinc-600 dark:text-zinc-300">
+                                {{ s.trainer_rubric_label ?? '—' }}
                             </td>
                             <td class="max-w-[14rem] truncate py-2 pr-2 text-zinc-600 dark:text-zinc-300">
                                 {{ s.script_label }}
@@ -374,6 +404,10 @@ const props = defineProps({
         default: () => [],
     },
     by_profile: {
+        type: Array,
+        default: () => [],
+    },
+    by_rubric: {
         type: Array,
         default: () => [],
     },

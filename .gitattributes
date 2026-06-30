@@ -14,3 +14,18 @@
 /.github export-ignore
 CHANGELOG.md export-ignore
 .styleci.yml export-ignore
+
+# Production artifact: keep runtime code, skip local/dev-only payload.
+/.agents export-ignore
+/.codegraph export-ignore
+/.cursor export-ignore
+/docs export-ignore
+/tests export-ignore
+/.phpunit.cache export-ignore
+/.phpunit.result.cache export-ignore
+/scripts/check-*.php export-ignore
+/scripts/debug-*.php export-ignore
+/scripts/dump-*.php export-ignore
+/scripts/inspect-*.php export-ignore
+/scripts/probe-*.php export-ignore
+/scripts/try-*.php export-ignore

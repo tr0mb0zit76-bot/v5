@@ -22,6 +22,7 @@ class CompleteSalesScriptPlaySessionRequest extends FormRequest
             'outcome' => ['required', 'string', Rule::enum(SalesPlaySessionOutcome::class)],
             'primary_reaction_class_id' => ['nullable', 'integer', 'exists:sales_script_reaction_classes,id'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'lead_id' => ['nullable', 'integer', 'exists:leads,id'],
             'order_id' => ['nullable', 'integer', 'exists:orders,id'],
         ];
     }
