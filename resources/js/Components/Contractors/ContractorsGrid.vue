@@ -58,6 +58,19 @@
           Excel
         </button>
 
+        <button
+          type="button"
+          :class="crmGridToolbarBtn"
+          :disabled="selectedContractorIds.length === 0"
+          title="Массово сменить владельца выбранных контрагентов"
+          @click="openBulkOwnerModal"
+        >
+          Сменить владельца
+          <span v-if="selectedContractorIds.length > 0" class="text-xs text-zinc-500 dark:text-zinc-400">
+            {{ selectedContractorIds.length }}
+          </span>
+        </button>
+
         <GridViewsBar
           grid-key="contractors"
           :user-id="userId"
@@ -102,6 +115,7 @@
           @column-pinned="saveColumnState"
           @sort-changed="saveColumnState"
           @filter-changed="onFilterChanged"
+          @selection-changed="onSelectionChanged"
         />
       </div>
 
@@ -199,6 +213,61 @@
       </div>
     </Teleport>
 
+    <Teleport to="body">
+      <div
+        v-if="showBulkOwnerModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        @click.self="closeBulkOwnerModal"
+      >
+        <div :class="`${crmModalPanel} w-full max-w-md shadow-2xl`">
+          <div class="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+            <div class="text-lg font-semibold">Сменить владельца</div>
+            <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Выбрано контрагентов: {{ selectedContractorIds.length }}
+            </div>
+          </div>
+
+          <div class="space-y-3 p-5">
+            <label class="block text-sm font-medium text-zinc-900 dark:text-zinc-100">
+              Новый владелец
+            </label>
+            <select
+              v-model="bulkOwnerId"
+              class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            >
+              <option value="">Не назначен</option>
+              <option v-for="user in users" :key="user.id" :value="String(user.id)">
+                {{ user.name }}
+              </option>
+            </select>
+
+            <p v-if="bulkOwnerError" class="text-sm text-rose-600 dark:text-rose-400">
+              {{ bulkOwnerError }}
+            </p>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
+            <button
+              type="button"
+              :class="crmBtnNeutral"
+              :disabled="bulkOwnerProcessing"
+              @click="closeBulkOwnerModal"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              :class="crmBtnCreate"
+              :disabled="bulkOwnerProcessing || selectedContractorIds.length === 0"
+              @click="submitBulkOwnerChange"
+            >
+              {{ bulkOwnerProcessing ? 'Сохранение…' : 'Сменить' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <GridExportDialog
       :show="showExportModal"
       :columns="exportColumns"
@@ -221,6 +290,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { usePage, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { Rows3, Search, Settings2, Download, X } from 'lucide-vue-next';
@@ -273,6 +343,10 @@ const props = defineProps({
   roleColumnsConfig: {
     type: Object,
     default: () => ({}),
+  },
+  users: {
+    type: Array,
+    default: () => [],
   },
   userId: {
     type: [String, Number],
@@ -338,6 +412,11 @@ const currentDensity = ref(defaultGridDensity);
 const gridSection = ref(null);
 const gridPanel = ref(null);
 const bottomScrollbar = ref(null);
+const selectedRows = ref([]);
+const showBulkOwnerModal = ref(false);
+const bulkOwnerId = ref('');
+const bulkOwnerError = ref('');
+const bulkOwnerProcessing = ref(false);
 
 const { bottomScrollbarWidth, gridContainerStyle, onBottomScrollbarScroll, refreshAgGridPanelLayout } = useAgGridHorizontalPanel({
   gridPanel,
@@ -402,6 +481,20 @@ const gridOptions = {
   animateRows: false,
   preventDefaultOnContextMenu: true,
   getRowId: (params) => String(params.data?.id ?? ''),
+  rowSelection: {
+    mode: 'multiRow',
+    checkboxes: true,
+    headerCheckbox: true,
+    enableClickSelection: false,
+  },
+  selectionColumnDef: {
+    pinned: 'left',
+    sortable: false,
+    resizable: false,
+    suppressHeaderMenuButton: true,
+    maxWidth: 48,
+    minWidth: 48,
+  },
   onCellContextMenu,
 };
 
@@ -411,6 +504,9 @@ const densityClass = computed(() => `orders-grid-density--${currentDensity.value
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
 const displayData = computed(() => props.rows ?? []);
 const canExportGrid = computed(() => page.props.can_export_grid === true);
+const selectedContractorIds = computed(() => selectedRows.value
+  .map((row) => Number(row?.id))
+  .filter((id) => Number.isFinite(id) && id > 0));
 
 const defaultColDef = {
   sortable: true,
@@ -817,16 +913,32 @@ const applyColumnModalChanges = () => {
 };
 
 const onCellClicked = (params) => {
+  if (isSelectionColumnClick(params)) {
+    return;
+  }
+
   if (params.data?.id) {
     emit('row-select', params.data.id);
   }
 };
 
 const onCellDoubleClicked = (params) => {
+  if (isSelectionColumnClick(params)) {
+    return;
+  }
+
   if (params.data?.id) {
     emit('row-select', params.data.id);
   }
 };
+
+function isSelectionColumnClick(params) {
+  const columnId = params.column?.getColId?.() ?? '';
+
+  return columnId === 'ag-Grid-SelectionColumn'
+    || columnId === 'ag-Grid-AutoColumn'
+    || params.event?.target?.closest?.('.ag-selection-checkbox');
+}
 
 const persistFilterModel = () => {
   if (!gridApi.value) {
@@ -912,6 +1024,10 @@ const onGridReady = async (params) => {
   });
 };
 
+function onSelectionChanged(event) {
+  selectedRows.value = event.api.getSelectedRows();
+}
+
 const onFirstDataRendered = () => {
   requestAnimationFrame(() => {
     autoSizeIdColumnIfNotPersisted(gridApi.value, storageKey.value);
@@ -978,6 +1094,59 @@ function handleGridExport(payload) {
     responsibleIdField: 'owner_id',
   });
   showExportModal.value = false;
+}
+
+function openBulkOwnerModal() {
+  if (selectedContractorIds.value.length === 0) {
+    return;
+  }
+
+  bulkOwnerError.value = '';
+  bulkOwnerId.value = '';
+  showBulkOwnerModal.value = true;
+}
+
+function closeBulkOwnerModal() {
+  if (bulkOwnerProcessing.value) {
+    return;
+  }
+
+  showBulkOwnerModal.value = false;
+  bulkOwnerError.value = '';
+}
+
+function massUpdateOwnerUrl() {
+  const query = typeof window === 'undefined' ? '' : window.location.search;
+
+  return `${route('contractors.mass-update-owner')}${query}`;
+}
+
+async function submitBulkOwnerChange() {
+  if (selectedContractorIds.value.length === 0) {
+    return;
+  }
+
+  bulkOwnerProcessing.value = true;
+  bulkOwnerError.value = '';
+
+  try {
+    await axios.post(massUpdateOwnerUrl(), {
+      contractor_ids: selectedContractorIds.value,
+      owner_id: bulkOwnerId.value === '' ? null : Number(bulkOwnerId.value),
+    });
+
+    gridApi.value?.deselectAll();
+    selectedRows.value = [];
+    showBulkOwnerModal.value = false;
+    router.reload({
+      only: ['contractors', 'selectedContractor'],
+      preserveScroll: true,
+    });
+  } catch (error) {
+    bulkOwnerError.value = error?.response?.data?.message ?? 'Не удалось сменить владельца.';
+  } finally {
+    bulkOwnerProcessing.value = false;
+  }
 }
 
 function onExternalAgGridDensityChange(event) {

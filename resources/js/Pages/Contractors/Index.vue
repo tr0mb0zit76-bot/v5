@@ -2192,6 +2192,7 @@ function goToPage(pageNumber) {
                 :available-columns="availableColumns"
                 :role-columns-config="roleColumnsConfig"
                 :user-id="userId"
+                :users="users"
                 @row-select="openContractor"
                 @create-request="openCreateForm"
             />

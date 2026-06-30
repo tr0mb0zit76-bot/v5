@@ -889,6 +889,93 @@ class ContractorManagementTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_mass_update_contractor_owner(): void
+    {
+        $admin = $this->createAdminUser();
+        $oldOwner = User::factory()->create([
+            'role_id' => $admin->role_id,
+            'is_active' => true,
+        ]);
+        $newOwner = User::factory()->create([
+            'role_id' => $admin->role_id,
+            'name' => 'Новый владелец',
+            'is_active' => true,
+        ]);
+
+        $firstContractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Первый массовый',
+            'owner_id' => $oldOwner->id,
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'stop_on_limit' => false,
+            'debt_limit_currency' => 'RUB',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $secondContractorId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ООО Второй массовый',
+            'owner_id' => $oldOwner->id,
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'stop_on_limit' => false,
+            'debt_limit_currency' => 'RUB',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->postJson(route('contractors.mass-update-owner'), [
+            'contractor_ids' => [$firstContractorId, $secondContractorId],
+            'owner_id' => $newOwner->id,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('updated_count', 2)
+            ->assertJsonPath('owner_id', $newOwner->id)
+            ->assertJsonPath('owner_name', 'Новый владелец');
+
+        foreach ([$firstContractorId, $secondContractorId] as $contractorId) {
+            $this->assertDatabaseHas('contractors', [
+                'id' => $contractorId,
+                'owner_id' => $newOwner->id,
+                'updated_by' => $admin->id,
+            ]);
+        }
+    }
+
+    public function test_mass_update_contractor_owner_rejects_inactive_user(): void
+    {
+        $admin = $this->createAdminUser();
+        $inactiveOwner = User::factory()->create([
+            'role_id' => $admin->role_id,
+            'is_active' => false,
+        ]);
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Массовый неактивный',
+            'owner_id' => $admin->id,
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'stop_on_limit' => false,
+            'debt_limit_currency' => 'RUB',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->postJson(route('contractors.mass-update-owner'), [
+            'contractor_ids' => [$contractorId],
+            'owner_id' => $inactiveOwner->id,
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('owner_id');
+    }
+
     public function test_store_contractor_rejects_duplicate_company_name(): void
     {
         $admin = $this->createAdminUser();

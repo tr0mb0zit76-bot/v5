@@ -213,6 +213,8 @@ class ContractorController extends Controller
 
     public function massUpdateOwner(Request $request): JsonResponse
     {
+        abort_unless(Schema::hasColumn('contractors', 'owner_id'), 404);
+
         $ownerIdRules = ['nullable', 'integer'];
         $ownerIdRules[] = Schema::hasColumn('users', 'is_active')
             ? Rule::exists('users', 'id')->where('is_active', true)
@@ -220,19 +222,44 @@ class ContractorController extends Controller
 
         $validated = $request->validate([
             'contractor_ids' => ['required', 'array', 'min:1'],
-            'contractor_ids.*' => ['integer', 'exists:contractors,id'],
+            'contractor_ids.*' => ['integer', 'distinct', 'exists:contractors,id'],
             'owner_id' => $ownerIdRules,
         ]);
 
-        $contractorIds = $validated['contractor_ids'];
-        $ownerId = $validated['owner_id'];
+        $contractorIds = collect($validated['contractor_ids'])
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+        $ownerId = $validated['owner_id'] ?? null;
+        $type = trim((string) $request->query('type', ''));
+
+        $visibleContractorIds = Contractor::query()
+            ->visibleTo($request->user(), $type)
+            ->whereIn('id', $contractorIds)
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+
+        abort_if($visibleContractorIds === [], 403);
 
         $updatedCount = Contractor::query()
-            ->whereIn('id', $contractorIds)
-            ->update(['owner_id' => $ownerId]);
+            ->whereIn('id', $visibleContractorIds)
+            ->update([
+                'owner_id' => $ownerId,
+                'updated_by' => $request->user()?->id,
+                'updated_at' => now(),
+            ]);
+
+        $ownerName = $ownerId === null
+            ? ''
+            : (string) User::query()->whereKey($ownerId)->value('name');
 
         return response()->json([
             'message' => 'Владелец успешно обновлён для '.$updatedCount.' контрагентов.',
+            'contractor_ids' => $visibleContractorIds,
+            'owner_id' => $ownerId,
+            'owner_name' => $ownerName,
             'updated_count' => $updatedCount,
         ]);
     }
