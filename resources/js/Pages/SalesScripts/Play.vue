@@ -95,129 +95,33 @@
                 </article>
 
                 <div class="space-y-4 border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                    <div class="flex items-start justify-between gap-3">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                             <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Диалог с клиентом / продавцом</h3>
                             <p class="text-sm text-zinc-500 dark:text-zinc-400">
                                 {{ trainerModeHint }}
                             </p>
                         </div>
-                        <span
-                            v-if="playContext?.trainer_profile?.title"
-                            class="shrink-0 rounded-full border border-zinc-200 px-2 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-300"
-                        >
-                            {{ playContext.trainer_profile.title }}
-                        </span>
-                    </div>
-
-                    <div class="flex flex-wrap items-center gap-2">
-                        <button
-                            v-if="!session.completed_at"
-                            type="button"
-                            class="rounded-xl border border-sky-600 bg-sky-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-sky-700 dark:border-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400"
-                            @click="trainerEndIntent = true"
-                        >
-                            Завершить тренировку
-                        </button>
-                        <span v-if="trainerEndIntent && !session.completed_at" class="text-xs text-zinc-500 dark:text-zinc-400">
-                            Ниже заполните исход и сохраните.
-                        </span>
-                    </div>
-
-                    <div
-                        v-if="trainerRubric"
-                        class="rounded-xl border border-indigo-200 bg-indigo-50/80 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/30"
-                    >
-                        <div class="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700 dark:text-indigo-300">
-                            Рубрика оценки: {{ trainerRubric.label }}
-                        </div>
-                        <p class="mt-1 text-xs text-indigo-900/80 dark:text-indigo-100/80">
-                            {{ trainerRubric.description }}
-                        </p>
-                        <ul class="mt-3 list-disc space-y-1 pl-5 text-xs text-zinc-700 dark:text-zinc-200">
-                            <li v-for="criterion in trainerRubric.criteria" :key="criterion">
-                                {{ criterion }}
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div class="rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-700 dark:bg-zinc-900/30">
-                        <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Как прошла тренировка</div>
-                        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                            Отдельно от исхода воронки — для аналитики тренажёра.
-                        </p>
-                        <div class="mt-3 flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                class="rounded-xl border px-3 py-2 text-sm font-medium transition disabled:opacity-50"
-                                :class="trainerDialogQuality === 'success'
-                                    ? 'border-emerald-600 bg-emerald-600 text-white dark:border-emerald-500 dark:bg-emerald-600'
-                                    : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800'"
-                                :disabled="trainerMetaBusy"
-                                @click="setTrainerDialogQuality('success')"
+                        <div class="flex shrink-0 flex-wrap items-center gap-2 sm:flex-col sm:items-end">
+                            <span
+                                v-if="playContext?.trainer_profile?.title"
+                                class="rounded-full border border-zinc-200 px-2 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-300"
                             >
-                                Успешно
-                            </button>
+                                {{ playContext.trainer_profile.title }}
+                            </span>
                             <button
+                                v-if="!session.completed_at"
                                 type="button"
-                                class="rounded-xl border px-3 py-2 text-sm font-medium transition disabled:opacity-50"
-                                :class="trainerDialogQuality === 'failure'
-                                    ? 'border-rose-600 bg-rose-600 text-white dark:border-rose-500 dark:bg-rose-600'
-                                    : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800'"
-                                :disabled="trainerMetaBusy"
-                                @click="setTrainerDialogQuality('failure')"
+                                class="rounded-xl border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-700 dark:border-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400"
+                                @click="trainerEndIntent = true"
                             >
-                                Неудачно
+                                Завершить
                             </button>
-                            <button
-                                type="button"
-                                class="rounded-xl border px-3 py-2 text-sm font-medium transition disabled:opacity-50"
-                                :class="trainerDialogQuality === 'stuck'
-                                    ? 'border-amber-600 bg-amber-600 text-white dark:border-amber-500 dark:bg-amber-600'
-                                    : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800'"
-                                :disabled="trainerMetaBusy"
-                                @click="setTrainerDialogQuality('stuck')"
-                            >
-                                Зашёл в тупик
-                            </button>
-                            <button
-                                v-if="trainerDialogQuality"
-                                type="button"
-                                class="rounded-xl border border-zinc-300 px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                                :disabled="trainerMetaBusy"
-                                @click="setTrainerDialogQuality(null)"
-                            >
-                                Снять оценку
-                            </button>
+                            <span v-if="trainerEndIntent && !session.completed_at" class="max-w-48 text-xs text-zinc-500 dark:text-zinc-400 sm:text-right">
+                                Ниже появится форма исхода.
+                            </span>
                         </div>
                     </div>
-
-                    <details class="group rounded-xl border border-zinc-200 bg-zinc-50/50 dark:border-zinc-700 dark:bg-zinc-900/20">
-                        <summary class="cursor-pointer list-none px-4 py-3 text-sm font-medium text-zinc-800 marker:hidden dark:text-zinc-200 [&::-webkit-details-marker]:hidden">
-                            <span class="underline-offset-2 group-open:underline">Доп. указания для ассистента (роль и тон)</span>
-                            <span class="mt-0.5 block text-xs font-normal text-zinc-500 dark:text-zinc-400">Добавляются к системному промпту перед каждым ответом модели.</span>
-                        </summary>
-                        <div class="space-y-2 border-t border-zinc-200 p-4 dark:border-zinc-700">
-                            <textarea
-                                v-model="trainerAssistantInstructions"
-                                rows="5"
-                                class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                placeholder="Например: будь более скептичным к цене; не соглашайся на встречу без ЛПР…"
-                                :disabled="trainerMetaBusy"
-                            />
-                            <div class="flex flex-wrap items-center gap-3">
-                                <button
-                                    type="button"
-                                    :class="crmBtnCreate"
-                                    :disabled="trainerMetaBusy"
-                                    @click="saveTrainerAssistantInstructions"
-                                >
-                                    {{ trainerMetaBusy ? 'Сохранение…' : 'Сохранить указания' }}
-                                </button>
-                                <span v-if="promptSaveHint" class="text-xs text-zinc-500 dark:text-zinc-400">{{ promptSaveHint }}</span>
-                            </div>
-                        </div>
-                    </details>
 
                     <div
                         ref="trainerChatScrollRef"
@@ -300,6 +204,102 @@
                             </button>
                         </div>
                     </form>
+
+                    <details class="group rounded-xl border border-zinc-200 bg-zinc-50/50 dark:border-zinc-700 dark:bg-zinc-900/20">
+                        <summary class="cursor-pointer list-none px-4 py-3 marker:hidden [&::-webkit-details-marker]:hidden">
+                            <span class="flex flex-wrap items-center justify-between gap-2">
+                                <span>
+                                    <span class="block text-sm font-medium text-zinc-800 underline-offset-2 group-open:underline dark:text-zinc-200">
+                                        Настройки и оценка тренировки
+                                    </span>
+                                    <span class="mt-0.5 block text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                                        Оценка результата и дополнительные инструкции не мешают основному диалогу.
+                                    </span>
+                                </span>
+                                <span v-if="trainerDialogQuality" class="rounded-full border border-zinc-200 px-2 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-300">
+                                    {{ trainerDialogQualityLabel(trainerDialogQuality) }}
+                                </span>
+                            </span>
+                        </summary>
+
+                        <div class="space-y-4 border-t border-zinc-200 p-4 dark:border-zinc-700">
+                            <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-950">
+                                <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Как прошла тренировка</div>
+                                <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                    Отдельно от исхода воронки — для аналитики тренажёра.
+                                </p>
+                                <div class="mt-3 flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        class="rounded-xl border px-3 py-2 text-sm font-medium transition disabled:opacity-50"
+                                        :class="trainerDialogQuality === 'success'
+                                            ? 'border-emerald-600 bg-emerald-600 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                                            : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800'"
+                                        :disabled="trainerMetaBusy"
+                                        @click="setTrainerDialogQuality('success')"
+                                    >
+                                        Успешно
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-xl border px-3 py-2 text-sm font-medium transition disabled:opacity-50"
+                                        :class="trainerDialogQuality === 'failure'
+                                            ? 'border-rose-600 bg-rose-600 text-white dark:border-rose-500 dark:bg-rose-600'
+                                            : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800'"
+                                        :disabled="trainerMetaBusy"
+                                        @click="setTrainerDialogQuality('failure')"
+                                    >
+                                        Неудачно
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-xl border px-3 py-2 text-sm font-medium transition disabled:opacity-50"
+                                        :class="trainerDialogQuality === 'stuck'
+                                            ? 'border-amber-600 bg-amber-600 text-white dark:border-amber-500 dark:bg-amber-600'
+                                            : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800'"
+                                        :disabled="trainerMetaBusy"
+                                        @click="setTrainerDialogQuality('stuck')"
+                                    >
+                                        Зашёл в тупик
+                                    </button>
+                                    <button
+                                        v-if="trainerDialogQuality"
+                                        type="button"
+                                        class="rounded-xl border border-zinc-300 px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                                        :disabled="trainerMetaBusy"
+                                        @click="setTrainerDialogQuality(null)"
+                                    >
+                                        Снять оценку
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <div>
+                                    <div class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Доп. указания для ассистента</div>
+                                    <p class="text-xs text-zinc-500 dark:text-zinc-400">Добавляются к системному промпту перед каждым ответом модели.</p>
+                                </div>
+                                <textarea
+                                    v-model="trainerAssistantInstructions"
+                                    rows="4"
+                                    class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                    placeholder="Например: будь более скептичным к цене; не соглашайся на встречу без ЛПР…"
+                                    :disabled="trainerMetaBusy"
+                                />
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <button
+                                        type="button"
+                                        :class="crmBtnCreate"
+                                        :disabled="trainerMetaBusy"
+                                        @click="saveTrainerAssistantInstructions"
+                                    >
+                                        {{ trainerMetaBusy ? 'Сохранение…' : 'Сохранить указания' }}
+                                    </button>
+                                    <span v-if="promptSaveHint" class="text-xs text-zinc-500 dark:text-zinc-400">{{ promptSaveHint }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
                 </div>
 
                 <div
@@ -376,17 +376,25 @@
             </div>
 
             <aside
-                class="w-full shrink-0 space-y-5 border-zinc-200 xl:sticky xl:top-4 xl:max-h-[calc(100vh-5rem)] xl:w-[min(100%,24rem)] xl:overflow-y-auto xl:border-l xl:pl-6 dark:border-zinc-800"
+                class="w-full shrink-0 border-zinc-200 xl:sticky xl:top-4 xl:w-[min(100%,25rem)] xl:border-l xl:pl-6 xl:pr-4 dark:border-zinc-800"
             >
-                <div v-if="isManagerBuyerMode" class="rounded-xl border border-zinc-200 bg-zinc-50/90 p-4 text-xs leading-relaxed text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-300">
-                    <div class="font-semibold text-zinc-800 dark:text-zinc-100">Подсказки по сценарию отключены</div>
-                    <p class="mt-2">
-                        Вы отрабатываете роль покупателя; фрагменты узлов в данных сценария сформулированы как реплики продавца, поэтому лексические подсказки здесь не показываются.
-                    </p>
-                </div>
+                <div class="space-y-5 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto xl:rounded-2xl xl:border xl:border-zinc-200 xl:bg-white xl:p-4 xl:shadow-sm xl:[scrollbar-gutter:stable] dark:xl:border-zinc-800 dark:xl:bg-zinc-950">
+                    <div class="border-b border-zinc-200 pb-3 dark:border-zinc-800">
+                        <h2 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Панель подсказок</h2>
+                        <p class="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+                            Верхние блоки — сценарий и ветки. Нижние карточки — дополнительные совпадения по словам из диалога.
+                        </p>
+                    </div>
 
-                <template v-else>
-                    <div v-if="trainerCurrentStepHint" class="space-y-2 rounded-xl border border-emerald-300 bg-emerald-50/95 p-4 text-xs text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/35 dark:text-emerald-100">
+                    <div v-if="isManagerBuyerMode" class="rounded-xl border border-zinc-200 bg-zinc-50/90 p-4 text-xs leading-relaxed text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-300">
+                        <div class="font-semibold text-zinc-800 dark:text-zinc-100">Подсказки по сценарию отключены</div>
+                        <p class="mt-2">
+                            Вы отрабатываете роль покупателя; фрагменты узлов в данных сценария сформулированы как реплики продавца, поэтому лексические подсказки здесь не показываются.
+                        </p>
+                    </div>
+
+                    <template v-else>
+                    <div v-if="shouldShowTrainerCurrentStepCard" class="space-y-2 rounded-xl border border-emerald-300 bg-emerald-50/95 p-4 text-xs text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/35 dark:text-emerald-100">
                         <div class="font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
                             Текущий шаг сценария
                         </div>
@@ -399,8 +407,28 @@
                         </p>
                     </div>
 
+                    <div
+                        v-if="trainerRubric"
+                        class="space-y-2 rounded-xl border border-indigo-200 bg-indigo-50/80 p-4 text-xs dark:border-indigo-900/60 dark:bg-indigo-950/30"
+                    >
+                        <div class="font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+                            Рубрика оценки: {{ trainerRubric.label }}
+                        </div>
+                        <p class="leading-relaxed text-indigo-900/80 dark:text-indigo-100/80">
+                            {{ trainerRubric.description }}
+                        </p>
+                        <ul class="list-disc space-y-1 pl-5 text-zinc-700 dark:text-zinc-200">
+                            <li v-for="criterion in trainerRubric.criteria" :key="criterion">
+                                {{ criterion }}
+                            </li>
+                        </ul>
+                    </div>
+
                     <div v-if="trainerClientOptionHints.length > 0" class="space-y-2">
                         <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Реакции клиента на шаге</h3>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                            Это возможные ответы клиента для текущей ветки. Используйте как ориентир, куда ведёт сценарий после вашей реплики.
+                        </p>
                         <ul class="space-y-2">
                             <li
                                 v-for="(h, idx) in trainerClientOptionHints"
@@ -422,7 +450,7 @@
                     <div v-if="trainerContextualHints.length > 0" class="space-y-3">
                         <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Дополнительно по теме диалога</h3>
                         <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                            Лексический поиск по словам из чата — вспомогательно, не заменяет текущий шаг графа.
+                            Используйте только если клиент уже затронул эту тему. Это не следующий обязательный шаг.
                         </p>
                         <ul class="space-y-3">
                             <li
@@ -430,9 +458,13 @@
                                 :key="h.node_id"
                                 class="rounded-xl border border-zinc-200 bg-zinc-50/90 p-3 text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-200"
                             >
-                                <div v-if="h.client_key" class="font-mono text-[10px] text-zinc-500 dark:text-zinc-400">{{ h.client_key }}</div>
-                                <p class="mt-1 whitespace-pre-wrap leading-relaxed">{{ h.excerpt }}</p>
-                                <p v-if="h.hint" class="mt-2 border-t border-zinc-200 pt-2 text-[11px] text-amber-900 dark:border-zinc-600 dark:text-amber-100">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span v-if="h.client_key" class="rounded-full bg-white px-2 py-0.5 font-mono text-[10px] text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400">{{ h.client_key }}</span>
+                                    <span class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Связанная тема</span>
+                                </div>
+                                <p class="mt-2 whitespace-pre-wrap leading-relaxed">{{ h.excerpt }}</p>
+                                <p v-if="h.hint" class="mt-2 border-t border-zinc-200 pt-2 text-[11px] leading-relaxed text-amber-900 dark:border-zinc-600 dark:text-amber-100">
+                                    <span class="block font-semibold uppercase tracking-wide">Как использовать</span>
                                     {{ h.hint }}
                                 </p>
                                 <p v-if="h.matched_terms?.length" class="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400">
@@ -447,7 +479,8 @@
                     <div v-else-if="!trainerCurrentStepHint" class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
                         Начните диалог — текущий шаг сценария появится в телесуфлёре.
                     </div>
-                </template>
+                    </template>
+                </div>
             </aside>
         </div>
 
@@ -652,7 +685,7 @@ const isTrainerActive = computed(() => isTrainer.value && !props.session.complet
 
 const pageRootClass = computed(() =>
     isTrainerActive.value
-        ? 'mx-auto max-w-6xl min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0'
+        ? 'mx-auto w-full max-w-6xl min-h-0 flex-1 space-y-6 lg:min-h-0'
         : 'mx-auto max-w-3xl min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0',
 );
 
@@ -714,6 +747,24 @@ const trainerCurrentStepHint = computed(() => {
         ? hints.find((h) => h?.source === 'graph_current_step' && h?.is_current) ?? null
         : null;
 });
+
+const trainerTeleprompterShowsCurrentStep = computed(() => {
+    const presentation = trainerPlayPresentation.value;
+
+    return Boolean(
+        !isManagerBuyerMode.value
+        && presentation
+        && (
+            presentation.operator_line
+            || presentation.branch_instruction
+            || (Array.isArray(presentation.operator_segments) && presentation.operator_segments.length > 0)
+        ),
+    );
+});
+
+const shouldShowTrainerCurrentStepCard = computed(() =>
+    Boolean(trainerCurrentStepHint.value && !trainerTeleprompterShowsCurrentStep.value),
+);
 
 const trainerClientOptionHints = computed(() => {
     const hints = trainerStepHints.value;
