@@ -3,9 +3,37 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-30 · **Ветка:** `master` @ `b4499a1` · **Контекст:** grid context actions задеплоены + prod OOM/mail-sync guard
+**Обновлено:** 2026-06-30 · **Ветка:** `master` @ `b4499a1` · **Контекст:** расширение скриптов/тренажёра в работе + grid/prod fixes задеплоены
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-06-30) — скрипты продаж и тренажёр
+
+### Итог
+
+- `SalesScriptsDemoSeeder` расширен с 7 до 13 активных демо-сценариев.
+- Добавлены сценарии: «Возврат уснувшего лида», «Переговоры по цене и марже», «Проблемный рейс / удержание клиента», «Повторная продажа действующему клиенту», «Тренажёр: цена и конкурент», «Тренажёр: конфликт и удержание».
+- Добавлены поля разговора: `target_rate`, `decision_maker`, `required_documents`, `claim_reason`, `service_recovery_plan`, `own_fleet_argument`.
+- `SalesAssistant/Trainer.vue`: добавлены профили покупателей для цены/конкурента, претензии по рейсу и расширения действующего клиента.
+- `TrainerChatCompletionService`: первые реплики тренажёра для новых профилей стали жёстче и предметнее (цена/конкурент/обмен уступок, претензия/план восстановления, апсейл).
+- Добавлен unit-тест `TrainerChatCompletionServiceTest`; `SalesScriptFlowTest` теперь фиксирует 13 активных сценариев, новые поля и минимум 3 тренажёрных сценария.
+
+### Проверка
+
+```powershell
+vendor\bin\pint --dirty --format agent
+php -l database\seeders\SalesScriptsDemoSeeder.php
+php -l app\Services\SalesScripts\TrainerChatCompletionService.php
+php -l tests\Feature\SalesScripts\SalesScriptFlowTest.php
+php -l tests\Unit\TrainerChatCompletionServiceTest.php
+php artisan db:seed --class=SalesScriptsDemoSeeder --no-interaction
+php artisan sales:trainer-playground   # показал 13 сценариев / 13 активных версий
+npm run build
+```
+
+`php artisan test --compact ...` локально заблокирован известной проблемой окружения Windows: `mysql` CLI не в `PATH`, `RefreshDatabase` не может загрузить schema dump.
 
 ---
 

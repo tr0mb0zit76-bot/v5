@@ -152,10 +152,29 @@ class SalesScriptFlowTest extends TestCase
             ->whereHas('version', fn ($query) => $query->where('is_active', true)->whereNotNull('published_at'))
             ->get();
 
-        $this->assertGreaterThanOrEqual(49, $nodes->count());
-        $this->assertSame(7, SalesScriptVersion::query()->where('is_active', true)->whereNotNull('published_at')->count());
-        $this->assertContains('Дожим КП после отправки', SalesScript::query()->pluck('title')->all());
-        $this->assertContains('Тендер / закупщик', SalesScript::query()->pluck('title')->all());
+        $scriptTitles = SalesScript::query()->pluck('title')->all();
+
+        $this->assertGreaterThanOrEqual(90, $nodes->count());
+        $this->assertSame(13, SalesScriptVersion::query()->where('is_active', true)->whereNotNull('published_at')->count());
+        $this->assertContains('Дожим КП после отправки', $scriptTitles);
+        $this->assertContains('Тендер / закупщик', $scriptTitles);
+        $this->assertContains('Возврат уснувшего лида', $scriptTitles);
+        $this->assertContains('Переговоры по цене и марже', $scriptTitles);
+        $this->assertContains('Проблемный рейс / удержание клиента', $scriptTitles);
+        $this->assertContains('Повторная продажа действующему клиенту', $scriptTitles);
+        $this->assertContains('Тренажёр: цена и конкурент', $scriptTitles);
+        $this->assertContains('Тренажёр: конфликт и удержание', $scriptTitles);
+
+        foreach ([
+            'target_rate',
+            'decision_maker',
+            'required_documents',
+            'claim_reason',
+            'service_recovery_plan',
+            'own_fleet_argument',
+        ] as $expectedFieldCode) {
+            $this->assertContains($expectedFieldCode, $fieldCodes);
+        }
 
         foreach ($nodes as $node) {
             $body = (string) $node->body;
@@ -173,7 +192,13 @@ class SalesScriptFlowTest extends TestCase
             || str_contains((string) $node->body, 'После разговора')
             || str_contains((string) $node->body, 'Тренировка'));
 
-        $this->assertGreaterThanOrEqual(18, $instructionNodes->count());
+        $this->assertGreaterThanOrEqual(40, $instructionNodes->count());
+
+        $trainerScripts = SalesScript::query()
+            ->where('title', 'like', 'Тренажёр:%')
+            ->count();
+
+        $this->assertGreaterThanOrEqual(3, $trainerScripts);
 
         $transitionsWithoutClientReply = SalesScriptTransition::query()
             ->whereHas('version', fn ($query) => $query->where('is_active', true)->whereNotNull('published_at'))
