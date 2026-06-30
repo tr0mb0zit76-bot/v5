@@ -31,69 +31,81 @@
             </div>
         </div>
 
-        <!-- Тренажёр: диалог слева, сценарий справа -->
-        <div v-else-if="isTrainerActive" class="flex flex-col gap-6 xl:flex-row xl:items-start">
-            <div class="min-w-0 flex-1 space-y-6">
-                <article
-                    v-if="!isManagerBuyerMode && trainerPlayPresentation && (trainerPlayPresentation.operator_line || trainerPlayPresentation.branch_instruction)"
-                    class="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm dark:border-emerald-900/50 dark:bg-zinc-950"
-                >
-                    <div class="border-b border-emerald-100 bg-gradient-to-r from-emerald-50/90 via-white to-white px-6 py-4 dark:border-emerald-900/40 dark:from-emerald-950/30 dark:via-zinc-950 dark:to-zinc-950">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                            <span class="text-[11px] font-semibold uppercase tracking-[0.25em] text-emerald-700 dark:text-emerald-300">
-                                {{ operatorKindLabel(trainerPlayPresentation.operator_kind) }}
-                            </span>
-                            <span v-if="trainerPlayPresentation.step_key" class="font-mono text-[10px] text-zinc-400 dark:text-zinc-500">
-                                {{ trainerPlayPresentation.step_key }}
-                            </span>
-                        </div>
-                    </div>
-                    <div v-if="trainerPlayPresentation.operator_line" class="px-6 py-6">
-                        <p class="whitespace-pre-wrap text-base leading-relaxed text-zinc-900 dark:text-zinc-50">
-                            {{ trainerPlayPresentation.operator_line }}
+        <!-- Тренажёр: подсказки менеджеру, диалог и качество раздельно -->
+        <div v-else-if="isTrainerActive" class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(15rem,20rem)_minmax(34rem,1fr)_minmax(20rem,25rem)] xl:items-start">
+            <aside class="w-full xl:sticky xl:top-4">
+                <div class="space-y-4 border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Что делать сейчас</div>
+                        <p class="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+                            Это единственная рабочая подсказка для следующей реплики менеджера.
                         </p>
                     </div>
-                    <div
-                        v-else-if="trainerPlayPresentation.is_branch_only"
-                        class="px-6 py-6"
-                    >
-                        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                            Слушайте реакцию клиента
-                        </p>
-                        <p
-                            v-if="trainerPlayPresentation.branch_instruction"
-                            class="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-800 dark:text-zinc-200"
-                        >
-                            {{ trainerPlayPresentation.branch_instruction }}
-                        </p>
-                    </div>
-                    <div
-                        v-if="trainerPlayPresentation.coaching_hint"
-                        class="border-t border-emerald-100 bg-emerald-50/60 px-6 py-4 text-sm text-emerald-950 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-100"
-                    >
-                        <span class="text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">Подсказка</span>
-                        <p class="mt-1 whitespace-pre-wrap leading-relaxed">{{ trainerPlayPresentation.coaching_hint }}</p>
-                    </div>
-                    <div
-                        v-if="trainerPlayPresentation.choices?.length"
-                        class="border-t border-zinc-100 px-6 py-4 dark:border-zinc-800"
-                    >
-                        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                            Возможные реплики клиента на этом шаге
-                        </p>
-                        <ul class="mt-2 space-y-2">
-                            <li
-                                v-for="(choice, idx) in trainerPlayPresentation.choices"
-                                :key="choice.transition_id ?? idx"
-                                class="rounded-lg border border-zinc-200 bg-zinc-50/80 px-3 py-2 text-sm text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-200"
-                            >
-                                {{ choice.label }}
-                                <span v-if="choice.subtitle" class="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">{{ choice.subtitle }}</span>
-                            </li>
-                        </ul>
-                    </div>
-                </article>
 
+                    <div v-if="isManagerBuyerMode" class="rounded-xl border border-zinc-200 bg-zinc-50/90 p-3 text-xs leading-relaxed text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-300">
+                        В этом режиме вы тренируете роль покупателя, поэтому сценарный телесуфлёр продавца скрыт.
+                    </div>
+
+                    <template v-else>
+                        <div v-if="trainerActionText" class="space-y-3">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200">
+                                    {{ operatorKindLabel(trainerPlayPresentation.operator_kind) }}
+                                </span>
+                            </div>
+                            <p class="whitespace-pre-wrap text-sm leading-relaxed text-zinc-900 dark:text-zinc-50">
+                                {{ trainerActionText }}
+                            </p>
+                            <button
+                                v-if="trainerActionCanBeInserted"
+                                type="button"
+                                class="w-full border border-sky-600 px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-50 dark:border-sky-500 dark:text-sky-200 dark:hover:bg-sky-950/40"
+                                @click="insertTrainerPrompt(trainerActionText)"
+                            >
+                                Вставить в сообщение
+                            </button>
+                        </div>
+                        <div v-else class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                            Сценарий ждёт свободную реплику. Ориентируйтесь на ответ клиента в центре.
+                        </div>
+
+                        <div
+                            v-if="trainerCaptureSegments.length"
+                            class="border border-sky-200 bg-sky-50/80 p-3 text-xs dark:border-sky-900/60 dark:bg-sky-950/25"
+                        >
+                            <div class="font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-300">Что зафиксировать</div>
+                            <p class="mt-1 leading-relaxed text-sky-900/80 dark:text-sky-100/80">
+                                Эти поля влияют на чек-лист, аналитику и итог разговора.
+                            </p>
+                            <div class="mt-3 space-y-2">
+                                <label
+                                    v-for="segment in trainerCaptureSegments"
+                                    :key="segment.code"
+                                    class="block space-y-1"
+                                >
+                                    <span class="font-medium text-zinc-700 dark:text-zinc-200">{{ segment.label }}</span>
+                                    <input
+                                        v-model="captureDraft[segment.code]"
+                                        type="text"
+                                        class="w-full border border-sky-200 bg-white px-2 py-1.5 text-xs text-zinc-900 shadow-sm dark:border-sky-800 dark:bg-zinc-950 dark:text-zinc-100"
+                                        :placeholder="segment.label"
+                                    />
+                                </label>
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="trainerPlayPresentation.coaching_hint"
+                            class="border border-sky-200 bg-sky-50/70 p-3 text-xs text-sky-950 dark:border-sky-900/60 dark:bg-sky-950/25 dark:text-sky-100"
+                        >
+                            <span class="font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-300">На что обратить внимание</span>
+                            <p class="mt-1 whitespace-pre-wrap leading-relaxed">{{ trainerPlayPresentation.coaching_hint }}</p>
+                        </div>
+                    </template>
+                </div>
+            </aside>
+
+            <div class="min-w-0 space-y-6">
                 <div class="space-y-4 border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
@@ -112,8 +124,8 @@
                             <button
                                 v-if="!session.completed_at"
                                 type="button"
-                                class="rounded-xl border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-700 dark:border-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400"
-                                @click="trainerEndIntent = true"
+                                class="border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-700 dark:border-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400"
+                                @click="showTrainerCompleteForm"
                             >
                                 Завершить
                             </button>
@@ -148,31 +160,49 @@
                             </div>
                             <div
                                 v-if="message.role === 'assistant' && message.id && !session.completed_at"
-                                class="mt-2 flex flex-wrap items-center gap-1 border-t border-sky-200/80 pt-2 dark:border-sky-800/60"
+                                class="mt-2 space-y-2 border-t border-sky-200/80 pt-2 dark:border-sky-800/60"
                             >
-                                <span class="mr-1 text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Оценка реплики</span>
-                                <button
-                                    v-for="opt in peerReactionOptions"
-                                    :key="opt.value"
-                                    type="button"
-                                    class="rounded-lg border px-2 py-1 text-[11px] font-medium transition disabled:opacity-50"
-                                    :class="message.peer_reaction === opt.value
-                                        ? opt.activeClass
-                                        : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800'"
-                                    :disabled="peerReactionBusyId === message.id"
-                                    @click="setPeerReaction(message.id, opt.value)"
-                                >
-                                    {{ opt.label }}
-                                </button>
-                                <button
-                                    v-if="message.peer_reaction"
-                                    type="button"
-                                    class="ml-1 text-[10px] text-zinc-500 underline dark:text-zinc-400"
-                                    :disabled="peerReactionBusyId === message.id"
-                                    @click="setPeerReaction(message.id, null)"
-                                >
-                                    Снять
-                                </button>
+                                <div class="flex flex-wrap items-center gap-1">
+                                    <span class="mr-1 text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Оценка реплики</span>
+                                    <button
+                                        v-for="opt in peerReactionOptions"
+                                        :key="opt.value"
+                                        type="button"
+                                        class="rounded-lg border px-2 py-1 text-[11px] font-medium transition disabled:opacity-50"
+                                        :class="message.peer_reaction === opt.value
+                                            ? opt.activeClass
+                                            : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800'"
+                                        :disabled="peerReactionBusyId === message.id"
+                                        @click="setPeerReaction(message.id, opt.value, message.feedback_tags ?? [])"
+                                    >
+                                        {{ opt.label }}
+                                    </button>
+                                    <button
+                                        v-if="message.peer_reaction"
+                                        type="button"
+                                        class="ml-1 text-[10px] text-zinc-500 underline dark:text-zinc-400"
+                                        :disabled="peerReactionBusyId === message.id"
+                                        @click="setPeerReaction(message.id, null, [])"
+                                    >
+                                        Снять
+                                    </button>
+                                </div>
+                                <div v-if="message.peer_reaction" class="flex flex-wrap items-center gap-1">
+                                    <span class="mr-1 text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Почему</span>
+                                    <button
+                                        v-for="tag in peerFeedbackTagsFor(message.peer_reaction)"
+                                        :key="tag.value"
+                                        type="button"
+                                        class="rounded-lg border px-2 py-1 text-[11px] transition disabled:opacity-50"
+                                        :class="hasPeerFeedbackTag(message, tag.value)
+                                            ? 'border-indigo-600 bg-indigo-600 text-white dark:border-indigo-500 dark:bg-indigo-600'
+                                            : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                                        :disabled="peerReactionBusyId === message.id"
+                                        @click="togglePeerFeedbackTag(message, tag.value)"
+                                    >
+                                        {{ tag.label }}
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -231,9 +261,9 @@
                                 <div class="mt-3 flex flex-wrap gap-2">
                                     <button
                                         type="button"
-                                        class="rounded-xl border px-3 py-2 text-sm font-medium transition disabled:opacity-50"
+                                        class="border px-3 py-2 text-sm font-medium transition disabled:opacity-50"
                                         :class="trainerDialogQuality === 'success'
-                                            ? 'border-emerald-600 bg-emerald-600 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                                            ? 'border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-600'
                                             : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800'"
                                         :disabled="trainerMetaBusy"
                                         @click="setTrainerDialogQuality('success')"
@@ -242,7 +272,7 @@
                                     </button>
                                     <button
                                         type="button"
-                                        class="rounded-xl border px-3 py-2 text-sm font-medium transition disabled:opacity-50"
+                                        class="border px-3 py-2 text-sm font-medium transition disabled:opacity-50"
                                         :class="trainerDialogQuality === 'failure'
                                             ? 'border-rose-600 bg-rose-600 text-white dark:border-rose-500 dark:bg-rose-600'
                                             : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800'"
@@ -253,7 +283,7 @@
                                     </button>
                                     <button
                                         type="button"
-                                        class="rounded-xl border px-3 py-2 text-sm font-medium transition disabled:opacity-50"
+                                        class="border px-3 py-2 text-sm font-medium transition disabled:opacity-50"
                                         :class="trainerDialogQuality === 'stuck'
                                             ? 'border-amber-600 bg-amber-600 text-white dark:border-amber-500 dark:bg-amber-600'
                                             : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800'"
@@ -265,7 +295,7 @@
                                     <button
                                         v-if="trainerDialogQuality"
                                         type="button"
-                                        class="rounded-xl border border-zinc-300 px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                                        class="border border-zinc-300 px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
                                         :disabled="trainerMetaBusy"
                                         @click="setTrainerDialogQuality(null)"
                                     >
@@ -304,6 +334,7 @@
 
                 <div
                     v-if="!session.completed_at && (mustComplete || trainerEndIntent)"
+                    ref="trainerCompleteFormRef"
                     class="space-y-4 border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
                 >
                     <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Зафиксируйте исход</h2>
@@ -376,13 +407,13 @@
             </div>
 
             <aside
-                class="w-full shrink-0 border-zinc-200 xl:sticky xl:top-4 xl:w-[min(100%,25rem)] xl:border-l xl:pl-6 xl:pr-4 dark:border-zinc-800"
+                class="w-full xl:sticky xl:top-4"
             >
-                <div class="space-y-5 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto xl:rounded-2xl xl:border xl:border-zinc-200 xl:bg-white xl:p-4 xl:shadow-sm xl:[scrollbar-gutter:stable] dark:xl:border-zinc-800 dark:xl:bg-zinc-950">
+                <div class="space-y-5 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto xl:border xl:border-zinc-200 xl:bg-white xl:p-4 xl:shadow-sm xl:[scrollbar-gutter:stable] dark:xl:border-zinc-800 dark:xl:bg-zinc-950">
                     <div class="border-b border-zinc-200 pb-3 dark:border-zinc-800">
-                        <h2 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Панель подсказок</h2>
+                        <h2 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Прогресс и качество</h2>
                         <p class="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-                            Верхние блоки — сценарий и ветки. Нижние карточки — дополнительные совпадения по словам из диалога.
+                            Здесь не текст для чтения клиенту, а контроль разговора: где мы в сценарии, что может ответить клиент и что оценивается.
                         </p>
                     </div>
 
@@ -394,16 +425,10 @@
                     </div>
 
                     <template v-else>
-                    <div v-if="shouldShowTrainerCurrentStepCard" class="space-y-2 rounded-xl border border-emerald-300 bg-emerald-50/95 p-4 text-xs text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/35 dark:text-emerald-100">
-                        <div class="font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
-                            Текущий шаг сценария
-                        </div>
-                        <p v-if="trainerCurrentStepHint.client_key" class="font-mono text-[10px] text-emerald-700 dark:text-emerald-300">
-                            {{ trainerCurrentStepHint.client_key }}
-                        </p>
-                        <p class="whitespace-pre-wrap leading-relaxed">{{ trainerCurrentStepHint.excerpt }}</p>
-                        <p v-if="trainerCurrentStepHint.hint" class="border-t border-emerald-200/80 pt-2 text-[11px] dark:border-emerald-800/60">
-                            {{ trainerCurrentStepHint.hint }}
+                    <div class="space-y-2 border border-zinc-200 bg-zinc-50/90 p-4 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-200">
+                        <div class="font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Текущий шаг</div>
+                        <p class="leading-relaxed">
+                            {{ currentStepStatusText }}
                         </p>
                     </div>
 
@@ -414,22 +439,40 @@
                         <div class="font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
                             Рубрика оценки: {{ trainerRubric.label }}
                         </div>
+                        <div class="text-[11px] text-indigo-900/70 dark:text-indigo-100/70">
+                            Выполнено: {{ trainerRubric.passed_count ?? 0 }}/{{ trainerRubric.total_count ?? trainerRubricCriteria.length }}
+                            <span v-if="trainerRubricPendingCount > 0"> · ещё не проверено: {{ trainerRubricPendingCount }}</span>
+                            <span v-else-if="trainerRubric.rubric_score !== undefined"> · {{ trainerRubric.rubric_score }}%</span>
+                        </div>
                         <p class="leading-relaxed text-indigo-900/80 dark:text-indigo-100/80">
                             {{ trainerRubric.description }}
                         </p>
-                        <ul class="list-disc space-y-1 pl-5 text-zinc-700 dark:text-zinc-200">
-                            <li v-for="criterion in trainerRubric.criteria" :key="criterion">
-                                {{ criterion }}
+                        <ul class="space-y-2 text-zinc-700 dark:text-zinc-200">
+                            <li v-for="criterion in trainerRubricCriteria" :key="criterion.key ?? criterion.label">
+                                <span class="flex gap-2">
+                                    <span
+                                        class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px]"
+                                        :class="rubricCriterionBadgeClass(criterion.status)"
+                                    >
+                                        {{ rubricCriterionIcon(criterion.status) }}
+                                    </span>
+                                    <span>
+                                        <span>{{ criterion.label }}</span>
+                                        <span class="mt-0.5 block text-[11px] text-zinc-500 dark:text-zinc-400">
+                                            {{ criterion.evidence }}
+                                        </span>
+                                    </span>
+                                </span>
                             </li>
                         </ul>
                     </div>
 
-                    <div v-if="trainerClientOptionHints.length > 0" class="space-y-2">
+                    <div class="space-y-2">
                         <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Реакции клиента на шаге</h3>
                         <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                            Это возможные ответы клиента для текущей ветки. Используйте как ориентир, куда ведёт сценарий после вашей реплики.
+                            Это прогноз веток, а не обязательный текст для менеджера.
                         </p>
-                        <ul class="space-y-2">
+                        <ul v-if="trainerClientOptionHints.length > 0" class="space-y-2">
                             <li
                                 v-for="(h, idx) in trainerClientOptionHints"
                                 :key="`${h.client_key}-${idx}`"
@@ -438,6 +481,9 @@
                                 {{ h.excerpt }}
                             </li>
                         </ul>
+                        <div v-else class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs leading-relaxed text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                            {{ emptyClientOptionsText }}
+                        </div>
                     </div>
 
                     <div v-if="trainerCoaching?.coaching_hint" class="space-y-2 rounded-xl border border-amber-300 bg-amber-50/95 p-4 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100">
@@ -447,32 +493,26 @@
                         <p class="whitespace-pre-wrap leading-relaxed">{{ trainerCoaching.coaching_hint }}</p>
                     </div>
 
-                    <div v-if="trainerContextualHints.length > 0" class="space-y-3">
-                        <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Дополнительно по теме диалога</h3>
-                        <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                            Используйте только если клиент уже затронул эту тему. Это не следующий обязательный шаг.
-                        </p>
-                        <ul class="space-y-3">
+                    <details v-if="trainerContextualHints.length > 0" class="group rounded-xl border border-zinc-200 bg-zinc-50/70 dark:border-zinc-700 dark:bg-zinc-900/30">
+                        <summary class="cursor-pointer list-none px-3 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 marker:hidden dark:text-zinc-400 [&::-webkit-details-marker]:hidden">
+                            Связанные материалы ({{ trainerContextualHints.length }})
+                        </summary>
+                        <ul class="space-y-3 border-t border-zinc-200 p-3 dark:border-zinc-700">
                             <li
-                                v-for="h in trainerContextualHints"
+                                v-for="h in visibleTrainerContextualHints"
                                 :key="h.node_id"
-                                class="rounded-xl border border-zinc-200 bg-zinc-50/90 p-3 text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-200"
+                                class="rounded-xl border border-zinc-200 bg-white p-3 text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
                             >
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <span v-if="h.client_key" class="rounded-full bg-white px-2 py-0.5 font-mono text-[10px] text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400">{{ h.client_key }}</span>
-                                    <span class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Связанная тема</span>
+                                    <span class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">не обязательный шаг</span>
                                 </div>
                                 <p class="mt-2 whitespace-pre-wrap leading-relaxed">{{ h.excerpt }}</p>
-                                <p v-if="h.hint" class="mt-2 border-t border-zinc-200 pt-2 text-[11px] leading-relaxed text-amber-900 dark:border-zinc-600 dark:text-amber-100">
-                                    <span class="block font-semibold uppercase tracking-wide">Как использовать</span>
-                                    {{ h.hint }}
-                                </p>
-                                <p v-if="h.matched_terms?.length" class="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400">
-                                    Совпадения: {{ h.matched_terms.join(', ') }}
+                                <p v-if="h.why || h.matched_terms?.length" class="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400">
+                                    {{ h.why || `Совпадения: ${h.matched_terms.join(', ')}` }}
                                 </p>
                             </li>
                         </ul>
-                    </div>
+                    </details>
                     <div v-else-if="!trainerCurrentStepHint && trainerChatHistory.length > 0" class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
                         Нет дополнительных лексических совпадений. Ориентируйтесь на телесуфлёр слева.
                     </div>
@@ -685,7 +725,7 @@ const isTrainerActive = computed(() => isTrainer.value && !props.session.complet
 
 const pageRootClass = computed(() =>
     isTrainerActive.value
-        ? 'mx-auto w-full max-w-6xl min-h-0 flex-1 space-y-6 lg:min-h-0'
+        ? 'mx-auto w-full max-w-[95rem] min-h-0 flex-1 space-y-6 overflow-y-auto pb-8 lg:min-h-0'
         : 'mx-auto max-w-3xl min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0',
 );
 
@@ -695,6 +735,7 @@ const trainerDraft = ref('');
 const trainerSending = ref(false);
 const trainerChatHistory = ref(Array.isArray(props.playContext?.trainer_chat) ? [...props.playContext.trainer_chat] : []);
 const trainerChatScrollRef = ref(null);
+const trainerCompleteFormRef = ref(null);
 const trainerAssistantInstructions = ref(props.session.trainer_assistant_instructions ?? '');
 const trainerDialogQuality = ref(props.session.trainer_dialog_quality ?? null);
 const trainerMetaBusy = ref(false);
@@ -703,7 +744,38 @@ const trainerContextualHints = ref(
     Array.isArray(props.playContext?.trainer_contextual_hints) ? [...props.playContext.trainer_contextual_hints] : [],
 );
 const trainerCoaching = ref(props.playContext?.trainer_coaching ?? null);
-const trainerRubric = computed(() => props.playContext?.trainer_rubric ?? null);
+const trainerRubric = ref(props.playContext?.trainer_rubric ?? null);
+const trainerRubricCriteria = computed(() => {
+    const rubric = trainerRubric.value;
+    if (!rubric) {
+        return [];
+    }
+
+    if (Array.isArray(rubric.evaluated_criteria) && rubric.evaluated_criteria.length > 0) {
+        return rubric.evaluated_criteria;
+    }
+
+    return (Array.isArray(rubric.criteria) ? rubric.criteria : []).map((label, index) => ({
+        key: `criterion-${index}`,
+        label,
+        status: 'pending',
+        evidence: 'Автооценка для этого критерия ещё не рассчитана.',
+    }));
+});
+const trainerRubricPendingCount = computed(() =>
+    trainerRubricCriteria.value.filter((criterion) => criterion.status === 'pending').length,
+);
+const trainerCaptureSegments = computed(() => {
+    const captureFields = trainerPlayPresentation.value?.capture_fields;
+    if (Array.isArray(captureFields) && captureFields.length > 0) {
+        return captureFields.filter((field) => field?.code);
+    }
+
+    const segments = trainerPlayPresentation.value?.operator_segments;
+    return Array.isArray(segments)
+        ? segments.filter((segment) => segment?.type === 'capture' && segment.code)
+        : [];
+});
 const trainerStepHints = ref(
     Array.isArray(props.playContext?.trainer_step_hints) ? [...props.playContext.trainer_step_hints] : [],
 );
@@ -717,7 +789,7 @@ const peerReactionOptions = [
     {
         value: 'positive',
         label: 'Плюс',
-        activeClass: 'border-emerald-600 bg-emerald-600 text-white dark:border-emerald-500 dark:bg-emerald-600',
+        activeClass: 'border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-600',
     },
     {
         value: 'neutral',
@@ -731,6 +803,28 @@ const peerReactionOptions = [
     },
 ];
 
+const peerFeedbackTagGroups = {
+    positive: [
+        { value: 'useful_next_step', label: 'ясный следующий шаг' },
+        { value: 'useful_objection', label: 'сняло возражение' },
+        { value: 'useful_question', label: 'хороший вопрос' },
+        { value: 'useful_wording', label: 'удачная формулировка' },
+    ],
+    neutral: [
+        { value: 'useful_question', label: 'вопрос пригодился' },
+        { value: 'bad_too_generic', label: 'слишком общо' },
+        { value: 'bad_wrong_stage', label: 'не тот этап' },
+        { value: 'bad_not_actionable', label: 'нет действия' },
+    ],
+    negative: [
+        { value: 'bad_too_generic', label: 'слишком общо' },
+        { value: 'bad_wrong_stage', label: 'не тот этап' },
+        { value: 'bad_missed_objection', label: 'мимо возражения' },
+        { value: 'bad_not_actionable', label: 'нет действия' },
+        { value: 'bad_too_long', label: 'слишком длинно' },
+    ],
+};
+
 function peerReactionLabel(value) {
     if (!value) {
         return '';
@@ -738,6 +832,38 @@ function peerReactionLabel(value) {
     const opt = peerReactionOptions.find((o) => o.value === value);
 
     return opt ? opt.label : value;
+}
+
+function peerFeedbackTagsFor(reaction) {
+    return peerFeedbackTagGroups[reaction] ?? [];
+}
+
+function hasPeerFeedbackTag(message, tag) {
+    return Array.isArray(message?.feedback_tags) && message.feedback_tags.includes(tag);
+}
+
+function rubricCriterionIcon(status) {
+    if (status === 'passed') {
+        return '✓';
+    }
+
+    if (status === 'failed') {
+        return '!';
+    }
+
+    return '…';
+}
+
+function rubricCriterionBadgeClass(status) {
+    if (status === 'passed') {
+        return 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200';
+    }
+
+    if (status === 'failed') {
+        return 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200';
+    }
+
+    return 'border-indigo-300 bg-white text-indigo-500 dark:border-indigo-700 dark:bg-zinc-950 dark:text-indigo-200';
 }
 
 const trainerCurrentStepHint = computed(() => {
@@ -772,6 +898,53 @@ const trainerClientOptionHints = computed(() => {
     return Array.isArray(hints)
         ? hints.filter((h) => h?.source === 'graph_client_option')
         : [];
+});
+
+const visibleTrainerContextualHints = computed(() => trainerContextualHints.value.slice(0, 2));
+
+const trainerActionText = computed(() => {
+    const presentation = trainerPlayPresentation.value;
+
+    return String(
+        presentation?.operator_line
+        || presentation?.branch_instruction
+        || '',
+    ).trim();
+});
+
+const trainerActionCanBeInserted = computed(() => trainerActionText.value.length > 0 && !trainerSending.value);
+
+const currentStepStatusText = computed(() => {
+    const presentation = trainerPlayPresentation.value;
+    const kind = presentation?.operator_kind;
+
+    if (kind === 'ask') {
+        return 'Сейчас важно получить ответ клиента на вопрос. Граф не должен уходить дальше, пока клиент не ответит.';
+    }
+
+    if (kind === 'branch') {
+        return 'Сценарий слушает реакцию клиента и выберет ближайшую подходящую ветку.';
+    }
+
+    if (kind === 'say') {
+        return 'Сейчас ход менеджера: произнесите или адаптируйте реплику из левой панели.';
+    }
+
+    return 'Ориентируйтесь на текущий диалог и следующий ответ клиента.';
+});
+
+const emptyClientOptionsText = computed(() => {
+    const kind = trainerPlayPresentation.value?.operator_kind;
+
+    if (kind === 'ask') {
+        return 'На этом шаге сценарий ждёт свободный ответ клиента на вопрос менеджера.';
+    }
+
+    if (kind === 'say') {
+        return 'После реплики менеджера возможен линейный переход без выбора реакции.';
+    }
+
+    return 'Для текущего шага нет отдельных клиентских веток.';
 });
 
 const trainingRoleLabel = computed(() =>
@@ -889,6 +1062,7 @@ function applyTrainerGraphPayload(payload) {
 
     if (payload.play_presentation && typeof payload.play_presentation === 'object') {
         trainerPlayPresentation.value = { ...payload.play_presentation };
+        syncCaptureDraftFromPresentation(payload.play_presentation);
     }
 
     if (Array.isArray(payload.event_trail)) {
@@ -897,6 +1071,10 @@ function applyTrainerGraphPayload(payload) {
 
     if (Array.isArray(payload.trainer_step_hints)) {
         trainerStepHints.value = [...payload.trainer_step_hints];
+    }
+
+    if (payload.trainer_rubric && typeof payload.trainer_rubric === 'object') {
+        trainerRubric.value = { ...payload.trainer_rubric };
     }
 }
 
@@ -954,6 +1132,15 @@ function trainerMessageRoleLabel(role) {
 }
 
 function syncCaptureDraftFromPresentation(presentation) {
+    const captureFields = presentation?.capture_fields;
+    if (Array.isArray(captureFields)) {
+        for (const field of captureFields) {
+            if (field?.code) {
+                captureDraft[field.code] = field.value ?? '';
+            }
+        }
+    }
+
     const segments = presentation?.operator_segments;
     if (!Array.isArray(segments)) {
         return;
@@ -979,7 +1166,23 @@ watch(
 );
 
 function collectFieldValues() {
-    const segments = props.playPresentation?.operator_segments;
+    const captureFields = isTrainerActive.value
+        ? trainerPlayPresentation.value?.capture_fields
+        : props.playPresentation?.capture_fields;
+    if (Array.isArray(captureFields) && captureFields.length > 0) {
+        const values = {};
+        for (const field of captureFields) {
+            if (field?.code) {
+                values[field.code] = captureDraft[field.code] ?? '';
+            }
+        }
+
+        return values;
+    }
+
+    const segments = isTrainerActive.value
+        ? trainerPlayPresentation.value?.operator_segments
+        : props.playPresentation?.operator_segments;
     if (!Array.isArray(segments)) {
         return {};
     }
@@ -1024,6 +1227,26 @@ function onTrainerDraftKeydown(event) {
     void sendTrainerMessage();
 }
 
+function insertTrainerPrompt(text) {
+    const cleaned = String(text || '').trim();
+    if (cleaned === '') {
+        return;
+    }
+
+    trainerDraft.value = trainerDraft.value.trim()
+        ? `${trainerDraft.value.trim()}\n\n${cleaned}`
+        : cleaned;
+}
+
+async function showTrainerCompleteForm() {
+    trainerEndIntent.value = true;
+    await nextTick();
+    trainerCompleteFormRef.value?.scrollIntoView?.({
+        behavior: 'smooth',
+        block: 'start',
+    });
+}
+
 async function patchTrainerMeta(body) {
     const response = await fetch(route('scripts.sessions.trainer-meta', props.session.id), {
         method: 'PATCH',
@@ -1062,7 +1285,7 @@ async function saveTrainerAssistantInstructions() {
     }
 }
 
-async function setPeerReaction(messageId, value) {
+async function setPeerReaction(messageId, value, feedbackTags = []) {
     if (!isTrainer.value || !messageId) {
         return;
     }
@@ -1076,7 +1299,10 @@ async function setPeerReaction(messageId, value) {
             {
                 method: 'PATCH',
                 headers: trainerJsonHeaders(),
-                body: JSON.stringify({ peer_reaction: value }),
+                body: JSON.stringify({
+                    peer_reaction: value,
+                    feedback_tags: value ? feedbackTags.slice(0, 5) : [],
+                }),
             },
         );
         const payload = await response.json().catch(() => ({}));
@@ -1086,14 +1312,35 @@ async function setPeerReaction(messageId, value) {
         const pr = payload?.peer_reaction ?? null;
         trainerChatHistory.value = trainerChatHistory.value.map((m) =>
             m.id === messageId
-                ? { ...m, peer_reaction: pr, auto_peer_reaction: payload?.auto_peer_reaction ?? m.auto_peer_reaction }
+                ? {
+                    ...m,
+                    peer_reaction: pr,
+                    auto_peer_reaction: payload?.auto_peer_reaction ?? m.auto_peer_reaction,
+                    feedback_tags: Array.isArray(payload?.feedback_tags) ? payload.feedback_tags : [],
+                }
                 : m,
         );
+        if (payload?.trainer_rubric && typeof payload.trainer_rubric === 'object') {
+            trainerRubric.value = { ...payload.trainer_rubric };
+        }
     } catch {
         /* остаёмся на локальном состоянии */
     } finally {
         peerReactionBusyId.value = null;
     }
+}
+
+function togglePeerFeedbackTag(message, tag) {
+    if (!message?.id || !message.peer_reaction) {
+        return;
+    }
+
+    const current = Array.isArray(message.feedback_tags) ? message.feedback_tags : [];
+    const next = current.includes(tag)
+        ? current.filter((item) => item !== tag)
+        : [...current, tag].slice(0, 5);
+
+    setPeerReaction(message.id, message.peer_reaction, next);
 }
 
 async function setTrainerDialogQuality(quality) {
@@ -1130,7 +1377,10 @@ async function sendTrainerMessage() {
         const response = await fetch(route('scripts.sessions.trainer-message', props.session.id), {
             method: 'POST',
             headers: trainerJsonHeaders(),
-            body: JSON.stringify({ message: text }),
+            body: JSON.stringify({
+                message: text,
+                field_values: collectFieldValues(),
+            }),
         });
 
         const payload = await response.json();

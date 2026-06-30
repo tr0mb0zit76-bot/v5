@@ -182,6 +182,7 @@ class SalesScriptFlowTest extends TestCase
             $body = (string) $node->body;
 
             $this->assertDoesNotMatchRegularExpression('/\[[^\]]+\]/u', $body, 'Seed script still contains draft placeholders.');
+            $this->assertStringNotContainsString('Выберите реакцию', $body, 'Trainer text should not expose service branching language.');
 
             preg_match_all('/\{([a-z0-9_]+)\}/u', $body, $matches);
 
@@ -191,10 +192,18 @@ class SalesScriptFlowTest extends TestCase
         }
 
         $instructionNodes = $nodes->filter(fn (SalesScriptNode $node): bool => str_contains((string) $node->body, 'Цель шага')
+            || str_contains((string) $node->body, 'Текущий ход')
             || str_contains((string) $node->body, 'После разговора')
             || str_contains((string) $node->body, 'Тренировка'));
 
         $this->assertGreaterThanOrEqual(40, $instructionNodes->count());
+
+        $branchCurrentStepNodes = $nodes->filter(fn (SalesScriptNode $node): bool => $node->kind->value !== 'branch'
+            || str_contains((string) $node->body, 'Текущий ход')
+            || str_contains((string) $node->body, 'СПИН')
+            || str_contains((string) $node->body, 'Диагностика'));
+
+        $this->assertCount($nodes->count(), $branchCurrentStepNodes, 'Every branch node should read as a current conversational step.');
 
         $trainerScripts = SalesScript::query()
             ->where('title', 'like', 'Тренажёр:%')

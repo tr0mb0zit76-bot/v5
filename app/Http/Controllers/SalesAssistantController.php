@@ -26,6 +26,7 @@ use App\Services\SalesBookArticleTreeService;
 use App\Services\SalesBookParentChildLinksService;
 use App\Services\SalesMarginCounterService;
 use App\Services\SalesScripts\TrainerCoachingInsightsService;
+use App\Services\SalesScripts\TrainerFeedbackDigestService;
 use App\Services\SalesScripts\TrainerRubricService;
 use App\Support\RoleAccess;
 use App\Support\SalesBookContentNormalizer;
@@ -543,6 +544,7 @@ class SalesAssistantController extends Controller
     public function trainerAnalytics(
         Request $request,
         TrainerCoachingInsightsService $coachingInsights,
+        TrainerFeedbackDigestService $feedbackDigest,
         TrainerRubricService $trainerRubrics,
     ): Response {
         $auth = $request->user();
@@ -846,6 +848,14 @@ class SalesAssistantController extends Controller
                 $auth,
                 $days,
                 $canViewAll && $request->filled('user_id') ? $request->integer('user_id') : null,
+            ),
+            'feedback_digest' => $feedbackDigest->digest(
+                $auth,
+                $days,
+                $canViewAll,
+                $canViewAll && $request->filled('user_id') ? $request->integer('user_id') : null,
+                $profileKeyFilter ?: null,
+                $request->filled('sales_script_version_id') ? $request->integer('sales_script_version_id') : null,
             ),
         ]);
     }

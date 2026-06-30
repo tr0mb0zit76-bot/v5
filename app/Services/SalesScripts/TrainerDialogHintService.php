@@ -39,9 +39,15 @@ class TrainerDialogHintService
             return [];
         }
 
+        $nearbyNodeIds = $this->nearbyNodeIds($salesScriptVersionId, $currentNodeId);
+        if ($nearbyNodeIds === []) {
+            return [];
+        }
+
         /** @var Collection<int, SalesScriptNode> $nodes */
         $nodes = SalesScriptNode::query()
             ->where('sales_script_version_id', $salesScriptVersionId)
+            ->whereIn('id', $nearbyNodeIds)
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get(['id', 'client_key', 'kind', 'body', 'hint', 'sort_order']);
@@ -76,6 +82,7 @@ class TrainerDialogHintService
                     'matched_terms' => array_values(array_unique($matched)),
                     'score' => $score,
                     'source' => 'chat_lexicon',
+                    'why' => 'Совпало с ближайшим шагом сценария: '.implode(', ', array_values(array_unique($matched))),
                 ];
             }
         }
@@ -89,6 +96,71 @@ class TrainerDialogHintService
         });
 
         return array_slice($scored, 0, $limit);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function nearbyNodeIds(int $salesScriptVersionId, ?int $currentNodeId): array
+    {
+        if ($currentNodeId === null) {
+            return [];
+        }
+
+        /** @var SalesScriptNode|null $current */
+        $current = SalesScriptNode::query()
+            ->where('sales_script_version_id', $salesScriptVersionId)
+            ->find($currentNodeId);
+
+        if ($current === null) {
+            return [];
+        }
+
+        $frontier = [$current->id];
+        $seen = [(int) $current->id => true];
+        $nearby = [];
+
+        for ($depth = 0; $depth < 2; $depth++) {
+            /** @var Collection<int, SalesScriptNode> $nodes */
+            $nodes = SalesScriptNode::query()
+                ->whereIn('id', $frontier)
+                ->with('outgoingTransitions.toNode')
+                ->get();
+
+            $nextFrontier = [];
+            foreach ($nodes as $node) {
+                foreach ($node->outgoingTransitions as $transition) {
+                    $toNode = $transition->toNode;
+                    if (! $toNode instanceof SalesScriptNode) {
+                        continue;
+                    }
+
+                    if ($toNode->sales_script_version_id !== $salesScriptVersionId) {
+                        continue;
+                    }
+
+                    if ((int) $toNode->id === (int) $current->id || isset($seen[(int) $toNode->id])) {
+                        continue;
+                    }
+
+                    if ((int) $toNode->sort_order > ((int) $current->sort_order + 30)) {
+                        continue;
+                    }
+
+                    $seen[(int) $toNode->id] = true;
+                    $nearby[] = (int) $toNode->id;
+                    $nextFrontier[] = (int) $toNode->id;
+                }
+            }
+
+            if ($nextFrontier === []) {
+                break;
+            }
+
+            $frontier = $nextFrontier;
+        }
+
+        return array_values(array_unique($nearby));
     }
 
     /**

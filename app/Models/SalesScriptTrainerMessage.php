@@ -10,11 +10,14 @@ class SalesScriptTrainerMessage extends Model
 {
     protected $fillable = [
         'sales_script_play_session_id',
+        'sales_script_node_id',
         'user_id',
         'role',
         'content',
         'peer_reaction',
         'auto_peer_reaction',
+        'feedback_tags',
+        'step_key',
     ];
 
     /**
@@ -23,6 +26,14 @@ class SalesScriptTrainerMessage extends Model
     public function session(): BelongsTo
     {
         return $this->belongsTo(SalesScriptPlaySession::class, 'sales_script_play_session_id');
+    }
+
+    /**
+     * @return BelongsTo<SalesScriptNode, $this>
+     */
+    public function scriptNode(): BelongsTo
+    {
+        return $this->belongsTo(SalesScriptNode::class, 'sales_script_node_id');
     }
 
     /**
@@ -38,6 +49,7 @@ class SalesScriptTrainerMessage extends Model
         return [
             'peer_reaction' => TrainerPeerReaction::class,
             'auto_peer_reaction' => TrainerPeerReaction::class,
+            'feedback_tags' => 'array',
         ];
     }
 }

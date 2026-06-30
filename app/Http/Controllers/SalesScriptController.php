@@ -334,6 +334,14 @@ class SalesScriptController extends Controller
         }
 
         $session->refresh();
+        $managerNode = $this->resolveCurrentNode($session);
+        if ($managerNode !== null) {
+            $this->playSessionService->saveFieldValues(
+                $session,
+                $managerNode,
+                $validated['field_values'] ?? [],
+            );
+        }
 
         $history[] = [
             'role' => 'user',
@@ -342,6 +350,8 @@ class SalesScriptController extends Controller
         ];
         $session->trainerMessages()->create([
             'user_id' => $request->user()?->id,
+            'sales_script_node_id' => $managerNode?->id,
+            'step_key' => $managerNode?->client_key,
             'role' => 'user',
             'content' => $userMessage,
         ]);
@@ -385,6 +395,8 @@ class SalesScriptController extends Controller
 
         $assistantMessage = $session->trainerMessages()->create([
             'user_id' => null,
+            'sales_script_node_id' => $graphBeforeReply['current_node']['id'] ?? null,
+            'step_key' => $playPresentation['step_key'] ?? ($graphBeforeReply['current_node']['client_key'] ?? null),
             'role' => 'assistant',
             'content' => $reply,
         ]);
@@ -395,7 +407,7 @@ class SalesScriptController extends Controller
         $this->trainerGraphCoordinatorService->afterClientReply($session, $reply);
 
         $session->refresh();
-        $session->load('trainerMessages');
+        $session->load(['trainerMessages', 'fieldValues.captureField']);
         $lines = $this->trainerChatPayload($session->trainerMessages()->orderBy('id')->get());
         $graphPayload = $this->buildTrainerGraphPayload($session);
         $resolvedCurrent = $this->resolveCurrentNode($session);
@@ -425,6 +437,8 @@ class SalesScriptController extends Controller
             'outgoing_transitions' => $graphPayload['outgoing_transitions'],
             'event_trail' => $graphPayload['event_trail'],
             'must_complete' => $graphPayload['must_complete'],
+            'trainer_rubric' => $this->trainerRubricService->forSession($session),
+            'captured_fields' => $this->serializeCapturedFieldsSummary($session),
         ]);
     }
 
@@ -448,21 +462,26 @@ class SalesScriptController extends Controller
         }
 
         $raw = $request->validated('peer_reaction');
+        $feedbackTags = $request->validated('feedback_tags', []);
         $trainer_message->update([
             'peer_reaction' => $raw === null ? null : TrainerPeerReaction::from($raw),
+            'feedback_tags' => $feedbackTags === [] ? null : $feedbackTags,
         ]);
         $trainer_message->refresh();
+        $session->load(['trainerMessages', 'fieldValues.captureField', 'events.node', 'version.script']);
 
         return response()->json([
             'id' => $trainer_message->id,
             'peer_reaction' => $trainer_message->peer_reaction?->value,
             'auto_peer_reaction' => $trainer_message->auto_peer_reaction?->value,
+            'feedback_tags' => $trainer_message->feedback_tags ?? [],
+            'trainer_rubric' => $this->trainerRubricService->forSession($session),
         ]);
     }
 
     /**
      * @param  Collection<int, SalesScriptTrainerMessage>  $messages
-     * @return list<array{id:int,role:string,content:string,at:?string,peer_reaction:?string,auto_peer_reaction:?string}>
+     * @return list<array{id:int,role:string,content:string,at:?string,peer_reaction:?string,auto_peer_reaction:?string,feedback_tags:list<string>,sales_script_node_id:?int,step_key:?string}>
      */
     private function trainerChatPayload(Collection $messages): array
     {
@@ -473,6 +492,12 @@ class SalesScriptController extends Controller
             'at' => $message->created_at?->toIso8601String(),
             'peer_reaction' => $message->peer_reaction?->value,
             'auto_peer_reaction' => $message->auto_peer_reaction?->value,
+            'feedback_tags' => array_values(array_filter(
+                (array) ($message->feedback_tags ?? []),
+                fn (mixed $tag): bool => is_string($tag) && $tag !== '',
+            )),
+            'sales_script_node_id' => $message->sales_script_node_id,
+            'step_key' => $message->step_key,
         ])->values()->all();
     }
 
@@ -500,6 +525,8 @@ class SalesScriptController extends Controller
 
         $assistantMessage = $session->trainerMessages()->create([
             'user_id' => null,
+            'sales_script_node_id' => $session->current_node_id,
+            'step_key' => $session->currentNode?->client_key,
             'role' => 'assistant',
             'content' => $line,
         ]);
@@ -567,6 +594,7 @@ class SalesScriptController extends Controller
             $this->sessionFieldValuesByCode($session),
             $this->captureFieldLabelsByCode(),
         );
+        $playPresentation['capture_fields'] = $this->captureFieldsForNode($current, $session);
 
         $outgoing = [];
         if ($current !== null && ! $session->isComplete()) {
@@ -607,6 +635,7 @@ class SalesScriptController extends Controller
             'event_trail' => $eventTrail,
             'trainer_step_hints' => $this->trainerScenarioGuidanceService->build($current, $playPresentation),
             'must_complete' => $current !== null && count($outgoing) === 0 && ! $session->isComplete(),
+            'trainer_rubric' => $session->is_trainer ? $this->trainerRubricService->forSession($session) : null,
         ];
     }
 
@@ -807,6 +836,34 @@ class SalesScriptController extends Controller
             ->orderBy('sort_order')
             ->orderBy('label')
             ->pluck('label', 'code')
+            ->all();
+    }
+
+    /**
+     * @return list<array{code:string,label:string,value:string}>
+     */
+    private function captureFieldsForNode(?SalesScriptNode $node, SalesScriptPlaySession $session): array
+    {
+        $codes = array_values(array_filter(
+            (array) ($node?->capture_field_codes ?? []),
+            fn (mixed $code): bool => is_string($code) && $code !== '',
+        ));
+
+        if ($codes === []) {
+            return [];
+        }
+
+        $labels = $this->captureFieldLabelsByCode();
+        $values = $this->sessionFieldValuesByCode($session);
+
+        return collect($codes)
+            ->unique()
+            ->map(fn (string $code): array => [
+                'code' => $code,
+                'label' => (string) ($labels[$code] ?? $code),
+                'value' => (string) ($values[$code] ?? ''),
+            ])
+            ->values()
             ->all();
     }
 

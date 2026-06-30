@@ -18,6 +18,8 @@ class StoreTrainerChatMessageRequest extends FormRequest
     {
         return [
             'message' => ['required', 'string', 'max:4000'],
+            'field_values' => ['sometimes', 'array'],
+            'field_values.*' => ['nullable', 'string', 'max:1000'],
         ];
     }
 }

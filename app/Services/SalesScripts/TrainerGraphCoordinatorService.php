@@ -39,11 +39,7 @@ final class TrainerGraphCoordinatorService
             fn (SalesScriptTransition $t): bool => $t->sales_script_reaction_class_id !== null,
         ));
 
-        if ($current->kind === SalesScriptNodeKind::Branch && $linear === [] && $reactions !== []) {
-            return false;
-        }
-
-        if (count($linear) !== 1) {
+        if ($current->kind !== SalesScriptNodeKind::Say || count($linear) !== 1) {
             return false;
         }
 
@@ -69,13 +65,28 @@ final class TrainerGraphCoordinatorService
             return false;
         }
 
-        $match = $this->reactionMatcher->match($current, $clientReply);
-        if ($match === null) {
-            return false;
-        }
-
         try {
-            $this->playSessionService->advance($session, $match['reaction_class_id']);
+            $match = $this->reactionMatcher->match($current, $clientReply);
+            if ($match !== null) {
+                $this->playSessionService->advance($session, $match['reaction_class_id']);
+
+                return true;
+            }
+
+            if ($current->kind !== SalesScriptNodeKind::Ask) {
+                return false;
+            }
+
+            $linear = array_values(array_filter(
+                $this->playSessionService->outgoingTransitions($current),
+                fn (SalesScriptTransition $t): bool => $t->sales_script_reaction_class_id === null,
+            ));
+
+            if (count($linear) !== 1) {
+                return false;
+            }
+
+            $this->playSessionService->advance($session, null);
         } catch (InvalidArgumentException) {
             return false;
         }

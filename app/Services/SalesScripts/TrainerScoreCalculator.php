@@ -13,10 +13,14 @@ use Illuminate\Support\Collection;
  */
 final class TrainerScoreCalculator
 {
+    public function __construct(
+        private readonly TrainerRubricService $trainerRubricService,
+    ) {}
+
     public function calculate(SalesScriptPlaySession $session, SalesPlaySessionOutcome $outcome): int
     {
         $base = $this->baseScoreByOutcome($outcome);
-        $session->loadMissing(['trainerMessages', 'events']);
+        $session->loadMissing(['trainerMessages', 'events', 'fieldValues.captureField', 'version.script']);
 
         /** @var Collection<int, SalesScriptTrainerMessage> $assistantMessages */
         $assistantMessages = $session->trainerMessages
@@ -45,7 +49,10 @@ final class TrainerScoreCalculator
             ? 10
             : 0;
 
-        return max(0, min(100, $base - $reactionPenalty - $loopPenalty - $abandonPenalty + $progressBonus));
+        $rubric = $this->trainerRubricService->forSession($session);
+        $rubricAdjustment = (int) round(((int) $rubric['rubric_score'] - 50) / 5);
+
+        return max(0, min(100, $base - $reactionPenalty - $loopPenalty - $abandonPenalty + $progressBonus + $rubricAdjustment));
     }
 
     private function baseScoreByOutcome(SalesPlaySessionOutcome $outcome): int

@@ -217,6 +217,121 @@
             </div>
         </section>
 
+        <section
+            v-if="feedback_digest?.available"
+            class="border border-sky-200 bg-sky-50/80 p-4 shadow-sm dark:border-sky-900/60 dark:bg-sky-950/30 md:p-6"
+        >
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-sky-800 dark:text-sky-300">
+                        Что улучшить в сценариях
+                    </h2>
+                    <p class="mt-2 text-xs text-sky-900/80 dark:text-sky-200/80">
+                        Сводка по оценкам ассистента, тупикам, живым возражениям и незаполненным полям за {{ feedback_digest.period_days }} д.
+                    </p>
+                </div>
+                <div class="text-right text-xs text-sky-900/70 dark:text-sky-200/70">
+                    <div>Сессий: {{ feedback_digest.summary.total_sessions }}</div>
+                    <div>Тупики/неудачи: {{ feedback_digest.summary.stuck_or_failure_sessions }} ({{ feedback_digest.summary.stuck_or_failure_rate_pct }}%)</div>
+                    <div>Негативных реплик: {{ feedback_digest.summary.negative_messages }}</div>
+                </div>
+            </div>
+
+            <div v-if="feedbackRecommendations.length" class="mt-4 rounded-xl border border-sky-200/80 bg-white/70 p-3 dark:border-sky-900/40 dark:bg-zinc-950/50">
+                <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-800 dark:text-sky-300">Рекомендации редактору</h3>
+                <ul class="mt-2 space-y-1 text-sm text-zinc-800 dark:text-zinc-200">
+                    <li v-for="(item, idx) in feedbackRecommendations" :key="idx">
+                        {{ item }}
+                    </li>
+                </ul>
+            </div>
+
+            <div class="mt-5 grid gap-4 lg:grid-cols-2">
+                <div v-if="feedback_digest.script_hotspots?.length" class="rounded-xl border border-sky-200/80 bg-white/70 p-3 dark:border-sky-900/40 dark:bg-zinc-950/50">
+                    <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Проблемные сценарии</h3>
+                    <ul class="mt-2 space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
+                        <li v-for="row in feedback_digest.script_hotspots" :key="row.version_id">
+                            <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ row.script_label }}</span>
+                            <span class="block text-xs text-zinc-500 dark:text-zinc-400">
+                                тупики/неудачи: {{ row.stuck_or_failure }}/{{ row.total }}, негатив: {{ row.negative_messages }}, score: {{ row.avg_score }}
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div v-if="feedback_digest.node_hotspots?.length" class="rounded-xl border border-sky-200/80 bg-white/70 p-3 dark:border-sky-900/40 dark:bg-zinc-950/50">
+                    <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Шаги, которые надо переписать</h3>
+                    <ul class="mt-2 space-y-3 text-sm text-zinc-700 dark:text-zinc-300">
+                        <li v-for="row in feedback_digest.node_hotspots" :key="row.sales_script_node_id ?? row.step_key">
+                            <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ row.node_label }}</span>
+                            <span class="block text-xs text-zinc-500 dark:text-zinc-400">
+                                {{ row.script_label }} · сигналов: {{ row.signals }}, негатив: {{ row.negative_messages }}
+                            </span>
+                            <span v-if="row.node_excerpt" class="mt-1 block text-xs text-zinc-600 dark:text-zinc-300">
+                                {{ row.node_excerpt }}
+                            </span>
+                            <span v-if="row.top_tags?.length" class="mt-1 flex flex-wrap gap-1">
+                                <span
+                                    v-for="tag in row.top_tags"
+                                    :key="tag.tag"
+                                    class="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] text-sky-800 dark:bg-sky-900/60 dark:text-sky-100"
+                                >
+                                    {{ tag.label }} · {{ tag.count }}
+                                </span>
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div v-if="feedback_digest.feedback_tag_hotspots?.length" class="rounded-xl border border-sky-200/80 bg-white/70 p-3 dark:border-sky-900/40 dark:bg-zinc-950/50">
+                    <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Причины оценок</h3>
+                    <ul class="mt-2 space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
+                        <li v-for="row in feedback_digest.feedback_tag_hotspots" :key="row.tag" class="flex items-center justify-between gap-3">
+                            <span>{{ row.label }}</span>
+                            <span class="text-xs text-zinc-500 dark:text-zinc-400">{{ row.total }}</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div v-if="feedback_digest.profile_hotspots?.length" class="rounded-xl border border-sky-200/80 bg-white/70 p-3 dark:border-sky-900/40 dark:bg-zinc-950/50">
+                    <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Профили, где диалог застревает</h3>
+                    <ul class="mt-2 space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
+                        <li v-for="row in feedback_digest.profile_hotspots" :key="row.profile_key ?? row.profile_title">
+                            <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ row.profile_title }}</span>
+                            <span class="block text-xs text-zinc-500 dark:text-zinc-400">
+                                {{ row.stuck_or_failure }}/{{ row.total }} ({{ row.stuck_or_failure_rate_pct }}%)
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div v-if="feedback_digest.live_objections?.length" class="rounded-xl border border-sky-200/80 bg-white/70 p-3 dark:border-sky-900/40 dark:bg-zinc-950/50">
+                    <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Живые возражения</h3>
+                    <ul class="mt-2 space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
+                        <li v-for="row in feedback_digest.live_objections" :key="row.reaction_class_id">
+                            {{ row.label }} — {{ row.total }}
+                        </li>
+                    </ul>
+                </div>
+
+                <div v-if="feedback_digest.missing_fields?.length" class="rounded-xl border border-sky-200/80 bg-white/70 p-3 dark:border-sky-900/40 dark:bg-zinc-950/50">
+                    <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Что не фиксируют в разговоре</h3>
+                    <ul class="mt-2 space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
+                        <li v-for="row in feedback_digest.missing_fields" :key="row.code">
+                            {{ row.label }} — {{ row.missing }}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <details v-if="feedback_digest.limitations?.length" class="mt-4 text-xs text-sky-900/70 dark:text-sky-200/70">
+                <summary class="cursor-pointer font-medium">Ограничения текущего контура обучения</summary>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    <li v-for="item in feedback_digest.limitations" :key="item">{{ item }}</li>
+                </ul>
+            </details>
+        </section>
+
         <section v-if="daily.length" class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 md:p-6">
             <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">По дням</h2>
             <div class="mt-6 flex h-40 items-end gap-0.5 overflow-x-auto pb-2">
@@ -435,6 +550,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    feedback_digest: {
+        type: Object,
+        default: null,
+    },
 });
 
 const localDays = ref(props.filters.days);
@@ -462,6 +581,10 @@ watch(
 const maxDailyTotal = computed(() => Math.max(1, ...props.daily.map((d) => d.total)));
 
 const coachingRecommendations = computed(() => props.coaching_insights?.recommendations ?? []);
+
+const feedback_digest = computed(() => props.feedback_digest ?? null);
+
+const feedbackRecommendations = computed(() => props.feedback_digest?.recommendations ?? []);
 
 const loopReasonEntries = computed(() => {
     const counts = props.coaching_insights?.loop_reason_counts ?? {};

@@ -41,6 +41,10 @@ final class TrainerScenarioGuidanceService
                 continue;
             }
 
+            if (($choice['sales_script_reaction_class_id'] ?? null) === null && ! (bool) ($choice['has_customer_phrase'] ?? false)) {
+                continue;
+            }
+
             $label = trim((string) ($choice['label'] ?? ''));
             if ($label === '') {
                 continue;

@@ -3,9 +3,143 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-30 15:35 · **Ветка:** `master` @ `9bdad83` · **Контекст:** публичные контакты + UI тренажёра + CRM actions/rubric analytics/artifact preview
+**Обновлено:** 2026-06-30 21:56 · **Ветка:** `master` @ рабочая копия поверх текущего HEAD · **Контекст:** UX тренажёра + честный старт рубрики + скрытие step keys
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-06-30) — UX тренажёра после smoke
+
+- Тренажёр расширен с `max-w-6xl` до `max-w-[95rem]`, а центральная колонка диалога получила больше места в 3-колоночной сетке.
+- В видимом UI скрыты технические `step_key/client_key` (`intro`, `next_step` и т.п.) в левом телесуфлёре, текущем шаге и связанных материалах.
+- Зеленые/скруглённые акценты в ключевых контролах тренажёра заменены на синие/нейтральные прямоугольные состояния: телесуфлёр, “Вставить в сообщение”, “Завершить”, “Успешно”, `Плюс`.
+- `TrainerRubricService`: пока менеджер не отправил первую реплику, критерии рубрики остаются `pending`; чек-лист больше не ставит галочки авансом из-за стартовых переходов графа.
+- Проверка: `vendor\bin\pint --dirty --format agent`, `php artisan test --compact tests\Unit\TrainerRubricServiceTest.php tests\Feature\SalesScripts\TrainerGraphAdvanceTest.php`, `npm run build`.
+- Ручной smoke: `/scripts/sessions/44` — `next_step/intro` в тексте страницы не видны, поля “Что зафиксировать” отображаются, рубрика показывает “ещё не проверено” для pending.
+
+---
+
+## Что сделано недавно (2026-06-30) — поля тренажёра и честная рубрика
+
+- В тренажёре структурные поля текущего шага теперь показываются отдельным блоком “Что зафиксировать” даже на `Branch`-узлах (`capture_fields` в `play_presentation`).
+- `trainerMessage` принимает `field_values`, сохраняет их через `SalesScriptPlaySessionService::saveFieldValues()` до продвижения графа и возвращает свежую `trainer_rubric`.
+- После каждого ответа/перехода и после оценки реплики правая рубрика обновляется без перезагрузки.
+- Убрана путаница `0/4 · 25%`: если есть pending-критерии, UI показывает “ещё не проверено”, а процент выводит только когда критерии уже не pending.
+- Проверка: `php artisan test --compact tests\Feature\SalesScripts\TrainerGraphAdvanceTest.php tests\Unit\TrainerRubricServiceTest.php`, `npm run build`.
+
+---
+
+## Что сделано недавно (2026-06-30) — живая рубрика тренажёра
+
+### Итог
+
+- `TrainerRubricService` теперь не только выбирает тип рубрики (`discovery`, `price`, `documents`, `conflict`, `upsell`), но и считает `evaluated_criteria`, `passed_count`, `total_count`, `rubric_score`.
+- Автооценка критериев опирается на надёжные сигналы: заполненные capture fields, посещённые узлы графа, исход сессии, `peer_reaction` и структурные `feedback_tags`.
+- `TrainerScoreCalculator`: итоговый `trainer_score` получил небольшой рубричный сдвиг от `rubric_score`; исход сделки остаётся главным, но чек-лист теперь реально влияет на оценку.
+- `SalesScripts/Play.vue`: правая панель показывает живые статусы критериев: `✓` выполнено, `…` ещё не ясно, `!` не выполнено после завершения. Под каждым пунктом показывается evidence — какие данные проверяются.
+- Старое поле `criteria` сохранено для совместимости; новый UI использует `evaluated_criteria`, если оно есть.
+
+### Проверка
+
+```powershell
+vendor\bin\pint --dirty --format agent
+php artisan test --compact tests\Unit\TrainerRubricServiceTest.php tests\Feature\SalesScripts\TrainerGraphAdvanceTest.php
+npm run build
+```
+
+- Ручной smoke: `/scripts/sessions/44` открывается, справа в рубрике видны смешанные статусы `✓`/`…` и пояснения evidence вместо одинаковых статичных галочек.
+
+### Следующий шаг
+
+- После накопления данных можно усилить критерии, которые сейчас проверяются приблизительно (`не назвал ставку без вводных`, `разложил ставку`) через анализ node-specific feedback и/или отдельные события по репликам менеджера.
+
+---
+
+## Что сделано недавно (2026-06-30) — самообучение тренажёра по оценкам
+
+### Итог
+
+- Добавлена миграция `2026_06_30_210504_add_feedback_context_to_sales_script_trainer_messages_table`: `sales_script_node_id`, `step_key`, `feedback_tags` для `sales_script_trainer_messages`.
+- `SalesScriptController::trainerMessage`: реплики менеджера и ассистента теперь сохраняют привязку к текущему узлу/step_key; `trainerChatPayload` возвращает эти поля и теги.
+- `UpdateTrainerMessagePeerReactionRequest`: оценка реплики принимает до 5 структурных тегов (`bad_wrong_stage`, `bad_missed_objection`, `useful_next_step` и т.п.).
+- `SalesScripts/Play.vue`: после оценки реплики появляются быстрые кнопки причины (“слишком общо”, “не тот этап”, “мимо возражения”, “ясный следующий шаг”…).
+- `TrainerFeedbackDigestService`: digest теперь строит `node_hotspots` и `feedback_tag_hotspots`, показывает конкретные шаги сценария, где копятся негатив/теги, и использует это в рекомендациях редактору.
+- `SalesAssistant/TrainerAnalytics.vue`: в блок “Что улучшить в сценариях” добавлены “Шаги, которые надо переписать” и “Причины оценок”.
+
+### Проверка
+
+```powershell
+vendor\bin\pint --dirty --format agent
+php artisan test --compact tests\Unit\TrainerFeedbackDigestServiceTest.php tests\Feature\SalesScripts\TrainerGraphAdvanceTest.php
+npm run build
+php artisan migrate --no-interaction
+```
+
+- Ручной smoke: `/sales-assistant/trainer/analytics` открывается, новый текст ограничений отображается.
+- Ручной smoke: `/scripts/sessions/44` — после клика `Минус` появляются причины оценки; тестовая оценка затем снята.
+
+### Следующий шаг
+
+- После накопления новых оценок проверить `node_hotspots`: если данных достаточно, добавить переход из аналитики сразу в редактор конкретного узла сценария.
+
+---
+
+## Что сделано недавно (2026-06-30) — тексты и обучение тренажёра
+
+### Итог
+
+- Реализован план `trainer-content-feedback` без изменения plan-файла.
+- `SalesScriptsDemoSeeder`: `Branch`-узлы всех активных демо-сценариев переписаны в формат текущего хода разговора: “Текущий ход”, один фокусный вопрос, поля для фиксации, без служебного “Выберите реакцию”.
+- `SalesAssistant/Trainer.vue`: профили покупателей уточнены — добавлены условия, при которых клиент соглашается двигаться дальше, и реакции на шумные/общие ответы менеджера.
+- Добавлен `TrainerFeedbackDigestService`: агрегирует trainer feedback по сценариям/профилям, негативные `peer_reaction/auto_peer_reaction`, `stuck/failure`, live-возражения и незаполненные capture fields.
+- `SalesAssistantController::trainerAnalytics`: отдаёт новый проп `feedback_digest`.
+- `TrainerAnalytics.vue`: добавлен блок “Что улучшить в сценариях” с рекомендациями редактору, проблемными сценариями/профилями, живыми возражениями, незаполненными полями и ограничениями текущего контура.
+- Важно: автопереписывания сценариев нет; рекомендации human-in-the-loop. Узловая привязка негативных реплик пока ограничена, потому что `sales_script_trainer_messages` не хранит `node_id`.
+
+### Проверка
+
+```powershell
+vendor\bin\pint --dirty --format agent
+php artisan test --compact tests\Feature\SalesScripts\SalesScriptFlowTest.php tests\Unit\TrainerFeedbackDigestServiceTest.php tests\Unit\TrainerCoachingInsightsServiceTest.php
+npm run build
+```
+
+- Ручная проверка в браузере: `/sales-assistant/trainer/analytics` открывается, блок “Что улучшить в сценариях” отображает рекомендации и ограничения.
+
+### Следующий шаг
+
+- Если нужен более точный контур “что помогло / не помогло” по узлам, следующая миграция должна сохранять `sales_script_node_id` или `step_key` на `sales_script_trainer_messages` в момент каждой реплики ассистента.
+
+---
+
+## Что сделано недавно (2026-06-30) — Тренажёр Без Шума
+
+### Итог
+
+- Реализован план `trainer-ui-guidance` без изменения plan-файла.
+- `TrainerGraphCoordinatorService`: `Ask`/`Branch` больше не перескакивают по линейному переходу сразу после реплики менеджера; `Ask` идёт дальше только после ответа клиента, если нет матча реакции.
+- `TrainerClientReactionMatcher`: усилены ключи для скептика к смене перевозчика (`перевозчик устраивает`, `нас устраивает`, `работает штатно`, `напишите на почту`, `посмотрю`, `предложение`).
+- `TrainerDialogHintService`: “связанные материалы” ограничены ближайшими 1-2 переходами и не вытягивают дальние будущие блоки; в ответ добавляется `why`.
+- `TrainerScenarioGuidanceService`: технический линейный “Далее” больше не попадает в “Реакции клиента на шаге”.
+- `SalesScripts/Play.vue`: тренажёр разложен в три зоны — слева телесуфлёр “что делать сейчас” с кнопкой вставки, центр диалога, справа “Прогресс и качество” с чек-листом рубрики, прогнозом реакций и свернутыми связанными материалами.
+
+### Проверка
+
+```powershell
+vendor\bin\pint --dirty --format agent
+php artisan test --compact tests/Feature/SalesScripts/TrainerGraphAdvanceTest.php tests/Unit/TrainerDialogHintServiceTest.php tests/Unit/TrainerScenarioGuidanceServiceTest.php
+npm run build
+```
+
+- Ручная проверка в браузере: профиль `ЛПР: скептик к смене перевозчика`, сценарий `Холодный звонок`.
+- После первой реплики сценарий перешёл в `clarify_contact`; справа нет преждевременных подсказок про пилот/процедуру входа.
+- На `Ask` шаге справа показывается понятный текст ожидания свободного ответа вместо обрезанного `Далее: ...`.
+- После ответа клиента граф перешёл к `next_step` только после клиентской реплики.
+
+### Следующий шаг
+
+- Если UI устроит визуально, можно деплоить обычной фронтенд-сборкой; при необходимости отдельно доработать стиль чекбоксов рубрики под реальные сохранённые критерии.
 
 ---
 
