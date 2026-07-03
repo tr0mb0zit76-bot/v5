@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ChatMessage;
 use App\Models\Conversation;
 use App\Models\User;
+use App\Services\CabinetNotifier;
 use App\Services\MessengerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ class MessengerController extends Controller
 {
     public function __construct(
         private readonly MessengerService $messengerService,
+        private readonly CabinetNotifier $cabinetNotifier,
     ) {}
 
     public function unreadCount(Request $request): JsonResponse
@@ -204,6 +206,7 @@ class MessengerController extends Controller
         $conversation->touch();
 
         $message->load(['author:id,name', 'recipient:id,name']);
+        $this->cabinetNotifier->notifyChatMessage($message, $user);
 
         return response()->json([
             'message' => $this->serializeMessage($message),

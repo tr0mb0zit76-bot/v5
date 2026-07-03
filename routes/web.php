@@ -778,6 +778,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/conversations/{conversation}/read', [MessengerController::class, 'markRead'])->name('conversations.read');
     });
 
+    Route::get('/mobile/messenger', fn () => Inertia::render('Mobile/Messenger'))->name('mobile.messenger.app');
+
     Route::prefix('cabinet-notifications')->name('cabinet-notifications.')->group(function () {
         Route::get('/summary', [CabinetNotificationController::class, 'summary'])->name('summary');
         Route::get('/', [CabinetNotificationController::class, 'index'])->name('index');

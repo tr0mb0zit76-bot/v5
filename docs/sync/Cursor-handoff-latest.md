@@ -3,9 +3,28 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-03 13:10 · **Ветка:** `master` @ `60629f4` + рабочая копия · **Контекст:** фикс won у лидов + MVP “Биржи грузов”
+**Обновлено:** 2026-07-03 22:45 · **Ветка:** `master` @ `0ad8945` + рабочая копия · **Контекст:** мобильный API мессенджера + Android APK-обёртка
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-07-03) — мобильный контур CRM-мессенджера
+
+- Текущий web-мессенджер найден: `MessengerController`, `MessengerService`, модели `Conversation` / `ChatMessage`, UI в `CrmCommandBar.vue`, таблицы `conversations`, `conversation_participants`, `chat_messages`.
+- Добавлен первый mobile API слой: `routes/api.php` подключён в `bootstrap/app.php`; маршруты `/api/mobile/messenger/*` под `auth:sanctum` переиспользуют `MessengerController` (`conversations`, `messages`, `open`, `groups`, `read`, `unread-count`, `colleagues`, `document-chips`).
+- При отправке сообщения `MessengerController::storeMessage()` вызывает `CabinetNotifier::notifyChatMessage()`: direct уведомляет второго участника, group — всех кроме автора, а при `recipient_user_id` только адресата.
+- Push/ntfy: добавлен kind `chat_message` в `config/notifications.php` (`ntfy_kinds`), `CabinetInAppNotification` теперь смотрит `ntfy_kinds` с fallback на старый `approval_kinds`. Push несёт событие и payload (`conversation_id`, `message_id`, `author_id`), мобильное приложение должно дотягивать сообщения через API.
+- Добавлен полноэкранный PWA-прототип `/mobile/messenger` (`resources/js/Pages/Mobile/Messenger.vue`): список диалогов, поиск коллег, открытие direct-чата, просмотр/отправка сообщений. Это web shell для проверки телефонного UX до упаковки в Capacitor.
+- APK-обёртка Android: установлены `@capacitor/core`, `@capacitor/cli`, `@capacitor/android`; добавлен `capacitor.config.json` (`appId: ru.avtoaliyans.crm.messenger`, app name “Автоальянс Чат”, server URL `https://crm.avtoaliyans.ru/mobile/messenger`); сгенерирован проект `android/`.
+- npm scripts: `cap:sync:android` (Vite build + Capacitor sync), `cap:open:android`, `apk:debug`. Debug APK собирается командой `npm run apk:debug`; собранный файл: `android/app/build/outputs/apk/debug/app-debug.apk`.
+- Тесты: `tests/Feature/MessengerTest.php` расширен mobile Sanctum API сценарием и проверкой database-уведомления получателю.
+- Проверка: `vendor/bin/pint --dirty --format agent`, `php -l` по изменённым PHP-файлам, `php artisan route:list --path=mobile/messenger --except-vendor`, `php artisan route:list --path=api/mobile/messenger --except-vendor`, `npm run build`, `npm run cap:sync:android`, `npm run apk:debug` — успешно. Android Studio SDK установлен в `C:\Users\tr0mb\AppData\Local\Android\Sdk`; JDK 21 поставлен через `winget` (`EclipseAdoptium.Temurin.21.JDK`), при необходимости явно выставить `JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot`. `php artisan test --compact tests/Feature/MessengerTest.php` локально не доходит до assertions из-за `mysql` CLI не в `PATH`.
+
+### Следующий шаг
+
+- Поставить `android/app/build/outputs/apk/debug/app-debug.apk` на телефон и проверить логин CRM, список диалогов, отправку сообщений и внешний вид.
+- Для команды собрать подписанный release APK; затем подключить native push для APK (Capacitor Push Notifications + FCM) и deep link/tap по `conversation_id`.
 
 ---
 

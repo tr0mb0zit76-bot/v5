@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class MessengerTest extends TestCase
@@ -18,6 +19,26 @@ class MessengerTest extends TestCase
 
         $this->assertDatabaseHas('conversations', ['type' => 'direct']);
         $this->assertDatabaseCount('conversation_participants', 2);
+    }
+
+    public function test_mobile_api_can_open_direct_and_send_message(): void
+    {
+        $a = User::factory()->create();
+        $b = User::factory()->create();
+
+        Sanctum::actingAs($a);
+
+        $open = $this->postJson(route('mobile.messenger.conversations.open'), [
+            'user_id' => $b->id,
+        ])->assertOk()
+            ->assertJsonPath('conversation.other_user.id', $b->id);
+
+        $conversationId = (int) $open->json('conversation.id');
+
+        $this->postJson(route('mobile.messenger.conversations.messages.store', $conversationId), [
+            'body' => 'Сообщение из мобильного API',
+        ])->assertOk()
+            ->assertJsonPath('message.body', 'Сообщение из мобильного API');
     }
 
     public function test_user_can_send_message_and_other_sees_unread(): void
@@ -46,6 +67,31 @@ class MessengerTest extends TestCase
         $this->actingAs($b)->getJson(route('messenger.conversations.index'))
             ->assertOk()
             ->assertJsonPath('conversations.0.unread_count', 0);
+    }
+
+    public function test_new_message_notifies_other_participant(): void
+    {
+        $a = User::factory()->create();
+        $b = User::factory()->create();
+
+        $open = $this->actingAs($a)->postJson(route('messenger.conversations.open'), [
+            'user_id' => $b->id,
+        ])->assertOk();
+
+        $conversationId = (int) $open->json('conversation.id');
+
+        $message = $this->actingAs($a)->postJson(route('messenger.conversations.messages.store', $conversationId), [
+            'body' => 'Проверь рейс',
+        ])->assertOk();
+
+        $notification = $b->fresh()->notifications()->first();
+
+        $this->assertNotNull($notification);
+        $this->assertSame('cabinet', $notification->type);
+        $this->assertSame('chat_message', $notification->data['kind']);
+        $this->assertSame($conversationId, $notification->data['payload']['conversation_id']);
+        $this->assertSame((int) $message->json('message.id'), $notification->data['payload']['message_id']);
+        $this->assertSame(0, $a->fresh()->notifications()->count());
     }
 
     public function test_create_group_adds_participants_and_lists_title(): void

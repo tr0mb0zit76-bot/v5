@@ -1,0 +1,22 @@
+{
+  "appId": "ru.avtoaliyans.crm.messenger",
+  "appName": "Автоальянс Чат",
+  "webDir": "public",
+  "server": {
+    "url": "https://crm.avtoaliyans.ru/mobile/messenger",
+    "cleartext": false,
+    "allowNavigation": [
+      "crm.avtoaliyans.ru",
+      "avtoaliyans.ru",
+      "*.avtoaliyans.ru",
+      "v5.local",
+      "localhost",
+      "127.0.0.1"
+    ]
+  },
+  "android": {
+    "buildOptions": {
+      "releaseType": "APK"
+    }
+  }
+}

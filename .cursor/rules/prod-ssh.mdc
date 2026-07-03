@@ -1,0 +1,27 @@
+---
+description: SSH на прод CRM — только 91.229.11.16 и scripts/prod-plink.ps1
+alwaysApply: true
+---
+
+# Прод SSH (обязательно)
+
+**Не вызывай `plink` / `ssh` на прод вручную с IP из памяти чата или старых транскриптов.**
+
+| | |
+| --- | --- |
+| **IP прод CRM** | `91.229.11.16` |
+| **Запрещено** | `109.61.108.18` (старый VDS, не CRM) |
+| **Ключ** | `C:\,ssh\private_key.ppk` (PuTTY PPK, не `~/.ssh/id_ed25519`) |
+| **Путь на сервере** | `/var/www/www-root/data/www/avtoaliyans.ru` |
+| **Не путать** | домен `crm.avtoaliyans.ru` ≠ подпапка на диске |
+
+Единственный способ из репозитория:
+
+```powershell
+cd C:\OSPanel\home\v5.local
+.\scripts\prod-plink.ps1 "команда на сервере"
+```
+
+Канон: `docs/sync/prod-ssh.md`. Если ключ с passphrase — сначала Pageant.
+
+**GitHub** — отдельный ключ в `~/.ssh`, не для прод-сервера.

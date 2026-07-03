@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ChatMessage;
 use App\Models\Contractor;
 use App\Models\ContractorPrintFormChangeRequest;
 use App\Models\ContractorRiskAssessment;
@@ -208,6 +209,54 @@ class CabinetNotifier
             $actionUrl,
             ['task_id' => $task->id, 'task_comment_id' => $comment->id],
         ));
+    }
+
+    public function notifyChatMessage(ChatMessage $message, User $author): void
+    {
+        if (! Schema::hasTable('notifications') || ! Schema::hasTable('conversation_participants')) {
+            return;
+        }
+
+        $message->loadMissing(['conversation.participants', 'recipient']);
+        $conversation = $message->conversation;
+
+        if ($conversation === null) {
+            return;
+        }
+
+        $recipients = $conversation->participants
+            ->filter(fn (User $participant): bool => (int) $participant->id !== (int) $author->id);
+
+        if ($message->recipient_user_id !== null) {
+            $recipients = $recipients
+                ->filter(fn (User $participant): bool => (int) $participant->id === (int) $message->recipient_user_id);
+        }
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $conversationTitle = $conversation->type === 'group'
+            ? ($conversation->title ?: 'Групповой чат')
+            : 'Личный чат';
+        $body = sprintf('%s: %s', $author->name, mb_strimwidth((string) $message->body, 0, 160, '…'));
+        $actionUrl = '/?messenger_conversation='.$conversation->id;
+        $notification = new CabinetInAppNotification(
+            'chat_message',
+            $conversationTitle,
+            $body,
+            $actionUrl,
+            [
+                'conversation_id' => $conversation->id,
+                'message_id' => $message->id,
+                'author_id' => $author->id,
+                'recipient_user_id' => $message->recipient_user_id,
+            ],
+        );
+
+        foreach ($recipients as $recipient) {
+            $recipient->notify($notification);
+        }
     }
 
     public function notifyTaskSlaBreached(Task $task): void

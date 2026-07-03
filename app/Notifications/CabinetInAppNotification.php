@@ -73,9 +73,9 @@ class CabinetInAppNotification extends Notification
             return false;
         }
 
-        /** @var list<string> $approvalKinds */
-        $approvalKinds = config('notifications.approval_kinds', []);
+        /** @var list<string> $ntfyKinds */
+        $ntfyKinds = config('notifications.ntfy_kinds', config('notifications.approval_kinds', []));
 
-        return in_array($this->kind, $approvalKinds, true);
+        return in_array($this->kind, $ntfyKinds, true);
     }
 }

@@ -4,7 +4,10 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "cap:sync:android": "npm run build && npx cap sync android",
+        "cap:open:android": "npx cap open android",
+        "apk:debug": "npm run cap:sync:android && cd android && gradlew assembleDebug"
     },
     "devDependencies": {
         "@inertiajs/vue3": "^2.0.0",
@@ -21,6 +24,9 @@
         "vue": "^3.4.0"
     },
     "dependencies": {
+        "@capacitor/android": "^8.4.1",
+        "@capacitor/cli": "^8.4.1",
+        "@capacitor/core": "^8.4.1",
         "@tiptap/extension-color": "^3.22.4",
         "@tiptap/extension-highlight": "^3.22.4",
         "@tiptap/extension-image": "^3.22.4",
