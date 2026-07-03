@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-03 22:45 · **Ветка:** `master` @ `0ad8945` + рабочая копия · **Контекст:** мобильный API мессенджера + Android APK-обёртка
+**Обновлено:** 2026-07-03 22:45 · **Ветка:** `master` @ `f5422e2` · **Контекст:** мобильный API мессенджера + Android APK-обёртка
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
