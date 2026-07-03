@@ -3,9 +3,21 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-03 10:29 · **Ветка:** `master` @ `37d75c2` + рабочая копия · **Контекст:** MVP “Биржи грузов” + AG Grid список
+**Обновлено:** 2026-07-03 13:10 · **Ветка:** `master` @ `60629f4` + рабочая копия · **Контекст:** фикс won у лидов + MVP “Биржи грузов”
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-07-03) — фикс ложного `won` у лидов
+
+- Причина: `TaskStatus::leadStatusByTaskStatus()` маппил задачу `done` в статус лида `won`; `TaskController::syncLinkedLeadStatus()` вызывался при закрытии задач и мог пометить лид выигранным без движения по БП/воронке.
+- Фикс: `app/Support/TaskStatus.php` теперь возвращает `null` для `done`, поэтому завершение задачи больше не меняет статус лида на `won`.
+- Настоящий `won` остаётся через конвертацию лида в заказ (`LeadConversionService`) или терминальный этап бизнес-процесса с `terminal_outcome = won` (`LeadBusinessProcessService`).
+- Data repair: миграция `2026_07_03_131346_repair_leads_won_on_lost_terminal_stage.php` исправляет только явные противоречия: лид `status = won`, но текущий этап БП терминальный `lost` → ставит `lost`.
+- Тест: `tests/Feature/Feature/Leads/LeadTaskSyncTest.php` добавляет regression-сценарий — активный лид `qualification` остаётся `qualification` после закрытия связанной задачи.
+- Проверка: `vendor/bin/pint --dirty --format agent`, `php -l app/Support/TaskStatus.php`, `php -l tests/Feature/Feature/Leads/LeadTaskSyncTest.php`, `php -l database/migrations/2026_07_03_131346_repair_leads_won_on_lost_terminal_stage.php`, `php artisan migrate --pretend --path=database/migrations/2026_07_03_131346_repair_leads_won_on_lost_terminal_stage.php`.
+- Локально `php artisan test --compact tests/Feature/Feature/Leads/LeadTaskSyncTest.php` снова не доходит до assertions из-за окружения: `mysql` CLI не найден в `PATH` для `RefreshDatabase`.
 
 ---
 

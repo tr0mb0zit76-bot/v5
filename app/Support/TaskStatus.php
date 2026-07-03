@@ -47,7 +47,7 @@ final class TaskStatus
             'new' => 'new',
             'in_progress' => 'qualification',
             'review' => 'negotiation',
-            'done' => 'won',
+            'done' => null,
             'on_hold' => 'on_hold',
             'cancelled' => null,
             default => null,
