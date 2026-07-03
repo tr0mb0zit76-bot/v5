@@ -3,9 +3,57 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-30 21:56 · **Ветка:** `master` @ рабочая копия поверх текущего HEAD · **Контекст:** UX тренажёра + честный старт рубрики + скрытие step keys
+**Обновлено:** 2026-07-03 10:29 · **Ветка:** `master` @ `37d75c2` + рабочая копия · **Контекст:** MVP “Биржи грузов” + AG Grid список
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-07-02) — MVP “Биржи грузов”
+
+- Добавлен новый раздел CRM `/load-board` (“Биржа грузов”) для внутренней передачи грузов от продаж к закупке перевозчиков.
+- Где искать: отдельный пункт левого меню **“Биржа грузов”** рядом с “Заказы”; прямой URL — `/load-board`.
+- Backend: `LoadBoardController`, `LoadBoardPost`, `LoadBoardOffer`, request-валидация, маршруты `load-board.*`.
+- БД: миграции `load_board_posts` и `load_board_offers` — груз, продавец, закупщик, статусы, экономика, требования и варианты перевозчиков.
+- Доступ существующим ролям: миграция `2026_07_02_152142_grant_load_board_visibility_to_existing_roles.php` добавляет `load_board` текущим `admin/supervisor/manager/dispatcher`.
+- UI: `resources/js/Pages/LoadBoard/Index.vue` — публикация груза, фильтры, “взять в работу”, “вернуть”, “добавить вариант”, “выбрать вариант”, “закрыть / без вариантов / отменить”.
+- Workflow: добавлено ручное назначение закупщика прямо в карточке груза (`PATCH load-board/{post}/buyer`); назначение переводит груз в `in_work`, снятие возвращает в `new/has_offers`.
+- ATI-слой: миграция `2026_07_03_092401_add_ati_dictionary_fields_to_load_board_posts.php` добавляет в `load_board_posts` справочные поля ATI (`cargo_type`, `pack_type`, `loading_type_items`, `truck_body_type_items`, `trailer_type_items`, габариты, ТН ВЭД, спецпризнаки, `ati_cargo_payload`). Форма “Выставить груз” использует `AtiDictionaryOptionCatalog` и `ati_dictionary_items`, а карточка груза показывает краткое ATI-резюме.
+- ATI preview: `LoadBoardAtiReadinessService` + маршрут `POST load-board/{post}/ati/prepare` (`load-board.ati.prepare`) формируют готовность к ATI: `ready`, обязательные пропуски, рекомендации и payload для будущей внешней отправки. В карточке есть кнопка “Подготовить к ATI” и раскрываемый JSON preview.
+- Реальную отправку на ATI пока не делаем: нет API-ключа. Оставлен только readiness/preview и сохранение справочников/payload для будущего шага.
+- Задачи закупщику: `LoadBoardBuyerTaskService` создаёт обычную CRM-задачу для назначенного закупщика по грузам `high/urgent` при “взять в работу” или ручном назначении закупщика. Дубли не создаются: проверка по `tasks.meta->load_board_post_id` среди открытых задач.
+- Acceptance workflow: миграция `2026_07_03_100513_add_acceptance_fields_to_load_board_posts.php` добавляет `accepted_offer_id`, `accepted_by`, `accepted_at`, `metadata`. Новый маршрут `POST load-board/{post}/offers/{offer}/approve` (`load-board.offers.approve`) принимает выбранный вариант (`selected` → `approved`), закрывает груз, завершает открытую задачу закупщика и фиксирует выбранного перевозчика в `orders.metadata.load_board_accepted_offer`. Если у заказа пустые `carrier_id/carrier_rate/carrier_payment_form`, они заполняются из выбранного offer.
+- Список `/load-board` переведён на AG Grid: быстрый поиск, фильтры, сортировка, сохранение состояния колонок/фильтров, `GridViewsBar` с ключом `load_board`, контекстное меню строки. Детальная карточка выбранного груза осталась под таблицей и содержит старые workflow-действия, предложения перевозчиков и ATI preview.
+- `GridViewCatalog` получил ключ `load_board`, чтобы представления “Биржи” сохранялись/закреплялись так же, как в заказах и контрагентах.
+- Быстрые входы: из карточки лида кнопка “На биржу”; из грида заказов через ПКМ по строке — “Выставить на биржу грузов”. Оба перехода открывают `/load-board` с формой, предзаполненной из лида/заказа.
+- UI лидов: кнопка “На биржу” в карточке лида выровнена по высоте с соседними кнопками; `LeadSalesCoachingPanel`/Outcome Intelligence уплотнён, строка “выиграно … из …” поднята к проценту Win rate.
+- Доступ: новая область видимости `load_board`; добавлена в дефолты `manager`, `supervisor`, `dispatcher`, в сайдбар, избранное и мобильное меню.
+- Тест: `tests/Feature/LoadBoardTest.php` покрывает happy path “продавец публикует → закупщик берёт → добавляет вариант → продавец выбирает”.
+
+### Проверка
+
+```powershell
+vendor\bin\pint --dirty --format agent
+php -l app\Http\Controllers\LoadBoardController.php
+php -l app\Models\LoadBoardPost.php
+php -l app\Services\LoadBoard\LoadBoardAtiReadinessService.php
+php -l app\Services\LoadBoard\LoadBoardBuyerTaskService.php
+php artisan route:list --name=load-board --except-vendor
+php artisan migrate --pretend --path=database\migrations\2026_07_02_111644_create_load_board_posts_table.php --path=database\migrations\2026_07_02_111645_create_load_board_offers_table.php
+php artisan migrate --pretend --path=database\migrations\2026_07_02_152142_grant_load_board_visibility_to_existing_roles.php
+php artisan migrate --pretend --path=database\migrations\2026_07_03_092401_add_ati_dictionary_fields_to_load_board_posts.php
+php artisan migrate --pretend --path=database\migrations\2026_07_03_100513_add_acceptance_fields_to_load_board_posts.php
+php -l app\Support\GridViewCatalog.php
+npm run build
+```
+
+- `ReadLints`: ошибок по новым/изменённым PHP/Vue файлам нет.
+- `tests/Feature/LoadBoardTest.php` расширен проверками сохранения ATI id/label/items, `ati_cargo_payload`, `load-board.ati.prepare` preview, авто-задачи закупщику и acceptance workflow (`approved`, `closed`, запись в заказ, задача `done`); локально команда `php artisan test --compact tests\Feature\LoadBoardTest.php` всё ещё не доходит до assertions из-за старой проблемы окружения: `mysql` CLI не найден в `PATH` для `RefreshDatabase`.
+
+### Следующий шаг
+
+- После `php artisan migrate` проверить раздел в браузере на реальных ролях: `/load-board`, кнопка “На биржу” в лиде, ПКМ в заказах; отдельно проверить AG Grid на большом списке грузов.
+- Следующий продуктовый шаг: после появления API-ключа ATI добавить реальную интеграцию “Отправить на ATI” поверх готового preview/payload.
 
 ---
 

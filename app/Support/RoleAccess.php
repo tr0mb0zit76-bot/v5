@@ -51,6 +51,7 @@ class RoleAccess
             ['key' => 'leads', 'label' => 'Лиды', 'description' => 'Воронка до конверсии в заказ'],
             ['key' => 'mail', 'label' => 'Почта', 'description' => 'Исходящая переписка с клиентами, отправка КП'],
             ['key' => 'orders', 'label' => 'Заказы', 'description' => 'Раздел работы с заказами'],
+            ['key' => 'load_board', 'label' => 'Биржа грузов', 'description' => 'Внутренний обмен грузами между продажами и закупкой перевозчиков'],
             ['key' => 'users', 'label' => 'Пользователи', 'description' => 'Управление пользователями'],
             ['key' => 'roles', 'label' => 'Роли', 'description' => 'Управление ролями и правами'],
             ['key' => 'contractors', 'label' => 'Контрагенты', 'description' => 'Справочник контрагентов'],
@@ -120,9 +121,9 @@ class RoleAccess
     {
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
-            'supervisor' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'pipeline', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports', 'settings_motivation'],
-            'manager' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'pipeline', 'scripts', 'contractors', 'documents', 'payment_schedules', 'tasks', 'kanban', 'reports'],
-            'dispatcher' => ['dashboard', 'dashboard_tiles', 'orders', 'pipeline', 'scripts', 'drivers', 'payment_schedules', 'tasks', 'kanban'],
+            'supervisor' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'load_board', 'pipeline', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports', 'settings_motivation'],
+            'manager' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'load_board', 'pipeline', 'scripts', 'contractors', 'documents', 'payment_schedules', 'tasks', 'kanban', 'reports'],
+            'dispatcher' => ['dashboard', 'dashboard_tiles', 'orders', 'load_board', 'pipeline', 'scripts', 'drivers', 'payment_schedules', 'tasks', 'kanban'],
             'accountant' => ['dashboard', 'dashboard_tiles', 'orders', 'pipeline', 'documents', 'finance_salary', 'payment_schedules', 'finance_payment_reconcile', 'tasks', 'kanban', 'reports'],
             'clerk' => ['dashboard', 'dashboard_tiles', 'orders', 'pipeline', 'scripts', 'documents', 'contractors', 'payment_schedules', 'tasks', 'kanban'],
             'viewer' => ['dashboard', 'dashboard_tiles', 'orders', 'pipeline'],
@@ -138,6 +139,7 @@ class RoleAccess
         return match ($roleName) {
             'admin' => [
                 'orders' => 'all',
+                'load_board' => 'all',
                 'pipeline' => 'all',
                 'leads' => 'all',
                 'tasks' => 'all',
@@ -149,6 +151,7 @@ class RoleAccess
             ],
             'supervisor' => [
                 'orders' => 'all',
+                'load_board' => 'all',
                 'pipeline' => 'all',
                 'leads' => 'all',
                 'tasks' => 'all',
@@ -160,6 +163,7 @@ class RoleAccess
             ],
             'manager' => [
                 'orders' => 'own',
+                'load_board' => 'own',
                 'pipeline' => 'own',
                 'leads' => 'own',
                 'tasks' => 'own',
@@ -171,6 +175,7 @@ class RoleAccess
             ],
             'dispatcher' => [
                 'orders' => 'all',
+                'load_board' => 'all',
                 'pipeline' => 'all',
                 'tasks' => 'all',
                 'kanban' => 'all',

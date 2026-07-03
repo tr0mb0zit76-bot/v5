@@ -26,6 +26,7 @@ use App\Http\Controllers\Integrations\AstralEpdWebhookController;
 use App\Http\Controllers\Integrations\OneCFreshEtrnController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadOfferMailController;
+use App\Http\Controllers\LoadBoardController;
 use App\Http\Controllers\LoadingPlannerController;
 use App\Http\Controllers\MailMailboxController;
 use App\Http\Controllers\MailThreadAnalysisController;
@@ -348,6 +349,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/orders/{order}/transport-summary', OrderTransportSummaryController::class)
         ->middleware('visibility.area:orders')
         ->name('orders.transport-summary');
+    Route::middleware('visibility.area:load_board')->prefix('load-board')->name('load-board.')->group(function () {
+        Route::get('/', [LoadBoardController::class, 'index'])->name('index');
+        Route::post('/', [LoadBoardController::class, 'store'])->name('store');
+        Route::post('/{post}/take', [LoadBoardController::class, 'take'])->name('take');
+        Route::post('/{post}/release', [LoadBoardController::class, 'release'])->name('release');
+        Route::patch('/{post}/buyer', [LoadBoardController::class, 'assignBuyer'])->name('buyer.update');
+        Route::post('/{post}/offers', [LoadBoardController::class, 'storeOffer'])->name('offers.store');
+        Route::post('/{post}/offers/{offer}/select', [LoadBoardController::class, 'selectOffer'])->name('offers.select');
+        Route::post('/{post}/offers/{offer}/approve', [LoadBoardController::class, 'approveOffer'])->name('offers.approve');
+        Route::patch('/{post}/status', [LoadBoardController::class, 'updateStatus'])->name('status.update');
+        Route::post('/{post}/ati/prepare', [LoadBoardController::class, 'prepareAti'])->name('ati.prepare');
+    });
     Route::get('/disposition', [DispositionController::class, 'index'])->middleware('visibility.area:orders')->name('disposition.index');
     Route::post('/disposition/entries', [DispositionController::class, 'upsert'])->middleware('visibility.area:orders')->name('disposition.entries.upsert');
     Route::get('/pipeline', [PipelineController::class, 'index'])->middleware('visibility.area.any:pipeline|leads')->name('pipeline.index');

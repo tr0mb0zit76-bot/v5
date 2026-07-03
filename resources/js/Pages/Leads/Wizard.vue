@@ -21,6 +21,7 @@
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
+                <button v-if="canUseLoadBoard" type="button" :class="`${crmBtnSecondary} inline-flex items-center gap-2 !px-4 !py-2`" :disabled="!selectedLeadId" @click="openLoadBoardFromLead"><Package class="h-4 w-4" />На биржу</button>
                 <button type="button" :class="crmBtnPrimary" :disabled="!selectedLeadId || !form.counterparty_id" @click="convertLead"><ArrowRightLeft class="h-4 w-4" />Конвертировать в заказ</button>
                 <button type="button" :class="crmBtnCreate" @click="submit"><Save class="h-4 w-4" />Сохранить</button>
             </div>
@@ -647,6 +648,12 @@ function leadToForm(lead) {
 
 const page = usePage();
 const followUpPrompt = ref(null);
+const canUseLoadBoard = computed(() => {
+    const role = page.props.auth?.user?.role ?? {};
+    const areas = role.visibility_areas ?? [];
+
+    return Boolean(role.is_admin) || role.name === 'admin' || areas.includes('load_board');
+});
 
 watch(
     () => page.props.flash?.lead_follow_up,
@@ -1273,6 +1280,7 @@ function submitSendOffer() {
         });
 }
 function convertLead() { if (selectedLeadId.value) router.post(route('leads.convert', selectedLeadId.value), {}); }
+function openLoadBoardFromLead() { if (selectedLeadId.value) router.get(route('load-board.index', { from_lead: selectedLeadId.value }), {}, { preserveScroll: true }); }
 function destroyLead() { if (selectedLeadId.value) router.delete(route('leads.destroy', selectedLeadId.value)); }
 function prefillFollowUpTask() {
     if (!followUpPrompt.value) {

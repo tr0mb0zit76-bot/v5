@@ -7,7 +7,7 @@ namespace App\Support;
  */
 final class MobileNavCatalog
 {
-    public const ORDER = ['dashboard', 'orders', 'leads', 'tasks', 'kanban', 'documents', 'reports', 'finance', 'trainer'];
+    public const ORDER = ['dashboard', 'orders', 'load-board', 'leads', 'tasks', 'kanban', 'documents', 'reports', 'finance', 'trainer'];
 
     public const MAX_SELECTABLE = 6;
 
@@ -32,6 +32,7 @@ final class MobileNavCatalog
         return [
             'dashboard' => 'Главная',
             'orders' => 'Заказы',
+            'load-board' => 'Биржа',
             'leads' => 'Лиды',
             'tasks' => 'Задачи',
             'kanban' => 'Канбан',
@@ -110,6 +111,7 @@ final class MobileNavCatalog
 
             $required = match ($key) {
                 'orders' => 'orders',
+                'load-board' => 'load_board',
                 'leads' => 'leads',
                 'tasks' => 'tasks',
                 'documents' => 'documents',

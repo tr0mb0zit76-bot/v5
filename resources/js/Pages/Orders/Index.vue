@@ -151,12 +151,14 @@
                     :user-id="userId"
                     :payment-form-select-options="paymentFormOptions"
                     :editable="true"
+                    :can-use-load-board="canUseLoadBoard"
                     @cell-save="handleCellSave"
                     @row-dblclick="handleRowDblClick"
                     @row-delete="handleRowDelete"
                     @create-request="openCreateOrder"
                     @create-from-request="openCreateOrderFrom"
                     @open-order-documents="handleOpenOrderDocuments"
+                    @publish-load-board="openLoadBoardFromOrder"
                 />
             </div>
         </template>
@@ -201,6 +203,12 @@ const mobileSortOptions = MOBILE_SORT_OPTIONS;
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
 const roleKey = computed(() => page.props.roleKey ?? page.props.auth?.user?.role?.name ?? 'manager');
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
+const canUseLoadBoard = computed(() => {
+    const role = page.props.auth?.user?.role ?? {};
+    const areas = role.visibility_areas ?? [];
+
+    return Boolean(role.is_admin) || role.name === 'admin' || areas.includes('load_board');
+});
 const availableColumns = computed(() => page.props.orderColumns ?? []);
 const rows = computed(() => page.props.rows ?? []);
 const orderDateFrom = ref(null);
@@ -371,6 +379,14 @@ const openCreateOrderFrom = (row) => {
     }
 
     router.get(route('orders.create', { from: row.id }), {}, { preserveScroll: true });
+};
+
+const openLoadBoardFromOrder = (row) => {
+    if (!row?.id) {
+        return;
+    }
+
+    router.get(route('load-board.index', { from_order: row.id }), {}, { preserveScroll: true });
 };
 
 const handleRowDelete = (row) => {

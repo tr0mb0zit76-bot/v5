@@ -900,6 +900,7 @@ const MENU_ROUTES = {
     dashboard: '/dashboard',
     leads: '/leads',
     orders: '/orders',
+    'load-board': '/load-board',
     tasks: '/tasks',
     kanban: '/kanban',
     disposition: '/disposition',
@@ -976,6 +977,7 @@ function continueMobileBrowserCabinet() {
 const MOBILE_NAV_DEF = [
     { key: 'dashboard', label: 'Главная', icon: House },
     { key: 'orders', label: 'Заказы', icon: Package },
+    { key: 'load-board', label: 'Биржа', icon: ClipboardList },
     { key: 'leads', label: 'Лиды', icon: Target },
     { key: 'tasks', label: 'Задачи', icon: ClipboardList },
     { key: 'kanban', label: 'Канбан', icon: Kanban },
@@ -990,6 +992,7 @@ const MOBILE_NAV_DEF = [
 const MOBILE_NAV_SELECTABLE_KEYS = [
     'dashboard',
     'orders',
+    'load-board',
     'leads',
     'tasks',
     'kanban',
@@ -1013,6 +1016,10 @@ function mobileNavItemsLegacy() {
 
         if (item.key === 'kanban') {
             return visibleAreas.value.includes('kanban') || visibleAreas.value.includes('tasks');
+        }
+
+        if (item.key === 'load-board') {
+            return visibleAreas.value.includes('load_board');
         }
 
         if (item.key === 'trainer') {
@@ -1239,6 +1246,7 @@ const menuItems = computed(() => {
         ...(favoritesItem ? [favoritesItem] : []),
         { key: 'leads', label: 'Лиды', icon: Target, visibilityArea: 'leads' },
         { key: 'orders', label: 'Заказы', icon: Package, visibilityArea: 'orders' },
+        { key: 'load-board', label: 'Биржа грузов', icon: ClipboardList, visibilityArea: 'load_board' },
         { key: 'contractors', label: 'Контрагенты', icon: Users, visibilityArea: 'contractors' },
         {
             key: 'fleet',

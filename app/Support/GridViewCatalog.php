@@ -50,6 +50,11 @@ final class GridViewCatalog
                 'route' => 'finance.index',
                 'visibility_area' => 'payment_schedules',
             ],
+            'load_board' => [
+                'label' => 'Биржа грузов',
+                'route' => 'load-board.index',
+                'visibility_area' => 'load_board',
+            ],
         ];
     }
 

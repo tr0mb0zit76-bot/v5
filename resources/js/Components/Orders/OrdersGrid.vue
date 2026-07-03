@@ -295,6 +295,10 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  canUseLoadBoard: {
+    type: Boolean,
+    default: false,
+  },
   roleKey: {
     type: String,
     default: 'manager',
@@ -319,7 +323,7 @@ const props = defineProps({
 
 const page = usePage();
 
-const emit = defineEmits(['cell-save', 'row-dblclick', 'row-delete', 'columns-changed', 'create-request', 'create-from-request', 'open-order-documents']);
+const emit = defineEmits(['cell-save', 'row-dblclick', 'row-delete', 'columns-changed', 'create-request', 'create-from-request', 'open-order-documents', 'publish-load-board']);
 
 const paymentFormEditorValues = computed(() => {
     if (Array.isArray(props.paymentFormSelectOptions) && props.paymentFormSelectOptions.length > 0) {
@@ -642,6 +646,12 @@ function onCellContextMenu(params) {
         emit('create-from-request', row);
       },
     },
+    ...(props.canUseLoadBoard ? [{
+      label: 'Выставить на биржу грузов',
+      run: () => {
+        emit('publish-load-board', row);
+      },
+    }] : []),
     {
       label: 'Новый заказ',
       run: () => {
