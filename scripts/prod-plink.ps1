@@ -10,9 +10,14 @@ param(
 )
 
 $ppk = 'C:\,ssh\private_key.ppk'
+$fallbackPpk = 'C:\.ssh\private_key.ppk'
 $hostName = '91.229.11.16'
 $hostKey = 'SHA256:fMoEbmiSHjK5vdPXFMxzjRRyE/ZYfNnDxklqzZe3Dz8'
 $plink = 'C:\Program Files\PuTTY\plink.exe'
+
+if (-not (Test-Path $ppk) -and (Test-Path $fallbackPpk)) {
+    $ppk = $fallbackPpk
+}
 
 if (-not (Test-Path $ppk)) {
     Write-Error "PPK не найден: $ppk"
