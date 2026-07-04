@@ -33,6 +33,7 @@ use App\Http\Controllers\MailThreadAnalysisController;
 use App\Http\Controllers\ManagementAccountingController;
 use App\Http\Controllers\ManagementAccountingImportController;
 use App\Http\Controllers\MessengerController;
+use App\Http\Controllers\Mobile\MobileShellController;
 use App\Http\Controllers\Orders\OrderBasicTermsController;
 use App\Http\Controllers\Orders\OrderDocumentsModalController;
 use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
@@ -779,6 +780,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     Route::get('/mobile/messenger', fn () => Inertia::render('Mobile/Messenger'))->name('mobile.messenger.app');
+
+    Route::prefix('mobile/shell')->name('mobile.shell.')->group(function (): void {
+        Route::get('/tasks', [MobileShellController::class, 'tasks'])->name('tasks');
+        Route::get('/orders', [MobileShellController::class, 'orders'])->name('orders');
+        Route::get('/documents', [MobileShellController::class, 'documents'])->name('documents');
+    });
 
     Route::prefix('cabinet-notifications')->name('cabinet-notifications.')->group(function () {
         Route::get('/summary', [CabinetNotificationController::class, 'summary'])->name('summary');

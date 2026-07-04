@@ -1,6 +1,7 @@
 <template>
-    <div class="flex h-[100dvh] min-h-screen flex-col bg-zinc-950 text-zinc-50">
+    <div class="relative flex h-[100dvh] min-h-screen flex-col bg-zinc-950 text-zinc-50">
         <template v-if="screen === 'thread'">
+            <div class="relative flex min-h-0 flex-1 flex-col">
             <header class="flex shrink-0 items-center gap-3 border-b border-white/10 px-3 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))]">
                 <button
                     type="button"
@@ -46,6 +47,7 @@
                     type="button"
                     class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-zinc-300 active:bg-white/10"
                     title="Действия с CRM"
+                    @click="toggleThreadActions"
                 >
                     <Plus class="h-5 w-5" />
                 </button>
@@ -65,6 +67,45 @@
                     Отпр.
                 </button>
             </form>
+
+            <div
+                v-if="showThreadActions"
+                class="absolute inset-0 z-30 flex flex-col justify-end bg-black/60"
+                @click.self="showThreadActions = false"
+            >
+                <div class="max-h-[70dvh] overflow-hidden rounded-t-3xl border border-white/10 bg-zinc-900">
+                    <div class="border-b border-white/10 px-4 py-3">
+                        <div class="text-sm font-semibold text-zinc-100">Вставить ссылку на документ</div>
+                        <div class="relative mt-3">
+                            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                            <input
+                                v-model="documentChipSearch"
+                                class="w-full rounded-2xl border border-white/10 bg-zinc-950 py-2.5 pl-10 pr-3 text-sm text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-sky-500"
+                                placeholder="Номер заказа, id, тип…"
+                                @input="onDocumentChipSearchInput"
+                            />
+                        </div>
+                    </div>
+                    <div class="max-h-80 overflow-y-auto py-1">
+                        <div v-if="documentChipsLoading" class="px-4 py-6 text-center text-sm text-zinc-500">Загрузка…</div>
+                        <button
+                            v-for="doc in documentChips"
+                            v-else
+                            :key="`thread-doc-${doc.id}`"
+                            type="button"
+                            class="flex w-full flex-col gap-1 px-4 py-3 text-left active:bg-white/10"
+                            @click="insertDocumentChip(doc)"
+                        >
+                            <span class="text-sm font-medium text-zinc-100">{{ doc.label }}</span>
+                            <span class="truncate text-xs text-zinc-500">{{ doc.url }}</span>
+                        </button>
+                        <div v-if="!documentChipsLoading && documentChips.length === 0" class="px-4 py-6 text-center text-sm text-zinc-500">
+                            Документы не найдены.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </div>
         </template>
 
         <template v-else>
@@ -91,7 +132,7 @@
                         type="button"
                         class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-zinc-200 active:bg-white/10"
                         title="Обновить"
-                        @click="reloadAll"
+                        @click="refreshActiveTab"
                     >
                         <RefreshCw class="h-4 w-4" />
                     </button>
@@ -197,11 +238,106 @@
                     </section>
                 </section>
 
-                <PlaceholderTab
-                    v-else
-                    :tab="activeTab"
-                    :title="activeTabLabel"
-                />
+                <section v-else-if="activeTab === 'documents'" class="space-y-4 p-4">
+                    <div v-if="documentsLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка документов…</div>
+                    <template v-else>
+                        <div v-if="attentionDocuments.length" class="space-y-2">
+                            <div class="text-[11px] font-semibold uppercase tracking-wide text-amber-300">Требуют внимания</div>
+                            <a
+                                v-for="item in attentionDocuments"
+                                :key="`attention-${item.order_id}`"
+                                :href="item.url"
+                                class="block rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 active:bg-amber-500/15"
+                            >
+                                <div class="text-sm font-semibold text-zinc-50">{{ item.order_number }}</div>
+                                <div class="mt-1 text-xs text-zinc-400">{{ item.customer_name || 'Заказ' }}</div>
+                                <div class="mt-2 text-xs text-amber-100">
+                                    {{ item.pending_count }} незакрытых слотов
+                                    <span v-if="item.pending_labels?.length"> · {{ item.pending_labels.join(', ') }}</span>
+                                </div>
+                            </a>
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Последние документы</div>
+                            <a
+                                v-for="doc in filteredRecentDocuments"
+                                :key="`doc-${doc.id}`"
+                                :href="doc.url"
+                                class="block rounded-3xl border border-white/10 bg-white/[0.04] p-4 active:bg-white/10"
+                            >
+                                <div class="text-sm font-semibold text-zinc-50">{{ doc.label }}</div>
+                                <div class="mt-1 truncate text-xs text-zinc-500">{{ doc.url }}</div>
+                            </a>
+                            <div v-if="filteredRecentDocuments.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
+                                {{ search.trim() ? 'Ничего не найдено.' : 'Документов пока нет.' }}
+                            </div>
+                        </div>
+                    </template>
+                </section>
+
+                <section v-else-if="activeTab === 'orders'" class="space-y-3 p-4">
+                    <div v-if="ordersLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка заказов…</div>
+                    <template v-else>
+                        <a
+                            v-for="order in filteredOrders"
+                            :key="`order-${order.id}`"
+                            :href="order.url"
+                            class="block rounded-3xl border border-white/10 bg-white/[0.04] p-4 active:bg-white/10"
+                        >
+                            <div class="flex items-start gap-3">
+                                <div class="min-w-0 flex-1">
+                                    <div class="text-sm font-semibold text-zinc-50">{{ order.order_number }}</div>
+                                    <div class="mt-1 text-xs text-zinc-400">{{ order.customer_name || 'Заказчик не указан' }}</div>
+                                    <div v-if="order.carrier_name" class="mt-1 text-xs text-zinc-500">Перевозчик: {{ order.carrier_name }}</div>
+                                </div>
+                                <span class="shrink-0 rounded-full bg-white/10 px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-300">
+                                    {{ order.status || '—' }}
+                                </span>
+                            </div>
+                            <div v-if="order.loading_date || order.unloading_date" class="mt-3 text-xs text-zinc-500">
+                                {{ formatOrderRoute(order) }}
+                            </div>
+                        </a>
+                        <div v-if="filteredOrders.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
+                            {{ search.trim() ? 'Ничего не найдено.' : 'Активных заказов пока нет.' }}
+                        </div>
+                    </template>
+                </section>
+
+                <section v-else-if="activeTab === 'tasks'" class="space-y-3 p-4">
+                    <div v-if="tasksLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка задач…</div>
+                    <template v-else>
+                        <a
+                            v-for="task in filteredTasks"
+                            :key="`task-${task.id}`"
+                            :href="task.url"
+                            class="block rounded-3xl border p-4 active:opacity-90"
+                            :class="task.is_overdue || task.sla_breached ? 'border-rose-500/30 bg-rose-500/10' : 'border-white/10 bg-white/[0.04]'"
+                        >
+                            <div class="flex items-start gap-3">
+                                <div class="min-w-0 flex-1">
+                                    <div class="text-sm font-semibold text-zinc-50">{{ task.number }} · {{ task.title }}</div>
+                                    <div class="mt-1 text-xs text-zinc-400">{{ task.status_label }}</div>
+                                    <div v-if="task.lead_number || task.contractor_name" class="mt-1 text-xs text-zinc-500">
+                                        <span v-if="task.lead_number">Лид {{ task.lead_number }}</span>
+                                        <span v-if="task.contractor_name">{{ task.lead_number ? ' · ' : '' }}{{ task.contractor_name }}</span>
+                                    </div>
+                                </div>
+                                <span
+                                    v-if="task.is_overdue || task.sla_breached"
+                                    class="shrink-0 rounded-full bg-rose-500/20 px-2 py-1 text-[10px] font-semibold uppercase text-rose-200"
+                                >
+                                    Просрочена
+                                </span>
+                            </div>
+                            <div v-if="task.due_at" class="mt-3 text-xs text-zinc-500">Срок: {{ formatShortDate(task.due_at) }}</div>
+                        </a>
+                        <div v-if="filteredTasks.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
+                            {{ search.trim() ? 'Ничего не найдено.' : 'Открытых задач нет.' }}
+                        </div>
+                    </template>
+                </section>
             </main>
 
             <nav class="grid shrink-0 grid-cols-4 border-t border-white/10 bg-zinc-950/95 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] pt-2">
@@ -221,6 +357,12 @@
                     >
                         {{ unreadCount > 99 ? '99+' : unreadCount }}
                     </span>
+                    <span
+                        v-if="tab.key === 'tasks' && overdueTaskCount > 0"
+                        class="absolute right-4 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white"
+                    >
+                        {{ overdueTaskCount > 99 ? '99+' : overdueTaskCount }}
+                    </span>
                 </button>
             </nav>
         </template>
@@ -228,11 +370,12 @@
 </template>
 
 <script setup>
-import { computed, defineComponent, h, onMounted, ref } from 'vue';
+import { computed, defineComponent, h, onMounted, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { ArrowLeft, CheckSquare, FileText, MessageCircle, Package, Phone, Plus, RefreshCw, Search, Users } from 'lucide-vue-next';
 import { useMessenger } from '@/composables/useMessenger.js';
 import { useMessengerPolling } from '@/composables/useMessengerPolling.js';
+import { useMobileShell } from '@/composables/useMobileShell.js';
 import { registerMobilePushIfAvailable } from '@/support/mobilePush.js';
 
 const AvatarBubble = defineComponent({
@@ -252,28 +395,6 @@ const AvatarBubble = defineComponent({
     },
 });
 
-const PlaceholderTab = defineComponent({
-    props: {
-        tab: { type: String, required: true },
-        title: { type: String, required: true },
-    },
-    setup(props) {
-        const descriptions = {
-            documents: 'Здесь появится мобильный inbox документов: добавить файл, выбрать заказ и слот, посмотреть требующие действия документы.',
-            orders: 'Здесь будут карточки заказов без гридов: маршрут, контрагенты, документы и быстрый переход в связанный чат.',
-            tasks: 'Здесь будут мои задачи, просроченные задачи и быстрые действия по связанным заказам и лидам.',
-        };
-
-        return () => h('section', { class: 'p-4' }, [
-            h('div', { class: 'rounded-3xl border border-white/10 bg-white/[0.04] p-5' }, [
-                h('div', { class: 'text-lg font-semibold text-zinc-50' }, props.title),
-                h('p', { class: 'mt-2 text-sm leading-6 text-zinc-400' }, descriptions[props.tab] ?? 'Раздел будет собран карточками без мобильных гридов.'),
-                h('div', { class: 'mt-4 rounded-2xl border border-dashed border-white/10 px-4 py-3 text-xs text-zinc-500' }, 'Каркас вкладки готов. Логика модуля будет добавляться следующими шагами.'),
-            ]),
-        ]);
-    },
-});
-
 const page = usePage();
 const currentUserId = computed(() => page.props.auth?.user?.id ?? null);
 const messagesPanel = ref(null);
@@ -285,6 +406,11 @@ const showGroupComposer = ref(false);
 const groupTitle = ref('');
 const groupMemberIds = ref([]);
 const groupCreating = ref(false);
+const showThreadActions = ref(false);
+const documentChips = ref([]);
+const documentChipsLoading = ref(false);
+const documentChipSearch = ref('');
+let documentChipSearchTimer = null;
 
 const tabs = [
     { key: 'chats', label: 'Чаты', icon: MessageCircle },
@@ -309,12 +435,26 @@ const {
     error: messengerError,
     loadColleagues,
     reloadAll,
+    loadDocumentChips,
     selectConversation,
     openDirect,
     createGroup,
     sendMessage,
     clearActiveConversation,
 } = messenger;
+
+const {
+    tasks,
+    orders,
+    recentDocuments,
+    attentionDocuments,
+    overdueTaskCount,
+    tasksLoading,
+    ordersLoading,
+    documentsLoading,
+    shellError,
+    loadTab,
+} = useMobileShell();
 
 const activeTabLabel = computed(() => tabs.find((tab) => tab.key === activeTab.value)?.label ?? 'Раздел');
 
@@ -342,6 +482,39 @@ const filteredColleagues = computed(() => {
 });
 
 const groupCandidates = computed(() => colleagues.value.slice(0, 50));
+
+const filteredTasks = computed(() => {
+    const needle = search.value.trim().toLowerCase();
+    if (needle === '') {
+        return tasks.value;
+    }
+
+    return tasks.value.filter((task) =>
+        `${task.number ?? ''} ${task.title ?? ''} ${task.status_label ?? ''}`.toLowerCase().includes(needle),
+    );
+});
+
+const filteredOrders = computed(() => {
+    const needle = search.value.trim().toLowerCase();
+    if (needle === '') {
+        return orders.value;
+    }
+
+    return orders.value.filter((order) =>
+        `${order.order_number ?? ''} ${order.customer_name ?? ''} ${order.carrier_name ?? ''}`.toLowerCase().includes(needle),
+    );
+});
+
+const filteredRecentDocuments = computed(() => {
+    const needle = search.value.trim().toLowerCase();
+    if (needle === '') {
+        return recentDocuments.value;
+    }
+
+    return recentDocuments.value.filter((doc) =>
+        `${doc.label ?? ''} ${doc.url ?? ''}`.toLowerCase().includes(needle),
+    );
+});
 
 function conversationTitle(conversation) {
     if (!conversation) {
@@ -398,6 +571,33 @@ function formatMessageTime(value) {
     }).format(date);
 }
 
+function formatShortDate(value) {
+    if (!value) {
+        return '';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: 'short',
+    }).format(date);
+}
+
+function formatOrderRoute(order) {
+    const loading = order.loading_date ? formatShortDate(order.loading_date) : null;
+    const unloading = order.unloading_date ? formatShortDate(order.unloading_date) : null;
+
+    if (loading && unloading) {
+        return `${loading} → ${unloading}`;
+    }
+
+    return loading || unloading || '';
+}
+
 async function openConversationThread(conversation) {
     await selectConversation(conversation);
     screen.value = 'thread';
@@ -420,6 +620,56 @@ function selectTab(tab) {
     activeTab.value = tab;
     search.value = '';
     showGroupComposer.value = false;
+
+    if (tab !== 'chats') {
+        loadTab(tab);
+    }
+}
+
+function refreshActiveTab() {
+    if (activeTab.value === 'chats') {
+        reloadAll();
+        loadColleagues();
+
+        return;
+    }
+
+    loadTab(activeTab.value, search.value);
+}
+
+async function toggleThreadActions() {
+    showThreadActions.value = !showThreadActions.value;
+
+    if (showThreadActions.value) {
+        documentChipSearch.value = '';
+        await refreshDocumentChips();
+    }
+}
+
+async function refreshDocumentChips() {
+    documentChipsLoading.value = true;
+
+    try {
+        documentChips.value = await loadDocumentChips(documentChipSearch.value);
+    } finally {
+        documentChipsLoading.value = false;
+    }
+}
+
+function onDocumentChipSearchInput() {
+    clearTimeout(documentChipSearchTimer);
+    documentChipSearchTimer = setTimeout(() => {
+        refreshDocumentChips();
+    }, 250);
+}
+
+function insertDocumentChip(doc) {
+    const url = doc.url;
+    const current = messageBody.value;
+    const separator = current && !current.endsWith('\n') && !current.endsWith(' ') ? ' ' : '';
+    messageBody.value = `${current}${separator}${url} `;
+    showThreadActions.value = false;
+    documentChipSearch.value = '';
 }
 
 async function submitMessage() {
@@ -455,6 +705,19 @@ function normalizedPhone(phone) {
 function contactSubtitle(user) {
     return user.phone || user.email || 'Открыть личный чат';
 }
+
+let shellSearchTimer = null;
+
+watch([activeTab, search], ([tab, needle]) => {
+    if (tab === 'chats') {
+        return;
+    }
+
+    clearTimeout(shellSearchTimer);
+    shellSearchTimer = setTimeout(() => {
+        loadTab(tab, needle);
+    }, 300);
+});
 
 onMounted(() => {
     reloadAll();
