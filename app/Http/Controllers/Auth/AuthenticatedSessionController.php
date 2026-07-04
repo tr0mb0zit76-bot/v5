@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Services\Mobile\MobileDeviceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,6 +14,10 @@ use Inertia\Response;
 
 class AuthenticatedSessionController extends Controller
 {
+    public function __construct(
+        private MobileDeviceService $mobileDeviceService,
+    ) {}
+
     /**
      * Display the login view.
      */
@@ -48,6 +53,13 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
 
         $request->session()->regenerate();
+
+        $deviceKey = $request->string('device_key')->toString();
+        $user = $request->user();
+
+        if ($deviceKey !== '' && $user !== null && $this->mobileDeviceService->deviceNeedsPinSetup($user, $deviceKey)) {
+            return redirect()->route('mobile.pin-setup', ['device_key' => $deviceKey]);
+        }
 
         return redirect()->intended(route('mobile.messenger.app', absolute: false));
     }

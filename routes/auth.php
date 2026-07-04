@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\Mobile\MobileDeviceController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -21,6 +22,14 @@ Route::middleware('guest')->group(function () {
 
     Route::post('mobile/login', [AuthenticatedSessionController::class, 'storeMobile'])
         ->name('mobile.login.store');
+
+    Route::post('mobile/pin-unlock', [MobileDeviceController::class, 'unlock'])
+        ->middleware('throttle:10,1')
+        ->name('mobile.pin-unlock');
+
+    Route::post('mobile/device/check', [MobileDeviceController::class, 'check'])
+        ->middleware('throttle:30,1')
+        ->name('mobile.device.check');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
@@ -56,4 +65,13 @@ Route::middleware('auth')->group(function () {
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');
+
+    Route::get('mobile/pin-setup', [MobileDeviceController::class, 'createPinSetup'])
+        ->name('mobile.pin-setup');
+
+    Route::post('mobile/pin-setup', [MobileDeviceController::class, 'storePinSetup'])
+        ->name('mobile.pin-setup.store');
+
+    Route::post('mobile/device/fcm-token', [MobileDeviceController::class, 'updateFcmToken'])
+        ->name('mobile.device.fcm-token');
 });

@@ -24,8 +24,10 @@ export function useMessenger({ scrollTarget = null } = {}) {
         ) ?? activeConversation.value;
     }
 
-    async function loadConversations() {
-        conversationsLoading.value = true;
+    async function loadConversations({ background = false } = {}) {
+        if (!background) {
+            conversationsLoading.value = true;
+        }
 
         try {
             const { data } = await axios.get(route('messenger.conversations.index'), {
@@ -35,7 +37,9 @@ export function useMessenger({ scrollTarget = null } = {}) {
             unreadCount.value = data.unread_count ?? 0;
             syncActiveConversationFromList();
         } finally {
-            conversationsLoading.value = false;
+            if (!background) {
+                conversationsLoading.value = false;
+            }
         }
     }
 
@@ -52,19 +56,74 @@ export function useMessenger({ scrollTarget = null } = {}) {
         }
     }
 
-    async function loadThread(conversationId) {
-        threadLoading.value = true;
-        messages.value = [];
+    async function loadThread(conversationId, { background = false } = {}) {
+        if (!background) {
+            threadLoading.value = true;
+            messages.value = [];
+        }
 
         try {
             const { data } = await axios.get(route('messenger.conversations.messages', { conversation: conversationId }), {
                 headers: { Accept: 'application/json' },
             });
             messages.value = data.messages ?? [];
-            await loadConversations();
+            if (!background) {
+                await loadConversations({ background: true });
+            }
             scrollToBottom();
         } finally {
-            threadLoading.value = false;
+            if (!background) {
+                threadLoading.value = false;
+            }
+        }
+    }
+
+    async function refreshThread({ background = true } = {}) {
+        if (activeConversationId.value === null) {
+            return;
+        }
+
+        const lastMessageId = messages.value.length > 0
+            ? Number(messages.value[messages.value.length - 1]?.id ?? 0)
+            : 0;
+
+        if (lastMessageId <= 0) {
+            await loadThread(activeConversationId.value, { background });
+
+            return;
+        }
+
+        try {
+            const { data } = await axios.get(route('messenger.conversations.messages', {
+                conversation: activeConversationId.value,
+            }), {
+                headers: { Accept: 'application/json' },
+                params: {
+                    after_id: lastMessageId,
+                },
+            });
+
+            const incoming = data.messages ?? [];
+            if (incoming.length === 0) {
+                return;
+            }
+
+            const existingIds = new Set(messages.value.map((message) => Number(message.id)));
+            const merged = [...messages.value];
+
+            for (const message of incoming) {
+                if (!existingIds.has(Number(message.id))) {
+                    merged.push(message);
+                }
+            }
+
+            messages.value = merged;
+            await loadConversations({ background: true });
+            scrollToBottom();
+        } catch {
+            if (!background) {
+                await loadThread(activeConversationId.value, { background: false });
+            }
         }
     }
 
@@ -199,6 +258,7 @@ export function useMessenger({ scrollTarget = null } = {}) {
         loadConversations,
         loadColleagues,
         loadThread,
+        refreshThread,
         selectConversation,
         openDirect,
         createGroup,

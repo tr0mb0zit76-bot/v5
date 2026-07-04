@@ -1,6 +1,9 @@
 <script setup>
 import InputError from '@/Components/InputError.vue';
+import { getDeviceName, getOrCreateDeviceKey } from '@/support/mobileDevice';
+import axios from 'axios';
 import { Head, useForm } from '@inertiajs/vue3';
+import { onMounted, ref } from 'vue';
 
 defineProps({
     status: {
@@ -9,17 +12,61 @@ defineProps({
     },
 });
 
-const form = useForm({
+const deviceKey = getOrCreateDeviceKey();
+const pinUnlockAvailable = ref(false);
+const registeredUserName = ref('');
+const mode = ref('checking');
+
+const passwordForm = useForm({
     email: '',
     password: '',
     remember: true,
+    device_key: deviceKey,
+    device_name: getDeviceName(),
 });
 
-const submit = () => {
-    form.post(route('mobile.login.store'), {
-        onFinish: () => form.reset('password'),
+const pinForm = useForm({
+    device_key: deviceKey,
+    pin: '',
+});
+
+async function detectPinUnlock() {
+    mode.value = 'checking';
+
+    try {
+        const { data } = await axios.post(route('mobile.device.check'), {
+            device_key: deviceKey,
+        });
+
+        pinUnlockAvailable.value = data.registered === true;
+        registeredUserName.value = data.user_name ?? '';
+
+        mode.value = pinUnlockAvailable.value ? 'pin' : 'password';
+    } catch {
+        mode.value = 'password';
+    }
+}
+
+const submitPassword = () => {
+    passwordForm.post(route('mobile.login.store'), {
+        onFinish: () => passwordForm.reset('password'),
     });
 };
+
+const submitPin = () => {
+    pinForm.post(route('mobile.pin-unlock'), {
+        onFinish: () => pinForm.reset('pin'),
+    });
+};
+
+function usePasswordLogin() {
+    mode.value = 'password';
+    pinForm.clearErrors();
+}
+
+onMounted(() => {
+    detectPinUnlock();
+});
 </script>
 
 <template>
@@ -30,8 +77,11 @@ const submit = () => {
             <div class="mb-8">
                 <div class="text-xs font-semibold uppercase tracking-[0.35em] text-sky-300">CRM</div>
                 <h1 class="mt-3 text-3xl font-semibold">Автоальянс Чат</h1>
-                <p class="mt-2 text-sm leading-6 text-zinc-400">
-                    Войдите рабочим email и паролем. После входа приложение откроет мобильный мессенджер.
+                <p v-if="mode === 'pin'" class="mt-2 text-sm leading-6 text-zinc-400">
+                    Сессия истекла. Введите PIN для {{ registeredUserName || 'вашего аккаунта' }}.
+                </p>
+                <p v-else class="mt-2 text-sm leading-6 text-zinc-400">
+                    Войдите рабочим email и паролем. После первого входа можно включить быстрый PIN на этом телефоне.
                 </p>
             </div>
 
@@ -39,12 +89,53 @@ const submit = () => {
                 {{ status }}
             </div>
 
-            <form class="space-y-4" @submit.prevent="submit">
+            <div v-if="mode === 'checking'" class="py-8 text-center text-sm text-zinc-500">
+                Проверяем устройство…
+            </div>
+
+            <form v-else-if="mode === 'pin'" class="space-y-4" @submit.prevent="submitPin">
+                <div>
+                    <label for="pin" class="text-sm font-medium text-zinc-200">PIN-код</label>
+                    <input
+                        id="pin"
+                        v-model="pinForm.pin"
+                        type="password"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        maxlength="6"
+                        required
+                        autofocus
+                        autocomplete="one-time-code"
+                        class="mt-1 w-full border border-white/10 bg-white/5 px-3 py-3 text-center text-2xl tracking-[0.5em] text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-sky-500"
+                        placeholder="••••"
+                    />
+                    <InputError class="mt-2" :message="pinForm.errors.pin" />
+                    <InputError class="mt-2" :message="pinForm.errors.device_key" />
+                </div>
+
+                <button
+                    type="submit"
+                    class="w-full bg-sky-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
+                    :disabled="pinForm.processing"
+                >
+                    {{ pinForm.processing ? 'Входим...' : 'Разблокировать' }}
+                </button>
+
+                <button
+                    type="button"
+                    class="w-full px-4 py-3 text-sm text-zinc-400 underline-offset-4 hover:text-zinc-200 hover:underline"
+                    @click="usePasswordLogin"
+                >
+                    Войти email и паролем
+                </button>
+            </form>
+
+            <form v-else class="space-y-4" @submit.prevent="submitPassword">
                 <div>
                     <label for="email" class="text-sm font-medium text-zinc-200">Email</label>
                     <input
                         id="email"
-                        v-model="form.email"
+                        v-model="passwordForm.email"
                         type="email"
                         required
                         autofocus
@@ -52,26 +143,26 @@ const submit = () => {
                         class="mt-1 w-full border border-white/10 bg-white/5 px-3 py-3 text-base text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-sky-500"
                         placeholder="name@company.ru"
                     />
-                    <InputError class="mt-2" :message="form.errors.email" />
+                    <InputError class="mt-2" :message="passwordForm.errors.email" />
                 </div>
 
                 <div>
                     <label for="password" class="text-sm font-medium text-zinc-200">Пароль</label>
                     <input
                         id="password"
-                        v-model="form.password"
+                        v-model="passwordForm.password"
                         type="password"
                         required
                         autocomplete="current-password"
                         class="mt-1 w-full border border-white/10 bg-white/5 px-3 py-3 text-base text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-sky-500"
                         placeholder="Пароль"
                     />
-                    <InputError class="mt-2" :message="form.errors.password" />
+                    <InputError class="mt-2" :message="passwordForm.errors.password" />
                 </div>
 
                 <label class="flex items-center gap-3 text-sm text-zinc-300">
                     <input
-                        v-model="form.remember"
+                        v-model="passwordForm.remember"
                         type="checkbox"
                         class="border-white/20 bg-white/5 text-sky-600 focus:ring-sky-500"
                     />
@@ -81,9 +172,9 @@ const submit = () => {
                 <button
                     type="submit"
                     class="w-full bg-sky-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
-                    :disabled="form.processing"
+                    :disabled="passwordForm.processing"
                 >
-                    {{ form.processing ? 'Входим...' : 'Войти' }}
+                    {{ passwordForm.processing ? 'Входим...' : 'Войти' }}
                 </button>
             </form>
         </main>

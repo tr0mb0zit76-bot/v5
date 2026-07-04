@@ -163,16 +163,32 @@ class MessengerController extends Controller
         abort_if($user === null, 403);
         $this->authorizeParticipant($user, $conversation);
 
-        $messages = ChatMessage::query()
-            ->where('conversation_id', $conversation->id)
-            ->with(['author:id,name', 'recipient:id,name'])
-            ->orderByDesc('id')
-            ->limit(100)
-            ->get()
-            ->reverse()
-            ->values();
+        $afterId = $request->integer('after_id');
+        $markRead = ! $request->boolean('skip_read');
 
-        $this->messengerService->markRead($conversation, $user);
+        $query = ChatMessage::query()
+            ->where('conversation_id', $conversation->id)
+            ->with(['author:id,name', 'recipient:id,name']);
+
+        if ($afterId > 0) {
+            $messages = $query
+                ->where('id', '>', $afterId)
+                ->orderBy('id')
+                ->limit(100)
+                ->get()
+                ->values();
+        } else {
+            $messages = $query
+                ->orderByDesc('id')
+                ->limit(100)
+                ->get()
+                ->reverse()
+                ->values();
+        }
+
+        if ($markRead) {
+            $this->messengerService->markRead($conversation, $user);
+        }
 
         return response()->json([
             'messages' => $messages->map(fn (ChatMessage $m): array => $this->serializeMessage($m)),

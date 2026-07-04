@@ -13,6 +13,7 @@ use App\Models\TaskComment;
 use App\Models\User;
 use App\Notifications\CabinetInAppNotification;
 use App\Services\Contractor\ContractorLimitApprovalService;
+use App\Services\Mobile\MobilePushService;
 use App\Services\Notifications\NotificationRecipientResolver;
 use Illuminate\Support\Facades\Schema;
 
@@ -20,6 +21,7 @@ class CabinetNotifier
 {
     public function __construct(
         private NotificationRecipientResolver $recipientResolver,
+        private MobilePushService $mobilePushService,
     ) {}
 
     public function notifyDocumentApprovalRequested(Order $order, OrderDocument $document, User $requester): void
@@ -213,10 +215,6 @@ class CabinetNotifier
 
     public function notifyChatMessage(ChatMessage $message, User $author): void
     {
-        if (! Schema::hasTable('notifications') || ! Schema::hasTable('conversation_participants')) {
-            return;
-        }
-
         $message->loadMissing(['conversation.participants', 'recipient']);
         $conversation = $message->conversation;
 
@@ -224,39 +222,41 @@ class CabinetNotifier
             return;
         }
 
-        $recipients = $conversation->participants
-            ->filter(fn (User $participant): bool => (int) $participant->id !== (int) $author->id);
+        if (Schema::hasTable('notifications') && Schema::hasTable('conversation_participants')) {
+            $recipients = $conversation->participants
+                ->filter(fn (User $participant): bool => (int) $participant->id !== (int) $author->id);
 
-        if ($message->recipient_user_id !== null) {
-            $recipients = $recipients
-                ->filter(fn (User $participant): bool => (int) $participant->id === (int) $message->recipient_user_id);
+            if ($message->recipient_user_id !== null) {
+                $recipients = $recipients
+                    ->filter(fn (User $participant): bool => (int) $participant->id === (int) $message->recipient_user_id);
+            }
+
+            if ($recipients->isNotEmpty()) {
+                $conversationTitle = $conversation->type === 'group'
+                    ? ($conversation->title ?: 'Групповой чат')
+                    : 'Личный чат';
+                $body = sprintf('%s: %s', $author->name, mb_strimwidth((string) $message->body, 0, 160, '…'));
+                $actionUrl = '/?messenger_conversation='.$conversation->id;
+                $notification = new CabinetInAppNotification(
+                    'chat_message',
+                    $conversationTitle,
+                    $body,
+                    $actionUrl,
+                    [
+                        'conversation_id' => $conversation->id,
+                        'message_id' => $message->id,
+                        'author_id' => $author->id,
+                        'recipient_user_id' => $message->recipient_user_id,
+                    ],
+                );
+
+                foreach ($recipients as $recipient) {
+                    $recipient->notify($notification);
+                }
+            }
         }
 
-        if ($recipients->isEmpty()) {
-            return;
-        }
-
-        $conversationTitle = $conversation->type === 'group'
-            ? ($conversation->title ?: 'Групповой чат')
-            : 'Личный чат';
-        $body = sprintf('%s: %s', $author->name, mb_strimwidth((string) $message->body, 0, 160, '…'));
-        $actionUrl = '/?messenger_conversation='.$conversation->id;
-        $notification = new CabinetInAppNotification(
-            'chat_message',
-            $conversationTitle,
-            $body,
-            $actionUrl,
-            [
-                'conversation_id' => $conversation->id,
-                'message_id' => $message->id,
-                'author_id' => $author->id,
-                'recipient_user_id' => $message->recipient_user_id,
-            ],
-        );
-
-        foreach ($recipients as $recipient) {
-            $recipient->notify($notification);
-        }
+        $this->mobilePushService->notifyChatMessage($message, $author);
     }
 
     public function notifyTaskSlaBreached(Task $task): void

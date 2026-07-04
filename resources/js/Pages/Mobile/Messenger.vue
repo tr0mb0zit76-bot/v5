@@ -232,6 +232,8 @@ import { computed, defineComponent, h, onMounted, ref } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { ArrowLeft, CheckSquare, FileText, MessageCircle, Package, Phone, Plus, RefreshCw, Search, Users } from 'lucide-vue-next';
 import { useMessenger } from '@/composables/useMessenger.js';
+import { useMessengerPolling } from '@/composables/useMessengerPolling.js';
+import { registerMobilePushIfAvailable } from '@/support/mobilePush.js';
 
 const AvatarBubble = defineComponent({
     props: {
@@ -291,6 +293,10 @@ const tabs = [
     { key: 'tasks', label: 'Задачи', icon: CheckSquare },
 ];
 
+const messenger = useMessenger({ scrollTarget: messagesPanel });
+
+useMessengerPolling(messenger);
+
 const {
     conversations,
     colleagues,
@@ -308,7 +314,7 @@ const {
     createGroup,
     sendMessage,
     clearActiveConversation,
-} = useMessenger({ scrollTarget: messagesPanel });
+} = messenger;
 
 const activeTabLabel = computed(() => tabs.find((tab) => tab.key === activeTab.value)?.label ?? 'Раздел');
 
@@ -453,5 +459,6 @@ function contactSubtitle(user) {
 onMounted(() => {
     reloadAll();
     loadColleagues();
+    registerMobilePushIfAvailable();
 });
 </script>
