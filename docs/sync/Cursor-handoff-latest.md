@@ -3,9 +3,34 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-04 10:51 · **Ветка:** `master` · **Контекст:** Messenger UX redesign + prod assets
+**Обновлено:** 2026-07-04 14:19 · **Ветка:** `master` · **Контекст:** Mobile CRM shell phase 1
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-07-04) — mobile CRM shell phase 1
+
+- `resources/js/Pages/Mobile/Messenger.vue` перестроен в mobile shell с нижними вкладками `Чаты / Документы / Заказы / Задачи`; `Чаты` активны по умолчанию, thread открывается отдельным экраном без нижней панели.
+- Вкладка `Чаты`: убран крупный заголовок `Автоальянс Чат` и общий текст про прочитанные сообщения; сверху компактный поиск, кнопка группы и маленькая кнопка обновления. Общий unread остался только badge на нижней вкладке `Чаты`, per-dialog unread остался в строках диалогов.
+- Добавлен mobile UI создания группового чата поверх существующего `messenger.conversations.groups.store`; `resources/js/composables/useMessenger.js` получил `createGroup()`.
+- `MessengerController::colleagues()` теперь отдаёт `phone` при наличии колонки `users.phone`; mobile список коллег показывает телефон, а рядом отдельную `tel:` кнопку звонка. Добавлен тест `test_colleagues_endpoint_includes_phone_for_mobile_contacts`.
+- Вкладки `Документы`, `Заказы`, `Задачи` пока каркасные placeholders без AG Grid: это основа для следующей фазы карточек документов/заказов/задач.
+- Проверка: пользователь вручную запустил `vendor/bin/pint --dirty --format agent`, `php artisan test --compact tests/Feature/MessengerTest.php`, `npm run build` — всё прошло. Во время работы у агента Shell-инструмент не возвращал exit status даже для `echo`, поэтому команды были подтверждены со стороны пользователя.
+
+---
+
+## Что сделано недавно (2026-07-04) — mobile CRM shell plan + prod status repair
+
+- План mobile CRM обновлён в `docs/sync/mobile-crm-messenger-redesign-plan.md`: нижние вкладки `Чаты / Документы / Заказы / Задачи`; `Чаты` связывают сущности между собой, unread per-dialog как в Telegram, document chips переиспользуются в mobile без удаления из desktop CRM, файлы сначала сохраняются как CRM-документы/вложения сущности, затем в чат отправляется ссылка/карточка.
+- Добавлена команда ручного audit-fix статусов: `php artisan crm:repair-status {lead|task} {id} {status} --reason=... [--user-id=...] [--dry-run]`.
+- Команда задеплоена на prod точечно в `app/Console/Commands/RepairCrmStatusCommand.php`; `php artisan list` на prod показывает `crm:repair-status`.
+- Prod диагностика: в `tasks` статуса `won` не было; `status='won'` был только в `leads` (5 записей), все на не-terminal этапах БП:
+  - `10` → `negotiation`
+  - `11` → `calculation`
+  - `13`, `14`, `16` → `qualification`
+- Исправление применено через `crm:repair-status`; финальная проверка prod: `won_leads=0`, `won_tasks=0`, `non_terminal_won_leads=0`.
+- Локальная проверка: `vendor\bin\pint --dirty --format agent`, `php artisan test --compact tests\Feature\RepairCrmStatusCommandTest.php`.
 
 ---
 
@@ -26,6 +51,7 @@
 - Откат к checkpoint в коде: `git checkout messenger-mobile-checkpoint-20260704` или cherry-pick/revert поверх текущей ветки по ситуации.
 - Откат prod assets: на сервере `cd /var/www/www-root/data/www/avtoaliyans.ru && rm -rf public/build && cp -a public/build.backup-20260704-1048 public/build && chown -R www-root:www-root public/build && chmod -R 755 public/build`.
 - Мелкие v2-идеи (телефоны, звонок, groups UI, document chips в mobile, убрать заголовок/refresh) не делать отдельными правками до проектирования новой мобильной CRM-оболочки.
+- План большой переделки: `docs/sync/mobile-crm-messenger-redesign-plan.md`.
 
 ---
 

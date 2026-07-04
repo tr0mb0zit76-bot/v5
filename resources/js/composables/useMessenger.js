@@ -97,6 +97,33 @@ export function useMessenger({ scrollTarget = null } = {}) {
         }
     }
 
+    async function createGroup(title, userIds) {
+        error.value = '';
+
+        try {
+            const { data } = await axios.post(route('messenger.conversations.groups.store'), {
+                title,
+                user_ids: userIds,
+            }, {
+                headers: { Accept: 'application/json' },
+            });
+
+            await loadConversations();
+
+            if (data.conversation) {
+                await selectConversation(data.conversation);
+            }
+
+            return data.conversation ?? null;
+        } catch (exception) {
+            const message = exception.response?.data?.message
+                ?? exception.response?.data?.errors?.title?.[0]
+                ?? exception.response?.data?.errors?.user_ids?.[0];
+            error.value = typeof message === 'string' ? message : 'Не удалось создать группу.';
+            throw exception;
+        }
+    }
+
     async function sendMessage(body, payload = {}) {
         const text = String(body ?? '').trim();
         if (!activeConversation.value || text === '') {
@@ -174,6 +201,7 @@ export function useMessenger({ scrollTarget = null } = {}) {
         loadThread,
         selectConversation,
         openDirect,
+        createGroup,
         sendMessage,
         reloadAll,
         clearActiveConversation,

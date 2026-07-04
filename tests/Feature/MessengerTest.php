@@ -41,6 +41,23 @@ class MessengerTest extends TestCase
             ->assertJsonPath('message.body', 'Сообщение из мобильного API');
     }
 
+    public function test_colleagues_endpoint_includes_phone_for_mobile_contacts(): void
+    {
+        $viewer = User::factory()->create();
+        $colleague = User::factory()->create([
+            'name' => 'Алена Менеджер',
+            'phone' => '+79990001122',
+        ]);
+
+        $this->actingAs($viewer)->getJson(route('messenger.colleagues'))
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $colleague->id,
+                'name' => 'Алена Менеджер',
+                'phone' => '+79990001122',
+            ]);
+    }
+
     public function test_user_can_send_message_and_other_sees_unread(): void
     {
         $a = User::factory()->create();

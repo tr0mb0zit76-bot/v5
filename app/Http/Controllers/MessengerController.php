@@ -44,18 +44,27 @@ class MessengerController extends Controller
             return response()->json(['users' => []]);
         }
 
+        $hasPhoneColumn = Schema::hasColumn('users', 'phone');
+        $columns = array_values(array_filter([
+            'id',
+            'name',
+            'email',
+            $hasPhoneColumn ? 'phone' : null,
+        ]));
+
         $users = User::query()
             ->where('id', '!=', $user->id)
             ->when(Schema::hasColumn('users', 'is_active'), fn ($q) => $q->where('is_active', true))
             ->orderBy('name')
             ->limit(100)
-            ->get(['id', 'name', 'email']);
+            ->get($columns);
 
         return response()->json([
             'users' => $users->map(fn (User $u): array => [
                 'id' => $u->id,
                 'name' => $u->name,
                 'email' => $u->email,
+                'phone' => $hasPhoneColumn ? $u->phone : null,
             ]),
         ]);
     }
