@@ -1,8 +1,15 @@
 <script setup>
 import axios from 'axios';
+import { usePage } from '@inertiajs/vue3';
 import { ArrowLeft, Search, Upload } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import MobileDocumentOptimizeSheet from '@/Components/Mobile/MobileDocumentOptimizeSheet.vue';
 import { documentPartyLabel } from '@/support/mobileDocumentPartyLabels.js';
+import {
+    assessDocumentUploadBudget,
+    mergeDocumentUploadLimits,
+} from '@/support/documentUploadClientCheck.js';
+import { formatFileSizeHuman } from '@/support/documentOptimizeClient.js';
 
 const props = defineProps({
     open: {
@@ -17,8 +24,19 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'uploaded']);
 
+const page = usePage();
+const documentUploadLimits = computed(() => mergeDocumentUploadLimits(
+    page.props.document_upload_limits ?? {},
+    page.props.document_optimize ?? {},
+));
+const documentUploadHint = computed(() => documentUploadLimits.value?.hint_ru ?? '');
+
 const step = ref('file');
 const selectedFile = ref(null);
+const budgetChecking = ref(false);
+const optimizeSheetOpen = ref(false);
+/** @type {import('vue').Ref<{ file: File, limits: object, budget: object }|null>} */
+const optimizeSheetState = ref(null);
 const orderSearch = ref('');
 const orders = ref([]);
 const ordersLoading = ref(false);
@@ -32,6 +50,9 @@ const error = ref('');
 const fileInput = ref(null);
 
 const fileLabel = computed(() => selectedFile.value?.name ?? 'Файл не выбран');
+const fileSizeLabel = computed(() => (
+    selectedFile.value ? formatFileSizeHuman(selectedFile.value.size) : ''
+));
 const pendingSlots = computed(() => slots.value.filter((slot) => !slot.completed));
 const completedSlots = computed(() => slots.value.filter((slot) => slot.completed));
 
@@ -97,11 +118,32 @@ async function bootstrapPresetOrder(orderId) {
     await selectOrder(order);
 }
 
-function pickFile(event) {
-    const file = event.target.files?.[0] ?? null;
-    selectedFile.value = file;
+function budgetErrorMessage(file, budget, limits) {
+    const curMb = (file.size / 1024 / 1024).toFixed(2);
+    const abs = Number(limits.server_upload_max_bytes) || Number(limits.absolute_max_bytes) || 0;
 
-    if (!file) {
+    if (budget.overAbsolute && abs > 0) {
+        const maxMb = (abs / 1024 / 1024).toFixed(1);
+
+        return `Файл слишком большой (${curMb} МиБ). Абсолютный предел около ${maxMb} МиБ.`;
+    }
+
+    const limMb = (budget.maxBytes / 1024 / 1024).toFixed(2);
+    const kb = Math.round(Number(limits.bytes_per_page) / 1024) || 600;
+
+    return `Размер (${curMb} МиБ) превышает лимит (до ${limMb} МиБ: ~${kb} КиБ × ${budget.pages} стр.).`;
+}
+
+function clearFileInput() {
+    selectedFile.value = null;
+
+    if (fileInput.value) {
+        fileInput.value.value = '';
+    }
+}
+
+function proceedAfterFileAccepted() {
+    if (!selectedFile.value) {
         return;
     }
 
@@ -113,6 +155,58 @@ function pickFile(event) {
 
     step.value = 'order';
     loadOrders();
+}
+
+async function acceptFileWithBudget(file) {
+    budgetChecking.value = true;
+    error.value = '';
+
+    try {
+        const limits = documentUploadLimits.value;
+        const budget = await assessDocumentUploadBudget(file, limits);
+
+        if (budget.exceeds) {
+            if (budget.canOptimize) {
+                optimizeSheetState.value = { file, limits, budget };
+                optimizeSheetOpen.value = true;
+
+                return;
+            }
+
+            error.value = budgetErrorMessage(file, budget, limits);
+            clearFileInput();
+
+            return;
+        }
+
+        selectedFile.value = file;
+        proceedAfterFileAccepted();
+    } finally {
+        budgetChecking.value = false;
+    }
+}
+
+async function pickFile(event) {
+    const file = event.target.files?.[0] ?? null;
+
+    if (!file) {
+        return;
+    }
+
+    await acceptFileWithBudget(file);
+}
+
+function onOptimizeAccepted(file) {
+    optimizeSheetOpen.value = false;
+    optimizeSheetState.value = null;
+    selectedFile.value = file;
+    proceedAfterFileAccepted();
+}
+
+function onOptimizeCancel() {
+    optimizeSheetOpen.value = false;
+    optimizeSheetState.value = null;
+    clearFileInput();
 }
 
 async function uploadToSlot(slot) {
@@ -184,6 +278,9 @@ async function uploadToSlot(slot) {
 function resetState() {
     step.value = 'file';
     selectedFile.value = null;
+    budgetChecking.value = false;
+    optimizeSheetOpen.value = false;
+    optimizeSheetState.value = null;
     selectedOrder.value = null;
     orderSearch.value = '';
     orders.value = [];
@@ -261,7 +358,10 @@ watch(() => props.open, (isOpen) => {
                     <div class="text-sm font-semibold text-zinc-100">Прикрепить файл к заказу</div>
                     <div class="truncate text-xs text-zinc-500">
                         <span v-if="step === 'file'">Фото или PDF с телефона</span>
-                        <span v-else-if="step === 'order'">{{ fileLabel }}</span>
+                        <span v-else-if="step === 'order'">
+                            {{ fileLabel }}
+                            <span v-if="fileSizeLabel" class="text-zinc-600"> · {{ fileSizeLabel }}</span>
+                        </span>
                         <span v-else>{{ selectedOrder?.order_number }} · выберите слот</span>
                     </div>
                 </div>
@@ -279,10 +379,15 @@ watch(() => props.open, (isOpen) => {
                 </div>
 
                 <div v-if="step === 'file' && !uploading" class="space-y-4">
-                    <label class="flex cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-10 text-center active:bg-white/10">
+                    <div v-if="budgetChecking" class="py-6 text-center text-sm text-zinc-500">Проверка размера файла…</div>
+                    <label
+                        v-else
+                        class="flex cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-10 text-center active:bg-white/10"
+                    >
                         <Upload class="mb-3 h-8 w-8 text-sky-300" />
                         <span class="text-sm font-semibold text-zinc-100">Выбрать файл</span>
                         <span class="mt-1 text-xs text-zinc-500">PDF, JPG, PNG, DOCX, XLSX</span>
+                        <span v-if="documentUploadHint" class="mt-2 max-w-xs text-[11px] leading-snug text-zinc-600">{{ documentUploadHint }}</span>
                         <input
                             ref="fileInput"
                             type="file"
@@ -368,5 +473,12 @@ watch(() => props.open, (isOpen) => {
                 <p v-if="error" class="mt-4 text-xs text-rose-300">{{ error }}</p>
             </div>
         </div>
+
+        <MobileDocumentOptimizeSheet
+            :open="optimizeSheetOpen"
+            :state="optimizeSheetState"
+            @accept="onOptimizeAccepted"
+            @cancel="onOptimizeCancel"
+        />
     </div>
 </template>

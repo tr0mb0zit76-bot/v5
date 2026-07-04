@@ -82,6 +82,7 @@ class MobileShellFeedService
                     ? $this->taskSlaService->isSlaBreached($task)
                     : false,
                 'responsible_name' => $task->responsible?->name,
+                'responsible_id' => $task->responsible_id ? (int) $task->responsible_id : null,
                 'lead_id' => $task->lead_id ? (int) $task->lead_id : null,
                 'lead_number' => $task->lead?->number,
                 'order_id' => $task->order_id ? (int) $task->order_id : null,

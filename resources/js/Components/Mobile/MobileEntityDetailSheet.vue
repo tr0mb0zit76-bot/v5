@@ -73,6 +73,14 @@
                     Прикрепить документ
                 </button>
                 <button
+                    v-if="entity?.kind === 'task' && entity?.responsibleId && entity.responsibleId !== currentUserId"
+                    type="button"
+                    class="w-full rounded-2xl border border-white/10 px-4 py-3 text-sm font-medium text-zinc-100 active:bg-white/10"
+                    @click="$emit('message-responsible', { userId: entity.responsibleId, name: entity.responsibleName })"
+                >
+                    Написать ответственному
+                </button>
+                <button
                     v-if="entity?.orderUrl"
                     type="button"
                     class="w-full rounded-2xl border border-white/10 px-4 py-3 text-sm font-medium text-zinc-100 active:bg-white/10"
@@ -116,9 +124,10 @@ defineProps({
     entity: { type: Object, default: null },
     orderSummary: { type: Object, default: null },
     loading: { type: Boolean, default: false },
+    currentUserId: { type: Number, default: null },
 });
 
-defineEmits(['close', 'share', 'upload-document']);
+defineEmits(['close', 'share', 'upload-document', 'message-responsible']);
 
 function iconForKind(kind) {
     if (kind === 'order') {

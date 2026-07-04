@@ -142,14 +142,6 @@
                     >
                         <Users class="h-5 w-5" />
                     </button>
-                    <button
-                        type="button"
-                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-zinc-200 active:bg-white/10"
-                        title="Обновить"
-                        @click="refreshActiveTab"
-                    >
-                        <RefreshCw class="h-4 w-4" />
-                    </button>
                 </div>
             </header>
 
@@ -464,6 +456,12 @@
                     >
                         {{ overdueTaskCount > 99 ? '99+' : overdueTaskCount }}
                     </span>
+                    <span
+                        v-if="tab.key === 'documents' && documentsAttentionCount > 0"
+                        class="absolute right-4 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white"
+                    >
+                        {{ documentsAttentionCount > 99 ? '99+' : documentsAttentionCount }}
+                    </span>
                 </button>
             </nav>
 
@@ -493,8 +491,10 @@
             :entity="detailEntity"
             :order-summary="detailOrderSummary"
             :loading="detailLoading"
+            :current-user-id="currentUserId"
             @close="closeDetailSheet"
             @share="beginShareFromDetail"
+            @message-responsible="openTaskResponsibleChat"
             @upload-document="openUploadWizardForOrder"
         />
 
@@ -510,7 +510,7 @@
 <script setup>
 import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
-import { ArrowLeft, CheckSquare, FileText, MessageCircle, Package, Phone, Plus, RefreshCw, Search, Send, Upload, Users } from 'lucide-vue-next';
+import { ArrowLeft, CheckSquare, FileText, MessageCircle, Package, Phone, Plus, Search, Send, Upload, Users } from 'lucide-vue-next';
 import { useMessenger } from '@/composables/useMessenger.js';
 import { useMessengerPolling } from '@/composables/useMessengerPolling.js';
 import { useMobileShell } from '@/composables/useMobileShell.js';
@@ -830,6 +830,8 @@ function openTaskDetail(task) {
             task.due_at ? { label: 'Срок', value: formatShortDate(task.due_at) } : null,
             task.contractor_name ? { label: 'Контрагент', value: task.contractor_name } : null,
         ].filter(Boolean),
+        responsibleId: task.responsible_id ?? null,
+        responsibleName: task.responsible_name ?? null,
     };
     detailOrderSummary.value = null;
     showDetailSheet.value = true;
@@ -896,6 +898,24 @@ function openRecentDetail(item) {
 function beginShareFromDetail(payload) {
     closeDetailSheet();
     beginShareToChat(payload);
+}
+
+async function openTaskResponsibleChat(payload) {
+    const userId = Number(payload?.userId);
+    if (!userId || userId === currentUserId.value) {
+        return;
+    }
+
+    closeDetailSheet();
+
+    const colleague = colleagues.value.find((row) => Number(row.id) === userId);
+    const user = colleague ?? {
+        id: userId,
+        name: payload?.name ?? 'Коллега',
+    };
+
+    activeTab.value = 'chats';
+    await openUserThread(user);
 }
 
 function toggleThreadActions() {
@@ -1018,6 +1038,8 @@ const filteredRecentDocuments = computed(() => {
         `${doc.label ?? ''} ${doc.url ?? ''}`.toLowerCase().includes(needle),
     );
 });
+
+const documentsAttentionCount = computed(() => attentionDocuments.value.length);
 
 function conversationTitle(conversation) {
     if (!conversation) {

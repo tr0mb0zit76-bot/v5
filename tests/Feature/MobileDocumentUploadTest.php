@@ -66,4 +66,32 @@ class MobileDocumentUploadTest extends TestCase
             'original_name' => 'scan-from-phone.pdf',
         ]);
     }
+
+    public function test_mobile_rejects_oversized_document_by_page_budget(): void
+    {
+        Storage::fake('local');
+        config([
+            'documents.bytes_per_page' => 100,
+            'documents.image_placeholder_pages' => 1,
+        ]);
+
+        $user = $this->createManagerUser();
+        $order = Order::factory()->create([
+            'manager_id' => $user->id,
+            'is_active' => true,
+        ]);
+
+        $file = UploadedFile::fake()->create('oversized-photo.jpg', 50, 'image/jpeg');
+
+        $this->actingAs($user)
+            ->postJson(route('documents.store'), [
+                'order_id' => $order->id,
+                'party' => 'customer',
+                'type' => 'other',
+                'status' => 'sent',
+                'file' => $file,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['file']);
+    }
 }

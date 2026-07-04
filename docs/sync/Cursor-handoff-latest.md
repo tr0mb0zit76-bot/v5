@@ -3,9 +3,30 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-04 18:35 · **Ветка:** `master` · **Контекст:** Mobile CRM shell phase 4–5 (upload polish + detail cards)
+**Обновлено:** 2026-07-04 19:00 · **Ветка:** `master` · **Контекст:** Mobile polish — FCM prod, upload budget/optimize, badges
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-07-04) — mobile polish + FCM prod
+
+### FCM на prod
+- В `.env` на проде исправлен placeholder: `FCM_CREDENTIALS=/var/www/www-root/data/www/avtoaliyans.ru/storage/app/firebase-service-account.json` (файл уже лежал в `storage/app/`).
+- **Локально:** замени `/path/to/service-account.json` на `storage/app/firebase-service-account.json` (положи туда JSON из Firebase Console → Service accounts).
+
+### Mobile upload — размер и оптимизация
+- `MobileDocumentUploadWizard`: перед выбором заказа — клиентская проверка лимита (`assessDocumentUploadBudget`, те же props `document_upload_limits` / `document_optimize`, что в desktop).
+- PDF, превышающий лимит при включённом OCR sidecar → bottom sheet `MobileDocumentOptimizeSheet` (серверная оптимизация через `documents.optimize-pdf`, как в desktop).
+- На бэкенде по-прежнему `DocumentWithinPageBudget` при `POST documents.store`.
+- Тест: `MobileDocumentUploadTest::test_mobile_rejects_oversized_document_by_page_budget`.
+
+### Прочий polish плана
+- Badge на вкладке **Документы** (число заказов «требуют внимания»).
+- Убрана дублирующая кнопка «Обновить» (остался pull-to-refresh).
+- В detail sheet задачи — **«Написать ответственному»** (`responsible_id` в mobile tasks API).
+
+- Проверка: `npm run build`, `php artisan test --compact tests/Feature/MobileDocumentUploadTest.php`.
 
 ---
 
