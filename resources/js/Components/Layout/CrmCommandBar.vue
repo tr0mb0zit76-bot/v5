@@ -9,16 +9,21 @@
         <Teleport to="body">
             <div
                 v-if="chatPanelOpen"
-                class="fixed inset-x-0 top-0 z-[90] flex flex-col bg-zinc-950/50 dark:bg-zinc-950/70"
+                class="fixed inset-0 z-[90] flex flex-col bg-zinc-950/50 p-4 dark:bg-zinc-950/70"
                 :style="{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }"
                 @click.self="closeChatPanel"
             >
                 <div
-                    class="mx-auto mt-auto flex h-[min(52vh,480px)] w-full max-w-4xl flex-col rounded-t-3xl border border-b-0 border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+                    class="mx-auto mt-auto flex h-[min(78vh,760px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
                     @click.stop
                 >
                     <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Чаты</div>
+                        <div>
+                            <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Мессенджер</div>
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                                {{ messengerUnread > 0 ? `Непрочитано: ${messengerUnread}` : 'Все сообщения прочитаны' }}
+                            </div>
+                        </div>
                         <div class="flex flex-wrap items-center gap-2">
                             <button
                                 type="button"
@@ -49,7 +54,7 @@
                     <div v-if="showColleaguePicker" class="max-h-40 overflow-y-auto border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
                         <div v-if="colleaguesLoading" class="py-4 text-center text-xs text-zinc-500">Загрузка…</div>
                         <button
-                            v-for="u in colleagues"
+                            v-for="u in filteredPanelColleagues"
                             v-else
                             :key="u.id"
                             type="button"
@@ -92,44 +97,78 @@
                     </div>
 
                     <div class="flex min-h-0 flex-1 overflow-hidden">
-                        <div class="w-[38%] max-w-[220px] shrink-0 overflow-y-auto border-r border-zinc-100 dark:border-zinc-800">
+                        <div class="flex w-80 shrink-0 flex-col border-r border-zinc-100 bg-zinc-50/80 dark:border-zinc-800 dark:bg-zinc-950/30">
+                            <div class="shrink-0 border-b border-zinc-100 p-3 dark:border-zinc-800">
+                                <div class="relative">
+                                    <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                                    <input
+                                        v-model="messengerSearch"
+                                        type="search"
+                                        class="w-full rounded-xl border border-zinc-200 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-sky-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                                        placeholder="Поиск чатов и коллег"
+                                    >
+                                </div>
+                            </div>
+                            <div class="min-h-0 flex-1 overflow-y-auto">
                             <div v-if="conversationsLoading" class="p-4 text-center text-xs text-zinc-500">…</div>
                             <button
-                                v-for="c in conversations"
+                                v-for="c in filteredPanelConversations"
                                 v-else
                                 :key="c.id"
                                 type="button"
-                                class="flex w-full flex-col gap-0.5 border-b border-zinc-50 px-3 py-2.5 text-left text-xs hover:bg-zinc-50 dark:border-zinc-800/80 dark:hover:bg-zinc-800/60"
-                                :class="Number(activeConversationId) === Number(c.id) ? 'bg-zinc-100 dark:bg-zinc-800' : ''"
+                                class="flex w-full items-start gap-3 border-b border-zinc-100 px-3 py-3 text-left text-xs hover:bg-white dark:border-zinc-800/80 dark:hover:bg-zinc-800/60"
+                                :class="Number(activeConversationId) === Number(c.id) ? 'bg-white dark:bg-zinc-800' : ''"
                                 @click="selectConversation(c)"
                             >
-                                <div class="flex items-center justify-between gap-1">
-                                    <span class="truncate font-medium text-zinc-900 dark:text-zinc-100">
+                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sm font-bold text-sky-800 dark:bg-sky-950 dark:text-sky-200">
+                                    {{ conversationTitle(c).slice(0, 1).toUpperCase() }}
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="truncate font-medium text-zinc-900 dark:text-zinc-100">
                                         <span v-if="c.type === 'group'" class="inline-flex items-center gap-1">
                                             <Users class="h-3 w-3 shrink-0 opacity-70" />
                                             {{ c.title || 'Группа' }}
                                         </span>
-                                        <span v-else>{{ c.other_user?.name || 'Чат' }}</span>
+                                            <span v-else>{{ c.other_user?.name || 'Чат' }}</span>
                                     </span>
-                                    <span
-                                        v-if="c.unread_count > 0"
-                                        class="flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white"
-                                    >
-                                        {{ c.unread_count > 99 ? '99+' : c.unread_count }}
-                                    </span>
+                                        <span class="ml-auto shrink-0 text-[10px] text-zinc-400">{{ formatConversationTime(c.updated_at) }}</span>
+                                    </div>
+                                    <div class="mt-1 flex items-center gap-2">
+                                        <p class="min-w-0 flex-1 truncate text-[11px] text-zinc-500 dark:text-zinc-400">
+                                            {{ conversationPreview(c) }}
+                                        </p>
+                                        <span
+                                            v-if="c.unread_count > 0"
+                                            class="flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white"
+                                        >
+                                            {{ c.unread_count > 99 ? '99+' : c.unread_count }}
+                                        </span>
+                                    </div>
                                 </div>
                             </button>
-                            <div v-if="!conversationsLoading && conversations.length === 0" class="p-4 text-center text-xs text-zinc-500">
-                                Нет диалогов. Нажмите «Новый чат».
+                            <div v-if="!conversationsLoading && filteredPanelConversations.length === 0" class="p-4 text-center text-xs text-zinc-500">
+                                {{ messengerSearch.trim() ? 'Ничего не найдено.' : 'Нет диалогов. Нажмите «Новый чат».' }}
+                            </div>
                             </div>
                         </div>
 
-                        <div ref="threadRef" class="min-w-0 flex-1 overflow-y-auto bg-zinc-50/80 p-3 dark:bg-zinc-950/50">
-                            <div v-if="!activeConversationId" class="flex h-full items-center justify-center text-center text-sm text-zinc-500">
-                                Выберите диалог слева или создайте новый.
+                        <div class="flex min-w-0 flex-1 flex-col">
+                            <div v-if="activeConversationId" class="flex shrink-0 items-center justify-between border-b border-zinc-100 px-5 py-3 dark:border-zinc-800">
+                                <div class="min-w-0">
+                                    <div class="truncate font-semibold text-zinc-900 dark:text-zinc-50">{{ activeConversationTitle }}</div>
+                                    <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                                        {{ activeConversation?.type === 'group' ? `${activeConversation.member_count} участников` : 'Личный чат' }}
+                                    </div>
+                                </div>
                             </div>
-                            <div v-else-if="threadLoading" class="py-8 text-center text-xs text-zinc-500">Загрузка сообщений…</div>
-                            <div v-else class="space-y-3">
+
+                            <div ref="threadRef" class="min-w-0 flex-1 overflow-y-auto bg-zinc-50/80 p-4 dark:bg-zinc-950/50">
+                                <div v-if="!activeConversationId" class="flex h-full items-center justify-center text-center text-sm text-zinc-500">
+                                    Выберите диалог слева или создайте новый.
+                                </div>
+                                <div v-else-if="threadLoading" class="py-8 text-center text-xs text-zinc-500">Загрузка сообщений…</div>
+                                <div v-else class="space-y-3">
                                 <div
                                     v-if="activeConversation?.type === 'group'"
                                     class="rounded-xl border border-zinc-200 bg-white/90 px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-900/90"
@@ -193,12 +232,13 @@
                                     </div>
                                 </div>
                             </div>
+                            </div>
                         </div>
                     </div>
 
                     <div
                         v-if="activeConversationId"
-                        class="shrink-0 space-y-2 border-t border-zinc-200 bg-zinc-50/95 p-3 dark:border-zinc-800 dark:bg-zinc-900/95"
+                        class="ml-80 shrink-0 space-y-2 border-t border-zinc-200 bg-zinc-50/95 p-3 dark:border-zinc-800 dark:bg-zinc-900/95"
                     >
                         <div
                             v-if="activeConversation?.type === 'group'"
@@ -586,6 +626,7 @@ const activeConversation = ref(null);
 const threadMessages = ref([]);
 const threadLoading = ref(false);
 const messengerUnread = ref(0);
+const messengerSearch = ref('');
 const messengerSendError = ref('');
 const groupRecipientId = ref('');
 const showDocumentChips = ref(false);
@@ -604,9 +645,71 @@ function conversationRouteParams(id) {
     return { conversation: id };
 }
 
+function conversationTitle(conversation) {
+    if (!conversation) {
+        return '';
+    }
+
+    if (conversation.type === 'group') {
+        return conversation.title || 'Группа';
+    }
+
+    return conversation.other_user?.name || 'Чат';
+}
+
+function conversationPreview(conversation) {
+    const body = conversation?.last_message?.body;
+    if (!body) {
+        return 'Сообщений пока нет';
+    }
+
+    return String(body).replace(/\s+/g, ' ');
+}
+
+function formatConversationTime(value) {
+    if (!value) {
+        return '';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(date);
+}
+
 const currentUserId = computed(() => page.props.auth?.user?.id ?? null);
 
 const isChatInputMode = computed(() => chatPanelOpen.value && activeConversationId.value !== null);
+
+const activeConversationTitle = computed(() => conversationTitle(activeConversation.value));
+
+const filteredPanelConversations = computed(() => {
+    const needle = messengerSearch.value.trim().toLowerCase();
+    if (needle === '') {
+        return conversations.value;
+    }
+
+    return conversations.value.filter((conversation) =>
+        conversationTitle(conversation).toLowerCase().includes(needle)
+        || conversationPreview(conversation).toLowerCase().includes(needle),
+    );
+});
+
+const filteredPanelColleagues = computed(() => {
+    const needle = messengerSearch.value.trim().toLowerCase();
+    if (needle === '') {
+        return colleagues.value;
+    }
+
+    return colleagues.value.filter((user) =>
+        `${user.name ?? ''} ${user.email ?? ''}`.toLowerCase().includes(needle),
+    );
+});
 
 const groupMemberOptions = computed(() => {
     const list = activeConversation.value?.group_members;

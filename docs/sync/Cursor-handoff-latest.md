@@ -3,9 +3,29 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-04 10:25 · **Ветка:** `master` · **Контекст:** мобильный login для APK + Android emulator
+**Обновлено:** 2026-07-04 10:51 · **Ветка:** `master` · **Контекст:** Messenger UX redesign + prod assets
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-07-04) — Messenger UX redesign
+
+- Добавлен общий клиентский composable `resources/js/composables/useMessenger.js`: загрузка диалогов/коллег, открытие direct-чата, загрузка thread, отправка сообщений, unread/error/loading state.
+- `resources/js/Pages/Mobile/Messenger.vue` перестроен под mobile-native сценарий: экран списка диалогов и коллег → отдельный экран диалога с кнопкой назад, шапкой чата и закреплённым composer.
+- `resources/js/Components/Layout/CrmCommandBar.vue`: web-панель мессенджера расширена до desktop split-view: слева поиск/список диалогов с preview/time/unread, справа выбранный чат с шапкой и сообщениями.
+- `capacitor.config.json` снова стартует с `https://crm.avtoaliyans.ru/mobile/messenger`: guest попадает на `/mobile/login`, авторизованный пользователь сразу в чат, без редиректа в обычную CRM.
+- Проверка: `php artisan route:list --path=messenger --except-vendor`, `php artisan route:list --path=mobile --except-vendor`, `npm run build`, `npm run cap:sync:android`, `android\gradlew.bat assembleDebug`.
+- Prod: выложен свежий `public/build` на `/var/www/www-root/data/www/avtoaliyans.ru/public/build`; backup старой сборки `public/build.backup-20260704-1048`; права `www-root:www-root`, dirs `755`.
+- Smoke: APK в эмуляторе после force-stop показывает новый mobile list-screen (`Автоальянс Чат`, поиск чатов и коллег, список коллег), без старого split-view.
+
+### Checkpoint перед большой переделкой
+
+- Текущая рабочая версия мессенджера фиксируется как точка возврата: mobile list → thread, CRM desktop split-view, общий `useMessenger`, APK стартует с `/mobile/messenger`.
+- Git checkpoint: commit `Checkpoint mobile messenger UX` + tag `messenger-mobile-checkpoint-20260704` (создать в этой сессии).
+- Откат к checkpoint в коде: `git checkout messenger-mobile-checkpoint-20260704` или cherry-pick/revert поверх текущей ветки по ситуации.
+- Откат prod assets: на сервере `cd /var/www/www-root/data/www/avtoaliyans.ru && rm -rf public/build && cp -a public/build.backup-20260704-1048 public/build && chown -R www-root:www-root public/build && chmod -R 755 public/build`.
+- Мелкие v2-идеи (телефоны, звонок, groups UI, document chips в mobile, убрать заголовок/refresh) не делать отдельными правками до проектирования новой мобильной CRM-оболочки.
 
 ---
 

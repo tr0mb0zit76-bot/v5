@@ -3,7 +3,7 @@
   "appName": "Автоальянс Чат",
   "webDir": "public",
   "server": {
-    "url": "https://crm.avtoaliyans.ru/mobile/login",
+    "url": "https://crm.avtoaliyans.ru/mobile/messenger",
     "cleartext": false,
     "allowNavigation": [
       "crm.avtoaliyans.ru",

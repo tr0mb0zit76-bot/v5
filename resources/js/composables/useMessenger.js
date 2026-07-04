@@ -1,0 +1,182 @@
+import axios from 'axios';
+import { nextTick, ref } from 'vue';
+
+export function useMessenger({ scrollTarget = null } = {}) {
+    const conversations = ref([]);
+    const colleagues = ref([]);
+    const messages = ref([]);
+    const activeConversation = ref(null);
+    const activeConversationId = ref(null);
+    const unreadCount = ref(0);
+    const conversationsLoading = ref(false);
+    const colleaguesLoading = ref(false);
+    const threadLoading = ref(false);
+    const sending = ref(false);
+    const error = ref('');
+
+    function syncActiveConversationFromList() {
+        if (activeConversationId.value === null) {
+            return;
+        }
+
+        activeConversation.value = conversations.value.find(
+            (conversation) => Number(conversation.id) === Number(activeConversationId.value),
+        ) ?? activeConversation.value;
+    }
+
+    async function loadConversations() {
+        conversationsLoading.value = true;
+
+        try {
+            const { data } = await axios.get(route('messenger.conversations.index'), {
+                headers: { Accept: 'application/json' },
+            });
+            conversations.value = data.conversations ?? [];
+            unreadCount.value = data.unread_count ?? 0;
+            syncActiveConversationFromList();
+        } finally {
+            conversationsLoading.value = false;
+        }
+    }
+
+    async function loadColleagues() {
+        colleaguesLoading.value = true;
+
+        try {
+            const { data } = await axios.get(route('messenger.colleagues'), {
+                headers: { Accept: 'application/json' },
+            });
+            colleagues.value = data.users ?? [];
+        } finally {
+            colleaguesLoading.value = false;
+        }
+    }
+
+    async function loadThread(conversationId) {
+        threadLoading.value = true;
+        messages.value = [];
+
+        try {
+            const { data } = await axios.get(route('messenger.conversations.messages', { conversation: conversationId }), {
+                headers: { Accept: 'application/json' },
+            });
+            messages.value = data.messages ?? [];
+            await loadConversations();
+            scrollToBottom();
+        } finally {
+            threadLoading.value = false;
+        }
+    }
+
+    async function selectConversation(conversation) {
+        error.value = '';
+        activeConversation.value = conversation;
+        activeConversationId.value = Number(conversation.id);
+        await loadThread(Number(conversation.id));
+    }
+
+    async function openDirect(user) {
+        error.value = '';
+
+        try {
+            const { data } = await axios.post(route('messenger.conversations.open'), {
+                user_id: user.id,
+            }, {
+                headers: { Accept: 'application/json' },
+            });
+
+            await loadConversations();
+
+            if (data.conversation) {
+                await selectConversation(data.conversation);
+            }
+        } catch (exception) {
+            const message = exception.response?.data?.message ?? exception.response?.data?.errors?.user_id?.[0];
+            error.value = typeof message === 'string' ? message : 'Не удалось открыть чат.';
+            throw exception;
+        }
+    }
+
+    async function sendMessage(body, payload = {}) {
+        const text = String(body ?? '').trim();
+        if (!activeConversation.value || text === '') {
+            return null;
+        }
+
+        sending.value = true;
+        error.value = '';
+
+        try {
+            const { data } = await axios.post(route('messenger.conversations.messages.store', {
+                conversation: activeConversation.value.id,
+            }), {
+                body: text,
+                ...payload,
+            }, {
+                headers: { Accept: 'application/json' },
+            });
+
+            if (data.message) {
+                messages.value = [...messages.value, data.message];
+            }
+
+            await loadConversations();
+            scrollToBottom();
+
+            return data.message ?? null;
+        } catch (exception) {
+            const message = exception.response?.data?.message ?? exception.response?.data?.errors?.body?.[0];
+            error.value = typeof message === 'string' ? message : 'Не удалось отправить сообщение.';
+            throw exception;
+        } finally {
+            sending.value = false;
+        }
+    }
+
+    async function reloadAll() {
+        await Promise.all([loadConversations(), loadColleagues()]);
+
+        if (activeConversation.value) {
+            await selectConversation(activeConversation.value);
+        }
+    }
+
+    function clearActiveConversation() {
+        activeConversation.value = null;
+        activeConversationId.value = null;
+        messages.value = [];
+        error.value = '';
+    }
+
+    function scrollToBottom() {
+        nextTick(() => {
+            const target = typeof scrollTarget === 'function' ? scrollTarget() : scrollTarget?.value;
+            if (target) {
+                target.scrollTop = target.scrollHeight;
+            }
+        });
+    }
+
+    return {
+        conversations,
+        colleagues,
+        messages,
+        activeConversation,
+        activeConversationId,
+        unreadCount,
+        conversationsLoading,
+        colleaguesLoading,
+        threadLoading,
+        sending,
+        error,
+        loadConversations,
+        loadColleagues,
+        loadThread,
+        selectConversation,
+        openDirect,
+        sendMessage,
+        reloadAll,
+        clearActiveConversation,
+        scrollToBottom,
+    };
+}
