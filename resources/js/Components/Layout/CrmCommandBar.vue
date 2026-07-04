@@ -550,6 +550,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import CrmNotificationBell from '@/Components/Layout/CrmNotificationBell.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { formatConversationPreview } from '@/support/messengerConversationText.js';
 import { crmBtnCreate, crmBtnPrimary, crmFieldFluid } from '@/support/crmUi.js';
 import {
     ClipboardList,
@@ -658,12 +659,7 @@ function conversationTitle(conversation) {
 }
 
 function conversationPreview(conversation) {
-    const body = conversation?.last_message?.body;
-    if (!body) {
-        return 'Сообщений пока нет';
-    }
-
-    return String(body).replace(/\s+/g, ' ');
+    return formatConversationPreview(conversation, currentUserId.value);
 }
 
 function formatConversationTime(value) {

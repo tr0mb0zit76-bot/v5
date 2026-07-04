@@ -234,7 +234,7 @@ class CabinetNotifier
             if ($recipients->isNotEmpty()) {
                 $conversationTitle = $conversation->type === 'group'
                     ? ($conversation->title ?: 'Групповой чат')
-                    : 'Личный чат';
+                    : $author->name;
                 $body = sprintf('%s: %s', $author->name, mb_strimwidth((string) $message->body, 0, 160, '…'));
                 $actionUrl = '/?messenger_conversation='.$conversation->id;
                 $notification = new CabinetInAppNotification(

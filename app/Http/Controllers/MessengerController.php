@@ -290,6 +290,7 @@ class MessengerController extends Controller
                 'name' => $other->name,
             ],
             'last_message' => $latest === null ? null : [
+                'user_id' => $latest->user_id,
                 'body' => Str::limit((string) $latest->body, 120),
                 'created_at' => $latest->created_at?->toIso8601String(),
                 'author_name' => $latest->author?->name,

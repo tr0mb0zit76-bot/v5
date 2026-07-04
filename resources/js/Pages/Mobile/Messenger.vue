@@ -15,7 +15,7 @@
                 <div class="min-w-0 flex-1">
                     <div class="truncate text-base font-semibold">{{ conversationTitle(activeConversation) }}</div>
                     <div class="truncate text-xs text-zinc-400">
-                        {{ activeConversation?.type === 'group' ? `${activeConversation.member_count} участников` : 'Личный чат' }}
+                        {{ threadSubtitle(activeConversation) }}
                     </div>
                 </div>
             </header>
@@ -26,14 +26,22 @@
                     v-for="message in messages"
                     v-else
                     :key="message.id"
-                    class="flex"
+                    class="flex gap-2"
                     :class="message.user_id === currentUserId ? 'justify-end' : 'justify-start'"
                 >
+                    <AvatarBubble
+                        v-if="message.user_id !== currentUserId"
+                        :label="message.author_name ?? '?'"
+                        small
+                    />
                     <div
                         class="max-w-[84%] rounded-2xl px-3 py-2 text-sm shadow-sm"
                         :class="message.user_id === currentUserId ? 'rounded-br-md bg-sky-600 text-white' : 'rounded-bl-md bg-white/10 text-zinc-100'"
                     >
-                        <div v-if="message.user_id !== currentUserId" class="mb-1 text-[11px] font-semibold text-sky-200">
+                        <div
+                            v-if="shouldShowMessageAuthor(message)"
+                            class="mb-1 text-[11px] font-semibold text-sky-300"
+                        >
                             {{ message.author_name ?? 'Пользователь' }}
                         </div>
                         <p class="whitespace-pre-wrap break-words">
@@ -145,6 +153,13 @@
                     </button>
                 </div>
             </header>
+
+            <div
+                v-if="unreadSendersHint"
+                class="shrink-0 border-b border-sky-500/30 bg-sky-950/60 px-4 py-2 text-xs font-medium text-sky-200"
+            >
+                {{ unreadSendersHint }}
+            </div>
 
             <main class="min-h-0 flex-1 overflow-y-auto pb-2">
                 <section v-if="activeTab === 'chats'" class="min-h-full">
@@ -407,6 +422,7 @@ import { useMobileShell } from '@/composables/useMobileShell.js';
 import MobileDocumentUploadWizard from '@/Components/Mobile/MobileDocumentUploadWizard.vue';
 import MobileEntityPicker from '@/Components/Mobile/MobileEntityPicker.vue';
 import { previewForCrmUrl, splitMessageSegments } from '@/support/mobileMessageLinks.js';
+import { formatConversationPreview, formatUnreadSendersHint } from '@/support/messengerConversationText.js';
 import { registerMobilePushIfAvailable } from '@/support/mobilePush.js';
 
 const AvatarBubble = defineComponent({
@@ -528,6 +544,11 @@ async function handleDocumentUploaded(document) {
 
 const activeTabLabel = computed(() => tabs.find((tab) => tab.key === activeTab.value)?.label ?? 'Раздел');
 
+const unreadSendersHint = computed(() => formatUnreadSendersHint(
+    conversations.value,
+    conversationTitle,
+));
+
 const filteredConversations = computed(() => {
     const needle = search.value.trim().toLowerCase();
     if (needle === '') {
@@ -599,12 +620,23 @@ function conversationTitle(conversation) {
 }
 
 function conversationPreview(conversation) {
-    const body = conversation?.last_message?.body;
-    if (!body) {
-        return 'Сообщений пока нет';
+    return formatConversationPreview(conversation, currentUserId.value);
+}
+
+function threadSubtitle(conversation) {
+    if (!conversation) {
+        return '';
     }
 
-    return String(body).replace(/\s+/g, ' ');
+    if (conversation.type === 'group') {
+        return `${conversation.member_count} участников`;
+    }
+
+    return 'Личное сообщение';
+}
+
+function shouldShowMessageAuthor(message) {
+    return Number(message?.user_id) !== Number(currentUserId.value);
 }
 
 function formatShortTime(value) {

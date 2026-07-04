@@ -60,7 +60,7 @@ class MessengerTest extends TestCase
 
     public function test_user_can_send_message_and_other_sees_unread(): void
     {
-        $a = User::factory()->create();
+        $a = User::factory()->create(['name' => 'Cursor Bot']);
         $b = User::factory()->create();
 
         $open = $this->actingAs($a)->postJson(route('messenger.conversations.open'), [
@@ -71,15 +71,19 @@ class MessengerTest extends TestCase
 
         $this->actingAs($a)->postJson(route('messenger.conversations.messages.store', $conversationId), [
             'body' => 'Привет из теста',
-        ])->assertOk();
+        ])->assertOk()
+            ->assertJsonPath('message.author_name', 'Cursor Bot');
 
         $this->actingAs($b)->getJson(route('messenger.conversations.index'))
             ->assertOk()
-            ->assertJsonPath('conversations.0.unread_count', 1);
+            ->assertJsonPath('conversations.0.unread_count', 1)
+            ->assertJsonPath('conversations.0.last_message.author_name', 'Cursor Bot')
+            ->assertJsonPath('conversations.0.last_message.user_id', $a->id);
 
         $this->actingAs($b)->getJson(route('messenger.conversations.messages', $conversationId))
             ->assertOk()
-            ->assertJsonPath('messages.0.body', 'Привет из теста');
+            ->assertJsonPath('messages.0.body', 'Привет из теста')
+            ->assertJsonPath('messages.0.author_name', 'Cursor Bot');
 
         $this->actingAs($b)->getJson(route('messenger.conversations.index'))
             ->assertOk()
@@ -106,6 +110,7 @@ class MessengerTest extends TestCase
         $this->assertNotNull($notification);
         $this->assertSame('cabinet', $notification->type);
         $this->assertSame('chat_message', $notification->data['kind']);
+        $this->assertSame($a->name, $notification->data['title']);
         $this->assertSame($conversationId, $notification->data['payload']['conversation_id']);
         $this->assertSame((int) $message->json('message.id'), $notification->data['payload']['message_id']);
         $this->assertSame(0, $a->fresh()->notifications()->count());
