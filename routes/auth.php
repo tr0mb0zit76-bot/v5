@@ -16,6 +16,12 @@ Route::middleware('guest')->group(function () {
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
 
+    Route::get('mobile/login', [AuthenticatedSessionController::class, 'createMobile'])
+        ->name('mobile.login');
+
+    Route::post('mobile/login', [AuthenticatedSessionController::class, 'storeMobile'])
+        ->name('mobile.login.store');
+
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
 

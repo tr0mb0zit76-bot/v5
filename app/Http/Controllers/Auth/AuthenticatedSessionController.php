@@ -24,6 +24,13 @@ class AuthenticatedSessionController extends Controller
         ]);
     }
 
+    public function createMobile(): Response
+    {
+        return Inertia::render('Mobile/Login', [
+            'status' => session('status'),
+        ]);
+    }
+
     /**
      * Handle an incoming authentication request.
      */
@@ -34,6 +41,15 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         return redirect()->intended(route('dashboard', absolute: false));
+    }
+
+    public function storeMobile(LoginRequest $request): RedirectResponse
+    {
+        $request->authenticate();
+
+        $request->session()->regenerate();
+
+        return redirect()->intended(route('mobile.messenger.app', absolute: false));
     }
 
     /**

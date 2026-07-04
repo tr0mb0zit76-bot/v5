@@ -3,9 +3,27 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-03 22:45 · **Ветка:** `master` · **Код APK:** `f5422e2` · **Контекст:** мобильный API мессенджера + Android APK-обёртка
+**Обновлено:** 2026-07-04 10:25 · **Ветка:** `master` · **Контекст:** мобильный login для APK + Android emulator
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-07-04) — APK login и эмулятор
+
+- Причина 404 в APK: `capacitor.config.json` открывал защищённый `/mobile/messenger`, а новый WebView без web-session/cookies попадал в auth redirect; отдельного mobile login route на проде ещё не было.
+- Добавлен mobile login flow:
+  - `GET /mobile/login` → `Mobile/Login.vue`.
+  - `POST /mobile/login` → обычный Laravel session-auth, затем redirect intended `/mobile/messenger`.
+  - гости на `/mobile/*` редиректятся на `/mobile/login`.
+  - `capacitor.config.json` стартует с `https://crm.avtoaliyans.ru/mobile/login`.
+- Проверка локально: `vendor\bin\pint --dirty --format agent`, `php artisan route:list --path=mobile --except-vendor`, `php artisan test --compact tests\Feature\Auth\AuthenticationTest.php`, `npm run cap:sync:android`, `android\gradlew.bat assembleDebug` — успешно.
+- APK: `android/app/build/outputs/apk/debug/app-debug.apk`.
+- Android SDK на этом ПК: `C:\AndroidSDK`; `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr`; создан AVD `Avtoalyans_API_36`.
+
+### Следующий шаг
+
+- После push/deploy проверить `https://crm.avtoaliyans.ru/mobile/login` (должен быть 200), затем переустановить свежий APK на телефон.
 
 ---
 

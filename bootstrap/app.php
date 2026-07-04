@@ -30,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
+        $middleware->redirectGuestsTo(fn (Request $request): string => $request->is('mobile/*') ? '/mobile/login' : '/login');
 
         $middleware->alias([
             'visibility.area' => EnsureVisibilityAreaAccess::class,
