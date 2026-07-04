@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateOrderTrackReceivedRequest;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Services\DocumentStorageService;
+use App\Services\Mobile\MobileEntityChipService;
 use App\Services\OrderClosingDocumentsNotificationService;
 use App\Services\OrderCompensationService;
 use App\Services\Orders\OrderInlineFieldUpdateService;
@@ -148,7 +149,7 @@ class DocumentRegistryController extends Controller
             'entity_id' => $order->id,
         ];
 
-        OrderDocument::query()->create($attributes);
+        $document = OrderDocument::query()->create($attributes);
 
         $this->orderCompensationService->recalculateImpactedPeriods($order);
         $this->closingDocumentsNotificationService->maybeNotify($order->fresh());
@@ -156,7 +157,11 @@ class DocumentRegistryController extends Controller
         $message = 'Документ добавлен в реестр и карточку заказа.';
 
         if ($request->expectsJson()) {
-            return response()->json(['ok' => true, 'message' => $message]);
+            return response()->json([
+                'ok' => true,
+                'message' => $message,
+                'document' => app(MobileEntityChipService::class)->chipFromOrderDocument($document, $order),
+            ]);
         }
 
         return to_route('documents.index')->with('flash', [

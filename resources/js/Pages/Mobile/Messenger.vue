@@ -36,7 +36,23 @@
                         <div v-if="message.user_id !== currentUserId" class="mb-1 text-[11px] font-semibold text-sky-200">
                             {{ message.author_name ?? 'Пользователь' }}
                         </div>
-                        <p class="whitespace-pre-wrap break-words">{{ message.body }}</p>
+                        <p class="whitespace-pre-wrap break-words">
+                            <template v-for="(segment, segmentIndex) in splitMessageSegments(message.body)" :key="`${message.id}-${segmentIndex}`">
+                                <template v-if="segment.type === 'url'">
+                                    <div
+                                        v-if="previewForCrmUrl(segment.value)"
+                                        class="mb-2 rounded-xl border border-white/15 bg-black/20 px-2 py-1.5 text-[11px]"
+                                    >
+                                        <div class="font-semibold uppercase tracking-wide text-sky-200">
+                                            {{ previewForCrmUrl(segment.value).label }}
+                                        </div>
+                                        <a :href="segment.value" class="mt-1 block break-all underline opacity-90">{{ segment.value }}</a>
+                                    </div>
+                                    <a v-else :href="segment.value" class="break-all underline">{{ segment.value }}</a>
+                                </template>
+                                <span v-else>{{ segment.value }}</span>
+                            </template>
+                        </p>
                         <div class="mt-1 text-right text-[10px] opacity-70">{{ formatMessageTime(message.created_at) }}</div>
                     </div>
                 </div>
@@ -69,42 +85,33 @@
             </form>
 
             <div
-                v-if="showThreadActions"
+                v-if="showThreadMenu"
                 class="absolute inset-0 z-30 flex flex-col justify-end bg-black/60"
-                @click.self="showThreadActions = false"
+                @click.self="showThreadMenu = false"
             >
-                <div class="max-h-[70dvh] overflow-hidden rounded-t-3xl border border-white/10 bg-zinc-900">
-                    <div class="border-b border-white/10 px-4 py-3">
-                        <div class="text-sm font-semibold text-zinc-100">Вставить ссылку на документ</div>
-                        <div class="relative mt-3">
-                            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                            <input
-                                v-model="documentChipSearch"
-                                class="w-full rounded-2xl border border-white/10 bg-zinc-950 py-2.5 pl-10 pr-3 text-sm text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-sky-500"
-                                placeholder="Номер заказа, id, тип…"
-                                @input="onDocumentChipSearchInput"
-                            />
-                        </div>
-                    </div>
-                    <div class="max-h-80 overflow-y-auto py-1">
-                        <div v-if="documentChipsLoading" class="px-4 py-6 text-center text-sm text-zinc-500">Загрузка…</div>
-                        <button
-                            v-for="doc in documentChips"
-                            v-else
-                            :key="`thread-doc-${doc.id}`"
-                            type="button"
-                            class="flex w-full flex-col gap-1 px-4 py-3 text-left active:bg-white/10"
-                            @click="insertDocumentChip(doc)"
-                        >
-                            <span class="text-sm font-medium text-zinc-100">{{ doc.label }}</span>
-                            <span class="truncate text-xs text-zinc-500">{{ doc.url }}</span>
-                        </button>
-                        <div v-if="!documentChipsLoading && documentChips.length === 0" class="px-4 py-6 text-center text-sm text-zinc-500">
-                            Документы не найдены.
-                        </div>
-                    </div>
+                <div class="rounded-t-3xl border border-white/10 bg-zinc-900 p-3">
+                    <button
+                        type="button"
+                        class="flex w-full rounded-2xl px-4 py-3 text-left text-sm font-medium text-zinc-100 active:bg-white/10"
+                        @click="openEntityPicker"
+                    >
+                        Ссылка на заказ, лид, контрагента…
+                    </button>
+                    <button
+                        type="button"
+                        class="mt-2 flex w-full rounded-2xl px-4 py-3 text-left text-sm font-medium text-zinc-100 active:bg-white/10"
+                        @click="openUploadWizard"
+                    >
+                        Прикрепить файл к заказу
+                    </button>
                 </div>
             </div>
+
+            <MobileEntityPicker
+                :open="showEntityPicker"
+                @close="showEntityPicker = false"
+                @select="insertEntityChip"
+            />
             </div>
         </template>
 
@@ -239,6 +246,13 @@
                 </section>
 
                 <section v-else-if="activeTab === 'documents'" class="space-y-4 p-4">
+                    <button
+                        type="button"
+                        class="w-full rounded-3xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white active:bg-sky-500"
+                        @click="openUploadWizard"
+                    >
+                        Добавить документ с телефона
+                    </button>
                     <div v-if="documentsLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка документов…</div>
                     <template v-else>
                         <div v-if="attentionDocuments.length" class="space-y-2">
@@ -365,7 +379,21 @@
                     </span>
                 </button>
             </nav>
+
         </template>
+
+        <MobileDocumentUploadWizard
+            :open="showUploadWizard"
+            @close="showUploadWizard = false"
+            @uploaded="handleDocumentUploaded"
+        />
+
+        <MobileEntityPicker
+            v-if="screen !== 'thread'"
+            :open="showEntityPicker"
+            @close="showEntityPicker = false"
+            @select="insertEntityChip"
+        />
     </div>
 </template>
 
@@ -376,6 +404,9 @@ import { ArrowLeft, CheckSquare, FileText, MessageCircle, Package, Phone, Plus, 
 import { useMessenger } from '@/composables/useMessenger.js';
 import { useMessengerPolling } from '@/composables/useMessengerPolling.js';
 import { useMobileShell } from '@/composables/useMobileShell.js';
+import MobileDocumentUploadWizard from '@/Components/Mobile/MobileDocumentUploadWizard.vue';
+import MobileEntityPicker from '@/Components/Mobile/MobileEntityPicker.vue';
+import { previewForCrmUrl, splitMessageSegments } from '@/support/mobileMessageLinks.js';
 import { registerMobilePushIfAvailable } from '@/support/mobilePush.js';
 
 const AvatarBubble = defineComponent({
@@ -406,11 +437,9 @@ const showGroupComposer = ref(false);
 const groupTitle = ref('');
 const groupMemberIds = ref([]);
 const groupCreating = ref(false);
-const showThreadActions = ref(false);
-const documentChips = ref([]);
-const documentChipsLoading = ref(false);
-const documentChipSearch = ref('');
-let documentChipSearchTimer = null;
+const showThreadMenu = ref(false);
+const showEntityPicker = ref(false);
+const showUploadWizard = ref(false);
 
 const tabs = [
     { key: 'chats', label: 'Чаты', icon: MessageCircle },
@@ -435,7 +464,6 @@ const {
     error: messengerError,
     loadColleagues,
     reloadAll,
-    loadDocumentChips,
     selectConversation,
     openDirect,
     createGroup,
@@ -454,7 +482,49 @@ const {
     documentsLoading,
     shellError,
     loadTab,
+    loadDocuments,
 } = useMobileShell();
+
+function insertUrlIntoComposer(url) {
+    const current = messageBody.value;
+    const separator = current && !current.endsWith('\n') && !current.endsWith(' ') ? ' ' : '';
+
+    messageBody.value = `${current}${separator}${url} `;
+}
+
+function insertEntityChip(entity) {
+    if (!entity?.url) {
+        return;
+    }
+
+    insertUrlIntoComposer(entity.url);
+    showEntityPicker.value = false;
+    showThreadMenu.value = false;
+}
+
+function openEntityPicker() {
+    showThreadMenu.value = false;
+    showEntityPicker.value = true;
+}
+
+function openUploadWizard() {
+    showThreadMenu.value = false;
+    showUploadWizard.value = true;
+}
+
+function toggleThreadActions() {
+    showThreadMenu.value = !showThreadMenu.value;
+}
+
+async function handleDocumentUploaded(document) {
+    if (document?.url && screen.value === 'thread') {
+        insertUrlIntoComposer(document.url);
+    }
+
+    if (activeTab.value === 'documents' || screen.value !== 'thread') {
+        await loadDocuments(search.value);
+    }
+}
 
 const activeTabLabel = computed(() => tabs.find((tab) => tab.key === activeTab.value)?.label ?? 'Раздел');
 
@@ -635,41 +705,6 @@ function refreshActiveTab() {
     }
 
     loadTab(activeTab.value, search.value);
-}
-
-async function toggleThreadActions() {
-    showThreadActions.value = !showThreadActions.value;
-
-    if (showThreadActions.value) {
-        documentChipSearch.value = '';
-        await refreshDocumentChips();
-    }
-}
-
-async function refreshDocumentChips() {
-    documentChipsLoading.value = true;
-
-    try {
-        documentChips.value = await loadDocumentChips(documentChipSearch.value);
-    } finally {
-        documentChipsLoading.value = false;
-    }
-}
-
-function onDocumentChipSearchInput() {
-    clearTimeout(documentChipSearchTimer);
-    documentChipSearchTimer = setTimeout(() => {
-        refreshDocumentChips();
-    }, 250);
-}
-
-function insertDocumentChip(doc) {
-    const url = doc.url;
-    const current = messageBody.value;
-    const separator = current && !current.endsWith('\n') && !current.endsWith(' ') ? ' ' : '';
-    messageBody.value = `${current}${separator}${url} `;
-    showThreadActions.value = false;
-    documentChipSearch.value = '';
 }
 
 async function submitMessage() {

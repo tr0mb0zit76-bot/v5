@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\MessengerService;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\TaskSlaService;
+use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
 use Illuminate\Support\Facades\Schema;
@@ -179,6 +180,51 @@ class MobileShellFeedService
         return [
             'recent' => $recent,
             'attention' => $attention,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     order: array{id: int, order_number: string, customer_name: string|null},
+     *     slots: list<array<string, mixed>>
+     * }
+     */
+    public function orderDocumentUploadOptions(User $user, Order $order): array
+    {
+        abort_unless(
+            OrderDocumentAccessAuthorization::userMayManageDocuments($user, $order),
+            403,
+        );
+
+        $order->loadMissing(['client:id,name']);
+        $rules = $this->documentRequirementService->requirementRulesForOrder($order);
+        $checklist = collect($this->documentRequirementService->checklistForOrder($order))->keyBy('key');
+
+        $slots = [];
+
+        foreach ($rules as $rule) {
+            $key = (string) ($rule['key'] ?? '');
+            $acceptedTypes = $rule['accepted_types'] ?? ['other'];
+
+            $slots[] = [
+                'key' => $key,
+                'label' => (string) ($rule['label'] ?? $key),
+                'party' => (string) ($rule['party'] ?? 'internal'),
+                'type' => (string) ($acceptedTypes[0] ?? 'other'),
+                'requirement_slot_key' => (string) ($rule['slot_key'] ?? $key),
+                'order_leg_stage' => $rule['order_leg_stage'] ?? null,
+                'contractor_id' => isset($rule['contractor_id']) ? (int) $rule['contractor_id'] : null,
+                'completed' => (bool) ($checklist->get($key)['completed'] ?? false),
+            ];
+        }
+
+        return [
+            'order' => [
+                'id' => (int) $order->id,
+                'order_number' => $order->order_number ?: '#'.$order->id,
+                'customer_name' => $order->client?->name,
+            ],
+            'slots' => $slots,
         ];
     }
 

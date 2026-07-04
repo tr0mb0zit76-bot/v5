@@ -56,15 +56,6 @@ export function useMessenger({ scrollTarget = null } = {}) {
         }
     }
 
-    async function loadDocumentChips(search = '') {
-        const { data } = await axios.get(route('messenger.document-chips'), {
-            headers: { Accept: 'application/json' },
-            params: search.trim() !== '' ? { q: search.trim() } : {},
-        });
-
-        return data.documents ?? [];
-    }
-
     async function loadThread(conversationId, { background = false } = {}) {
         if (!background) {
             threadLoading.value = true;
@@ -266,7 +257,6 @@ export function useMessenger({ scrollTarget = null } = {}) {
         error,
         loadConversations,
         loadColleagues,
-        loadDocumentChips,
         loadThread,
         refreshThread,
         selectConversation,

@@ -785,6 +785,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/tasks', [MobileShellController::class, 'tasks'])->name('tasks');
         Route::get('/orders', [MobileShellController::class, 'orders'])->name('orders');
         Route::get('/documents', [MobileShellController::class, 'documents'])->name('documents');
+        Route::get('/entity-chips', [MobileShellController::class, 'entityChips'])->name('entity-chips');
+        Route::get('/orders/{order}/document-slots', [MobileShellController::class, 'orderDocumentSlots'])->name('orders.document-slots');
     });
 
     Route::prefix('cabinet-notifications')->name('cabinet-notifications.')->group(function () {
