@@ -65,6 +65,33 @@ export function useMobileShell() {
         }
     }
 
+    async function loadOrderSummary(orderId) {
+        const { data } = await axios.get(route('mobile.shell.orders.summary', orderId), {
+            headers: { Accept: 'application/json' },
+        });
+
+        return data;
+    }
+
+    async function searchEntities(search = '', kind = null) {
+        const params = {};
+
+        if (search.trim() !== '') {
+            params.q = search.trim();
+        }
+
+        if (kind) {
+            params.kind = kind;
+        }
+
+        const { data } = await axios.get(route('mobile.shell.entity-chips'), {
+            headers: { Accept: 'application/json' },
+            params,
+        });
+
+        return data.entities ?? [];
+    }
+
     function loadTab(tab, search = '') {
         if (tab === 'tasks') {
             return loadTasks(search);
@@ -95,6 +122,8 @@ export function useMobileShell() {
         loadOrders,
         loadDocuments,
         loadTab,
+        loadOrderSummary,
+        searchEntities,
     };
 }
 

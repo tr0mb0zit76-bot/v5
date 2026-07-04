@@ -2,11 +2,16 @@
 import axios from 'axios';
 import { ArrowLeft, Search, Upload } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import { documentPartyLabel } from '@/support/mobileDocumentPartyLabels.js';
 
 const props = defineProps({
     open: {
         type: Boolean,
         default: false,
+    },
+    presetOrderId: {
+        type: Number,
+        default: null,
     },
 });
 
@@ -21,11 +26,14 @@ const selectedOrder = ref(null);
 const slots = ref([]);
 const slotsLoading = ref(false);
 const uploading = ref(false);
+const uploadProgress = ref(0);
 const error = ref('');
 
 const fileInput = ref(null);
 
 const fileLabel = computed(() => selectedFile.value?.name ?? 'Файл не выбран');
+const pendingSlots = computed(() => slots.value.filter((slot) => !slot.completed));
+const completedSlots = computed(() => slots.value.filter((slot) => slot.completed));
 
 async function loadOrders() {
     ordersLoading.value = true;
@@ -54,6 +62,7 @@ async function selectOrder(order) {
             headers: { Accept: 'application/json' },
         });
         slots.value = data.slots ?? [];
+        selectedOrder.value = data.order ?? order;
         step.value = 'slot';
     } catch (exception) {
         error.value = exception.response?.data?.message ?? 'Не удалось загрузить слоты документов.';
@@ -62,21 +71,67 @@ async function selectOrder(order) {
     }
 }
 
+async function bootstrapPresetOrder(orderId) {
+    await loadOrders();
+
+    let order = orders.value.find((item) => Number(item.id) === Number(orderId));
+
+    if (!order) {
+        try {
+            const { data } = await axios.get(route('mobile.shell.orders.summary', orderId), {
+                headers: { Accept: 'application/json' },
+            });
+            order = {
+                id: data.order?.id ?? orderId,
+                order_number: data.order?.order_number ?? `#${orderId}`,
+                customer_name: data.order?.customer_name,
+            };
+        } catch {
+            order = {
+                id: orderId,
+                order_number: `#${orderId}`,
+            };
+        }
+    }
+
+    await selectOrder(order);
+}
+
 function pickFile(event) {
     const file = event.target.files?.[0] ?? null;
     selectedFile.value = file;
-    if (file) {
-        step.value = 'order';
-        loadOrders();
-    }
-}
 
-async function uploadToSlot(slot) {
-    if (!selectedFile.value || !selectedOrder.value) {
+    if (!file) {
         return;
     }
 
+    if (props.presetOrderId) {
+        bootstrapPresetOrder(props.presetOrderId);
+
+        return;
+    }
+
+    step.value = 'order';
+    loadOrders();
+}
+
+async function uploadToSlot(slot) {
+    if (!selectedFile.value || !selectedOrder.value || uploading.value) {
+        return;
+    }
+
+    if (slot.completed) {
+        const confirmed = window.confirm(
+            `В слоте «${slot.label}» уже есть файл. Заменить его новым «${selectedFile.value.name}»?`,
+        );
+
+        if (!confirmed) {
+            return;
+        }
+    }
+
     uploading.value = true;
+    uploadProgress.value = 0;
     error.value = '';
 
     const form = new FormData();
@@ -100,8 +155,18 @@ async function uploadToSlot(slot) {
             headers: {
                 Accept: 'application/json',
             },
+            onUploadProgress: (event) => {
+                if (!event.total) {
+                    uploadProgress.value = 50;
+
+                    return;
+                }
+
+                uploadProgress.value = Math.min(100, Math.round((event.loaded * 100) / event.total));
+            },
         });
 
+        uploadProgress.value = 100;
         emit('uploaded', data.document ?? null);
         emit('close');
         resetState();
@@ -112,6 +177,7 @@ async function uploadToSlot(slot) {
             : (exception.response?.data?.message ?? 'Не удалось загрузить документ.');
     } finally {
         uploading.value = false;
+        uploadProgress.value = 0;
     }
 }
 
@@ -124,6 +190,7 @@ function resetState() {
     slots.value = [];
     error.value = '';
     uploading.value = false;
+    uploadProgress.value = 0;
 
     if (fileInput.value) {
         fileInput.value.value = '';
@@ -131,8 +198,13 @@ function resetState() {
 }
 
 function goBack() {
+    if (uploading.value) {
+        return;
+    }
+
     if (step.value === 'slot') {
         step.value = 'order';
+
         return;
     }
 
@@ -142,6 +214,10 @@ function goBack() {
 }
 
 function closeWizard() {
+    if (uploading.value) {
+        return;
+    }
+
     emit('close');
     resetState();
 }
@@ -175,7 +251,8 @@ watch(() => props.open, (isOpen) => {
                 <button
                     v-if="step !== 'file'"
                     type="button"
-                    class="flex h-9 w-9 items-center justify-center rounded-full text-zinc-200 active:bg-white/10"
+                    class="flex h-9 w-9 items-center justify-center rounded-full text-zinc-200 active:bg-white/10 disabled:opacity-40"
+                    :disabled="uploading"
                     @click="goBack"
                 >
                     <ArrowLeft class="h-4 w-4" />
@@ -191,7 +268,17 @@ watch(() => props.open, (isOpen) => {
             </div>
 
             <div class="min-h-0 flex-1 overflow-y-auto p-4">
-                <div v-if="step === 'file'" class="space-y-4">
+                <div v-if="uploading" class="mb-4 space-y-2 rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4">
+                    <div class="text-sm font-medium text-sky-100">Загрузка в CRM… {{ uploadProgress }}%</div>
+                    <div class="h-2 overflow-hidden rounded-full bg-black/30">
+                        <div
+                            class="h-full rounded-full bg-sky-500 transition-all duration-200"
+                            :style="{ width: `${uploadProgress}%` }"
+                        />
+                    </div>
+                </div>
+
+                <div v-if="step === 'file' && !uploading" class="space-y-4">
                     <label class="flex cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-10 text-center active:bg-white/10">
                         <Upload class="mb-3 h-8 w-8 text-sky-300" />
                         <span class="text-sm font-semibold text-zinc-100">Выбрать файл</span>
@@ -200,13 +287,14 @@ watch(() => props.open, (isOpen) => {
                             ref="fileInput"
                             type="file"
                             accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,image/*"
+                            capture="environment"
                             class="hidden"
                             @change="pickFile"
                         />
                     </label>
                 </div>
 
-                <div v-else-if="step === 'order'" class="space-y-3">
+                <div v-else-if="step === 'order' && !uploading" class="space-y-3">
                     <div class="relative">
                         <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
                         <input
@@ -226,29 +314,58 @@ watch(() => props.open, (isOpen) => {
                     >
                         <div class="text-sm font-semibold text-zinc-50">{{ order.order_number }}</div>
                         <div class="mt-1 text-xs text-zinc-400">{{ order.customer_name || 'Заказчик не указан' }}</div>
+                        <div
+                            v-if="order.documents_pending_count > 0"
+                            class="mt-2 text-xs text-amber-200"
+                        >
+                            {{ order.documents_pending_count }} незакрытых слотов документов
+                        </div>
                     </button>
                 </div>
 
-                <div v-else class="space-y-3">
+                <div v-else-if="step === 'slot' && !uploading" class="space-y-4">
                     <div v-if="slotsLoading" class="py-6 text-center text-sm text-zinc-500">Загрузка слотов…</div>
-                    <button
-                        v-for="slot in slots"
-                        v-else
-                        :key="slot.key"
-                        type="button"
-                        class="block w-full rounded-3xl border p-4 text-left active:opacity-90"
-                        :class="slot.completed ? 'border-white/10 bg-white/[0.04]' : 'border-amber-500/20 bg-amber-500/10'"
-                        :disabled="uploading"
-                        @click="uploadToSlot(slot)"
-                    >
-                        <div class="text-sm font-semibold text-zinc-50">{{ slot.label }}</div>
-                        <div class="mt-1 text-xs text-zinc-400">{{ slot.party }} · {{ slot.type }}</div>
-                        <div v-if="slot.completed" class="mt-2 text-[10px] uppercase tracking-wide text-zinc-500">Уже есть файл</div>
-                    </button>
+                    <template v-else>
+                        <div v-if="pendingSlots.length" class="space-y-2">
+                            <div class="text-[11px] font-semibold uppercase tracking-wide text-amber-300">Требуют файл</div>
+                            <button
+                                v-for="slot in pendingSlots"
+                                :key="slot.key"
+                                type="button"
+                                class="block w-full rounded-3xl border border-amber-500/25 bg-amber-500/10 p-4 text-left active:opacity-90"
+                                @click="uploadToSlot(slot)"
+                            >
+                                <div class="text-sm font-semibold text-zinc-50">{{ slot.label }}</div>
+                                <div class="mt-1 text-xs text-zinc-400">
+                                    {{ documentPartyLabel(slot.party) }} · {{ slot.type }}
+                                </div>
+                            </button>
+                        </div>
+
+                        <div v-if="completedSlots.length" class="space-y-2">
+                            <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Уже загружено</div>
+                            <button
+                                v-for="slot in completedSlots"
+                                :key="slot.key"
+                                type="button"
+                                class="block w-full rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-left active:opacity-90"
+                                @click="uploadToSlot(slot)"
+                            >
+                                <div class="text-sm font-semibold text-zinc-50">{{ slot.label }}</div>
+                                <div class="mt-1 text-xs text-zinc-400">
+                                    {{ documentPartyLabel(slot.party) }} · {{ slot.type }}
+                                </div>
+                                <div class="mt-2 text-[10px] uppercase tracking-wide text-zinc-500">Нажмите, чтобы заменить</div>
+                            </button>
+                        </div>
+
+                        <div v-if="pendingSlots.length === 0 && completedSlots.length === 0" class="py-6 text-center text-sm text-zinc-500">
+                            Нет доступных слотов для этого заказа.
+                        </div>
+                    </template>
                 </div>
 
                 <p v-if="error" class="mt-4 text-xs text-rose-300">{{ error }}</p>
-                <p v-if="uploading" class="mt-4 text-center text-sm text-zinc-400">Загружаем в CRM…</p>
             </div>
         </div>
     </div>

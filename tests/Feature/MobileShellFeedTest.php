@@ -88,7 +88,51 @@ class MobileShellFeedTest extends TestCase
             ->getJson(route('mobile.shell.orders'))
             ->assertOk()
             ->assertJsonCount(1, 'orders')
-            ->assertJsonPath('orders.0.order_number', 'MOB-1001');
+            ->assertJsonPath('orders.0.order_number', 'MOB-1001')
+            ->assertJsonStructure([
+                'orders' => [[
+                    'documents_pending_count',
+                    'documents_total_count',
+                    'documents_url',
+                ]],
+            ]);
+    }
+
+    public function test_mobile_shell_order_summary_returns_document_checklist(): void
+    {
+        $manager = $this->createUserWithAreas(['orders'], ['orders' => 'own']);
+
+        $order = Order::factory()->create([
+            'manager_id' => $manager->id,
+            'order_number' => 'MOB-SUM-1',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->getJson(route('mobile.shell.orders.summary', $order))
+            ->assertOk()
+            ->assertJsonPath('order.id', $order->id)
+            ->assertJsonPath('order.order_number', 'MOB-SUM-1')
+            ->assertJsonStructure([
+                'order',
+                'documents' => ['pending_count', 'completed_count', 'total_count', 'pending'],
+                'urls' => ['order', 'documents'],
+            ]);
+    }
+
+    public function test_mobile_shell_order_summary_forbidden_for_other_manager(): void
+    {
+        $manager = $this->createUserWithAreas(['orders'], ['orders' => 'own']);
+        $other = $this->createUserWithAreas(['orders'], ['orders' => 'own']);
+
+        $order = Order::factory()->create([
+            'manager_id' => $manager->id,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($other)
+            ->getJson(route('mobile.shell.orders.summary', $order))
+            ->assertForbidden();
     }
 
     public function test_mobile_shell_documents_returns_recent_document_chips(): void

@@ -82,10 +82,17 @@ class MobileShellFeedService
                     ? $this->taskSlaService->isSlaBreached($task)
                     : false,
                 'responsible_name' => $task->responsible?->name,
+                'lead_id' => $task->lead_id ? (int) $task->lead_id : null,
                 'lead_number' => $task->lead?->number,
-                'order_id' => $task->order_id,
+                'order_id' => $task->order_id ? (int) $task->order_id : null,
                 'contractor_name' => $task->contractor?->name,
                 'url' => route('tasks.show', $task, absolute: true),
+                'order_url' => $task->order_id
+                    ? route('orders.edit', (int) $task->order_id, absolute: true)
+                    : null,
+                'lead_url' => $task->lead_id && $task->lead
+                    ? route('leads.show', $task->lead, absolute: true)
+                    : null,
             ];
         }
 
@@ -144,6 +151,8 @@ class MobileShellFeedService
 
         $items = $orders->map(function (Order $order): array {
             $status = $order->manual_status ?: $order->status;
+            $checklist = $this->documentRequirementService->checklistForOrder($order);
+            $pending = collect($checklist)->filter(fn (array $item): bool => ! ($item['completed'] ?? false));
 
             return [
                 'id' => $order->id,
@@ -155,6 +164,10 @@ class MobileShellFeedService
                 'unloading_date' => $order->unloading_date,
                 'updated_at' => optional($order->updated_at)?->toIso8601String(),
                 'url' => route('orders.edit', $order, absolute: true),
+                'documents_url' => route('orders.edit', $order, absolute: true).'?tab=documents',
+                'documents_pending_count' => $pending->count(),
+                'documents_total_count' => count($checklist),
+                'documents_pending_labels' => $pending->take(3)->pluck('label')->filter()->values()->all(),
             ];
         })->values()->all();
 
@@ -226,6 +239,62 @@ class MobileShellFeedService
             ],
             'slots' => $slots,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function orderSummaryForUser(User $user, Order $order): array
+    {
+        abort_unless($this->userCanViewOrder($user, $order), 403);
+
+        $order->loadMissing(['client:id,name', 'carrier:id,name']);
+        $checklist = $this->documentRequirementService->checklistForOrder($order);
+        $pending = collect($checklist)->filter(fn (array $item): bool => ! ($item['completed'] ?? false));
+        $completed = collect($checklist)->filter(fn (array $item): bool => (bool) ($item['completed'] ?? false));
+
+        return [
+            'order' => [
+                'id' => (int) $order->id,
+                'order_number' => $order->order_number ?: '#'.$order->id,
+                'customer_name' => $order->client?->name,
+                'carrier_name' => $order->carrier?->name,
+                'status' => $order->manual_status ?: $order->status,
+                'loading_date' => $order->loading_date,
+                'unloading_date' => $order->unloading_date,
+            ],
+            'documents' => [
+                'pending_count' => $pending->count(),
+                'completed_count' => $completed->count(),
+                'total_count' => count($checklist),
+                'pending' => $pending->take(8)->map(fn (array $item): array => [
+                    'label' => (string) ($item['label'] ?? ''),
+                ])->values()->all(),
+            ],
+            'urls' => [
+                'order' => route('orders.edit', $order, absolute: true),
+                'documents' => route('orders.edit', $order, absolute: true).'?tab=documents',
+            ],
+        ];
+    }
+
+    private function userCanViewOrder(User $user, Order $order): bool
+    {
+        if (! Schema::hasTable('orders') || ! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'orders')) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
+
+        if ($scope === 'all') {
+            return true;
+        }
+
+        return (int) $order->manager_id === (int) $user->id;
     }
 
     /**

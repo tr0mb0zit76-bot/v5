@@ -95,6 +95,7 @@
             <LeadAttentionPanel
                 v-if="leadAttentionQueue?.available && leadAttentionQueue.total > 0"
                 :queue="leadAttentionQueue"
+                variant="summary"
                 show-all-link
             />
 

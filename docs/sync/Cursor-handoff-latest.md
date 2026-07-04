@@ -3,9 +3,30 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-04 18:15 · **Ветка:** `master` · **Контекст:** Mobile CRM shell phase 3 (CRM link previews, send icon)
+**Обновлено:** 2026-07-04 18:35 · **Ветка:** `master` · **Контекст:** Mobile CRM shell phase 4–5 (upload polish + detail cards)
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-07-04) — mobile CRM shell phase 4–5
+
+### Phase 4 — прикрепление файла к заказу
+- `MobileDocumentUploadWizard`: progress bar загрузки (`onUploadProgress`), слоты «Требуют файл» / «Уже загружено», подписи сторон на русском, confirm при замене, `capture="environment"` для камеры.
+- Из thread после upload — **автоотправка** сообщения со ссылкой на документ; с вкладок — picker «Отправить в чат».
+- `presetOrderId`: из карточки заказа «Прикрепить документ» → выбор файла → сразу слоты заказа.
+
+### Phase 5 — карточки без гридов
+- **Detail sheet** `MobileEntityDetailSheet.vue`: tap по карточке → bottom sheet (заказ с чеклистом документов через `GET mobile/shell/orders/{id}/summary`, задача с ссылками на заказ/лид).
+- **Заказы в feed:** `documents_pending_count`, `documents_total_count`, мини-строка на карточке.
+- **Задачи:** `order_url`, `lead_url` в API; кнопки «Отправить заказ/лид в чат» в detail sheet.
+- **Поиск по CRM** на вкладках Документы/Заказы/Задачи (`entity-chips` параллельно tab feed).
+- **Недавно открывали** — `localStorage` через `mobileShellRecents.js`.
+
+- Проверка: `npm run build`, `php artisan test --compact tests/Feature/MobileShellFeedTest.php tests/Feature/MobileDocumentUploadTest.php` (19 tests mobile-related).
+
+### Ранее (phase 1–3)
+- Shell, FCM, pull-to-refresh, share-to-chat, CRM link previews — commits `ca73ae2` … `6c9bd42`.
 
 ---
 

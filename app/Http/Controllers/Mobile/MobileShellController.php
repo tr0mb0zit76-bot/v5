@@ -87,4 +87,14 @@ class MobileShellController extends Controller
             $this->mobileShellFeedService->orderDocumentUploadOptions($user, $order),
         );
     }
+
+    public function orderSummary(Request $request, Order $order): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        return response()->json(
+            $this->mobileShellFeedService->orderSummaryForUser($user, $order),
+        );
+    }
 }

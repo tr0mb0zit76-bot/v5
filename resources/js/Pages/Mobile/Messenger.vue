@@ -167,6 +167,40 @@
                 >
                     {{ pullRefreshing ? 'Обновление…' : 'Отпустите для обновления' }}
                 </div>
+                <section v-if="activeTab !== 'chats' && search.trim()" class="space-y-2 px-4 pt-2">
+                    <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Поиск по CRM</div>
+                    <div v-if="unifiedSearchLoading" class="py-4 text-center text-sm text-zinc-500">Ищем…</div>
+                    <button
+                        v-for="entity in unifiedSearchResults"
+                        v-else
+                        :key="`search-${entity.kind}-${entity.id}`"
+                        type="button"
+                        class="flex w-full flex-col rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left active:bg-white/10"
+                        @click="openEntityChipDetail(entity)"
+                    >
+                        <span class="text-[10px] uppercase tracking-wide text-sky-200">{{ entityKindLabel(entity.kind) }}</span>
+                        <span class="mt-1 text-sm font-semibold text-zinc-50">{{ entity.label }}</span>
+                        <span v-if="entity.subtitle" class="mt-0.5 truncate text-xs text-zinc-500">{{ entity.subtitle }}</span>
+                    </button>
+                    <div v-if="!unifiedSearchLoading && unifiedSearchResults.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-zinc-500">
+                        По CRM ничего не найдено.
+                    </div>
+                </section>
+
+                <section v-if="activeTab !== 'chats' && !search.trim() && mobileRecents.length" class="space-y-2 px-4 pt-2">
+                    <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Недавно открывали</div>
+                    <button
+                        v-for="item in mobileRecents"
+                        :key="`recent-${item.kind}-${item.id}`"
+                        type="button"
+                        class="flex w-full items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left active:bg-white/10"
+                        @click="openRecentDetail(item)"
+                    >
+                        <span class="text-[10px] uppercase tracking-wide text-sky-200">{{ entityKindLabel(item.kind) }}</span>
+                        <span class="min-w-0 flex-1 truncate text-sm font-medium text-zinc-50">{{ item.label }}</span>
+                    </button>
+                </section>
+
                 <section v-if="activeTab === 'chats'" class="min-h-full">
                     <form
                         v-if="showGroupComposer"
@@ -290,7 +324,7 @@
                                 :element-id="`mobile-attention-order-${item.order_id}`"
                                 card-class="border-amber-500/20 bg-amber-500/10"
                                 :highlight-class="highlightCardClass('attention-order', item.order_id)"
-                                :url="item.url"
+                                @open="openAttentionDetail(item)"
                                 @share="beginShareToChat({ url: item.url, label: item.order_number })"
                             >
                                 <div class="text-sm font-semibold text-zinc-50">{{ item.order_number }}</div>
@@ -309,7 +343,7 @@
                                 :key="`doc-${doc.id}`"
                                 :element-id="`mobile-document-${doc.id}`"
                                 :highlight-class="highlightCardClass('document', doc.id)"
-                                :url="doc.url"
+                                @open="openDocumentDetail(doc)"
                                 @share="beginShareToChat({ url: doc.url, label: doc.label })"
                             >
                                 <div class="flex items-center gap-2">
@@ -333,7 +367,7 @@
                             :key="`order-${order.id}`"
                             :element-id="`mobile-order-${order.id}`"
                             :highlight-class="highlightCardClass('order', order.id)"
-                            :url="order.url"
+                            @open="openOrderDetail(order)"
                             @share="beginShareToChat({ url: order.url, label: order.order_number })"
                         >
                             <div class="flex items-start gap-3">
@@ -352,6 +386,14 @@
                             <div v-if="order.loading_date || order.unloading_date" class="mt-3 text-xs text-zinc-500">
                                 {{ formatOrderRoute(order) }}
                             </div>
+                            <div
+                                v-if="order.documents_total_count > 0"
+                                class="mt-2 text-xs"
+                                :class="order.documents_pending_count > 0 ? 'text-amber-200' : 'text-emerald-300'"
+                            >
+                                Документы: {{ order.documents_total_count - order.documents_pending_count }}/{{ order.documents_total_count }}
+                                <span v-if="order.documents_pending_labels?.length"> · {{ order.documents_pending_labels.join(', ') }}</span>
+                            </div>
                         </MobileShellEntityCard>
                         <div v-if="filteredOrders.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
                             {{ search.trim() ? 'Ничего не найдено.' : 'Активных заказов пока нет.' }}
@@ -368,7 +410,7 @@
                             :element-id="`mobile-task-${task.id}`"
                             :card-class="task.is_overdue || task.sla_breached ? 'border-rose-500/30 bg-rose-500/10' : 'border-white/10 bg-white/[0.04]'"
                             :highlight-class="highlightCardClass('task', task.id)"
-                            :url="task.url"
+                            @open="openTaskDetail(task)"
                             @share="beginShareToChat({ url: task.url, label: `${task.number} · ${task.title}` })"
                         >
                             <div class="flex items-start gap-3">
@@ -441,8 +483,19 @@
 
         <MobileDocumentUploadWizard
             :open="showUploadWizard"
-            @close="showUploadWizard = false"
+            :preset-order-id="uploadPresetOrderId"
+            @close="closeUploadWizard"
             @uploaded="handleDocumentUploaded"
+        />
+
+        <MobileEntityDetailSheet
+            :open="showDetailSheet"
+            :entity="detailEntity"
+            :order-summary="detailOrderSummary"
+            :loading="detailLoading"
+            @close="closeDetailSheet"
+            @share="beginShareFromDetail"
+            @upload-document="openUploadWizardForOrder"
         />
 
         <MobileEntityPicker
@@ -464,12 +517,14 @@ import { useMobileShell } from '@/composables/useMobileShell.js';
 import { usePullToRefresh } from '@/composables/usePullToRefresh.js';
 import MobileCrmLinkPreview from '@/Components/Mobile/MobileCrmLinkPreview.vue';
 import MobileDocumentUploadWizard from '@/Components/Mobile/MobileDocumentUploadWizard.vue';
+import MobileEntityDetailSheet from '@/Components/Mobile/MobileEntityDetailSheet.vue';
 import MobileEntityPicker from '@/Components/Mobile/MobileEntityPicker.vue';
 import MobileShareToChatPicker from '@/Components/Mobile/MobileShareToChatPicker.vue';
 import MobileShellEntityCard from '@/Components/Mobile/MobileShellEntityCard.vue';
-import { previewForCrmUrl, splitMessageSegments } from '@/support/mobileMessageLinks.js';
+import { entityKindLabel, previewForCrmUrl, splitMessageSegments } from '@/support/mobileMessageLinks.js';
 import { buildDirectUnreadByUserId, formatConversationPreview } from '@/support/messengerConversationText.js';
 import { registerMobilePushIfAvailable } from '@/support/mobilePush.js';
+import { pushMobileRecent, readMobileRecents } from '@/support/mobileShellRecents.js';
 
 const AvatarBubble = defineComponent({
     props: {
@@ -506,6 +561,14 @@ const showUploadWizard = ref(false);
 const showSharePicker = ref(false);
 const pendingShare = ref(null);
 const highlightTarget = ref(null);
+const showDetailSheet = ref(false);
+const detailEntity = ref(null);
+const detailOrderSummary = ref(null);
+const detailLoading = ref(false);
+const uploadPresetOrderId = ref(null);
+const unifiedSearchResults = ref([]);
+const unifiedSearchLoading = ref(false);
+const mobileRecents = ref(readMobileRecents());
 
 const { pullReady, refreshing: pullRefreshing, onTouchStart, onTouchMove, onTouchEnd } = usePullToRefresh(
     () => listPanel.value,
@@ -556,6 +619,8 @@ const {
     loadTab,
     loadDocuments,
     loadOrders,
+    loadOrderSummary,
+    searchEntities,
 } = useMobileShell();
 
 function beginShareToChat(payload) {
@@ -653,8 +718,184 @@ function openEntityPicker() {
 }
 
 function openUploadWizard() {
+    uploadPresetOrderId.value = null;
     showThreadMenu.value = false;
     showUploadWizard.value = true;
+}
+
+function openUploadWizardForOrder(orderId) {
+    uploadPresetOrderId.value = Number(orderId);
+    showDetailSheet.value = false;
+    showUploadWizard.value = true;
+}
+
+function closeUploadWizard() {
+    showUploadWizard.value = false;
+    uploadPresetOrderId.value = null;
+}
+
+function closeDetailSheet() {
+    showDetailSheet.value = false;
+    detailEntity.value = null;
+    detailOrderSummary.value = null;
+    detailLoading.value = false;
+}
+
+function rememberRecent(entity) {
+    pushMobileRecent(entity);
+    mobileRecents.value = readMobileRecents();
+}
+
+async function openOrderDetail(order) {
+    rememberRecent({
+        kind: 'order',
+        id: order.id,
+        label: order.order_number,
+        subtitle: order.customer_name,
+        url: order.url,
+    });
+
+    detailEntity.value = {
+        kind: 'order',
+        id: order.id,
+        label: order.order_number,
+        subtitle: order.customer_name,
+        url: order.url,
+    };
+    detailOrderSummary.value = null;
+    showDetailSheet.value = true;
+    detailLoading.value = true;
+
+    try {
+        detailOrderSummary.value = await loadOrderSummary(order.id);
+
+        if (detailOrderSummary.value?.urls?.order) {
+            detailEntity.value.url = detailOrderSummary.value.urls.order;
+        }
+    } finally {
+        detailLoading.value = false;
+    }
+}
+
+function openAttentionDetail(item) {
+    openOrderDetail({
+        id: item.order_id,
+        order_number: item.order_number,
+        customer_name: item.customer_name,
+        url: item.url,
+    });
+}
+
+function openDocumentDetail(doc) {
+    rememberRecent({
+        kind: 'document',
+        id: doc.id,
+        label: doc.label,
+        subtitle: doc.order_id ? `Заказ #${doc.order_id}` : null,
+        url: doc.url,
+    });
+
+    detailEntity.value = {
+        kind: 'document',
+        id: doc.id,
+        label: doc.label,
+        subtitle: doc.order_id ? `Заказ #${doc.order_id}` : null,
+        url: doc.url,
+    };
+    detailOrderSummary.value = null;
+    showDetailSheet.value = true;
+}
+
+function openTaskDetail(task) {
+    rememberRecent({
+        kind: 'task',
+        id: task.id,
+        label: `${task.number} · ${task.title}`,
+        subtitle: task.status_label,
+        url: task.url,
+    });
+
+    detailEntity.value = {
+        kind: 'task',
+        id: task.id,
+        label: `${task.number} · ${task.title}`,
+        subtitle: task.status_label,
+        url: task.url,
+        orderUrl: task.order_url,
+        orderLabel: task.order_id ? `Заказ #${task.order_id}` : null,
+        leadUrl: task.lead_url,
+        leadLabel: task.lead_number ? `Лид ${task.lead_number}` : null,
+        meta: [
+            task.responsible_name ? { label: 'Ответственный', value: task.responsible_name } : null,
+            task.due_at ? { label: 'Срок', value: formatShortDate(task.due_at) } : null,
+            task.contractor_name ? { label: 'Контрагент', value: task.contractor_name } : null,
+        ].filter(Boolean),
+    };
+    detailOrderSummary.value = null;
+    showDetailSheet.value = true;
+}
+
+function openEntityChipDetail(entity) {
+    rememberRecent({
+        kind: entity.kind,
+        id: entity.id,
+        label: entity.label,
+        subtitle: entity.subtitle,
+        url: entity.url,
+    });
+
+    if (entity.kind === 'order') {
+        openOrderDetail({
+            id: entity.id,
+            order_number: entity.label,
+            customer_name: entity.subtitle,
+            url: entity.url,
+        });
+
+        return;
+    }
+
+    detailEntity.value = {
+        kind: entity.kind,
+        id: entity.id,
+        label: entity.label,
+        subtitle: entity.subtitle,
+        url: entity.url,
+    };
+    detailOrderSummary.value = null;
+    showDetailSheet.value = true;
+}
+
+function openRecentDetail(item) {
+    if (item.kind === 'order') {
+        openOrderDetail({
+            id: item.id,
+            order_number: item.label,
+            customer_name: item.subtitle,
+            url: item.url,
+        });
+
+        return;
+    }
+
+    if (item.kind === 'task') {
+        const task = tasks.value.find((row) => Number(row.id) === Number(item.id));
+
+        if (task) {
+            openTaskDetail(task);
+
+            return;
+        }
+    }
+
+    detailEntity.value = { ...item };
+    detailOrderSummary.value = null;
+    showDetailSheet.value = true;
+}
+
+function beginShareFromDetail(payload) {
+    closeDetailSheet();
+    beginShareToChat(payload);
 }
 
 function toggleThreadActions() {
@@ -664,7 +905,10 @@ function toggleThreadActions() {
 async function handleDocumentUploaded(document) {
     if (document?.url) {
         if (screen.value === 'thread') {
-            insertUrlIntoComposer(document.url);
+            const prefix = messageBody.value.trim();
+            const text = prefix ? `${prefix} ${document.url}` : document.url;
+            await sendMessage(text);
+            messageBody.value = '';
         } else {
             beginShareToChat({
                 url: document.url,
@@ -675,6 +919,10 @@ async function handleDocumentUploaded(document) {
 
     if (activeTab.value === 'documents' || screen.value !== 'thread') {
         await loadDocuments(search.value);
+    }
+
+    if (activeTab.value === 'orders') {
+        await loadOrders(search.value);
     }
 }
 
@@ -1002,18 +1250,36 @@ let shellSearchTimer = null;
 
 watch([activeTab, search], ([tab, needle]) => {
     if (tab === 'chats') {
+        unifiedSearchResults.value = [];
+
         return;
     }
 
     clearTimeout(shellSearchTimer);
-    shellSearchTimer = setTimeout(() => {
-        loadTab(tab, needle);
+    shellSearchTimer = setTimeout(async () => {
+        await loadTab(tab, needle);
+
+        if (needle.trim() === '') {
+            unifiedSearchResults.value = [];
+            mobileRecents.value = readMobileRecents();
+
+            return;
+        }
+
+        unifiedSearchLoading.value = true;
+
+        try {
+            unifiedSearchResults.value = await searchEntities(needle);
+        } finally {
+            unifiedSearchLoading.value = false;
+        }
     }, 300);
 });
 
 onMounted(() => {
     reloadAll();
     loadColleagues();
+    mobileRecents.value = readMobileRecents();
     registerMobilePushIfAvailable({ enabled: page.props.mobile_push_enabled === true });
     window.addEventListener('crm-mobile-navigate', handleMobileNavigate);
     window.addEventListener('crm-mobile-push-received', handlePushReceived);
