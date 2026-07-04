@@ -268,6 +268,7 @@ class MessengerController extends Controller
         $unread = $this->messengerService->unreadCountFor($conversation, $viewer);
         $latest = $conversation->latestMessage;
         $memberCount = $conversation->participants->count();
+        $hasPhoneColumn = Schema::hasColumn('users', 'phone');
         $membersPreview = $conversation->type === 'group'
             ? $conversation->participants->sortBy('name')->take(4)->pluck('name')->values()->all()
             : [];
@@ -288,6 +289,7 @@ class MessengerController extends Controller
             'other_user' => $other === null ? null : [
                 'id' => $other->id,
                 'name' => $other->name,
+                'phone' => $hasPhoneColumn ? $other->phone : null,
             ],
             'last_message' => $latest === null ? null : [
                 'user_id' => $latest->user_id,

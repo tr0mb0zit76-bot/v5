@@ -73,6 +73,22 @@ export function useMobileShell() {
         return data;
     }
 
+    async function loadLeadSummary(leadId) {
+        const { data } = await axios.get(route('mobile.shell.leads.summary', leadId), {
+            headers: { Accept: 'application/json' },
+        });
+
+        return data;
+    }
+
+    async function loadContractorSummary(contractorId) {
+        const { data } = await axios.get(route('mobile.shell.contractors.summary', contractorId), {
+            headers: { Accept: 'application/json' },
+        });
+
+        return data;
+    }
+
     async function searchEntities(search = '', kind = null) {
         const params = {};
 
@@ -123,6 +139,8 @@ export function useMobileShell() {
         loadDocuments,
         loadTab,
         loadOrderSummary,
+        loadLeadSummary,
+        loadContractorSummary,
         searchEntities,
     };
 }

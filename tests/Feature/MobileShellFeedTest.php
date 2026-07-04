@@ -147,4 +147,23 @@ class MobileShellFeedTest extends TestCase
                 'attention',
             ]);
     }
+
+    public function test_mobile_shell_link_preview_returns_order_number(): void
+    {
+        $manager = $this->createUserWithAreas(['orders'], ['orders' => 'own']);
+
+        $order = Order::factory()->create([
+            'manager_id' => $manager->id,
+            'order_number' => 'MOB-LINK-42',
+            'is_active' => true,
+        ]);
+
+        $url = route('orders.edit', $order, absolute: true);
+
+        $this->actingAs($manager)
+            ->getJson(route('mobile.shell.link-preview', ['url' => $url]))
+            ->assertOk()
+            ->assertJsonPath('preview.kind', 'order')
+            ->assertJsonPath('preview.title', 'MOB-LINK-42');
+    }
 }

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Mobile;
 
 use App\Http\Controllers\Controller;
+use App\Models\Contractor;
+use App\Models\Lead;
 use App\Models\Order;
 use App\Services\Mobile\MobileEntityChipService;
 use App\Services\Mobile\MobileShellFeedService;
@@ -96,5 +98,41 @@ class MobileShellController extends Controller
         return response()->json(
             $this->mobileShellFeedService->orderSummaryForUser($user, $order),
         );
+    }
+
+    public function leadSummary(Request $request, Lead $lead): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        return response()->json(
+            $this->mobileShellFeedService->leadSummaryForUser($user, $lead),
+        );
+    }
+
+    public function contractorSummary(Request $request, Contractor $contractor): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        return response()->json(
+            $this->mobileShellFeedService->contractorSummaryForUser($user, $contractor),
+        );
+    }
+
+    public function linkPreview(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        $validated = $request->validate([
+            'url' => ['required', 'string', 'max:2048'],
+        ]);
+
+        $preview = $this->mobileShellFeedService->linkPreviewForUser($user, $validated['url']);
+
+        return response()->json([
+            'preview' => $preview,
+        ]);
     }
 }

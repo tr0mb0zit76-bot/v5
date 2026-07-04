@@ -25,6 +25,9 @@
 - Badge на вкладке **Документы** (число заказов «требуют внимания»).
 - Убрана дублирующая кнопка «Обновить» (остался pull-to-refresh).
 - В detail sheet задачи — **«Написать ответственному»** (`responsible_id` в mobile tasks API).
+- **Link preview** из БД: `GET mobile/shell/link-preview?url=…` — номер заказа/лида вместо `#id`.
+- **Detail sheet** lead/contractor: `GET mobile/shell/leads/{id}/summary`, `contractors/{id}/summary`.
+- **Thread action sheet:** «Позвонить» в direct-чате; `other_user.phone` в API conversations.
 
 - Проверка: `npm run build`, `php artisan test --compact tests/Feature/MobileDocumentUploadTest.php`.
 

@@ -49,6 +49,40 @@
                     </div>
                 </template>
 
+                <template v-else-if="entity?.kind === 'lead' && entitySummary?.lead">
+                    <div class="space-y-3 text-sm text-zinc-300">
+                        <div v-if="entitySummary.lead.status_label">
+                            <span class="text-zinc-500">Статус:</span> {{ entitySummary.lead.status_label }}
+                        </div>
+                        <div v-if="entitySummary.lead.counterparty_name">
+                            <span class="text-zinc-500">Контрагент:</span> {{ entitySummary.lead.counterparty_name }}
+                        </div>
+                        <div v-if="entitySummary.lead.responsible_name">
+                            <span class="text-zinc-500">Ответственный:</span> {{ entitySummary.lead.responsible_name }}
+                        </div>
+                        <div v-if="entitySummary.lead.loading_location || entitySummary.lead.unloading_location" class="text-xs text-zinc-400">
+                            <span v-if="entitySummary.lead.loading_location">{{ entitySummary.lead.loading_location }}</span>
+                            <span v-if="entitySummary.lead.loading_location && entitySummary.lead.unloading_location"> → </span>
+                            <span v-if="entitySummary.lead.unloading_location">{{ entitySummary.lead.unloading_location }}</span>
+                        </div>
+                    </div>
+                </template>
+
+                <template v-else-if="entity?.kind === 'contractor' && entitySummary?.contractor">
+                    <div class="space-y-3 text-sm text-zinc-300">
+                        <div v-if="entitySummary.contractor.inn">
+                            <span class="text-zinc-500">ИНН:</span> {{ entitySummary.contractor.inn }}
+                        </div>
+                        <div v-if="entitySummary.contractor.phone">
+                            <span class="text-zinc-500">Телефон:</span> {{ entitySummary.contractor.phone }}
+                        </div>
+                        <div v-if="entitySummary.contractor.contact_person">
+                            <span class="text-zinc-500">Контакт:</span> {{ entitySummary.contractor.contact_person }}
+                            <span v-if="entitySummary.contractor.contact_person_phone"> · {{ entitySummary.contractor.contact_person_phone }}</span>
+                        </div>
+                    </div>
+                </template>
+
                 <template v-else-if="entity?.meta?.length">
                     <div v-for="(row, index) in entity.meta" :key="`meta-${index}`" class="py-1 text-sm text-zinc-300">
                         <span class="text-zinc-500">{{ row.label }}:</span> {{ row.value }}
@@ -123,6 +157,7 @@ defineProps({
     open: { type: Boolean, default: false },
     entity: { type: Object, default: null },
     orderSummary: { type: Object, default: null },
+    entitySummary: { type: Object, default: null },
     loading: { type: Boolean, default: false },
     currentUserId: { type: Number, default: null },
 });

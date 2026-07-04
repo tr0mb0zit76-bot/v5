@@ -111,6 +111,14 @@
                     >
                         Прикрепить файл к заказу
                     </button>
+                    <a
+                        v-if="threadColleaguePhone"
+                        :href="`tel:${threadColleaguePhone}`"
+                        class="mt-2 flex w-full rounded-2xl px-4 py-3 text-left text-sm font-medium text-zinc-100 active:bg-white/10"
+                        @click="showThreadMenu = false"
+                    >
+                        Позвонить
+                    </a>
                 </div>
             </div>
 
@@ -490,6 +498,7 @@
             :open="showDetailSheet"
             :entity="detailEntity"
             :order-summary="detailOrderSummary"
+            :entity-summary="detailEntitySummary"
             :loading="detailLoading"
             :current-user-id="currentUserId"
             @close="closeDetailSheet"
@@ -564,6 +573,7 @@ const highlightTarget = ref(null);
 const showDetailSheet = ref(false);
 const detailEntity = ref(null);
 const detailOrderSummary = ref(null);
+const detailEntitySummary = ref(null);
 const detailLoading = ref(false);
 const uploadPresetOrderId = ref(null);
 const unifiedSearchResults = ref([]);
@@ -620,6 +630,8 @@ const {
     loadDocuments,
     loadOrders,
     loadOrderSummary,
+    loadLeadSummary,
+    loadContractorSummary,
     searchEntities,
 } = useMobileShell();
 
@@ -738,6 +750,7 @@ function closeDetailSheet() {
     showDetailSheet.value = false;
     detailEntity.value = null;
     detailOrderSummary.value = null;
+    detailEntitySummary.value = null;
     detailLoading.value = false;
 }
 
@@ -865,7 +878,44 @@ function openEntityChipDetail(entity) {
         url: entity.url,
     };
     detailOrderSummary.value = null;
+    detailEntitySummary.value = null;
     showDetailSheet.value = true;
+
+    if (entity.kind === 'lead' || entity.kind === 'contractor') {
+        loadEntitySummary(entity.kind, entity.id);
+    }
+}
+
+async function loadEntitySummary(kind, id) {
+    detailLoading.value = true;
+
+    try {
+        if (kind === 'lead') {
+            detailEntitySummary.value = await loadLeadSummary(id);
+
+            if (detailEntitySummary.value?.urls?.lead) {
+                detailEntity.value.url = detailEntitySummary.value.urls.lead;
+            }
+
+            if (detailEntitySummary.value?.lead?.number) {
+                detailEntity.value.label = detailEntitySummary.value.lead.number;
+            }
+        }
+
+        if (kind === 'contractor') {
+            detailEntitySummary.value = await loadContractorSummary(id);
+
+            if (detailEntitySummary.value?.urls?.contractor) {
+                detailEntity.value.url = detailEntitySummary.value.urls.contractor;
+            }
+
+            if (detailEntitySummary.value?.contractor?.name) {
+                detailEntity.value.label = detailEntitySummary.value.contractor.name;
+            }
+        }
+    } finally {
+        detailLoading.value = false;
+    }
 }
 
 function openRecentDetail(item) {
@@ -1040,6 +1090,21 @@ const filteredRecentDocuments = computed(() => {
 });
 
 const documentsAttentionCount = computed(() => attentionDocuments.value.length);
+
+const threadColleaguePhone = computed(() => {
+    if (activeConversation.value?.type !== 'direct') {
+        return null;
+    }
+
+    const other = activeConversation.value.other_user;
+    if (!other?.id) {
+        return null;
+    }
+
+    const colleague = colleagues.value.find((row) => Number(row.id) === Number(other.id));
+
+    return normalizedPhone(colleague?.phone ?? other.phone);
+});
 
 function conversationTitle(conversation) {
     if (!conversation) {

@@ -2,12 +2,15 @@
 
 namespace App\Services\Mobile;
 
+use App\Models\Contractor;
+use App\Models\Lead;
 use App\Models\Order;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\MessengerService;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\TaskSlaService;
+use App\Support\LeadStatus;
 use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
@@ -277,6 +280,181 @@ class MobileShellFeedService
                 'documents' => route('orders.edit', $order, absolute: true).'?tab=documents',
             ],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function leadSummaryForUser(User $user, Lead $lead): array
+    {
+        abort_unless($this->userCanViewLead($user, $lead), 403);
+
+        $lead->loadMissing(['counterparty:id,name', 'responsible:id,name']);
+
+        return [
+            'lead' => [
+                'id' => (int) $lead->id,
+                'number' => $lead->number,
+                'title' => $lead->title,
+                'status' => $lead->status,
+                'status_label' => LeadStatus::label((string) $lead->status),
+                'counterparty_name' => $lead->counterparty?->name,
+                'responsible_name' => $lead->responsible?->name,
+                'loading_location' => $lead->loading_location,
+                'unloading_location' => $lead->unloading_location,
+            ],
+            'urls' => [
+                'lead' => route('leads.show', $lead, absolute: true),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function contractorSummaryForUser(User $user, Contractor $contractor): array
+    {
+        abort_unless($this->userCanViewContractor($user, $contractor), 403);
+
+        return [
+            'contractor' => [
+                'id' => (int) $contractor->id,
+                'name' => $contractor->name,
+                'inn' => $contractor->inn,
+                'phone' => $contractor->phone,
+                'contact_person' => $contractor->contact_person,
+                'contact_person_phone' => $contractor->contact_person_phone,
+            ],
+            'urls' => [
+                'contractor' => route('contractors.show', $contractor, absolute: true),
+            ],
+        ];
+    }
+
+    /**
+     * @return array{kind: string, label: string, title: string, subtitle: string|null}|null
+     */
+    public function linkPreviewForUser(User $user, string $url): ?array
+    {
+        $path = parse_url($url, PHP_URL_PATH);
+        if (! is_string($path) || $path === '') {
+            return null;
+        }
+
+        $query = parse_url($url, PHP_URL_QUERY);
+        $queryString = is_string($query) ? $query : '';
+
+        if (preg_match('#/orders/(\d+)#', $path, $matches) === 1) {
+            $order = Order::query()->with(['client:id,name'])->find((int) $matches[1]);
+            if ($order === null || ! $this->userCanViewOrder($user, $order)) {
+                return null;
+            }
+
+            $orderNumber = $order->order_number ?: '#'.$order->id;
+            $documentsTab = str_contains($queryString, 'tab=documents');
+
+            return [
+                'kind' => $documentsTab ? 'document' : 'order',
+                'label' => $documentsTab ? 'Документы' : 'Заказ',
+                'title' => $documentsTab ? "Документы · {$orderNumber}" : $orderNumber,
+                'subtitle' => $order->client?->name,
+            ];
+        }
+
+        if (preg_match('#/leads/(\d+)#', $path, $matches) === 1) {
+            $lead = Lead::query()->with(['counterparty:id,name'])->find((int) $matches[1]);
+            if ($lead === null || ! $this->userCanViewLead($user, $lead)) {
+                return null;
+            }
+
+            $number = filled($lead->number) ? (string) $lead->number : '#'.$lead->id;
+
+            return [
+                'kind' => 'lead',
+                'label' => 'Лид',
+                'title' => $number,
+                'subtitle' => $lead->title ?: $lead->counterparty?->name,
+            ];
+        }
+
+        if (preg_match('#/contractors/(\d+)#', $path, $matches) === 1) {
+            $contractor = Contractor::query()->find((int) $matches[1]);
+            if ($contractor === null || ! $this->userCanViewContractor($user, $contractor)) {
+                return null;
+            }
+
+            return [
+                'kind' => 'contractor',
+                'label' => 'Контрагент',
+                'title' => (string) $contractor->name,
+                'subtitle' => filled($contractor->inn) ? 'ИНН '.$contractor->inn : null,
+            ];
+        }
+
+        if (preg_match('#/tasks/(\d+)#', $path, $matches) === 1) {
+            $task = Task::query()->find((int) $matches[1]);
+            if ($task === null || ! $this->userCanViewTask($user, $task)) {
+                return null;
+            }
+
+            $number = filled($task->number) ? (string) $task->number : '#'.$task->id;
+
+            return [
+                'kind' => 'task',
+                'label' => 'Задача',
+                'title' => trim($number.' · '.(string) $task->title),
+                'subtitle' => TaskStatus::label((string) $task->status),
+            ];
+        }
+
+        return null;
+    }
+
+    private function userCanViewLead(User $user, Lead $lead): bool
+    {
+        if (! Schema::hasTable('leads') || ! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'leads')) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
+
+        if ($scope === 'all') {
+            return true;
+        }
+
+        return (int) $lead->responsible_id === (int) $user->id;
+    }
+
+    private function userCanViewContractor(User $user, Contractor $contractor): bool
+    {
+        if (! Schema::hasTable('contractors') || ! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'contractors')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function userCanViewTask(User $user, Task $task): bool
+    {
+        if (! Schema::hasTable('tasks') || ! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'tasks')) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
+
+        if ($scope === 'all') {
+            return true;
+        }
+
+        return (int) $task->responsible_id === (int) $user->id;
     }
 
     private function userCanViewOrder(User $user, Order $order): bool
