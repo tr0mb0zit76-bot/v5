@@ -2,72 +2,74 @@
 
 namespace App\Services\Mobile;
 
-use App\Models\ChatMessage;
 use App\Models\User;
 use App\Models\UserMobileDevice;
+use App\Notifications\CabinetInAppNotification;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class MobilePushService
 {
-    public function notifyChatMessage(ChatMessage $message, User $author): void
+    public function notifyCabinetNotification(User $user, CabinetInAppNotification $notification): void
+    {
+        if (! $this->shouldPushKind($notification->kind)) {
+            return;
+        }
+
+        $this->notifyUser(
+            $user,
+            $notification->kind,
+            $notification->title,
+            $notification->body,
+            $this->buildDataPayload($notification),
+        );
+    }
+
+    /**
+     * @param  Collection<int, User>|iterable<int, User>  $users
+     */
+    public function notifyUsers(iterable $users, string $kind, string $title, string $body, array $data = []): void
+    {
+        if (! $this->shouldPushKind($kind)) {
+            return;
+        }
+
+        foreach ($users as $user) {
+            if ($user instanceof User) {
+                $this->notifyUser($user, $kind, $title, $body, $data);
+            }
+        }
+    }
+
+    public function notifyUser(User $user, string $kind, string $title, string $body, array $data = []): void
     {
         if (! config('fcm.enabled') || ! Schema::hasTable('user_mobile_devices')) {
             return;
         }
 
-        $message->loadMissing(['conversation.participants', 'recipient']);
-        $conversation = $message->conversation;
-
-        if ($conversation === null) {
+        if (! $this->shouldPushKind($kind)) {
             return;
         }
 
-        $recipients = $conversation->participants
-            ->filter(fn (User $participant): bool => (int) $participant->id !== (int) $author->id);
+        $tokens = $this->tokensForUser($user);
 
-        if ($message->recipient_user_id !== null) {
-            $recipients = $recipients
-                ->filter(fn (User $participant): bool => (int) $participant->id === (int) $message->recipient_user_id);
-        }
-
-        if ($recipients->isEmpty()) {
-            return;
-        }
-
-        $conversationTitle = $conversation->type === 'group'
-            ? ($conversation->title ?: 'Групповой чат')
-            : $author->name;
-
-        $body = mb_strimwidth((string) $message->body, 0, 160, '…');
-
-        foreach ($recipients as $recipient) {
-            $tokens = UserMobileDevice::query()
-                ->where('user_id', $recipient->id)
-                ->whereNotNull('fcm_token')
-                ->pluck('fcm_token')
-                ->filter(fn (?string $token): bool => is_string($token) && $token !== '')
-                ->unique()
-                ->values()
-                ->all();
-
-            foreach ($tokens as $token) {
-                $this->sendToToken($token, [
-                    'title' => $conversationTitle,
-                    'body' => $body,
-                    'data' => [
-                        'kind' => 'chat_message',
-                        'conversation_id' => (string) $conversation->id,
-                        'message_id' => (string) $message->id,
-                    ],
-                ]);
-            }
+        foreach ($tokens as $token) {
+            $this->sendToToken($token, [
+                'title' => $title,
+                'body' => $body,
+                'channel_id' => $this->channelForKind($kind),
+                'data' => array_merge(
+                    ['kind' => $kind],
+                    $this->stringifyData($data),
+                ),
+            ]);
         }
     }
 
     /**
-     * @param  array{title: string, body: string, data: array<string, string>}  $payload
+     * @param  array{title: string, body: string, channel_id: string, data: array<string, string>}  $payload
      */
     public function sendToToken(string $token, array $payload): void
     {
@@ -99,7 +101,7 @@ class MobilePushService
                     'android' => [
                         'priority' => 'HIGH',
                         'notification' => [
-                            'channel_id' => config('fcm.default_android_channel_id'),
+                            'channel_id' => $payload['channel_id'],
                         ],
                     ],
                 ],
@@ -113,8 +115,82 @@ class MobilePushService
         }
     }
 
+    private function shouldPushKind(string $kind): bool
+    {
+        /** @var list<string> $kinds */
+        $kinds = config('fcm.push_kinds', []);
+
+        return in_array($kind, $kinds, true);
+    }
+
+    private function channelForKind(string $kind): string
+    {
+        /** @var array<string, string> $channels */
+        $channels = config('fcm.android_channels', []);
+
+        return $channels[$kind] ?? (string) config('fcm.default_android_channel_id', 'crm_chat_messages');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tokensForUser(User $user): array
+    {
+        return UserMobileDevice::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('fcm_token')
+            ->pluck('fcm_token')
+            ->filter(fn (?string $token): bool => is_string($token) && $token !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function buildDataPayload(CabinetInAppNotification $notification): array
+    {
+        $data = [
+            'action_url' => $notification->actionUrl,
+        ];
+
+        foreach ($notification->payload as $key => $value) {
+            if (is_scalar($value) || $value === null) {
+                $data[(string) $key] = $value === null ? '' : (string) $value;
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, string>
+     */
+    private function stringifyData(array $data): array
+    {
+        $result = [];
+
+        foreach ($data as $key => $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            $result[(string) $key] = is_scalar($value) ? (string) $value : json_encode($value);
+        }
+
+        return $result;
+    }
+
     private function resolveAccessToken(): ?string
     {
+        $override = config('fcm.access_token_override');
+
+        if (is_string($override) && $override !== '') {
+            return $override;
+        }
+
         $credentials = config('fcm.credentials');
 
         if (! is_string($credentials) || $credentials === '') {

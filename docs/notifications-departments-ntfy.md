@@ -1,4 +1,4 @@
-# Уведомления: подразделения, колокольчик, ntfy
+# Уведомления: подразделения, колокольчик, Firebase (FCM)
 
 Операционная документация для деплоя и администрирования.
 
@@ -22,23 +22,40 @@
 - API: `cabinet-notifications.summary`, `read-all`, `unread`, `destroy`
 - Компонент: `resources/js/Components/Layout/CrmNotificationBell.vue`
 
-## ntfy (push)
+В браузере все события видны в колокольчике. Push на телефон **не обязателен** для этого.
 
-Включение в `.env`:
+## Firebase Cloud Messaging (мобильный APK)
+
+Единственный push-канал для **срочных** событий в приложении «Автоальянс Чат».
+
+### Включение на сервере (`.env`)
 
 ```env
-NTFY_ENABLED=true
-NTFY_BASE_URL=https://ntfy.avtoaliyans.ru
+FCM_ENABLED=true
+FCM_PROJECT_ID=your-firebase-project-id
+FCM_CREDENTIALS=/path/to/firebase-service-account.json
 ```
 
-Sidecar: `deploy/ntfy/` — см. `deploy/ntfy/README.md`.
+Whitelist видов push: `config/fcm.php` → `push_kinds`:
 
-Push только для:
+- `chat_message` — мессенджер
+- `order_document_approval` — подписать заявку
+- `order_document_approved` — заявка подписана
+- `order_closing_documents_required` — закрывающие документы
+- `contractor_limit_approval` — согласование лимита
 
-- `order_document_approval`
-- `contractor_limit_approval`
+SLA, комментарии к задачам и прочее — **только колокольчик**, без FCM.
 
-У пользователя должен быть `users.ntfy_topic`. UI генерации topic — в backlog (пока tinker/SQL).
+### Android APK
+
+1. Firebase Console → проект → Android app `ru.avtoaliyans.crm.messenger`
+2. Скачать `google-services.json` → `android/app/google-services.json` (шаблон: `google-services.json.example`)
+3. Пересобрать APK в Android Studio
+4. Каналы уведомлений создаются в `MainActivity`: Чаты / Заказы / Бухгалтерия
+
+### Маршрутизация
+
+`CabinetNotifier` и `OrderClosingDocumentsNotificationService` → колокольчик + `MobilePushService` (если `FCM_ENABLED` и у пользователя есть `user_mobile_devices.fcm_token`).
 
 ## Маршрутизация approval
 
@@ -49,18 +66,15 @@ Push только для:
 
 Fallback: admin при `NOTIFICATIONS_APPROVAL_INCLUDE_ADMINS=true` (по умолчанию false).
 
-## Scoring v2 и лимиты (связанный контур)
+## ntfy (снято с поддержки)
 
-- `contractor_risk_snapshots`, `contractor_risk_assessments`
-- HITL: подтверждение руководителем; «Отправить на согласование» → `pending_approval` + уведомление
-- Конфиг: `config/contractor_scoring.php`, `config/checko.php` (TTL 7 дней)
-
-ADR в Obsidian: `Decisions/ADR Contractor Risk Scoring v2.md`.
+Ранее использовался sidecar `deploy/ntfy/` и `users.ntfy_topic`. Заменён на FCM. Колонка `ntfy_topic` удалена миграцией `2026_07_04_171344_drop_ntfy_topic_from_users_table.php`.
 
 ## Тесты
 
 ```bash
 php artisan test --compact tests/Feature/CabinetInAppNotificationsTest.php
+php artisan test --compact tests/Feature/MobilePushServiceTest.php
+php artisan test --compact tests/Feature/NotificationDepartmentRoutingTest.php
 php artisan test --compact tests/Feature/ContractorLimitApprovalTest.php
-php artisan test --compact tests/Unit/Services/Checko/ContractorScoringCalculatorTest.php
 ```

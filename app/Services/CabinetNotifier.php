@@ -67,7 +67,7 @@ class CabinetNotifier
         );
 
         foreach ($recipients as $user) {
-            $user->notify($notification);
+            $this->deliver($user, $notification);
         }
     }
 
@@ -139,7 +139,7 @@ class CabinetNotifier
         );
 
         foreach ($recipients as $user) {
-            $user->notify($notification);
+            $this->deliver($user, $notification);
         }
     }
 
@@ -169,7 +169,7 @@ class CabinetNotifier
 
         $actionUrl = route('tasks.index', absolute: false).'?task='.$task->id;
 
-        $recipient->notify(new CabinetInAppNotification(
+        $this->deliver($recipient, new CabinetInAppNotification(
             'task_assigned',
             $title,
             $body,
@@ -204,7 +204,7 @@ class CabinetNotifier
 
         $actionUrl = route('tasks.index', absolute: false).'?task='.$task->id;
 
-        $recipient->notify(new CabinetInAppNotification(
+        $this->deliver($recipient, new CabinetInAppNotification(
             'task_comment',
             $title,
             $body,
@@ -251,12 +251,10 @@ class CabinetNotifier
                 );
 
                 foreach ($recipients as $recipient) {
-                    $recipient->notify($notification);
+                    $this->deliver($recipient, $notification);
                 }
             }
         }
-
-        $this->mobilePushService->notifyChatMessage($message, $author);
     }
 
     public function notifyTaskSlaBreached(Task $task): void
@@ -299,7 +297,7 @@ class CabinetNotifier
         );
 
         foreach ($recipients as $user) {
-            $user->notify($notification);
+            $this->deliver($user, $notification);
         }
     }
 
@@ -346,7 +344,7 @@ class CabinetNotifier
         );
 
         foreach ($recipients as $user) {
-            $user->notify($notification);
+            $this->deliver($user, $notification);
         }
     }
 
@@ -395,7 +393,13 @@ class CabinetNotifier
         );
 
         foreach ($recipients as $user) {
-            $user->notify($notification);
+            $this->deliver($user, $notification);
         }
+    }
+
+    private function deliver(User $user, CabinetInAppNotification $notification): void
+    {
+        $user->notify($notification);
+        $this->mobilePushService->notifyCabinetNotification($user, $notification);
     }
 }

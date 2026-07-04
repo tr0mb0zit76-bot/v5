@@ -2,7 +2,6 @@
 
 namespace App\Notifications;
 
-use App\Notifications\Channels\NtfyChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
@@ -22,17 +21,11 @@ class CabinetInAppNotification extends Notification
     ) {}
 
     /**
-     * @return array<int, string|class-string>
+     * @return array<int, string>
      */
     public function via(object $notifiable): array
     {
-        $channels = ['database'];
-
-        if ($this->shouldSendNtfy()) {
-            $channels[] = NtfyChannel::class;
-        }
-
-        return $channels;
+        return ['database'];
     }
 
     public function databaseType(object $notifiable): string
@@ -52,30 +45,5 @@ class CabinetInAppNotification extends Notification
             'action_url' => $this->actionUrl,
             'payload' => $this->payload,
         ];
-    }
-
-    /**
-     * @return array{title: string, body: string, click: string, priority: int}
-     */
-    public function toNtfy(object $notifiable): array
-    {
-        return [
-            'title' => $this->title,
-            'body' => $this->body,
-            'click' => url($this->actionUrl),
-            'priority' => 4,
-        ];
-    }
-
-    private function shouldSendNtfy(): bool
-    {
-        if (! config('notifications.ntfy_enabled', false)) {
-            return false;
-        }
-
-        /** @var list<string> $ntfyKinds */
-        $ntfyKinds = config('notifications.ntfy_kinds', config('notifications.approval_kinds', []));
-
-        return in_array($this->kind, $ntfyKinds, true);
     }
 }

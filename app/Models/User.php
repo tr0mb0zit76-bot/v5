@@ -36,7 +36,6 @@ class User extends Authenticatable
         'belongs_to_management',
         'can_management_accounting',
         'sees_company_dashboard',
-        'ntfy_topic',
         'ai_preferences',
         'ai_learning_enabled',
         'mobile_nav_keys',

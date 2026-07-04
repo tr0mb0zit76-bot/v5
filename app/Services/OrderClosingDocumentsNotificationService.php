@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\RoutePoint;
 use App\Models\User;
 use App\Notifications\CabinetInAppNotification;
+use App\Services\Mobile\MobilePushService;
 use App\Support\OrderClipboardSummaryResolver;
 use App\Support\RoutePointActualMilestones;
 use Illuminate\Support\Collection;
@@ -19,6 +20,7 @@ class OrderClosingDocumentsNotificationService
 
     public function __construct(
         private readonly OrderDocumentRequirementService $documentRequirementService,
+        private readonly MobilePushService $mobilePushService,
     ) {}
 
     public function maybeNotify(Order $order): bool
@@ -57,6 +59,7 @@ class OrderClosingDocumentsNotificationService
 
         foreach ($recipients as $recipient) {
             $recipient->notify($notification);
+            $this->mobilePushService->notifyCabinetNotification($recipient, $notification);
         }
 
         $this->markNotified($order);

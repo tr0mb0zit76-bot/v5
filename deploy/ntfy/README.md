@@ -1,48 +1,14 @@
-# ntfy sidecar — push для согласований CRM
+# ntfy sidecar — снят с поддержки
 
-Self-hosted [ntfy](https://github.com/binwiederhier/ntfy). Laravel шлёт POST на topic пользователя (`NtfyChannel`).
+Push-уведомления CRM переведены на **Firebase Cloud Messaging** (мобильное APK).
 
-## Prod (VPS)
+Документация: [docs/notifications-departments-ntfy.md](../../docs/notifications-departments-ntfy.md).
 
-Путь: `/var/www/www-root/data/www/avtoaliyans.ru/deploy/ntfy`
-
-См. также: [docs/notifications-departments-ntfy.md](../../docs/notifications-departments-ntfy.md) · Obsidian: `CRM/Runbooks/ntfy VPS deploy.md`
+Контейнер на проде можно остановить:
 
 ```bash
-cd /var/www/www-root/data/www/avtoaliyans.ru/deploy/ntfy
-cp .env.example .env
-# отредактируйте NTFY_PUBLIC_URL под ваш поддомен
-docker compose -f docker-compose.prod.yml up -d
-curl -s http://127.0.0.1:8092/v1/health
+cd deploy/ntfy
+docker compose -f docker-compose.prod.yml down
 ```
 
-Контейнер слушает только **127.0.0.1:8092**. Наружу — reverse proxy (nginx) на поддомен, например `ntfy.avtoaliyans.ru`.
-
-В `.env` CRM (корень Laravel, не `public/`):
-
-```env
-NTFY_ENABLED=true
-NTFY_BASE_URL=https://ntfy.avtoaliyans.ru
-```
-
-Push включается только для approval-событий; у пользователя должен быть заполнен `users.ntfy_topic`.
-
-## Local
-
-```bash
-cp .env.example .env
-docker compose -f docker-compose.local.yml up -d
-curl -s http://127.0.0.1:8092/v1/health
-```
-
-## Проверка отправки
-
-```bash
-curl -d "тест" http://127.0.0.1:8092/my-test-topic
-```
-
-В приложении ntfy на телефоне подпишитесь на тот же topic.
-
-## Auth (рекомендуется для prod)
-
-Положите `server.yml` в `./etc/` (volume смонтирован в `/etc/ntfy`). См. [документацию ntfy](https://docs.ntfy.sh/config/).
+Удалите из `.env` CRM переменные `NTFY_ENABLED`, `NTFY_BASE_URL`.

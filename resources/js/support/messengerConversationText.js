@@ -26,39 +26,21 @@ export function formatConversationPreview(conversation, currentUserId = null) {
     return text;
 }
 
-export function formatUnreadSendersHint(conversations, conversationTitle) {
-    const withUnread = (conversations ?? []).filter(
-        (conversation) => Number(conversation?.unread_count) > 0,
-    );
+export function buildDirectUnreadByUserId(conversations) {
+    const map = new Map();
 
-    if (withUnread.length === 0) {
-        return '';
-    }
-
-    const senders = withUnread.map((conversation) => {
-        if (conversation.type === 'direct') {
-            return conversation.other_user?.name ?? conversationTitle(conversation);
+    for (const conversation of conversations ?? []) {
+        if (conversation?.type !== 'direct') {
+            continue;
         }
 
-        const authorName = conversation.last_message?.author_name;
-        const chatTitle = conversationTitle(conversation);
+        const otherUserId = Number(conversation.other_user?.id ?? 0);
+        const unreadCount = Number(conversation.unread_count ?? 0);
 
-        if (authorName) {
-            return `${authorName} · ${chatTitle}`;
+        if (otherUserId > 0 && unreadCount > 0) {
+            map.set(otherUserId, unreadCount);
         }
-
-        return chatTitle;
-    }).filter(Boolean);
-
-    const unique = [...new Set(senders)];
-
-    if (unique.length === 0) {
-        return '';
     }
 
-    if (unique.length === 1) {
-        return `Новое сообщение от ${unique[0]}`;
-    }
-
-    return `Новые сообщения: ${unique.join(', ')}`;
+    return map;
 }

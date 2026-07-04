@@ -154,13 +154,6 @@
                 </div>
             </header>
 
-            <div
-                v-if="unreadSendersHint"
-                class="shrink-0 border-b border-sky-500/30 bg-sky-950/60 px-4 py-2 text-xs font-medium text-sky-200"
-            >
-                {{ unreadSendersHint }}
-            </div>
-
             <main class="min-h-0 flex-1 overflow-y-auto pb-2">
                 <section v-if="activeTab === 'chats'" class="min-h-full">
                     <form
@@ -213,6 +206,12 @@
                                     <div class="truncate text-xs text-zinc-500">{{ contactSubtitle(user) }}</div>
                                 </div>
                             </button>
+                            <span
+                                v-if="colleagueUnreadCount(user) > 0"
+                                class="flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-sky-600 px-1 text-[10px] font-bold text-white"
+                            >
+                                {{ colleagueUnreadCount(user) > 99 ? '99+' : colleagueUnreadCount(user) }}
+                            </span>
                             <a
                                 v-if="normalizedPhone(user.phone)"
                                 :href="`tel:${normalizedPhone(user.phone)}`"
@@ -413,7 +412,7 @@
 </template>
 
 <script setup>
-import { computed, defineComponent, h, onMounted, ref, watch } from 'vue';
+import { computed, defineComponent, h, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { ArrowLeft, CheckSquare, FileText, MessageCircle, Package, Phone, Plus, RefreshCw, Search, Users } from 'lucide-vue-next';
 import { useMessenger } from '@/composables/useMessenger.js';
@@ -422,7 +421,7 @@ import { useMobileShell } from '@/composables/useMobileShell.js';
 import MobileDocumentUploadWizard from '@/Components/Mobile/MobileDocumentUploadWizard.vue';
 import MobileEntityPicker from '@/Components/Mobile/MobileEntityPicker.vue';
 import { previewForCrmUrl, splitMessageSegments } from '@/support/mobileMessageLinks.js';
-import { formatConversationPreview, formatUnreadSendersHint } from '@/support/messengerConversationText.js';
+import { buildDirectUnreadByUserId, formatConversationPreview } from '@/support/messengerConversationText.js';
 import { registerMobilePushIfAvailable } from '@/support/mobilePush.js';
 
 const AvatarBubble = defineComponent({
@@ -478,6 +477,7 @@ const {
     threadLoading,
     sending,
     error: messengerError,
+    loadConversations,
     loadColleagues,
     reloadAll,
     selectConversation,
@@ -544,33 +544,61 @@ async function handleDocumentUploaded(document) {
 
 const activeTabLabel = computed(() => tabs.find((tab) => tab.key === activeTab.value)?.label ?? 'Раздел');
 
-const unreadSendersHint = computed(() => formatUnreadSendersHint(
-    conversations.value,
-    conversationTitle,
-));
+const directUnreadByUserId = computed(() => buildDirectUnreadByUserId(conversations.value));
 
 const filteredConversations = computed(() => {
+    const colleagueIds = new Set(filteredColleagues.value.map((user) => Number(user.id)));
     const needle = search.value.trim().toLowerCase();
-    if (needle === '') {
-        return conversations.value;
-    }
 
-    return conversations.value.filter((conversation) =>
-        conversationTitle(conversation).toLowerCase().includes(needle)
-        || conversationPreview(conversation).toLowerCase().includes(needle),
-    );
+    return conversations.value
+        .filter((conversation) => {
+            if (conversation.type === 'direct') {
+                const otherUserId = Number(conversation.other_user?.id ?? 0);
+
+                if (otherUserId > 0 && colleagueIds.has(otherUserId)) {
+                    return false;
+                }
+            }
+
+            return true;
+        })
+        .filter((conversation) => {
+            if (needle === '') {
+                return true;
+            }
+
+            return conversationTitle(conversation).toLowerCase().includes(needle)
+                || conversationPreview(conversation).toLowerCase().includes(needle);
+        });
 });
 
 const filteredColleagues = computed(() => {
     const needle = search.value.trim().toLowerCase();
-    if (needle === '') {
-        return colleagues.value.slice(0, 8);
+    let list = colleagues.value;
+
+    if (needle !== '') {
+        return list
+            .filter((user) => `${user.name ?? ''} ${user.phone ?? ''} ${user.email ?? ''}`.toLowerCase().includes(needle))
+            .slice(0, 12);
     }
 
-    return colleagues.value
-        .filter((user) => `${user.name ?? ''} ${user.phone ?? ''} ${user.email ?? ''}`.toLowerCase().includes(needle))
-        .slice(0, 12);
+    return [...list]
+        .sort((left, right) => {
+            const unreadLeft = directUnreadByUserId.value.get(Number(left.id)) ?? 0;
+            const unreadRight = directUnreadByUserId.value.get(Number(right.id)) ?? 0;
+
+            if (unreadLeft !== unreadRight) {
+                return unreadRight - unreadLeft;
+            }
+
+            return String(left.name ?? '').localeCompare(String(right.name ?? ''), 'ru');
+        })
+        .slice(0, 8);
 });
+
+function colleagueUnreadCount(user) {
+    return directUnreadByUserId.value.get(Number(user?.id)) ?? 0;
+}
 
 const groupCandidates = computed(() => colleagues.value.slice(0, 50));
 
@@ -773,6 +801,47 @@ function contactSubtitle(user) {
     return user.phone || user.email || 'Открыть личный чат';
 }
 
+async function openConversationById(conversationId) {
+    if (!conversationId) {
+        return;
+    }
+
+    let conversation = conversations.value.find((item) => Number(item.id) === Number(conversationId));
+
+    if (!conversation) {
+        await loadConversations();
+        conversation = conversations.value.find((item) => Number(item.id) === Number(conversationId));
+    }
+
+    if (conversation) {
+        await openConversationThread(conversation);
+    }
+}
+
+function handleMobileNavigate(event) {
+    const detail = event.detail ?? {};
+
+    if (detail.tab) {
+        selectTab(detail.tab);
+        screen.value = 'list';
+    }
+
+    if (detail.conversationId) {
+        openConversationById(Number(detail.conversationId));
+
+        return;
+    }
+
+    if (typeof detail.actionUrl === 'string' && detail.actionUrl !== '') {
+        const actionUrl = detail.actionUrl;
+        const url = actionUrl.startsWith('http')
+            ? actionUrl
+            : `${window.location.origin}${actionUrl.startsWith('/') ? actionUrl : `/${actionUrl}`}`;
+
+        window.location.href = url;
+    }
+}
+
 let shellSearchTimer = null;
 
 watch([activeTab, search], ([tab, needle]) => {
@@ -790,5 +859,10 @@ onMounted(() => {
     reloadAll();
     loadColleagues();
     registerMobilePushIfAvailable({ enabled: page.props.mobile_push_enabled === true });
+    window.addEventListener('crm-mobile-navigate', handleMobileNavigate);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('crm-mobile-navigate', handleMobileNavigate);
 });
 </script>

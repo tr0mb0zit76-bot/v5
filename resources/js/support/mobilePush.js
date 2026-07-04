@@ -1,11 +1,16 @@
 import axios from 'axios';
 import { getOrCreateDeviceKey } from '@/support/mobileDevice';
+import { dispatchMobilePushNavigation } from '@/support/mobilePushNavigation.js';
 
 let registrationStarted = false;
 
 function isNativeCapacitor() {
     return typeof window !== 'undefined'
         && window.Capacitor?.isNativePlatform?.() === true;
+}
+
+function extractPushData(notification) {
+    return notification?.data ?? notification?.notification?.data ?? {};
 }
 
 export async function registerMobilePushIfAvailable({ enabled = false } = {}) {
@@ -46,12 +51,7 @@ export async function registerMobilePushIfAvailable({ enabled = false } = {}) {
         });
 
         PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-            const conversationId = action.notification?.data?.conversation_id;
-            if (conversationId) {
-                window.dispatchEvent(new CustomEvent('crm-mobile-open-conversation', {
-                    detail: { conversationId: Number(conversationId) },
-                }));
-            }
+            dispatchMobilePushNavigation(extractPushData(action.notification));
         });
     } catch (error) {
         console.warn('Push notifications unavailable', error);

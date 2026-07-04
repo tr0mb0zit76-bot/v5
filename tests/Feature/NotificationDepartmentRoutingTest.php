@@ -7,11 +7,9 @@ use App\Models\ContractorRiskAssessment;
 use App\Models\Department;
 use App\Models\User;
 use App\Notifications\CabinetInAppNotification;
-use App\Notifications\Channels\NtfyChannel;
 use App\Services\CabinetNotifier;
 use App\Services\Contractor\ContractorLimitApprovalService;
 use App\Support\UserDepartmentSync;
-use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -60,14 +58,8 @@ class NotificationDepartmentRoutingTest extends TestCase
     }
 
     #[Test]
-    public function approval_notification_includes_ntfy_channel_when_enabled(): void
+    public function cabinet_notification_uses_database_channel_only(): void
     {
-        config([
-            'notifications.ntfy_enabled' => true,
-            'notifications.approval_kinds' => ['contractor_limit_approval'],
-        ]);
-
-        $user = User::factory()->create();
         $notification = new CabinetInAppNotification(
             'contractor_limit_approval',
             'Согласование',
@@ -76,51 +68,14 @@ class NotificationDepartmentRoutingTest extends TestCase
             [],
         );
 
-        $channels = $notification->via($user);
+        $channels = $notification->via(User::factory()->create());
 
-        $this->assertContains('database', $channels);
-        $this->assertContains(NtfyChannel::class, $channels);
+        $this->assertSame(['database'], $channels);
     }
 
     #[Test]
-    public function ntfy_channel_posts_to_configured_topic(): void
+    public function task_notification_uses_database_channel_only(): void
     {
-        config([
-            'notifications.ntfy_enabled' => true,
-            'ntfy.base_url' => 'https://ntfy.test',
-        ]);
-
-        Http::fake();
-
-        $user = User::factory()->create([
-            'ntfy_topic' => 'crm-u-test-topic',
-        ]);
-
-        $notification = new CabinetInAppNotification(
-            'contractor_limit_approval',
-            'Согласование',
-            'Текст',
-            '/contractors/1',
-            [],
-        );
-
-        app(NtfyChannel::class)->send($user, $notification);
-
-        Http::assertSentCount(1);
-    }
-
-    #[Test]
-    public function task_notification_does_not_use_ntfy_channel(): void
-    {
-        config([
-            'notifications.ntfy_enabled' => true,
-            'notifications.approval_kinds' => ['contractor_limit_approval'],
-        ]);
-
-        $user = User::factory()->create([
-            'ntfy_topic' => 'crm-u-test-topic',
-        ]);
-
         $notification = new CabinetInAppNotification(
             'task_assigned',
             'Задача',
@@ -129,7 +84,7 @@ class NotificationDepartmentRoutingTest extends TestCase
             [],
         );
 
-        $channels = $notification->via($user);
+        $channels = $notification->via(User::factory()->create());
 
         $this->assertSame(['database'], $channels);
     }
