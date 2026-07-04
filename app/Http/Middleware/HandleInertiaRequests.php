@@ -96,6 +96,7 @@ class HandleInertiaRequests extends Middleware
             'ai_agent_default_slug' => Inertia::always(fn (): string => AiAgentCatalog::defaultSlug()),
             'ai_command_bar_history' => Inertia::always(fn (): array => CommandBarHistoryLimits::profileForUser($request->user())),
             'crm_features' => Inertia::always(fn (): array => CrmFeatureCatalog::snapshot($request->user())),
+            'mobile_push_enabled' => Inertia::always(static fn (): bool => (bool) config('fcm.enabled')),
         ];
     }
 

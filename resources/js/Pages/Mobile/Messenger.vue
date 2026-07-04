@@ -789,6 +789,6 @@ watch([activeTab, search], ([tab, needle]) => {
 onMounted(() => {
     reloadAll();
     loadColleagues();
-    registerMobilePushIfAvailable();
+    registerMobilePushIfAvailable({ enabled: page.props.mobile_push_enabled === true });
 });
 </script>

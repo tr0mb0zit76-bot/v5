@@ -8,8 +8,8 @@ function isNativeCapacitor() {
         && window.Capacitor?.isNativePlatform?.() === true;
 }
 
-export async function registerMobilePushIfAvailable() {
-    if (!isNativeCapacitor() || registrationStarted) {
+export async function registerMobilePushIfAvailable({ enabled = false } = {}) {
+    if (!enabled || !isNativeCapacitor() || registrationStarted) {
         return;
     }
 
