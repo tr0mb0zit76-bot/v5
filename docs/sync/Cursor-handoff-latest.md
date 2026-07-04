@@ -3,9 +3,25 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-04 18:05 · **Ветка:** `master` · **Контекст:** Mobile CRM shell phase 2 (pull-to-refresh, share-to-chat, push deep links)
+**Обновлено:** 2026-07-04 18:15 · **Ветка:** `master` · **Контекст:** Mobile CRM shell phase 3 (CRM link previews, send icon)
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-07-04) — mobile CRM shell phase 3
+
+- **Кнопка отправки в thread:** текст «Отпр.» заменён на иконку `Send` (квадратная кнопка 44×44, `aria-label="Отправить"`).
+- **Preview CRM-ссылок в сообщениях:** `MobileCrmLinkPreview.vue` + расширенный `mobileMessageLinks.js` — заказ, документы заказа, лид, контрагент, задача; иконка типа, заголовок, подпись (без сырого URL в карточке).
+- **Карточки вкладок:** общий `MobileShellEntityCard.vue` — badge типа сущности, кнопка share; документы показывают `order_id` вместо URL.
+- **Upload из «Документы»:** после загрузки файла с вкладки (не из thread) открывается picker «Отправить в чат».
+- **Phase 2 (ранее):** pull-to-refresh, share-to-chat, push deep links — commit `c697400`.
+- **FCM / ntfy:** commit `ca73ae2` и ранее.
+- Проверка: `npm run build`, `php artisan test --compact tests/Feature/MobileShellFeedTest.php tests/Feature/MobileEntityChipTest.php tests/Feature/MessengerTest.php`.
+
+### Следующий шаг (phase 4)
+
+- Mobile flow «Прикрепить файл» из thread уже есть (`MobileDocumentUploadWizard`); phase 4 — polish слотов, progress upload, тесты upload JSON.
 
 ---
 

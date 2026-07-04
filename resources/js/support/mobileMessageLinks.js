@@ -3,6 +3,7 @@ const ENTITY_KIND_LABELS = {
     order: 'Заказ',
     lead: 'Лид',
     contractor: 'Контрагент',
+    task: 'Задача',
 };
 
 export function entityKindLabel(kind) {
@@ -37,27 +38,60 @@ export function splitMessageSegments(body) {
     return segments.length > 0 ? segments : [{ type: 'text', value: text }];
 }
 
+function idFromPath(path, segment) {
+    const match = String(path ?? '').match(new RegExp(`/${segment}/(\\d+)`));
+
+    return match ? match[1] : null;
+}
+
 export function previewForCrmUrl(url) {
     const value = String(url ?? '');
 
     try {
         const parsed = new URL(value);
         const path = parsed.pathname;
+        const search = parsed.search;
 
-        if (path.includes('/orders/') && path.includes('/edit')) {
-            return { kind: 'order', label: 'Карточка заказа' };
+        const orderId = idFromPath(path, 'orders');
+        if (orderId !== null) {
+            const documentsTab = search.includes('tab=documents');
+
+            return {
+                kind: documentsTab ? 'document' : 'order',
+                label: entityKindLabel(documentsTab ? 'document' : 'order'),
+                title: documentsTab ? `Документы · заказ #${orderId}` : `Заказ #${orderId}`,
+                subtitle: documentsTab ? 'Вкладка документов заказа' : 'Карточка заказа в CRM',
+            };
         }
 
-        if (path.includes('/leads/')) {
-            return { kind: 'lead', label: 'Карточка лида' };
+        const leadId = idFromPath(path, 'leads');
+        if (leadId !== null) {
+            return {
+                kind: 'lead',
+                label: entityKindLabel('lead'),
+                title: `Лид #${leadId}`,
+                subtitle: 'Карточка лида в CRM',
+            };
         }
 
-        if (path.includes('/contractors/')) {
-            return { kind: 'contractor', label: 'Контрагент' };
+        const contractorId = idFromPath(path, 'contractors');
+        if (contractorId !== null) {
+            return {
+                kind: 'contractor',
+                label: entityKindLabel('contractor'),
+                title: `Контрагент #${contractorId}`,
+                subtitle: 'Карточка контрагента',
+            };
         }
 
-        if (path.includes('tab=documents')) {
-            return { kind: 'document', label: 'Документы заказа' };
+        const taskId = idFromPath(path, 'tasks');
+        if (taskId !== null) {
+            return {
+                kind: 'task',
+                label: entityKindLabel('task'),
+                title: `Задача #${taskId}`,
+                subtitle: 'Карточка задачи в CRM',
+            };
         }
     } catch {
         return null;

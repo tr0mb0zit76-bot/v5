@@ -47,15 +47,12 @@
                         <p class="whitespace-pre-wrap break-words">
                             <template v-for="(segment, segmentIndex) in splitMessageSegments(message.body)" :key="`${message.id}-${segmentIndex}`">
                                 <template v-if="segment.type === 'url'">
-                                    <div
+                                    <MobileCrmLinkPreview
                                         v-if="previewForCrmUrl(segment.value)"
-                                        class="mb-2 rounded-xl border border-white/15 bg-black/20 px-2 py-1.5 text-[11px]"
-                                    >
-                                        <div class="font-semibold uppercase tracking-wide text-sky-200">
-                                            {{ previewForCrmUrl(segment.value).label }}
-                                        </div>
-                                        <a :href="segment.value" class="mt-1 block break-all underline opacity-90">{{ segment.value }}</a>
-                                    </div>
+                                        :url="segment.value"
+                                        :preview="previewForCrmUrl(segment.value)"
+                                        class="mb-2"
+                                    />
                                     <a v-else :href="segment.value" class="break-all underline">{{ segment.value }}</a>
                                 </template>
                                 <span v-else>{{ segment.value }}</span>
@@ -85,10 +82,12 @@
                 />
                 <button
                     type="submit"
-                    class="rounded-2xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-600 text-white disabled:opacity-50"
+                    aria-label="Отправить"
+                    title="Отправить"
                     :disabled="!activeConversation || sending || messageBody.trim() === ''"
                 >
-                    Отпр.
+                    <Send class="h-5 w-5" />
                 </button>
             </form>
 
@@ -275,67 +274,50 @@
                 <section v-else-if="activeTab === 'documents'" class="space-y-4 p-4">
                     <button
                         type="button"
-                        class="w-full rounded-3xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white active:bg-sky-500"
+                        class="flex w-full items-center justify-center gap-2 rounded-3xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white active:bg-sky-500"
                         @click="openUploadWizard"
                     >
+                        <Upload class="h-4 w-4" />
                         Добавить документ с телефона
                     </button>
                     <div v-if="documentsLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка документов…</div>
                     <template v-else>
                         <div v-if="attentionDocuments.length" class="space-y-2">
                             <div class="text-[11px] font-semibold uppercase tracking-wide text-amber-300">Требуют внимания</div>
-                            <div
+                            <MobileShellEntityCard
                                 v-for="item in attentionDocuments"
                                 :key="`attention-${item.order_id}`"
-                                :id="`mobile-attention-order-${item.order_id}`"
-                                class="rounded-3xl border border-amber-500/20 bg-amber-500/10 active:bg-amber-500/15"
-                                :class="highlightCardClass('attention-order', item.order_id)"
+                                :element-id="`mobile-attention-order-${item.order_id}`"
+                                card-class="border-amber-500/20 bg-amber-500/10"
+                                :highlight-class="highlightCardClass('attention-order', item.order_id)"
+                                :url="item.url"
+                                @share="beginShareToChat({ url: item.url, label: item.order_number })"
                             >
-                                <div class="flex items-start gap-2 p-4">
-                                    <a :href="item.url" class="min-w-0 flex-1">
-                                        <div class="text-sm font-semibold text-zinc-50">{{ item.order_number }}</div>
-                                        <div class="mt-1 text-xs text-zinc-400">{{ item.customer_name || 'Заказ' }}</div>
-                                        <div class="mt-2 text-xs text-amber-100">
-                                            {{ item.pending_count }} незакрытых слотов
-                                            <span v-if="item.pending_labels?.length"> · {{ item.pending_labels.join(', ') }}</span>
-                                        </div>
-                                    </a>
-                                    <button
-                                        type="button"
-                                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 text-sky-200 active:bg-white/10"
-                                        title="Отправить в чат"
-                                        @click="beginShareToChat({ url: item.url, label: item.order_number })"
-                                    >
-                                        <Share2 class="h-4 w-4" />
-                                    </button>
+                                <div class="text-sm font-semibold text-zinc-50">{{ item.order_number }}</div>
+                                <div class="mt-1 text-xs text-zinc-400">{{ item.customer_name || 'Заказ' }}</div>
+                                <div class="mt-2 text-xs text-amber-100">
+                                    {{ item.pending_count }} незакрытых слотов
+                                    <span v-if="item.pending_labels?.length"> · {{ item.pending_labels.join(', ') }}</span>
                                 </div>
-                            </div>
+                            </MobileShellEntityCard>
                         </div>
 
                         <div class="space-y-2">
                             <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Последние документы</div>
-                            <div
+                            <MobileShellEntityCard
                                 v-for="doc in filteredRecentDocuments"
                                 :key="`doc-${doc.id}`"
-                                :id="`mobile-document-${doc.id}`"
-                                class="rounded-3xl border border-white/10 bg-white/[0.04]"
-                                :class="highlightCardClass('document', doc.id)"
+                                :element-id="`mobile-document-${doc.id}`"
+                                :highlight-class="highlightCardClass('document', doc.id)"
+                                :url="doc.url"
+                                @share="beginShareToChat({ url: doc.url, label: doc.label })"
                             >
-                                <div class="flex items-start gap-2 p-4 active:bg-white/10">
-                                    <a :href="doc.url" class="min-w-0 flex-1">
-                                        <div class="text-sm font-semibold text-zinc-50">{{ doc.label }}</div>
-                                        <div class="mt-1 truncate text-xs text-zinc-500">{{ doc.url }}</div>
-                                    </a>
-                                    <button
-                                        type="button"
-                                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 text-sky-200 active:bg-white/10"
-                                        title="Отправить в чат"
-                                        @click="beginShareToChat({ url: doc.url, label: doc.label })"
-                                    >
-                                        <Share2 class="h-4 w-4" />
-                                    </button>
+                                <div class="flex items-center gap-2">
+                                    <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-200">Документ</span>
                                 </div>
-                            </div>
+                                <div class="mt-1 text-sm font-semibold text-zinc-50">{{ doc.label }}</div>
+                                <div v-if="doc.order_id" class="mt-1 text-xs text-zinc-500">Заказ #{{ doc.order_id }}</div>
+                            </MobileShellEntityCard>
                             <div v-if="filteredRecentDocuments.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
                                 {{ search.trim() ? 'Ничего не найдено.' : 'Документов пока нет.' }}
                             </div>
@@ -346,39 +328,31 @@
                 <section v-else-if="activeTab === 'orders'" class="space-y-3 p-4">
                     <div v-if="ordersLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка заказов…</div>
                     <template v-else>
-                        <div
+                        <MobileShellEntityCard
                             v-for="order in filteredOrders"
                             :key="`order-${order.id}`"
-                            :id="`mobile-order-${order.id}`"
-                            class="rounded-3xl border border-white/10 bg-white/[0.04]"
-                            :class="highlightCardClass('order', order.id)"
+                            :element-id="`mobile-order-${order.id}`"
+                            :highlight-class="highlightCardClass('order', order.id)"
+                            :url="order.url"
+                            @share="beginShareToChat({ url: order.url, label: order.order_number })"
                         >
-                            <div class="flex items-start gap-2 p-4 active:bg-white/10">
-                                <a :href="order.url" class="min-w-0 flex-1">
-                                    <div class="flex items-start gap-3">
-                                        <div class="min-w-0 flex-1">
-                                            <div class="text-sm font-semibold text-zinc-50">{{ order.order_number }}</div>
-                                            <div class="mt-1 text-xs text-zinc-400">{{ order.customer_name || 'Заказчик не указан' }}</div>
-                                            <div v-if="order.carrier_name" class="mt-1 text-xs text-zinc-500">Перевозчик: {{ order.carrier_name }}</div>
-                                        </div>
-                                        <span class="shrink-0 rounded-full bg-white/10 px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-300">
-                                            {{ order.status || '—' }}
-                                        </span>
+                            <div class="flex items-start gap-3">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-200">Заказ</span>
                                     </div>
-                                    <div v-if="order.loading_date || order.unloading_date" class="mt-3 text-xs text-zinc-500">
-                                        {{ formatOrderRoute(order) }}
-                                    </div>
-                                </a>
-                                <button
-                                    type="button"
-                                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 text-sky-200 active:bg-white/10"
-                                    title="Отправить в чат"
-                                    @click="beginShareToChat({ url: order.url, label: order.order_number })"
-                                >
-                                    <Share2 class="h-4 w-4" />
-                                </button>
+                                    <div class="mt-1 text-sm font-semibold text-zinc-50">{{ order.order_number }}</div>
+                                    <div class="mt-1 text-xs text-zinc-400">{{ order.customer_name || 'Заказчик не указан' }}</div>
+                                    <div v-if="order.carrier_name" class="mt-1 text-xs text-zinc-500">Перевозчик: {{ order.carrier_name }}</div>
+                                </div>
+                                <span class="shrink-0 rounded-full bg-white/10 px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-300">
+                                    {{ order.status || '—' }}
+                                </span>
                             </div>
-                        </div>
+                            <div v-if="order.loading_date || order.unloading_date" class="mt-3 text-xs text-zinc-500">
+                                {{ formatOrderRoute(order) }}
+                            </div>
+                        </MobileShellEntityCard>
                         <div v-if="filteredOrders.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
                             {{ search.trim() ? 'Ничего не найдено.' : 'Активных заказов пока нет.' }}
                         </div>
@@ -388,46 +362,36 @@
                 <section v-else-if="activeTab === 'tasks'" class="space-y-3 p-4">
                     <div v-if="tasksLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка задач…</div>
                     <template v-else>
-                        <div
+                        <MobileShellEntityCard
                             v-for="task in filteredTasks"
                             :key="`task-${task.id}`"
-                            :id="`mobile-task-${task.id}`"
-                            class="rounded-3xl border p-4 active:opacity-90"
-                            :class="[
-                                task.is_overdue || task.sla_breached ? 'border-rose-500/30 bg-rose-500/10' : 'border-white/10 bg-white/[0.04]',
-                                highlightCardClass('task', task.id),
-                            ]"
+                            :element-id="`mobile-task-${task.id}`"
+                            :card-class="task.is_overdue || task.sla_breached ? 'border-rose-500/30 bg-rose-500/10' : 'border-white/10 bg-white/[0.04]'"
+                            :highlight-class="highlightCardClass('task', task.id)"
+                            :url="task.url"
+                            @share="beginShareToChat({ url: task.url, label: `${task.number} · ${task.title}` })"
                         >
-                            <div class="flex items-start gap-2">
-                                <a :href="task.url" class="min-w-0 flex-1">
-                                    <div class="flex items-start gap-3">
-                                        <div class="min-w-0 flex-1">
-                                            <div class="text-sm font-semibold text-zinc-50">{{ task.number }} · {{ task.title }}</div>
-                                            <div class="mt-1 text-xs text-zinc-400">{{ task.status_label }}</div>
-                                            <div v-if="task.lead_number || task.contractor_name" class="mt-1 text-xs text-zinc-500">
-                                                <span v-if="task.lead_number">Лид {{ task.lead_number }}</span>
-                                                <span v-if="task.contractor_name">{{ task.lead_number ? ' · ' : '' }}{{ task.contractor_name }}</span>
-                                            </div>
-                                        </div>
-                                        <span
-                                            v-if="task.is_overdue || task.sla_breached"
-                                            class="shrink-0 rounded-full bg-rose-500/20 px-2 py-1 text-[10px] font-semibold uppercase text-rose-200"
-                                        >
-                                            Просрочена
-                                        </span>
+                            <div class="flex items-start gap-3">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-200">Задача</span>
                                     </div>
-                                    <div v-if="task.due_at" class="mt-3 text-xs text-zinc-500">Срок: {{ formatShortDate(task.due_at) }}</div>
-                                </a>
-                                <button
-                                    type="button"
-                                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 text-sky-200 active:bg-white/10"
-                                    title="Отправить в чат"
-                                    @click="beginShareToChat({ url: task.url, label: `${task.number} · ${task.title}` })"
+                                    <div class="mt-1 text-sm font-semibold text-zinc-50">{{ task.number }} · {{ task.title }}</div>
+                                    <div class="mt-1 text-xs text-zinc-400">{{ task.status_label }}</div>
+                                    <div v-if="task.lead_number || task.contractor_name" class="mt-1 text-xs text-zinc-500">
+                                        <span v-if="task.lead_number">Лид {{ task.lead_number }}</span>
+                                        <span v-if="task.contractor_name">{{ task.lead_number ? ' · ' : '' }}{{ task.contractor_name }}</span>
+                                    </div>
+                                </div>
+                                <span
+                                    v-if="task.is_overdue || task.sla_breached"
+                                    class="shrink-0 rounded-full bg-rose-500/20 px-2 py-1 text-[10px] font-semibold uppercase text-rose-200"
                                 >
-                                    <Share2 class="h-4 w-4" />
-                                </button>
+                                    Просрочена
+                                </span>
                             </div>
-                        </div>
+                            <div v-if="task.due_at" class="mt-3 text-xs text-zinc-500">Срок: {{ formatShortDate(task.due_at) }}</div>
+                        </MobileShellEntityCard>
                         <div v-if="filteredTasks.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
                             {{ search.trim() ? 'Ничего не найдено.' : 'Открытых задач нет.' }}
                         </div>
@@ -493,14 +457,16 @@
 <script setup>
 import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
-import { ArrowLeft, CheckSquare, FileText, MessageCircle, Package, Phone, Plus, RefreshCw, Search, Share2, Users } from 'lucide-vue-next';
+import { ArrowLeft, CheckSquare, FileText, MessageCircle, Package, Phone, Plus, RefreshCw, Search, Send, Upload, Users } from 'lucide-vue-next';
 import { useMessenger } from '@/composables/useMessenger.js';
 import { useMessengerPolling } from '@/composables/useMessengerPolling.js';
 import { useMobileShell } from '@/composables/useMobileShell.js';
 import { usePullToRefresh } from '@/composables/usePullToRefresh.js';
+import MobileCrmLinkPreview from '@/Components/Mobile/MobileCrmLinkPreview.vue';
 import MobileDocumentUploadWizard from '@/Components/Mobile/MobileDocumentUploadWizard.vue';
 import MobileEntityPicker from '@/Components/Mobile/MobileEntityPicker.vue';
 import MobileShareToChatPicker from '@/Components/Mobile/MobileShareToChatPicker.vue';
+import MobileShellEntityCard from '@/Components/Mobile/MobileShellEntityCard.vue';
 import { previewForCrmUrl, splitMessageSegments } from '@/support/mobileMessageLinks.js';
 import { buildDirectUnreadByUserId, formatConversationPreview } from '@/support/messengerConversationText.js';
 import { registerMobilePushIfAvailable } from '@/support/mobilePush.js';
@@ -696,8 +662,15 @@ function toggleThreadActions() {
 }
 
 async function handleDocumentUploaded(document) {
-    if (document?.url && screen.value === 'thread') {
-        insertUrlIntoComposer(document.url);
+    if (document?.url) {
+        if (screen.value === 'thread') {
+            insertUrlIntoComposer(document.url);
+        } else {
+            beginShareToChat({
+                url: document.url,
+                label: document.label ?? 'Документ',
+            });
+        }
     }
 
     if (activeTab.value === 'documents' || screen.value !== 'thread') {
