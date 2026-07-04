@@ -3,9 +3,24 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-04 14:19 · **Ветка:** `master` · **Контекст:** Mobile CRM shell phase 1
+**Обновлено:** 2026-07-04 18:05 · **Ветка:** `master` · **Контекст:** Mobile CRM shell phase 2 (pull-to-refresh, share-to-chat, push deep links)
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-07-04) — mobile CRM shell phase 2
+
+- **Pull-to-refresh** на всех вкладках mobile shell: composable `resources/js/composables/usePullToRefresh.js`, индикатор «Отпустите для обновления» на `main` списка в `Messenger.vue`; для `Чаты` — `reloadAll()` + коллеги, для остальных — `loadTab()`.
+- **«Отправить в чат»** с карточек заказов, задач и документов: компонент `resources/js/Components/Mobile/MobileShareToChatPicker.vue`; кнопка Share на карточках → выбор диалога/коллеги → открытие thread с URL в composer.
+- **Deep link из push:** `resources/js/support/mobilePushNavigation.js` — `orderId`, `highlightType`, парсинг `/orders/{id}` и `tab=documents`; в `Messenger.vue` — подсветка карточки (ring 4.5 с), scrollIntoView; foreground push обновляет активную вкладку (`crm-mobile-push-received`).
+- **Ранее в этой ветке (phase 1 + FCM):** ntfy удалён, единый FCM через `MobilePushService`; per-colleague unread badges; отправитель в preview/аватар; guard FCM register при `FCM_ENABLED=false`. Commits: `861516b`, `3861461`, `ca73ae2`.
+- **Prod FCM:** на сервере нужны реальные `FCM_PROJECT_ID` и путь `FCM_CREDENTIALS` к service account JSON; без них push с бэкенда не уйдёт (клиентский register работает при `google-services.json` в APK).
+- Проверка: `npm run build`, `php artisan test --compact tests/Feature/MobilePushServiceTest.php tests/Feature/MessengerTest.php`.
+
+### Следующий шаг (phase 3)
+
+- Карточки сущностей богаче (preview как в desktop chips), upload wizard из вкладки «Документы», тесты JS для `mobilePushNavigation.js` при появлении vitest.
 
 ---
 
