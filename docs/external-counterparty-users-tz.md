@@ -336,10 +336,12 @@ POST /logout
 
 ## 12. Фазы реализации
 
-### Фаза A — документация (параллельно)
+### Фаза A — документация (параллельно) ✅
 
-- **Runbook** (dev): архитектура external User, деплoy, без APK для контрагента.
-- **Инструкция** (Книга продаж): как выдать доступ, как писать контрагенту, без техн. деталей.
+- **Runbook (dev):** `docs/traklo-runbook.md` — архитектура, API, smoke, деплoy; явно: **не** desktop-кабинет.
+- **Инструкция менеджера:** `docs/traklo-manager-guide.md` → Книга продаж «Traklo для менеджера».
+- **Инструкция контрагента:** `docs/traklo-counterparty-guide.md` → Книга продаж «Traklo для контрагента».
+- **Публикация в Книгу:** `php artisan sales-book:upsert-child-page` (local) или `php scripts/mcp-prod-upsert-traklo.php` (prod MCP).
 
 ### Фаза B — MVP external User (backend)
 
@@ -409,9 +411,9 @@ POST /logout
 
 | Документ | Аудитория | Содержание |
 |----------|-----------|------------|
-| `docs/traklo-runbook.md` *(будущий)* | разработчик | external User, middleware, API, деплoy, APK |
-| Книга продаж «Traklo для менеджера» | пользователь | primary contact, invite-link, два чата на заказ, **без APK-сборки** |
-| Книга продаж «Traklo для контрагента» *(опционально)* | external | ссылка с витрины, вход, документы, web vs app |
+| `docs/traklo-runbook.md` | разработчик | external User, middleware, API, деплoy, smoke; **не** desktop-кабинет |
+| Книга продаж «Traklo для менеджера» | пользователь | `docs/traklo-manager-guide.md` — primary, invite, два чата, порталы |
+| Книга продаж «Traklo для контрагента» | external | `docs/traklo-counterparty-guide.md` — Traklo vs web-ссылка |
 
 ---
 

@@ -1,57 +1,41 @@
 # Traklo — runbook для разработчиков
 
-> Внешние пользователи контрагента, invite-link, counterparty shell.  
-> Пользовательская инструкция — в Книге продаж («Traklo для менеджера»).  
-> ТЗ: `docs/external-counterparty-users-tz.md`
+> External users, invite-link, counterparty shell, messenger, web-portals.  
+> **Пользователям:** `docs/traklo-manager-guide.md`, `docs/traklo-counterparty-guide.md` → Книга продаж.  
+> **ТЗ:** `docs/external-counterparty-users-tz.md`
 
 ---
 
-## Архитектура (MVP фаза B)
+## Что **не** делаем (≠ desktop-кабинет)
+
+**«Desktop-кабинет контрагента в CRM»** (ТЗ §2) — это **отложенная** идея: полноценный Inertia-интерфейс CRM на ПК для external (грид заказов, реестр документов, настройки как у staff). **Не реализовано и не планируется в MVP.**
+
+**Реализовано вместо этого:**
+
+| Канал | Маршруты / UI |
+| --- | --- |
+| Traklo mobile shell | `/mobile/messenger`, `/mobile/shell/counterparty/*` |
+| Guest web | `/portal/carrier/{token}`, `/portal/customer/{token}` |
+| Invite | `/external/invite/{token}` |
+
+External user с `is_external=true` получает **403 / redirect** на desktop `/orders`, `/leads`, `/finance` (`RejectExternalFromInternalRoutes`).
+
+---
+
+## Архитектура (фазы B–D)
 
 | Слой | Назначение |
-|------|------------|
-| `users.is_external` + `contractor_id` + `contractor_contact_id` + `external_party` | Быстрый gate «не staff» |
+| --- | --- |
+| `users.is_external`, `contractor_id`, `contractor_contact_id`, `external_party` | Gate «не staff» |
 | Роли `counterparty_carrier` / `counterparty_customer` | Области `counterparty_*` |
-| `CounterpartyOrderAccess` | Party-scope заказов (не `manager_id`) |
-| `RejectExternalFromInternalRoutes` | Fail closed для CRM-маршрутов |
-| `external_user_invites` | Invite-link → set password |
-| `/mobile/shell/counterparty/*` | API списка заказов для external |
-
-Messenger (фаза C): counterparty conversations, guards, mobile UI.
-
-Customer portal (фаза D): `/portal/customer/{token}`, upload customer documents, «Написать в Traklo» в мастере заказа.
-
----
-
-## Выдача доступа (staff)
-
-1. Карточка контрагента → вкладка **Портрет** → блок **Traklo · доступ контакта**.
-2. **Основной** — `PATCH` через `POST contractors/{id}/contacts/{id}/traklo/primary` → `is_traklo_primary`.
-3. **Пригласить** — `POST .../traklo/invite` → создаёт/обновляет external `User`, возвращает URL `/external/invite/{token}`.
-4. Менеджер копирует ссылку и отправляет контакту (WhatsApp / email / SMS вручную).
-
-Контакт открывает ссылку → задаёт пароль → редирект в `/mobile/messenger`.
-
----
-
-## APK и витрина
-
-- Канон URL: `config/external_users.php` → `apk_url` (env `MOBILE_APP_APK_URL`, default `/downloads/traklo.apk`).
-- Публичная витрина: footer **«Скачать Traklo»** в `PublicSiteShell.vue`.
-- Bump APK: `npm run traklo:apk:release` + положить файл в `public/downloads/traklo.apk` (или обновить env).
-
-Web-портал `/portal/carrier/{token}` **не снимаем** — параллельный канал.
-
----
-
-## Middleware whitelist (external)
-
-Разрешено без 403:
-
-- `mobile/login`, `mobile/messenger`, `mobile/shell/counterparty/*`
-- `messenger/*`, `portal/*`, `external/invite/*`, `logout`
-
-Всё остальное → redirect на mobile messenger или 403 JSON.
+| `CounterpartyOrderAccess` | Party-scope заказов |
+| `RejectExternalFromInternalRoutes` | Fail closed для CRM |
+| `external_user_invites` | Invite → set password |
+| `conversations.channel=counterparty` | Thread на контрагента + party |
+| `CounterpartyConversationService` | Guards, system messages, orders panel |
+| `/mobile/shell/counterparty/*` | Orders + document upload API |
+| `/portal/customer/{token}` | Customer document portal |
+| `/portal/carrier/{token}` | Carrier fleet + documents (legacy) |
 
 ---
 
@@ -61,7 +45,30 @@ Web-портал `/portal/carrier/{token}` **не снимаем** — пара�
 php artisan migrate
 ```
 
-Создаёт колонки, `external_user_invites`, роли counterparty, поля conversations.
+Файлы `2026_07_05_*`: users/contacts, invites, roles, conversations, chat_messages.order_id, nullable password.
+
+---
+
+## API (основное)
+
+| Маршрут | Кто |
+| --- | --- |
+| `POST contractors/{c}/contacts/{contact}/traklo/primary` | Staff |
+| `POST contractors/{c}/contacts/{contact}/traklo/invite` | Staff |
+| `GET/POST external/invite/{token}` | Guest |
+| `POST messenger/conversations/open-counterparty` | Staff |
+| `GET messenger/counterparty-contacts` | Staff |
+| `GET mobile/shell/counterparty/orders` | External |
+| `POST orders/{order}/portal-invites/customer` | Staff |
+| `POST orders/{order}/portal-invites/carrier` | Staff |
+| `GET/POST portal/customer/{token}/documents` | Guest |
+| `GET/POST portal/carrier/{token}/*` | Guest |
+
+---
+
+## Middleware whitelist (external)
+
+`mobile/login`, `mobile/messenger`, `mobile/shell/counterparty/*`, `messenger/*`, `portal/*`, `external/invite/*`, `logout`.
 
 ---
 
@@ -70,21 +77,67 @@ php artisan migrate
 ```bash
 php artisan test --compact tests/Feature/ExternalUserProvisionTest.php
 php artisan test --compact tests/Feature/RejectExternalFromInternalRoutesTest.php
+php artisan test --compact tests/Feature/CounterpartyMessengerTest.php
+php artisan test --compact tests/Feature/OrderCustomerPortalTest.php
 ```
 
 ---
 
-## Деплoy
+## Деплой
 
 1. `php artisan migrate --force`
 2. `npm run build`
-3. APK — только если меняли native / versionCode
-4. Проверка: invite-link → set password → mobile messenger; staff `/orders` для external → 403/redirect
+3. Smoke (см. ниже)
+4. APK — только при смене native / `versionCode` (`npm run traklo:apk:release`)
 
 ---
 
-## Следующие шаги (фаза C)
+## Smoke-чеклист (prod / staging)
 
-- `MessengerService`: counterparty conversations, запрет mixed participants
-- Панель заказов в чате, system messages → timeline
-- Customer upload packing/invoice через counterparty documents API
+- [ ] Портрет контрагента → primary + invite → set password → Traklo
+- [ ] External: только свои заказы; `/orders` → redirect/403
+- [ ] Staff: «Написать в Traklo» из заказа (customer + carrier)
+- [ ] Два counterparty-треда на заказ, без mixed group
+- [ ] «Ссылка заказчику» → upload на customer portal
+- [ ] «Ссылка перевозчику» → carrier portal работает
+- [ ] Footer / transport-request: «Скачать Traklo»
+- [ ] Деактивация external User блокирует login
+
+---
+
+## Книга продаж (публикация)
+
+Канон markdown в `docs/`:
+
+- `docs/traklo-manager-guide.md` → родитель **«Руководство по CRM»**, заголовок **«Traklo для менеджера»**
+- `docs/traklo-counterparty-guide.md` → **«Traklo для контрагента»**
+
+**Локально (БД dev):**
+
+```bash
+php artisan sales-book:upsert-child-page ^
+  --parent="Руководство по CRM" ^
+  --title="Traklo для менеджера" ^
+  --file=docs/traklo-manager-guide.md
+```
+
+**Prod через MCP:**
+
+```bash
+php scripts/mcp-prod-upsert-traklo.php
+```
+
+---
+
+## Конfig
+
+- `config/external_users.php` → `apk_url` (`MOBILE_APP_APK_URL`, default `/downloads/traklo.apk`)
+
+---
+
+## Backlog (после MVP)
+
+- System message в чат при upload через web portal
+- Отметить критерии §15 в ТЗ после smoke
+- Один contact = carrier **и** customer (отложено)
+- SMS-invite (отложено)

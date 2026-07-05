@@ -11,10 +11,18 @@
 
 ## Следующий шаг (external users / Traklo)
 
-1. **`php artisan migrate`** — все миграции `2026_07_05_*` (если ещё не применены).
-2. Smoke: customer portal link → upload; staff «Написать в Traklo» из заказа; invite → Traklo.
-3. `npm run build` после деплоя frontend.
-4. Опционально: system message в чат при upload через portal; Книга продаж «Traklo для контрагента».
+1. **`php artisan migrate`** + **`npm run build`** + smoke (runbook § smoke-чеклист).
+2. **Книга продаж:** `php scripts/mcp-prod-upsert-traklo.php` (prod) или `sales-book:upsert-child-page` (local).
+3. Деплой на prod.
+
+---
+
+## Что сделано (2026-07-05) — External users (фаза A — документация)
+
+- **`docs/traklo-manager-guide.md`** — инструкция для менеджера (invite, чаты, порталы).
+- **`docs/traklo-counterparty-guide.md`** — для контакта контрагента (Traklo vs guest-ссылка).
+- **`docs/traklo-runbook.md`** — полный dev runbook + smoke; пояснение «desktop-кабинет ≠ MVP».
+- **`scripts/mcp-prod-upsert-traklo.php`** — публикация в Книгу продаж через MCP.
 
 ---
 
