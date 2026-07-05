@@ -32,6 +32,7 @@ const authLogoUrl = '/assets/logo_black.png?v=2';
 const headerLogoUrl = '/assets/logo_white.png?v=2';
 const companyPhoneLabel = '+7 8482 55 99 99';
 const companyPhoneHref = 'tel:+78482559999';
+const trakloApkUrl = computed(() => page.props.publicSite?.traklo_apk_url ?? '/downloads/traklo.apk');
 
 const isNonEmptyTextMap = (value) =>
     value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
@@ -678,6 +679,9 @@ onBeforeUnmount(() => {
                     <p>{{ t('footer_address') }}</p>
                     <p><a :href="companyEmailHref">{{ companyEmailLabel }}</a></p>
                     <p><a :href="companyPhoneHref">{{ companyPhoneLabel }}</a></p>
+                    <p>
+                        <a :href="trakloApkUrl" class="footer-traklo-link">Скачать Traklo</a>
+                    </p>
                 </div>
 
                 <div class="footer-end">
@@ -1688,6 +1692,10 @@ onBeforeUnmount(() => {
 
 .footer-info a:hover {
   color: #ff8c5a;
+}
+
+.footer-traklo-link {
+  font-weight: 600;
 }
 
 .auth-modal {

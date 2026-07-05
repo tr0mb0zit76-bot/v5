@@ -17,6 +17,10 @@ class Conversation extends Model
         'type',
         'title',
         'created_by',
+        'channel',
+        'contractor_id',
+        'external_party',
+        'primary_staff_user_id',
     ];
 
     /**
@@ -25,6 +29,22 @@ class Conversation extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * @return BelongsTo<Contractor, $this>
+     */
+    public function contractor(): BelongsTo
+    {
+        return $this->belongsTo(Contractor::class);
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function primaryStaffUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'primary_staff_user_id');
     }
 
     /**

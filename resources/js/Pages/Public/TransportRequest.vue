@@ -7,6 +7,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    traklo_apk_url: {
+        type: String,
+        default: '/downloads/traklo.apk',
+    },
 });
 
 const form = useForm({
@@ -162,6 +166,19 @@ function submit() {
                     {{ form.processing ? 'Отправляем...' : 'Отправить заявку' }}
                 </button>
             </form>
+
+            <div class="mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-300">
+                <p class="font-medium text-slate-100">Уже работаете с нами?</p>
+                <p class="mt-2 leading-6">
+                    Установите мобильное приложение Traklo — заказы, документы и чат с менеджером в одном месте.
+                </p>
+                <a
+                    :href="traklo_apk_url"
+                    class="mt-4 inline-flex rounded-2xl border border-sky-400/40 px-4 py-2 text-sm font-semibold text-sky-200 hover:bg-sky-400/10"
+                >
+                    Скачать Traklo
+                </a>
+            </div>
         </main>
     </div>
 </template>

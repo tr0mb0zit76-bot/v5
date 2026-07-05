@@ -3,10 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\ChatMessage;
+use App\Models\Contractor;
 use App\Models\Conversation;
+use App\Models\Order;
 use App\Models\User;
 use App\Services\CabinetNotifier;
+use App\Services\ExternalUsers\CounterpartyConversationService;
 use App\Services\MessengerService;
+use App\Support\CounterpartyPartyResolver;
+use App\Support\ExternalParty;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -18,6 +23,7 @@ class MessengerController extends Controller
 {
     public function __construct(
         private readonly MessengerService $messengerService,
+        private readonly CounterpartyConversationService $counterpartyConversationService,
         private readonly CabinetNotifier $cabinetNotifier,
     ) {}
 
@@ -44,6 +50,12 @@ class MessengerController extends Controller
             return response()->json(['users' => []]);
         }
 
+        if ($user->isExternal()) {
+            return response()->json([
+                'users' => $this->staffContactsForExternalUser($user),
+            ]);
+        }
+
         $hasPhoneColumn = Schema::hasColumn('users', 'phone');
         $columns = array_values(array_filter([
             'id',
@@ -55,6 +67,16 @@ class MessengerController extends Controller
         $users = User::query()
             ->where('id', '!=', $user->id)
             ->when(Schema::hasColumn('users', 'is_active'), fn ($q) => $q->where('is_active', true))
+            ->when(
+                Schema::hasColumn('users', 'is_external') && $user->isExternal(),
+                fn ($q) => $q->whereRaw('1 = 0'),
+            )
+            ->when(
+                Schema::hasColumn('users', 'is_external') && ! $user->isExternal(),
+                fn ($q) => $q->where(function ($query): void {
+                    $query->where('is_external', false)->orWhereNull('is_external');
+                }),
+            )
             ->where(function ($query): void {
                 $query->whereNull('name')
                     ->orWhereRaw('lower(name) != ?', ['cursor']);
@@ -98,6 +120,44 @@ class MessengerController extends Controller
         ]);
     }
 
+    public function counterpartyContacts(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null || $user->isExternal(), 403);
+
+        if (! Schema::hasTable('conversations') || ! Schema::hasColumn('conversations', 'channel')) {
+            return response()->json(['contacts' => []]);
+        }
+
+        $conversations = $user->conversations()
+            ->where('channel', 'counterparty')
+            ->with(['participants', 'contractor:id,name'])
+            ->orderByDesc('conversations.updated_at')
+            ->limit(50)
+            ->get();
+
+        $contacts = $conversations->map(function (Conversation $conversation): ?array {
+            $external = $this->counterpartyConversationService->externalParticipant($conversation);
+
+            if ($external === null) {
+                return null;
+            }
+
+            return [
+                'user_id' => $external->id,
+                'name' => $external->name,
+                'email' => $external->email,
+                'phone' => Schema::hasColumn('users', 'phone') ? $external->phone : null,
+                'contractor_id' => $conversation->contractor_id,
+                'contractor_name' => $conversation->contractor?->name,
+                'external_party' => $conversation->external_party,
+                'conversation_id' => $conversation->id,
+            ];
+        })->filter()->values();
+
+        return response()->json(['contacts' => $contacts]);
+    }
+
     public function conversations(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -107,15 +167,77 @@ class MessengerController extends Controller
             return response()->json(['conversations' => [], 'unread_count' => 0]);
         }
 
-        $items = $user->conversations()
-            ->with(['latestMessage.author:id,name'])
-            ->orderByDesc('conversations.updated_at')
+        $validated = $request->validate([
+            'channel' => ['sometimes', 'nullable', 'string', Rule::in(['internal', 'counterparty'])],
+        ]);
+
+        $query = $user->conversations()
+            ->with(['latestMessage.author:id,name', 'contractor:id,name'])
+            ->orderByDesc('conversations.updated_at');
+
+        if (
+            filled($validated['channel'] ?? null)
+            && Schema::hasColumn('conversations', 'channel')
+        ) {
+            $query->where('channel', $validated['channel']);
+        }
+
+        if ($user->isExternal() && Schema::hasColumn('conversations', 'channel')) {
+            $query->where('channel', 'counterparty');
+        }
+
+        $items = $query
             ->get()
             ->map(fn (Conversation $c): array => $this->serializeConversation($c, $user));
 
         return response()->json([
             'conversations' => $items,
             'unread_count' => $this->messengerService->totalUnreadFor($user),
+        ]);
+    }
+
+    public function openCounterparty(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null || $user->isExternal(), 403);
+
+        $validated = $request->validate([
+            'contractor_id' => ['required', 'integer', 'exists:contractors,id'],
+            'external_party' => ['required', 'string', Rule::in(ExternalParty::values())],
+            'order_id' => ['nullable', 'integer', 'exists:orders,id'],
+        ]);
+
+        $contractor = Contractor::query()->findOrFail($validated['contractor_id']);
+        $party = ExternalParty::from($validated['external_party']);
+        CounterpartyPartyResolver::assertPartyMatchesContractorType($contractor, $party);
+
+        $contextOrder = isset($validated['order_id'])
+            ? Order::query()->find($validated['order_id'])
+            : null;
+
+        $conversation = $this->counterpartyConversationService->findOrCreateThread(
+            $user,
+            $contractor,
+            $party,
+            $contextOrder,
+        );
+
+        $conversation->loadMissing(['latestMessage.author:id,name', 'participants', 'contractor:id,name']);
+
+        return response()->json([
+            'conversation' => $this->serializeConversation($conversation, $user),
+        ]);
+    }
+
+    public function counterpartyOrders(Request $request, Conversation $conversation): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+        $this->authorizeParticipant($user, $conversation);
+        abort_unless($this->counterpartyConversationService->isCounterpartyChannel($conversation), 404);
+
+        return response()->json([
+            'orders' => $this->counterpartyConversationService->ordersForConversation($conversation),
         ]);
     }
 
@@ -212,6 +334,7 @@ class MessengerController extends Controller
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:8000'],
             'recipient_user_id' => ['nullable', 'integer', 'exists:users,id'],
+            'order_id' => ['nullable', 'integer', 'exists:orders,id'],
         ]);
 
         $recipientId = $validated['recipient_user_id'] ?? null;
@@ -232,6 +355,17 @@ class MessengerController extends Controller
         ];
         if (Schema::hasColumn('chat_messages', 'recipient_user_id')) {
             $payload['recipient_user_id'] = $recipientId;
+        }
+
+        if (
+            Schema::hasColumn('chat_messages', 'order_id')
+            && filled($validated['order_id'] ?? null)
+        ) {
+            $payload['order_id'] = (int) $validated['order_id'];
+        }
+
+        if (Schema::hasColumn('chat_messages', 'message_type')) {
+            $payload['message_type'] = 'text';
         }
 
         $message = ChatMessage::query()->create($payload);
@@ -266,13 +400,64 @@ class MessengerController extends Controller
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    private function staffContactsForExternalUser(User $externalUser): array
+    {
+        $hasPhoneColumn = Schema::hasColumn('users', 'phone');
+
+        $staffIds = $externalUser->conversations()
+            ->with('participants:id')
+            ->get()
+            ->flatMap(fn (Conversation $conversation) => $conversation->participants->pluck('id'))
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->filter(fn (int $id): bool => $id !== (int) $externalUser->id)
+            ->values()
+            ->all();
+
+        if ($staffIds === []) {
+            return [];
+        }
+
+        return User::query()
+            ->whereIn('id', $staffIds)
+            ->when(Schema::hasColumn('users', 'is_active'), fn ($q) => $q->where('is_active', true))
+            ->when(
+                Schema::hasColumn('users', 'is_external'),
+                fn ($q) => $q->where(function ($query): void {
+                    $query->where('is_external', false)->orWhereNull('is_external');
+                }),
+            )
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', $hasPhoneColumn ? 'phone' : 'id'])
+            ->map(fn (User $u): array => [
+                'id' => $u->id,
+                'name' => $u->name,
+                'email' => $u->email,
+                'phone' => $hasPhoneColumn ? $u->phone : null,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function serializeConversation(Conversation $conversation, User $viewer): array
     {
-        $conversation->loadMissing(['latestMessage.author:id,name', 'participants']);
+        $conversation->loadMissing(['latestMessage.author:id,name', 'participants', 'contractor:id,name']);
+
+        $channel = Schema::hasColumn('conversations', 'channel')
+            ? (string) ($conversation->channel ?? 'internal')
+            : 'internal';
 
         $other = $conversation->otherParticipant($viewer);
+        if ($channel === 'counterparty' && $other === null) {
+            $other = $conversation->participants
+                ->first(fn (User $participant): bool => (int) $participant->id !== (int) $viewer->id);
+        }
+
         $unread = $this->messengerService->unreadCountFor($conversation, $viewer);
         $latest = $conversation->latestMessage;
         $memberCount = $conversation->participants->count();
@@ -290,6 +475,10 @@ class MessengerController extends Controller
         return [
             'id' => $conversation->id,
             'type' => $conversation->type,
+            'channel' => $channel,
+            'contractor_id' => $conversation->contractor_id,
+            'contractor_name' => $conversation->contractor?->name,
+            'external_party' => $conversation->external_party,
             'title' => $conversation->type === 'group' ? $conversation->title : null,
             'member_count' => $memberCount,
             'members_preview' => $membersPreview,
@@ -298,12 +487,14 @@ class MessengerController extends Controller
                 'id' => $other->id,
                 'name' => $other->name,
                 'phone' => $hasPhoneColumn ? $other->phone : null,
+                'is_external' => Schema::hasColumn('users', 'is_external') ? $other->isExternal() : false,
             ],
             'last_message' => $latest === null ? null : [
                 'user_id' => $latest->user_id,
                 'body' => Str::limit((string) $latest->body, 120),
                 'created_at' => $latest->created_at?->toIso8601String(),
                 'author_name' => $latest->author?->name,
+                'message_type' => Schema::hasColumn('chat_messages', 'message_type') ? $latest->message_type : 'text',
             ],
             'unread_count' => $unread,
             'updated_at' => $conversation->updated_at?->toIso8601String(),
@@ -322,6 +513,8 @@ class MessengerController extends Controller
             'recipient_user_id' => $message->recipient_user_id,
             'recipient_name' => $message->recipient?->name,
             'body' => $message->body,
+            'order_id' => Schema::hasColumn('chat_messages', 'order_id') ? $message->order_id : null,
+            'message_type' => Schema::hasColumn('chat_messages', 'message_type') ? ($message->message_type ?? 'text') : 'text',
             'created_at' => $message->created_at?->toIso8601String(),
         ];
     }

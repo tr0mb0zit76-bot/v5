@@ -17,6 +17,8 @@ class ChatMessage extends Model
         'user_id',
         'recipient_user_id',
         'body',
+        'order_id',
+        'message_type',
     ];
 
     /**

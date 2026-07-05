@@ -16,6 +16,10 @@ final class MobileNavResolver
             return null;
         }
 
+        if ($user->isExternal()) {
+            return ExternalMobileNavCatalog::forInertiaUser($user);
+        }
+
         $visibleAreas = RoleAccess::userVisibilityAreas($user);
         $isAdmin = RoleAccess::userHasRoleName($user, 'admin');
 

@@ -48,6 +48,10 @@ final class OrderPortalInviteAccessService
 
     public function unloadingActualForInvite(Order $order, OrderPortalInvite $invite): ?string
     {
+        if ($invite->purpose === OrderPortalInvite::PURPOSE_CUSTOMER_DOCUMENTS) {
+            return $this->unloadingActualForCustomerOrder($order);
+        }
+
         $stage = $this->inviteService->normalizeStageIdentifier($invite->stage);
         $carrierSlot = max(1, (int) $invite->carrier_slot);
         $contractorId = (int) $invite->contractor_id;
@@ -107,6 +111,53 @@ final class OrderPortalInviteAccessService
                     continue;
                 }
 
+                foreach ($leg->routePoints->sortByDesc('sequence') as $point) {
+                    if ($point->type !== 'unloading' || $point->actual_date === null) {
+                        continue;
+                    }
+
+                    return $point->actual_date->toDateString();
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function unloadingActualForCustomerOrder(Order $order): ?string
+    {
+        $performers = is_array($order->performers) ? $order->performers : [];
+
+        foreach ($performers as $performer) {
+            if (! is_array($performer)) {
+                continue;
+            }
+
+            if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                foreach ($performer['split_carriers'] as $slot) {
+                    if (! is_array($slot)) {
+                        continue;
+                    }
+
+                    $unloading = PerformerRouteActualDates::normalizeDate($slot['unloading_actual'] ?? null);
+                    if ($unloading !== null) {
+                        return $unloading;
+                    }
+                }
+
+                continue;
+            }
+
+            $unloading = PerformerRouteActualDates::normalizeDate($performer['unloading_actual'] ?? null);
+            if ($unloading !== null) {
+                return $unloading;
+            }
+        }
+
+        if ($order->relationLoaded('legs') || Schema::hasTable('order_legs')) {
+            $order->loadMissing(['legs.routePoints' => fn ($q) => $q->orderByDesc('sequence')]);
+
+            foreach ($order->legs as $leg) {
                 foreach ($leg->routePoints->sortByDesc('sequence') as $point) {
                     if ($point->type !== 'unloading' || $point->actual_date === null) {
                         continue;

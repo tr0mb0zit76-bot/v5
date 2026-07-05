@@ -9,6 +9,8 @@ class OrderPortalInvite extends Model
 {
     public const PURPOSE_CARRIER_FLEET = 'carrier_fleet';
 
+    public const PURPOSE_CUSTOMER_DOCUMENTS = 'customer_documents';
+
     /**
      * @var list<string>
      */

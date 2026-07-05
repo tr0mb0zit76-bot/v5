@@ -705,6 +705,11 @@ class ContractorController extends Controller
                     'phone' => $contact->phone,
                     'email' => $contact->email,
                     'is_primary' => $contact->is_primary,
+                    'is_traklo_primary' => Schema::hasColumn('contractor_contacts', 'is_traklo_primary')
+                        ? (bool) $contact->is_traklo_primary
+                        : false,
+                    'has_traklo_user' => Schema::hasColumn('users', 'contractor_contact_id')
+                        && User::query()->where('contractor_contact_id', $contact->id)->exists(),
                     'is_decision_maker' => Schema::hasColumn('contractor_contacts', 'is_decision_maker')
                         ? $contact->is_decision_maker
                         : false,

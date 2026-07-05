@@ -49,6 +49,34 @@ class OrderPortalInviteController extends Controller
         ]);
     }
 
+    public function storeCustomer(Request $request, Order $order): JsonResponse
+    {
+        abort_unless($this->canManageOrder($request, $order), 403);
+
+        if ((int) $order->customer_id <= 0) {
+            return response()->json([
+                'message' => 'Сначала укажите заказчика в заказе.',
+            ], 422);
+        }
+
+        try {
+            $result = $this->inviteService->createCustomerDocumentsInvite(
+                $order,
+                $request->user(),
+            );
+        } catch (\InvalidArgumentException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        return response()->json([
+            'url' => $result['url'],
+            'link_validity_hint' => app(OrderPortalInviteAccessService::class)->linkValidityHint(),
+            'invite_id' => $result['invite']->id,
+        ]);
+    }
+
     private function canManageOrder(Request $request, Order $order): bool
     {
         return app(OrderWizardController::class)->canEditOrder($request, $order);

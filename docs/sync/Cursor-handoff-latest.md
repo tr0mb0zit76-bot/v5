@@ -3,13 +3,55 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-05 18:32 · **Ветка:** `master` · **HEAD:** `3a909b8` (feature `00247b0`) · **Контекст:** Traklo — единый парсинг + mobile lead draft
+**Обновлено:** 2026-07-05 16:50 · **Ветка:** `master` · **Контекст:** External users Traklo — фаза D завершена
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
 ---
 
-## Следующий шаг (Traklo / окружение)
+## Следующий шаг (external users / Traklo)
+
+1. **`php artisan migrate`** — все миграции `2026_07_05_*` (если ещё не применены).
+2. Smoke: customer portal link → upload; staff «Написать в Traklo» из заказа; invite → Traklo.
+3. `npm run build` после деплоя frontend.
+4. Опционально: system message в чат при upload через portal; Книга продаж «Traklo для контрагента».
+
+---
+
+## Что сделано (2026-07-05) — External users (фаза D)
+
+- **Customer web portal:** `/portal/customer/{token}` — upload customer-слотов (заявка, закрывающие); `OrderCustomerPortalController`, `OrderCustomerPortalDocumentService`.
+- **Staff API:** `POST orders/{order}/portal-invites/customer` → ссылка для заказчика.
+- **UI staff:** `CustomerPortalInviteButton`, `OrderTrakloChatButton` в мастере заказа (заказчик + перевозчики).
+- **Mobile:** deep-link `?conversation_id=` / `?counterparty_*` в `Messenger.vue`.
+- **Витрина:** «Скачать Traklo» на `/transport-request`.
+- **Тесты:** `OrderCustomerPortalTest` (3 passed).
+
+---
+
+## Что сделано (2026-07-05) — External users (фаза C)
+
+- **Миграция:** `chat_messages.order_id`, `message_type`; `users.password` nullable для invite-flow.
+- **Backend:** `CounterpartyConversationService` (thread на контрагента, system message по заказу, guards групп/direct), `CounterpartyOrderDocumentService`, расширен `MessengerController` / `MessengerService`.
+- **API:** `messenger/counterparty-contacts`, `open-counterparty`, `counterparty-orders`; `mobile/shell/counterparty/orders/{order}/document-slots|documents`.
+- **Frontend Traklo:** `Messenger.vue` — вкладки канала (Все/Команда/Контрагенты), список контрагентов, system messages, панель заказов в треде; external — только counterparty + orders/documents.
+- **Тесты:** `CounterpartyMessengerTest` (+ fix import `DocumentUploadBudgetEstimateController` в `routes/web.php`).
+
+---
+
+## Что сделано (2026-07-05) — External users (фаза B MVP)
+
+- **ТЗ §14** зафиксировано в `docs/external-counterparty-users-tz.md`.
+- **Миграции:** `users.is_external`, `contractor_*`, `contractor_contacts.is_traklo_primary`, `external_user_invites`, роли `counterparty_*`, поля `conversations` для counterparty.
+- **Backend:** `CounterpartyOrderAccess`, `ExternalUserProvisionService`, invite `/external/invite/{token}`, middleware `RejectExternalFromInternalRoutes`, API `mobile/shell/counterparty/orders`.
+- **UI staff:** блок Traklo на вкладке «Портрет» контрагента (основной контакт + invite-link).
+- **Витрина:** footer «Скачать Traklo» → `/downloads/traklo.apk`.
+- **Runbook:** `docs/traklo-runbook.md`.
+- **Тесты:** `ExternalUserProvisionTest`, `RejectExternalFromInternalRoutesTest`.
+
+---
+
+## Следующий шаг (Traklo / окружение) — архив
 
 1. **Деплой на prod:** `npm run build` + tar исходников (web); APK — только при смене native/icon/version.
 2. **Laravel Nightwatch** на prod — см. раздел «Окружение» ниже (внешний дашборд, не модуль CRM).

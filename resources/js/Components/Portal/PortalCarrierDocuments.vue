@@ -7,6 +7,7 @@ const props = defineProps({
     documentSlots: { type: Array, default: () => [] },
     readonly: { type: Boolean, default: false },
     documentUploadHint: { type: String, default: '' },
+    uploadRouteName: { type: String, default: 'portal.carrier.documents.store' },
 });
 
 const uploadingKey = ref('');
@@ -86,7 +87,7 @@ async function uploadSlot(slot) {
     body.append('file', form.file);
 
     try {
-        const response = await fetch(route('portal.carrier.documents.store', { token: props.portalToken }), {
+        const response = await fetch(route(props.uploadRouteName, { token: props.portalToken }), {
             method: 'POST',
             headers: {
                 Accept: 'application/json',

@@ -286,6 +286,27 @@ class OrderDocumentRequirementService
     }
 
     /**
+     * Слоты документов заказчика для гостевой ссылки (заявка, закрывающие, пакинг/счёт).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function rulesForCustomerPortalInvite(Order $order): array
+    {
+        return collect($this->requirementRulesForOrder($order))
+            ->filter(function (array $rule): bool {
+                if (($rule['party'] ?? '') !== 'customer') {
+                    return false;
+                }
+
+                $slotKind = (string) ($rule['slot_kind'] ?? '');
+
+                return in_array($slotKind, ['customer_request', 'customer_closing'], true);
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
      * @param  list<array{stage?: string|null, contractor_id?: int|null, contractor_name?: string|null, carrier_mode?: string|null, split_carriers?: list<array<string, mixed>>|null}>  $performers
      * @return list<array<string, mixed>>
      */

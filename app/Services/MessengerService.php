@@ -5,21 +5,42 @@ namespace App\Services;
 use App\Models\ChatMessage;
 use App\Models\Conversation;
 use App\Models\User;
+use App\Services\ExternalUsers\CounterpartyConversationService;
 use App\Support\RoleAccess;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class MessengerService
 {
+    public function __construct(
+        private readonly CounterpartyConversationService $counterpartyConversationService,
+    ) {}
+
     public function findOrCreateDirect(User $a, User $b): Conversation
     {
         if ($a->id === $b->id) {
             throw new \InvalidArgumentException('Нельзя открыть чат с самим собой.');
         }
 
+        $this->counterpartyConversationService->assertDirectPairAllowed($a, $b);
+
+        if ($a->isExternal() xor $b->isExternal()) {
+            $external = $a->isExternal() ? $a : $b;
+            $staff = $a->isExternal() ? $b : $a;
+
+            return $this->counterpartyConversationService->findOrCreateThreadForExternalUser($external, $staff);
+        }
+
         $existing = Conversation::query()
             ->where('type', 'direct')
+            ->when(
+                Schema::hasColumn('conversations', 'channel'),
+                fn ($query) => $query->where(function ($builder): void {
+                    $builder->whereNull('channel')->orWhere('channel', 'internal');
+                }),
+            )
             ->whereHas('participants', fn ($q) => $q->where('user_id', $a->id))
             ->whereHas('participants', fn ($q) => $q->where('user_id', $b->id))
             ->withCount('participants')
@@ -31,7 +52,13 @@ class MessengerService
         }
 
         return DB::transaction(function () use ($a, $b): Conversation {
-            $conversation = Conversation::query()->create(['type' => 'direct']);
+            $payload = ['type' => 'direct'];
+
+            if (Schema::hasColumn('conversations', 'channel')) {
+                $payload['channel'] = 'internal';
+            }
+
+            $conversation = Conversation::query()->create($payload);
             $conversation->participants()->attach([$a->id => [], $b->id => []]);
 
             return $conversation;
@@ -40,12 +67,20 @@ class MessengerService
 
     public function createGroup(User $creator, string $title, array $userIds): Conversation
     {
+        if ($creator->isExternal()) {
+            throw ValidationException::withMessages([
+                'title' => 'Внешний контакт не может создавать групповые чаты.',
+            ]);
+        }
+
         $ids = array_values(array_unique(array_map(static fn (mixed $id): int => (int) $id, $userIds)));
         $ids = array_values(array_filter($ids, fn (int $id): bool => $id !== $creator->id));
 
         if ($ids === []) {
             throw new \InvalidArgumentException('Добавьте хотя бы одного участника.');
         }
+
+        $this->counterpartyConversationService->assertGroupParticipantsAllowed($ids);
 
         $found = User::query()
             ->whereIn('id', $ids)
@@ -56,11 +91,17 @@ class MessengerService
         }
 
         return DB::transaction(function () use ($creator, $title, $ids): Conversation {
-            $conversation = Conversation::query()->create([
+            $payload = [
                 'type' => 'group',
                 'title' => $title,
                 'created_by' => $creator->id,
-            ]);
+            ];
+
+            if (Schema::hasColumn('conversations', 'channel')) {
+                $payload['channel'] = 'internal';
+            }
+
+            $conversation = Conversation::query()->create($payload);
 
             $attach = [$creator->id => []];
             foreach ($ids as $userId) {

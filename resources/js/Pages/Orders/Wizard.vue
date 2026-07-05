@@ -319,13 +319,25 @@
                     <div class="space-y-2">
                         <div class="flex items-center justify-between gap-3">
                             <label class="text-sm font-medium">Контрагент</label>
-                            <button
-                                type="button"
-                                class="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                @click.stop="openCounterpartyModal"
-                            >
-                                Новый контрагент
-                            </button>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <CustomerPortalInviteButton
+                                    v-if="order?.id && order?.can_edit_order && form.client_id"
+                                    :order-id="order.id"
+                                />
+                                <OrderTrakloChatButton
+                                    v-if="order?.id && form.client_id"
+                                    :order-id="order.id"
+                                    :contractor-id="form.client_id"
+                                    external-party="customer"
+                                />
+                                <button
+                                    type="button"
+                                    class="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                    @click.stop="openCounterpartyModal"
+                                >
+                                    Новый контрагент
+                                </button>
+                            </div>
                         </div>
 
                         <div class="relative">
@@ -543,6 +555,12 @@
                                                     :contractor-id="performer.contractor_id"
                                                     :carrier-slot="1"
                                                 />
+                                                <OrderTrakloChatButton
+                                                    v-if="order?.id && performer.contractor_id"
+                                                    :order-id="order.id"
+                                                    :contractor-id="performer.contractor_id"
+                                                    external-party="carrier"
+                                                />
                                                 <button
                                                     type="button"
                                                     class="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
@@ -684,6 +702,12 @@
                                                         :stage="performer.stage"
                                                         :contractor-id="slot.contractor_id"
                                                         :carrier-slot="slot.slot ?? slotIndex + 1"
+                                                    />
+                                                    <OrderTrakloChatButton
+                                                        v-if="order?.id && slot.contractor_id"
+                                                        :order-id="order.id"
+                                                        :contractor-id="slot.contractor_id"
+                                                        external-party="carrier"
                                                     />
                                                     <button
                                                         type="button"
@@ -1981,6 +2005,8 @@ import {
     sumAdditionalCostsAmount,
 } from '@/support/orderAdditionalCosts.js';
 import CarrierPortalInviteButton from '@/Components/Orders/CarrierPortalInviteButton.vue';
+import CustomerPortalInviteButton from '@/Components/Orders/CustomerPortalInviteButton.vue';
+import OrderTrakloChatButton from '@/Components/Orders/OrderTrakloChatButton.vue';
 import {
     blankPerformer,
     blankSplitCarrier,

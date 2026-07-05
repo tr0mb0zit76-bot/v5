@@ -21,14 +21,33 @@
             </header>
 
             <main ref="messagesPanel" class="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-4">
-                <div v-if="threadLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка сообщений…</div>
                 <div
-                    v-for="message in messages"
-                    v-else
-                    :key="message.id"
-                    class="flex gap-2"
-                    :class="message.user_id === currentUserId ? 'justify-end' : 'justify-start'"
+                    v-if="activeConversation?.channel === 'counterparty' && counterpartyOrders.length"
+                    class="sticky top-0 z-10 -mx-1 mb-2 flex gap-2 overflow-x-auto pb-1"
                 >
+                    <button
+                        v-for="order in counterpartyOrders"
+                        :key="`cp-order-${order.id}`"
+                        type="button"
+                        class="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-zinc-200 active:bg-white/10"
+                        @click="messageBody = `${messageBody.trim() ? `${messageBody.trim()}\n` : ''}Заказ ${order.order_number}`"
+                    >
+                        {{ order.order_number || `#${order.id}` }}
+                    </button>
+                </div>
+                <div v-if="threadLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка сообщений…</div>
+                <template v-for="message in messages" v-else :key="message.id">
+                    <div
+                        v-if="isSystemMessage(message)"
+                        class="py-1 text-center text-[11px] text-zinc-500"
+                    >
+                        {{ message.body }}
+                    </div>
+                    <div
+                        v-else
+                        class="flex gap-2"
+                        :class="message.user_id === currentUserId ? 'justify-end' : 'justify-start'"
+                    >
                     <AvatarBubble
                         v-if="message.user_id !== currentUserId"
                         :label="message.author_name ?? '?'"
@@ -60,7 +79,8 @@
                         </p>
                         <div class="mt-1 text-right text-[10px] opacity-70">{{ formatMessageTime(message.created_at) }}</div>
                     </div>
-                </div>
+                    </div>
+                </template>
             </main>
 
             <form class="flex shrink-0 gap-2 border-t border-white/10 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]" @submit.prevent="submitMessage">
@@ -219,8 +239,24 @@
                 </section>
 
                 <section v-if="activeTab === 'chats'" class="min-h-full">
+                    <div
+                        v-if="chatChannelOptions.length > 1"
+                        class="flex gap-2 border-b border-white/10 px-4 py-2"
+                    >
+                        <button
+                            v-for="option in chatChannelOptions"
+                            :key="option.key"
+                            type="button"
+                            class="rounded-full px-3 py-1 text-xs font-semibold"
+                            :class="chatChannelFilter === option.key ? 'bg-sky-600 text-white' : 'bg-white/5 text-zinc-400'"
+                            @click="chatChannelFilter = option.key"
+                        >
+                            {{ option.label }}
+                        </button>
+                    </div>
+
                     <form
-                        v-if="showGroupComposer"
+                        v-if="showGroupComposer && !isExternalUser"
                         class="flex max-h-[calc(100dvh-10.5rem)] flex-col border-b border-white/10 bg-white/[0.03] p-4"
                         @submit.prevent="submitGroup"
                     >
@@ -251,7 +287,24 @@
                         </button>
                     </form>
 
-                    <section v-if="filteredColleagues.length" class="border-b border-white/10 py-2">
+                    <section v-if="!isExternalUser && chatChannelFilter !== 'internal' && counterpartyContacts.length" class="border-b border-white/10 py-2">
+                        <div class="px-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Контрагенты</div>
+                        <button
+                            v-for="contact in counterpartyContacts"
+                            :key="`cp-${contact.conversation_id}`"
+                            type="button"
+                            class="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-white/10"
+                            @click="openConversationThread({ id: contact.conversation_id, channel: 'counterparty' })"
+                        >
+                            <AvatarBubble :label="contact.contractor_name ?? contact.name" />
+                            <div class="min-w-0 flex-1">
+                                <div class="truncate text-sm font-semibold text-zinc-50">{{ contact.contractor_name ?? contact.name }}</div>
+                                <div class="truncate text-xs text-zinc-500">{{ contact.name }}</div>
+                            </div>
+                        </button>
+                    </section>
+
+                    <section v-if="filteredColleagues.length && chatChannelFilter !== 'counterparty'" class="border-b border-white/10 py-2">
                         <div class="px-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Коллеги</div>
                         <div
                             v-for="user in filteredColleagues"
@@ -683,7 +736,12 @@ const AvatarBubble = defineComponent({
 
 const page = usePage();
 const currentUserId = computed(() => page.props.auth?.user?.id ?? null);
+const isExternalUser = computed(() => Boolean(page.props.auth?.user?.is_external));
 const canUseLeadIntake = computed(() => {
+    if (isExternalUser.value) {
+        return false;
+    }
+
     const areas = page.props.auth?.user?.role?.visibility_areas;
 
     return Array.isArray(areas) && areas.includes('leads');
@@ -717,6 +775,22 @@ const mobileRecents = ref(readMobileRecents());
 const messageLeadText = ref('');
 const messageLeadCreating = ref(false);
 const messageLeadError = ref('');
+const chatChannelFilter = ref('all');
+const counterpartyContacts = ref([]);
+const counterpartyOrders = ref([]);
+const counterpartyOrdersLoading = ref(false);
+
+const chatChannelOptions = computed(() => {
+    if (isExternalUser.value) {
+        return [{ key: 'counterparty', label: 'Контрагент' }];
+    }
+
+    return [
+        { key: 'all', label: 'Все' },
+        { key: 'internal', label: 'Команда' },
+        { key: 'counterparty', label: 'Контрагенты' },
+    ];
+});
 
 const { pullReady, refreshing: pullRefreshing, onTouchStart, onTouchMove, onTouchEnd } = usePullToRefresh(
     () => listPanel.value,
@@ -731,7 +805,13 @@ const allTabs = [
     { key: 'tasks', label: 'Задачи', icon: CheckSquare },
 ];
 
-const visibleTabs = computed(() => allTabs.filter((tab) => !tab.requiresLeads || canUseLeadIntake.value));
+const visibleTabs = computed(() => {
+    if (isExternalUser.value) {
+        return allTabs.filter((tab) => ['chats', 'orders', 'documents'].includes(tab.key));
+    }
+
+    return allTabs.filter((tab) => !tab.requiresLeads || canUseLeadIntake.value);
+});
 
 const messenger = useMessenger({ scrollTarget: messagesPanel });
 
@@ -749,9 +829,12 @@ const {
     error: messengerError,
     loadConversations,
     loadColleagues,
+    loadCounterpartyContacts,
+    loadCounterpartyOrders,
     reloadAll,
     selectConversation,
     openDirect,
+    openCounterparty,
     createGroup,
     sendMessage,
     clearActiveConversation,
@@ -1269,10 +1352,19 @@ const filteredConversations = computed(() => {
 
     return conversations.value
         .filter((conversation) => {
+            if (chatChannelFilter.value === 'all') {
+                return true;
+            }
+
+            const channel = conversation.channel ?? 'internal';
+
+            return channel === chatChannelFilter.value;
+        })
+        .filter((conversation) => {
             if (conversation.type === 'direct') {
                 const otherUserId = Number(conversation.other_user?.id ?? 0);
 
-                if (otherUserId > 0 && colleagueIds.has(otherUserId)) {
+                if (otherUserId > 0 && colleagueIds.has(otherUserId) && (conversation.channel ?? 'internal') === 'internal') {
                     return false;
                 }
             }
@@ -1398,11 +1490,11 @@ function conversationTitle(conversation) {
         return conversation.title ?? 'Группа';
     }
 
-    return conversation.other_user?.name ?? 'Личный чат';
-}
+    if (conversation.channel === 'counterparty') {
+        return conversation.contractor_name ?? conversation.other_user?.name ?? 'Контрагент';
+    }
 
-function conversationPreview(conversation) {
-    return formatConversationPreview(conversation, currentUserId.value);
+    return conversation.other_user?.name ?? 'Личный чат';
 }
 
 function threadSubtitle(conversation) {
@@ -1414,7 +1506,43 @@ function threadSubtitle(conversation) {
         return `${conversation.member_count} участников`;
     }
 
+    if (conversation.channel === 'counterparty') {
+        const party = conversation.external_party === 'carrier' ? 'Перевозчик' : 'Заказчик';
+
+        return `${party} · ${conversation.other_user?.name ?? 'контакт'}`;
+    }
+
     return 'Личное сообщение';
+}
+
+function isSystemMessage(message) {
+    return message?.message_type === 'system';
+}
+
+async function refreshCounterpartyOrders() {
+    if (!activeConversation.value || activeConversation.value.channel !== 'counterparty') {
+        counterpartyOrders.value = [];
+
+        return;
+    }
+
+    counterpartyOrdersLoading.value = true;
+
+    try {
+        counterpartyOrders.value = await loadCounterpartyOrders(activeConversation.value.id);
+    } finally {
+        counterpartyOrdersLoading.value = false;
+    }
+}
+
+async function openConversationThread(conversation) {
+    await selectConversation(conversation);
+    screen.value = 'thread';
+    await refreshCounterpartyOrders();
+}
+
+function conversationPreview(conversation) {
+    return formatConversationPreview(conversation, currentUserId.value);
 }
 
 function shouldShowMessageAuthor(message) {
@@ -1482,11 +1610,6 @@ function formatOrderRoute(order) {
     return loading || unloading || '';
 }
 
-async function openConversationThread(conversation) {
-    await selectConversation(conversation);
-    screen.value = 'thread';
-}
-
 async function openUserThread(user) {
     await openDirect(user);
     screen.value = 'thread';
@@ -1511,6 +1634,10 @@ function selectTab(tab) {
 async function refreshActiveTab() {
     if (activeTab.value === 'chats') {
         await Promise.all([reloadAll(), loadColleagues()]);
+
+        if (!isExternalUser.value) {
+            counterpartyContacts.value = await loadCounterpartyContacts();
+        }
 
         return;
     }
@@ -1566,6 +1693,47 @@ async function openConversationById(conversationId) {
 
     if (conversation) {
         await openConversationThread(conversation);
+    }
+}
+
+async function openCounterpartyFromQuery() {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const conversationId = Number(params.get('conversation_id') ?? 0);
+
+    if (conversationId > 0) {
+        activeTab.value = 'chats';
+        await openConversationById(conversationId);
+
+        return;
+    }
+
+    if (isExternalUser.value) {
+        return;
+    }
+
+    const contractorId = Number(params.get('counterparty_contractor_id') ?? 0);
+    const externalParty = params.get('counterparty_party');
+    const orderId = Number(params.get('order_id') ?? 0);
+
+    if (contractorId <= 0 || !externalParty) {
+        return;
+    }
+
+    try {
+        await openCounterparty({
+            contractor_id: contractorId,
+            external_party: externalParty,
+            order_id: orderId > 0 ? orderId : undefined,
+        });
+        activeTab.value = 'chats';
+        screen.value = 'thread';
+        await refreshCounterpartyOrders();
+    } catch {
+        return;
     }
 }
 
@@ -1648,9 +1816,21 @@ watch([activeTab, search], ([tab, needle]) => {
     }, 300);
 });
 
-onMounted(() => {
-    reloadAll();
+onMounted(async () => {
+    if (isExternalUser.value) {
+        chatChannelFilter.value = 'counterparty';
+    }
+
+    await reloadAll();
     loadColleagues();
+
+    if (!isExternalUser.value) {
+        loadCounterpartyContacts().then((contacts) => {
+            counterpartyContacts.value = contacts;
+        });
+    }
+
+    await openCounterpartyFromQuery();
 
     if (canUseLeadIntake.value) {
         loadTrakloLeads();

@@ -10,6 +10,7 @@ use App\Http\Middleware\EnsureVisibilityAnyAreaAccess;
 use App\Http\Middleware\EnsureVisibilityAreaAccess;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ReconnectOnPreparedStatementError;
+use App\Http\Middleware\RejectExternalFromInternalRoutes;
 use App\Http\Middleware\VerifyAstralEpdWebhookSignature;
 use App\Http\Middleware\VerifyOneCFreshToken;
 use App\Support\UserFacingDatabaseMessageResolver;
@@ -48,6 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Добавляем глобальный middleware для обработки ошибки 1615 Prepared statement
         $middleware->appendToGroup('web', ReconnectOnPreparedStatementError::class);
+        $middleware->appendToGroup('web', RejectExternalFromInternalRoutes::class);
         $middleware->appendToGroup('api', ReconnectOnPreparedStatementError::class);
         $middleware->validateCsrfTokens(except: [
             'integrations/astral/epd/webhook',

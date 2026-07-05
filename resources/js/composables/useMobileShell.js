@@ -1,7 +1,26 @@
 import axios from 'axios';
 import { ref, watch } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 
 export function useMobileShell() {
+    const page = usePage();
+    const isExternalUser = () => Boolean(page.props.auth?.user?.is_external);
+
+    const ordersIndexRoute = () => (
+        isExternalUser() ? route('mobile.shell.counterparty.orders') : route('mobile.shell.orders')
+    );
+
+    const orderSummaryRoute = (orderId) => (
+        isExternalUser()
+            ? route('mobile.shell.counterparty.orders.summary', orderId)
+            : route('mobile.shell.orders.summary', orderId)
+    );
+
+    const orderDocumentSlotsRoute = (orderId) => (
+        isExternalUser()
+            ? route('mobile.shell.counterparty.orders.document-slots', orderId)
+            : route('mobile.shell.orders.document-slots', orderId)
+    );
     const tasks = ref([]);
     const orders = ref([]);
     const recentDocuments = ref([]);
@@ -37,7 +56,7 @@ export function useMobileShell() {
         shellError.value = '';
 
         try {
-            const { data } = await axios.get(route('mobile.shell.orders'), {
+            const { data } = await axios.get(ordersIndexRoute(), {
                 headers: { Accept: 'application/json' },
                 params: search.trim() !== '' ? { q: search.trim() } : {},
             });
@@ -85,7 +104,7 @@ export function useMobileShell() {
     }
 
     async function loadOrderSummary(orderId) {
-        const { data } = await axios.get(route('mobile.shell.orders.summary', orderId), {
+        const { data } = await axios.get(orderSummaryRoute(orderId), {
             headers: { Accept: 'application/json' },
         });
 

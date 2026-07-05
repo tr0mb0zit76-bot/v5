@@ -24,14 +24,20 @@ export function useMessenger({ scrollTarget = null } = {}) {
         ) ?? activeConversation.value;
     }
 
-    async function loadConversations({ background = false } = {}) {
+    async function loadConversations({ background = false, channel = null } = {}) {
         if (!background) {
             conversationsLoading.value = true;
         }
 
         try {
+            const params = {};
+            if (channel) {
+                params.channel = channel;
+            }
+
             const { data } = await axios.get(route('messenger.conversations.index'), {
                 headers: { Accept: 'application/json' },
+                params,
             });
             conversations.value = data.conversations ?? [];
             unreadCount.value = data.unread_count ?? 0;
@@ -40,6 +46,50 @@ export function useMessenger({ scrollTarget = null } = {}) {
             if (!background) {
                 conversationsLoading.value = false;
             }
+        }
+    }
+
+    async function loadCounterpartyContacts() {
+        try {
+            const { data } = await axios.get(route('messenger.counterparty-contacts'), {
+                headers: { Accept: 'application/json' },
+            });
+
+            return data.contacts ?? [];
+        } catch {
+            return [];
+        }
+    }
+
+    async function loadCounterpartyOrders(conversationId) {
+        const { data } = await axios.get(route('messenger.conversations.counterparty-orders', {
+            conversation: conversationId,
+        }), {
+            headers: { Accept: 'application/json' },
+        });
+
+        return data.orders ?? [];
+    }
+
+    async function openCounterparty(payload) {
+        error.value = '';
+
+        try {
+            const { data } = await axios.post(route('messenger.conversations.open-counterparty'), payload, {
+                headers: { Accept: 'application/json' },
+            });
+
+            await loadConversations();
+
+            if (data.conversation) {
+                await selectConversation(data.conversation);
+            }
+        } catch (exception) {
+            const message = exception.response?.data?.message
+                ?? exception.response?.data?.errors?.contractor_id?.[0]
+                ?? exception.response?.data?.errors?.external_party?.[0];
+            error.value = typeof message === 'string' ? message : 'Не удалось открыть чат с контрагентом.';
+            throw exception;
         }
     }
 
@@ -257,10 +307,13 @@ export function useMessenger({ scrollTarget = null } = {}) {
         error,
         loadConversations,
         loadColleagues,
+        loadCounterpartyContacts,
+        loadCounterpartyOrders,
         loadThread,
         refreshThread,
         selectConversation,
         openDirect,
+        openCounterparty,
         createGroup,
         sendMessage,
         reloadAll,

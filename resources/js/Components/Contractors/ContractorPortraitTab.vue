@@ -1,7 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
-import { Check, Plus, Save, UserCircle, X } from 'lucide-vue-next';
+import axios from 'axios';
+import { Check, Copy, Link2, Plus, Save, Star, UserCircle, X } from 'lucide-vue-next';
 import {
     crmBtnCreate,
     crmBtnNeutral,
@@ -20,6 +21,10 @@ const props = defineProps({
     contacts: {
         type: Array,
         default: () => [],
+    },
+    contractorType: {
+        type: String,
+        default: null,
     },
     portraitOptions: {
         type: Object,
@@ -71,6 +76,61 @@ const missingSlots = computed(() => props.portrait.missing_slots ?? []);
 const recentInteractions = computed(() => (props.interactions ?? []).slice(0, 5));
 const pendingInsightDrafts = ref([...(props.insightDrafts ?? [])]);
 const insightDraftBusyId = ref(null);
+const trakloBusyContactId = ref(null);
+const trakloInviteUrl = ref('');
+const trakloInviteMessage = ref('');
+const needsPartyChoice = computed(() => ['both', 'contractor'].includes(String(props.contractorType ?? '').toLowerCase()));
+const inviteParty = ref('carrier');
+
+const setTrakloPrimary = async (contact) => {
+    if (!contact?.id) {
+        return;
+    }
+
+    trakloBusyContactId.value = contact.id;
+    trakloInviteMessage.value = '';
+
+    try {
+        await axios.post(route('contractors.contacts.traklo.primary', [props.contractorId, contact.id]));
+        router.reload({ only: ['selectedContractor'], preserveScroll: true });
+    } catch (error) {
+        trakloInviteMessage.value = error?.response?.data?.message ?? 'Не удалось отметить основной контакт.';
+    } finally {
+        trakloBusyContactId.value = null;
+    }
+};
+
+const inviteToTraklo = async (contact) => {
+    if (!contact?.id) {
+        return;
+    }
+
+    trakloBusyContactId.value = contact.id;
+    trakloInviteMessage.value = '';
+    trakloInviteUrl.value = '';
+
+    try {
+        const payload = needsPartyChoice.value ? { external_party: inviteParty.value } : {};
+        const { data } = await axios.post(route('contractors.contacts.traklo.invite', [props.contractorId, contact.id]), payload);
+        trakloInviteUrl.value = data.url ?? '';
+        trakloInviteMessage.value = data.created ? 'Ссылка создана. Отправьте её контакту.' : 'Новая ссылка для существующего пользователя.';
+    } catch (error) {
+        const errors = error?.response?.data?.errors ?? {};
+        trakloInviteMessage.value =
+            errors.email?.[0] ?? errors.external_party?.[0] ?? error?.response?.data?.message ?? 'Не удалось создать приглашение.';
+    } finally {
+        trakloBusyContactId.value = null;
+    }
+};
+
+const copyInviteUrl = async () => {
+    if (!trakloInviteUrl.value || !navigator?.clipboard) {
+        return;
+    }
+
+    await navigator.clipboard.writeText(trakloInviteUrl.value);
+    trakloInviteMessage.value = 'Ссылка скопирована в буфер обмена.';
+};
 
 watch(
     () => props.insightDrafts,
@@ -310,9 +370,74 @@ function savePortrait() {
             </form>
 
             <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Traklo · доступ контакта</div>
+                <p class="mt-1 text-xs text-zinc-500">
+                    Отметьте основной контакт и выдайте ссылку для входа в мобильное приложение.
+                </p>
+                <div v-if="needsPartyChoice" class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                    <span class="text-zinc-500">Сторона:</span>
+                    <select v-model="inviteParty" class="rounded-lg border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-zinc-950">
+                        <option value="carrier">Перевозчик</option>
+                        <option value="customer">Заказчик</option>
+                    </select>
+                </div>
+                <ul v-if="contacts.length" class="mt-3 space-y-2 text-sm">
+                    <li
+                        v-for="contact in contacts"
+                        :key="contact.id ?? contact.full_name"
+                        class="rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-950/40"
+                    >
+                        <div class="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                                <div class="font-medium text-zinc-900 dark:text-zinc-100">
+                                    {{ contact.full_name || 'Без имени' }}
+                                    <span
+                                        v-if="contact.is_traklo_primary"
+                                        class="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                    >
+                                        Traklo
+                                    </span>
+                                </div>
+                                <div class="text-zinc-500">{{ contact.email || 'Без email' }}</div>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    :class="crmBtnNeutral"
+                                    :disabled="trakloBusyContactId === contact.id || contact.is_traklo_primary"
+                                    @click="setTrakloPrimary(contact)"
+                                >
+                                    <Star class="h-4 w-4" />
+                                    Основной
+                                </button>
+                                <button
+                                    type="button"
+                                    :class="crmBtnCreate"
+                                    :disabled="trakloBusyContactId === contact.id || !contact.email"
+                                    @click="inviteToTraklo(contact)"
+                                >
+                                    <Link2 class="h-4 w-4" />
+                                    Пригласить
+                                </button>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+                <p v-else class="mt-3 text-sm text-zinc-500">Контакты пока не заполнены — добавьте их на вкладке «Контакты».</p>
+                <div v-if="trakloInviteUrl" class="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+                    <span class="break-all">{{ trakloInviteUrl }}</span>
+                    <button type="button" :class="crmBtnNeutral" @click="copyInviteUrl">
+                        <Copy class="h-4 w-4" />
+                        Копировать
+                    </button>
+                </div>
+                <p v-if="trakloInviteMessage" class="mt-2 text-xs text-zinc-500">{{ trakloInviteMessage }}</p>
+            </div>
+
+            <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
                 <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Карта людей</div>
                 <ul v-if="contacts.length" class="mt-3 space-y-2 text-sm">
-                    <li v-for="contact in contacts" :key="contact.id ?? contact.full_name" class="rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-950/40">
+                    <li v-for="contact in contacts" :key="`map-${contact.id ?? contact.full_name}`" class="rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-950/40">
                         <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ contact.full_name || 'Без имени' }}</div>
                         <div class="text-zinc-500">
                             {{ contact.role_in_deal_label || 'Роль не указана' }}

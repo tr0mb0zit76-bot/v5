@@ -17,6 +17,7 @@ class PublicTransportRequestController extends Controller
     {
         return Inertia::render('Public/TransportRequest', [
             'submitted' => session('transport_request_submitted', false),
+            'traklo_apk_url' => config('external_users.apk_url', '/downloads/traklo.apk'),
         ]);
     }
 

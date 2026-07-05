@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ExternalParty;
 use App\Support\RoleAccess;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -41,6 +42,10 @@ class User extends Authenticatable
         'mobile_nav_keys',
         'ui_preferences',
         'mail_sync_enabled',
+        'is_external',
+        'contractor_id',
+        'contractor_contact_id',
+        'external_party',
     ];
 
     /**
@@ -68,6 +73,7 @@ class User extends Authenticatable
             'ai_learning_enabled' => 'boolean',
             'mail_imap_secret' => 'encrypted',
             'mail_sync_enabled' => 'boolean',
+            'is_external' => 'boolean',
             'mail_last_sync_at' => 'datetime',
             'ai_preferences' => 'array',
             'mobile_nav_keys' => 'array',
@@ -290,5 +296,33 @@ class User extends Authenticatable
         }
 
         $this->forceFill(['mail_imap_secret' => $plain]);
+    }
+
+    public function isExternal(): bool
+    {
+        return (bool) ($this->is_external ?? false);
+    }
+
+    public function externalParty(): ?ExternalParty
+    {
+        $raw = $this->external_party;
+
+        return is_string($raw) && $raw !== '' ? ExternalParty::tryFrom($raw) : null;
+    }
+
+    /**
+     * @return BelongsTo<Contractor, $this>
+     */
+    public function contractor(): BelongsTo
+    {
+        return $this->belongsTo(Contractor::class);
+    }
+
+    /**
+     * @return BelongsTo<ContractorContact, $this>
+     */
+    public function contractorContact(): BelongsTo
+    {
+        return $this->belongsTo(ContractorContact::class);
     }
 }

@@ -58,7 +58,58 @@ class OrderPortalInviteService
         ];
     }
 
+    /**
+     * @return array{invite: OrderPortalInvite, token: string, url: string}
+     */
+    public function createCustomerDocumentsInvite(Order $order, User $user): array
+    {
+        $contractorId = (int) $order->customer_id;
+        if ($contractorId <= 0) {
+            throw new \InvalidArgumentException('У заказа не указан заказчик.');
+        }
+
+        $token = $this->generateToken();
+        $tokenHash = $this->hashToken($token);
+
+        $invite = DB::transaction(function () use ($order, $contractorId, $user, $tokenHash): OrderPortalInvite {
+            OrderPortalInvite::query()
+                ->where('order_id', $order->id)
+                ->where('contractor_id', $contractorId)
+                ->where('stage', 'customer')
+                ->where('purpose', OrderPortalInvite::PURPOSE_CUSTOMER_DOCUMENTS)
+                ->whereNull('revoked_at')
+                ->update(['revoked_at' => now()]);
+
+            return OrderPortalInvite::query()->create([
+                'order_id' => $order->id,
+                'contractor_id' => $contractorId,
+                'stage' => 'customer',
+                'carrier_slot' => 1,
+                'purpose' => OrderPortalInvite::PURPOSE_CUSTOMER_DOCUMENTS,
+                'token_hash' => $tokenHash,
+                'created_by' => $user->id,
+                'expires_at' => now()->addYears(5),
+            ]);
+        });
+
+        return [
+            'invite' => $invite,
+            'token' => $token,
+            'url' => route('portal.customer.show', ['token' => $token]),
+        ];
+    }
+
     public function resolveByToken(string $token): ?OrderPortalInvite
+    {
+        return $this->resolveByTokenForPurpose($token, OrderPortalInvite::PURPOSE_CARRIER_FLEET);
+    }
+
+    public function resolveCustomerByToken(string $token): ?OrderPortalInvite
+    {
+        return $this->resolveByTokenForPurpose($token, OrderPortalInvite::PURPOSE_CUSTOMER_DOCUMENTS);
+    }
+
+    private function resolveByTokenForPurpose(string $token, string $purpose): ?OrderPortalInvite
     {
         $token = trim($token);
         if ($token === '') {
@@ -67,7 +118,7 @@ class OrderPortalInviteService
 
         return OrderPortalInvite::query()
             ->where('token_hash', $this->hashToken($token))
-            ->where('purpose', OrderPortalInvite::PURPOSE_CARRIER_FLEET)
+            ->where('purpose', $purpose)
             ->first();
     }
 

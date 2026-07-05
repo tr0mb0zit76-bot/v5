@@ -25,6 +25,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'uploaded']);
 
 const page = usePage();
+const isExternalUser = computed(() => Boolean(page.props.auth?.user?.is_external));
 const documentUploadLimits = computed(() => mergeDocumentUploadLimits(
     page.props.document_upload_limits ?? {},
     page.props.document_optimize ?? {},
@@ -61,7 +62,9 @@ async function loadOrders() {
     error.value = '';
 
     try {
-        const { data } = await axios.get(route('mobile.shell.orders'), {
+        const { data } = await axios.get(
+            isExternalUser.value ? route('mobile.shell.counterparty.orders') : route('mobile.shell.orders'),
+            {
             headers: { Accept: 'application/json' },
             params: orderSearch.value.trim() !== '' ? { q: orderSearch.value.trim() } : {},
         });
@@ -79,7 +82,10 @@ async function selectOrder(order) {
     error.value = '';
 
     try {
-        const { data } = await axios.get(route('mobile.shell.orders.document-slots', order.id), {
+        const slotsRoute = isExternalUser.value
+            ? route('mobile.shell.counterparty.orders.document-slots', order.id)
+            : route('mobile.shell.orders.document-slots', order.id);
+        const { data } = await axios.get(slotsRoute, {
             headers: { Accept: 'application/json' },
         });
         slots.value = data.slots ?? [];
@@ -99,7 +105,10 @@ async function bootstrapPresetOrder(orderId) {
 
     if (!order) {
         try {
-            const { data } = await axios.get(route('mobile.shell.orders.summary', orderId), {
+            const summaryRoute = isExternalUser.value
+                ? route('mobile.shell.counterparty.orders.summary', orderId)
+                : route('mobile.shell.orders.summary', orderId);
+            const { data } = await axios.get(summaryRoute, {
                 headers: { Accept: 'application/json' },
             });
             order = {
@@ -230,22 +239,32 @@ async function uploadToSlot(slot) {
 
     const form = new FormData();
     form.append('file', selectedFile.value);
-    form.append('order_id', String(selectedOrder.value.id));
-    form.append('party', slot.party);
-    form.append('type', slot.type);
-    form.append('status', 'sent');
-    form.append('requirement_slot_key', slot.requirement_slot_key);
 
-    if (slot.order_leg_stage) {
-        form.append('order_leg_stage', slot.order_leg_stage);
-    }
+    const uploadRoute = isExternalUser.value
+        ? route('mobile.shell.counterparty.orders.documents.store', selectedOrder.value.id)
+        : route('documents.store');
 
-    if (slot.contractor_id) {
-        form.append('contractor_id', String(slot.contractor_id));
+    if (isExternalUser.value) {
+        form.append('type', slot.type);
+        form.append('requirement_slot_key', slot.requirement_slot_key);
+    } else {
+        form.append('order_id', String(selectedOrder.value.id));
+        form.append('party', slot.party);
+        form.append('type', slot.type);
+        form.append('status', 'sent');
+        form.append('requirement_slot_key', slot.requirement_slot_key);
+
+        if (slot.order_leg_stage) {
+            form.append('order_leg_stage', slot.order_leg_stage);
+        }
+
+        if (slot.contractor_id) {
+            form.append('contractor_id', String(slot.contractor_id));
+        }
     }
 
     try {
-        const { data } = await axios.post(route('documents.store'), form, {
+        const { data } = await axios.post(uploadRoute, form, {
             headers: {
                 Accept: 'application/json',
             },

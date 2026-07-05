@@ -3518,6 +3518,7 @@ function goToPage(pageNumber) {
                     <ContractorPortraitTab
                         v-else-if="activeTab === 'portrait' && selectedContractorId"
                         :contractor-id="selectedContractorId"
+                        :contractor-type="props.selectedContractor?.type ?? null"
                         :portrait="portraitForTab"
                         :contacts="props.selectedContractor?.contacts ?? []"
                         :interactions="props.selectedContractor?.interactions ?? []"

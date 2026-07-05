@@ -4,6 +4,7 @@ use App\Http\Controllers\ActivityTimelineController;
 use App\Http\Controllers\BudgetingController;
 use App\Http\Controllers\CabinetNotificationController;
 use App\Http\Controllers\CommandBarAgentController;
+use App\Http\Controllers\ContractorContactTrakloController;
 use App\Http\Controllers\ContractorController;
 use App\Http\Controllers\ContractorInsightDraftController;
 use App\Http\Controllers\ContractorPortraitController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\DispositionController;
 use App\Http\Controllers\DocumentOptimizeController;
 use App\Http\Controllers\DocumentRegistryController;
 use App\Http\Controllers\DocumentUploadBudgetEstimateController;
+use App\Http\Controllers\External\ExternalInviteController;
 use App\Http\Controllers\FinanceDocumentController;
 use App\Http\Controllers\FinanceIndexController;
 use App\Http\Controllers\FinanceReconciliationController;
@@ -34,7 +36,7 @@ use App\Http\Controllers\ManagementAccountingController;
 use App\Http\Controllers\ManagementAccountingImportController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\Mobile\MobileAppUpdateController;
-use App\Http\Controllers\Mobile\MobileShellController;
+use App\Http\Controllers\Mobile\MobileCounterpartyShellController;
 use App\Http\Controllers\Orders\OrderBasicTermsController;
 use App\Http\Controllers\Orders\OrderDocumentsModalController;
 use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
@@ -46,6 +48,7 @@ use App\Http\Controllers\Orders\OrderWizardController;
 use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\PipelineController;
 use App\Http\Controllers\Portal\OrderCarrierPortalController;
+use App\Http\Controllers\Portal\OrderCustomerPortalController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProposalHtmlTemplateController;
 use App\Http\Controllers\PublicOrderDocumentVerificationController;
@@ -200,6 +203,8 @@ Route::middleware('throttle:60,1')->prefix('portal')->name('portal.')->group(fun
     Route::post('/carrier/{token}', [OrderCarrierPortalController::class, 'store'])->name('carrier.store');
     Route::post('/carrier/{token}/documents', [OrderCarrierPortalController::class, 'storeDocument'])->name('carrier.documents.store');
     Route::post('/carrier/{token}/fleet-documents', [OrderCarrierPortalController::class, 'storeFleetDocument'])->name('carrier.fleet-documents.store');
+    Route::get('/customer/{token}', [OrderCustomerPortalController::class, 'show'])->name('customer.show');
+    Route::post('/customer/{token}/documents', [OrderCustomerPortalController::class, 'storeDocument'])->name('customer.documents.store');
 });
 
 Route::middleware('throttle:60,1')
@@ -208,6 +213,11 @@ Route::middleware('throttle:60,1')
 
 Route::get('/mobile/app-update', MobileAppUpdateController::class)
     ->name('mobile.app-update');
+
+Route::middleware('throttle:30,1')->prefix('external/invite')->name('external.invite.')->group(function (): void {
+    Route::get('/{token}', [ExternalInviteController::class, 'show'])->name('show');
+    Route::post('/{token}', [ExternalInviteController::class, 'store'])->name('store');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/agent/command-bar/chat', [CommandBarAgentController::class, 'chat'])
@@ -411,6 +421,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::match(['patch', 'post'], '/orders/{order}', 'update')->name('orders.update');
             Route::post('/orders/{order}/portal-invites/carrier', [OrderPortalInviteController::class, 'storeCarrier'])
                 ->name('orders.portal-invites.carrier.store');
+            Route::post('/orders/{order}/portal-invites/customer', [OrderPortalInviteController::class, 'storeCustomer'])
+                ->name('orders.portal-invites.customer.store');
             Route::get('/orders/{order}/templates/{printFormTemplate}/draft', 'generateDocumentDraft')->name('orders.templates.generate-draft');
             Route::match(['patch', 'post'], '/orders/{order}/inline', 'inlineUpdate')->name('orders.inline-update');
             Route::post('/orders/{order}/basic-terms/promote-to-contractor', [OrderBasicTermsController::class, 'promoteToContractor'])
@@ -552,6 +564,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/contractors/{contractor}', 'update')->name('contractors.update');
         Route::delete('/contractors/{contractor}', 'destroy')->name('contractors.destroy');
         Route::patch('/contractors/{contractor}/portrait', [ContractorPortraitController::class, 'update'])->name('contractors.portrait.update');
+        Route::post('/contractors/{contractor}/contacts/{contact}/traklo/primary', [ContractorContactTrakloController::class, 'setPrimary'])->name('contractors.contacts.traklo.primary');
+        Route::post('/contractors/{contractor}/contacts/{contact}/traklo/invite', [ContractorContactTrakloController::class, 'invite'])->name('contractors.contacts.traklo.invite');
         Route::post('/contractors/{contractor}/portrait-interactions', [ContractorPortraitController::class, 'storeInteraction'])->name('contractors.portrait-interactions.store');
         Route::post('/contractors/{contractor}/insight-drafts/from-mail/{mailMessage}', [ContractorInsightDraftController::class, 'extractFromMail'])->name('contractors.insight-drafts.extract-mail');
         Route::post('/contractors/{contractor}/insight-drafts/{insightDraft}/accept', [ContractorInsightDraftController::class, 'accept'])->name('contractors.insight-drafts.accept');
@@ -781,10 +795,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('messenger')->name('messenger.')->group(function () {
         Route::get('/unread-count', [MessengerController::class, 'unreadCount'])->name('unread-count');
         Route::get('/colleagues', [MessengerController::class, 'colleagues'])->name('colleagues');
+        Route::get('/counterparty-contacts', [MessengerController::class, 'counterpartyContacts'])->name('counterparty-contacts');
         Route::get('/document-chips', [MessengerController::class, 'documentChips'])->name('document-chips');
         Route::get('/conversations', [MessengerController::class, 'conversations'])->name('conversations.index');
         Route::post('/conversations/open', [MessengerController::class, 'openDirect'])->name('conversations.open');
+        Route::post('/conversations/open-counterparty', [MessengerController::class, 'openCounterparty'])->name('conversations.open-counterparty');
         Route::post('/conversations/groups', [MessengerController::class, 'storeGroup'])->name('conversations.groups.store');
+        Route::get('/conversations/{conversation}/counterparty-orders', [MessengerController::class, 'counterpartyOrders'])->name('conversations.counterparty-orders');
         Route::get('/conversations/{conversation}/messages', [MessengerController::class, 'messages'])->name('conversations.messages');
         Route::post('/conversations/{conversation}/messages', [MessengerController::class, 'storeMessage'])->name('conversations.messages.store');
         Route::post('/conversations/{conversation}/read', [MessengerController::class, 'markRead'])->name('conversations.read');
@@ -805,6 +822,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/leads/{lead}/summary', [MobileShellController::class, 'leadSummary'])->name('leads.summary');
         Route::get('/contractors/{contractor}/summary', [MobileShellController::class, 'contractorSummary'])->name('contractors.summary');
         Route::get('/link-preview', [MobileShellController::class, 'linkPreview'])->name('link-preview');
+    });
+
+    Route::prefix('mobile/shell/counterparty')->name('mobile.shell.counterparty.')->group(function (): void {
+        Route::get('/orders', [MobileCounterpartyShellController::class, 'orders'])->name('orders');
+        Route::get('/orders/{order}/summary', [MobileCounterpartyShellController::class, 'orderSummary'])->name('orders.summary');
+        Route::get('/orders/{order}/document-slots', [MobileCounterpartyShellController::class, 'orderDocumentSlots'])->name('orders.document-slots');
+        Route::post('/orders/{order}/documents', [MobileCounterpartyShellController::class, 'storeDocument'])->name('orders.documents.store');
     });
 
     Route::prefix('cabinet-notifications')->name('cabinet-notifications.')->group(function () {

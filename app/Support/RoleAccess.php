@@ -83,6 +83,9 @@ class RoleAccess
             ['key' => 'settings', 'label' => 'Настройки (все подразделы)', 'description' => 'Полный доступ ко всем разделам настроек; для новых ролей предпочтительнее отдельные области ниже'],
             ['key' => 'settings_system', 'label' => 'Настройки: администрирование и конфигурация', 'description' => 'Пользователи, роли, таблицы, справочники и шаблоны печатных форм'],
             ['key' => 'settings_motivation', 'label' => 'Настройки: мотивация', 'description' => 'KPI и персональные условия (коэффициенты). Учёт зарплатных периодов — в модуле «Финансы»'],
+            ['key' => 'counterparty_orders', 'label' => 'Traklo: мои заказы', 'description' => 'Заказы контрагента по party-scope (внешний пользователь)'],
+            ['key' => 'counterparty_documents', 'label' => 'Traklo: документы', 'description' => 'Документы по заказам контрагента'],
+            ['key' => 'counterparty_portal', 'label' => 'Traklo: данные рейса', 'description' => 'Форма ТС/водитель для перевозчика'],
         ];
     }
 
