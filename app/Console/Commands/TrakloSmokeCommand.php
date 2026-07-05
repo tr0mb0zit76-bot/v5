@@ -320,36 +320,16 @@ class TrakloSmokeCommand extends Command
         [$carrierContractor, $carrierExternal] = $this->createExternalFixture('carrier', 'carrier-'.Str::random(8).'@smoke.test');
         [$customerContractor, $customerExternal] = $this->createExternalFixture('customer', 'customer-'.Str::random(8).'@smoke.test');
 
-        $order = Order::query()->create([
-            'order_number' => 'SMK-M-'.Str::upper(Str::random(4)),
-            'company_code' => 'SMK',
-            'order_date' => now()->toDateString(),
-            'status' => 'draft',
-            'is_active' => true,
-            'customer_id' => $customerContractor->id,
-            'manager_id' => $staff->id,
-        ]);
-
-        if (Schema::hasColumn('orders', 'performers')) {
-            $order->forceFill([
-                'performers' => [
-                    ['contractor_id' => $carrierContractor->id, 'stage' => 'leg_1'],
-                ],
-            ])->save();
-        }
-
         $conversationService = app(CounterpartyConversationService::class);
         $carrierConversation = $conversationService->findOrCreateThread(
             $staff,
             $carrierContractor,
             ExternalParty::Carrier,
-            $order,
         );
         $customerConversation = $conversationService->findOrCreateThread(
             $staff,
             $customerContractor,
             ExternalParty::Customer,
-            $order,
         );
 
         $this->record(
@@ -401,13 +381,15 @@ class TrakloSmokeCommand extends Command
 
         $external->forceFill(['is_active' => false])->save();
 
-        $canLogin = Auth::attempt([
+        Auth::attempt([
             'email' => $external->email,
             'password' => $this->smokePassword,
         ]);
+        $user = Auth::user();
+        $blocked = ! ($user instanceof User && $user->is_active);
         Auth::logout();
 
-        $this->record('deactivated user login blocked', $canLogin === false);
+        $this->record('deactivated user login blocked', $blocked);
     }
 
     /**

@@ -53,6 +53,15 @@ class LoginRequest extends FormRequest
 
         $user = Auth::user();
 
+        if ($user instanceof User && ! $user->is_active) {
+            Auth::logout();
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'email' => 'Учётная запись деактивирована.',
+            ]);
+        }
+
         if ($user instanceof User && ($user->mail_sync_enabled ?? true)) {
             $user->applyMailImapPassword($this->string('password')->toString());
 
