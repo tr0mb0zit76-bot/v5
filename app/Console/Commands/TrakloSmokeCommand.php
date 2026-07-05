@@ -134,19 +134,47 @@ class TrakloSmokeCommand extends Command
         DB::beginTransaction();
 
         try {
-            $external = $this->runInviteAndExternalAccessFlow($staff);
-            $this->runPortalFlows($staff);
-            $this->runMessengerFlows($staff);
-            if ($external !== null) {
-                $this->runDeactivationFlow($external);
+            $external = null;
+            try {
+                $external = $this->runInviteAndExternalAccessFlow($staff);
+            } catch (Throwable $exception) {
+                $this->record('invite + external access flow', false, $this->formatException($exception));
             }
+
+            try {
+                $this->runPortalFlows($staff);
+            } catch (Throwable $exception) {
+                $this->record('portal flows', false, $this->formatException($exception));
+            }
+
+            try {
+                $this->runMessengerFlows($staff);
+            } catch (Throwable $exception) {
+                $this->record('messenger flows', false, $this->formatException($exception));
+            }
+
+            if ($external !== null) {
+                try {
+                    $this->runDeactivationFlow($external);
+                } catch (Throwable $exception) {
+                    $this->record('deactivation flow', false, $this->formatException($exception));
+                }
+            }
+
             $this->record('transaction rollback', true, 'Временные данные не сохранены');
-        } catch (Throwable $exception) {
-            $this->record('transactional flows', false, $exception->getMessage());
         } finally {
             DB::rollBack();
             Auth::logout();
         }
+    }
+
+    private function formatException(Throwable $exception): string
+    {
+        $message = trim($exception->getMessage());
+
+        return $message !== ''
+            ? $message
+            : class_basename($exception).' @ '.$exception->getFile().':'.$exception->getLine();
     }
 
     private function runInviteAndExternalAccessFlow(User $staff): ?User
