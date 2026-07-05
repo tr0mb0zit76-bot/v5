@@ -203,9 +203,7 @@ class TrakloSmokeCommand extends Command
             return null;
         }
 
-        $ordersRedirect = $this->dispatchAuthenticatedGet('/orders', $external, [
-            'X-Inertia' => 'true',
-        ]);
+        $ordersRedirect = $this->dispatchAuthenticatedGet('/orders', $external);
         $location = (string) $ordersRedirect->headers->get('Location');
         $this->record(
             'external /orders blocked',

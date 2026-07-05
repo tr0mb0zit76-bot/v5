@@ -26,7 +26,7 @@ class OrderPortalInviteService
 
         $token = $this->generateToken();
         $tokenHash = $this->hashToken($token);
-        $expiresAt = null;
+        $expiresAt = now()->addYears(5);
 
         $invite = DB::transaction(function () use ($order, $contractorId, $normalizedStage, $carrierSlot, $user, $tokenHash, $expiresAt): OrderPortalInvite {
             OrderPortalInvite::query()
