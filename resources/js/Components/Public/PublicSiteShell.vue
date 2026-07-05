@@ -114,10 +114,6 @@ const activeSlaPanelDocuments = computed(() =>
     slaDocumentCatalog.value.filter((document) => document.panel === slaActivePanel.value),
 );
 
-const showTrakloDownloadForActivePanel = computed(
-    () => slaActivePanel.value === 'customers' || slaActivePanel.value === 'carriers',
-);
-
 const slaIsDetailView = computed(() => slaActivePanel.value !== null);
 
 const slaHubBackground = computed(() => props.page.media ?? '/assets/images/SLA_common.webp');
@@ -538,14 +534,6 @@ onBeforeUnmount(() => {
                                     {{ document.label }}
                                 </button>
 
-                                <a
-                                    v-if="showTrakloDownloadForActivePanel"
-                                    :href="trakloApkUrl"
-                                    class="sla-tile sla-tile--doc"
-                                    download="Traklo.apk"
-                                >
-                                    {{ t('sla_tile_traklo_download', 'Скачать приложение') }}
-                                </a>
                             </div>
                         </div>
                     </div>
@@ -700,9 +688,6 @@ onBeforeUnmount(() => {
                     <p>{{ t('footer_address') }}</p>
                     <p><a :href="companyEmailHref">{{ companyEmailLabel }}</a></p>
                     <p><a :href="companyPhoneHref">{{ companyPhoneLabel }}</a></p>
-                    <p>
-                        <a :href="trakloApkUrl" class="footer-traklo-link" download="Traklo.apk">Скачать приложение</a>
-                    </p>
                 </div>
 
                 <div class="footer-end">
@@ -1720,10 +1705,6 @@ a.sla-tile {
 
 .footer-info a:hover {
   color: #ff8c5a;
-}
-
-.footer-traklo-link {
-  font-weight: 600;
 }
 
 .auth-modal {
