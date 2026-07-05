@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-05 18:32 · **Ветка:** `master` · **HEAD:** `7707569` · **Контекст:** Traklo — единый парсинг + mobile lead draft
+**Обновлено:** 2026-07-05 18:32 · **Ветка:** `master` · **HEAD:** `00247b0` · **Контекст:** Traklo — единый парсинг + mobile lead draft
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
@@ -38,7 +38,7 @@
 | **Playwright smoke** | login → dashboard / mobile shell | После деплоя staging |
 | **Deploy artifact** | tar/release вместо git в working tree prod | Меньше сюрпризов на сервере |
 
-**Prod (2026-07-05):** web + release APK с иконкой выложены пользователем ранее; **git:** `7707569` (деплой web — после `npm run build` + tar).
+**Prod (2026-07-05):** web + release APK с иконкой выложены пользователем ранее; **git:** `00247b0` (деплой web — после `npm run build` + tar).
 
 ---
 
