@@ -1,0 +1,10 @@
+<IfModule mod_mime.c>
+    AddType application/vnd.android.package-archive .apk
+</IfModule>
+
+<IfModule mod_headers.c>
+    <FilesMatch "\.apk$">
+        Header set Content-Type "application/vnd.android.package-archive"
+        Header set Content-Disposition "attachment; filename=\"traklo.apk\""
+    </FilesMatch>
+</IfModule>

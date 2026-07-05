@@ -104,8 +104,33 @@ class PublicSiteController extends Controller
                 ],
                 'checko_company_url' => (string) config('app.showcase_checko_company_url', ''),
                 'sla_documents' => $this->slaDocumentsForFrontend(),
+                'traklo_apk_url' => $this->resolveTrakloApkUrl(),
             ],
         ];
+    }
+
+    protected function resolveTrakloApkUrl(): string
+    {
+        $configured = (string) config('external_users.apk_url', '/downloads/traklo');
+
+        if (str_starts_with($configured, 'http://') || str_starts_with($configured, 'https://')) {
+            return $configured;
+        }
+
+        $path = str_starts_with($configured, '/') ? $configured : '/'.$configured;
+
+        if (\Route::has('downloads.traklo') && in_array($path, ['/downloads/traklo', '/downloads/traklo/'], true)) {
+            $path = route('downloads.traklo', [], false);
+        }
+
+        $crmHost = trim((string) config('app.crm_domain'));
+        if ($crmHost === '') {
+            $crmHost = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'localhost';
+        }
+
+        $scheme = request()->isSecure() ? 'https' : 'http';
+
+        return sprintf('%s://%s%s', $scheme, $crmHost, $path);
     }
 
     /**

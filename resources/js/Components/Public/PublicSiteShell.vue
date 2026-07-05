@@ -32,7 +32,7 @@ const authLogoUrl = '/assets/logo_black.png?v=2';
 const headerLogoUrl = '/assets/logo_white.png?v=2';
 const companyPhoneLabel = '+7 8482 55 99 99';
 const companyPhoneHref = 'tel:+78482559999';
-const trakloApkUrl = computed(() => page.props.publicSite?.traklo_apk_url ?? '/downloads/traklo.apk');
+const trakloApkUrl = computed(() => page.props.publicSite?.traklo_apk_url ?? '/downloads/traklo');
 
 const isNonEmptyTextMap = (value) =>
     value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
@@ -112,6 +112,10 @@ const slaDocumentCatalog = computed(() => page.props.publicSite?.sla_documents ?
 
 const activeSlaPanelDocuments = computed(() =>
     slaDocumentCatalog.value.filter((document) => document.panel === slaActivePanel.value),
+);
+
+const showTrakloDownloadForActivePanel = computed(
+    () => slaActivePanel.value === 'customers' || slaActivePanel.value === 'carriers',
 );
 
 const slaIsDetailView = computed(() => slaActivePanel.value !== null);
@@ -525,6 +529,14 @@ onBeforeUnmount(() => {
                                 >
                                     {{ document.label }}
                                 </button>
+
+                                <a
+                                    v-if="showTrakloDownloadForActivePanel"
+                                    :href="trakloApkUrl"
+                                    class="sla-tile sla-tile--doc"
+                                >
+                                    {{ t('sla_tile_traklo_download', 'Скачать Traklo') }}
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -1334,6 +1346,13 @@ onBeforeUnmount(() => {
 
 .sla-tile--doc {
   background: rgba(255, 255, 255, 0.14);
+}
+
+a.sla-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .sla-doc-overlay {

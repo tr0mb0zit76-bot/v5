@@ -47,6 +47,13 @@ class PublicLandingPageTest extends TestCase
         $this->get($this->showcaseUrl('/contacts'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('Public/Contacts'));
+
+        $this->get($this->showcaseUrl('/sla'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Public/Sla')
+                ->has('publicSite.traklo_apk_url')
+            );
     }
 
     public function test_public_pages_prefer_public_locale_file_when_available(): void

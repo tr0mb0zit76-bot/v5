@@ -93,16 +93,17 @@ class MobilePushService
             ->post("https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send", [
                 'message' => [
                     'token' => $token,
-                    'notification' => [
-                        'title' => $payload['title'],
-                        'body' => $payload['body'],
-                    ],
-                    'data' => $payload['data'],
+                    'data' => array_merge(
+                        $payload['data'],
+                        [
+                            'title' => $payload['title'],
+                            'body' => $payload['body'],
+                            'channel_id' => $payload['channel_id'],
+                            'push_action_label' => $this->actionLabelForKind($payload['data']['kind'] ?? ''),
+                        ],
+                    ),
                     'android' => [
                         'priority' => 'HIGH',
-                        'notification' => [
-                            'channel_id' => $payload['channel_id'],
-                        ],
                     ],
                 ],
             ]);
@@ -129,6 +130,14 @@ class MobilePushService
         $channels = config('fcm.android_channels', []);
 
         return $channels[$kind] ?? (string) config('fcm.default_android_channel_id', 'crm_chat_messages');
+    }
+
+    private function actionLabelForKind(string $kind): string
+    {
+        return match ($kind) {
+            'chat_message' => 'Прочитать',
+            default => 'Открыть',
+        };
     }
 
     /**

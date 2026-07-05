@@ -70,6 +70,7 @@ use App\Http\Controllers\SettingsSystemController;
 use App\Http\Controllers\SettingsTableManagementController;
 use App\Http\Controllers\SettingsTemplateController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TrakloDownloadController;
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -88,6 +89,11 @@ Route::get('/transport-request', [PublicTransportRequestController::class, 'crea
 Route::post('/transport-request', [PublicTransportRequestController::class, 'store'])
     ->middleware('throttle:10,1')
     ->name('public.transport-request.store');
+
+Route::controller(TrakloDownloadController::class)->group(function (): void {
+    Route::get('/downloads/traklo', 'show')->name('downloads.traklo');
+    Route::get('/downloads/traklo.apk', 'file')->name('downloads.traklo.file');
+});
 
 if ($sameShowcaseAndCrmHost) {
     // Один хост: лендинг и кабинет на одном origin (без редиректа витрина→CRM).

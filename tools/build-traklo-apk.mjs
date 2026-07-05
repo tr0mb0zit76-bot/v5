@@ -178,6 +178,12 @@ if (release) {
 const apkUrl = process.env.TRAKLO_APK_URL || '/downloads/traklo.apk';
 const changelog = process.env.TRAKLO_CHANGELOG || `Traklo ${versionName}: обновление приложения.`;
 
+const iconSource = resolve(root, 'resources/icon.png');
+const iconTarget = resolve(outputDir, 'traklo-icon.png');
+if (existsSync(iconSource)) {
+    copyFileSync(iconSource, iconTarget);
+}
+
 const manifest = {
     app_name: 'Traklo',
     latest_version_code: versionCode,

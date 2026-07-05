@@ -86,9 +86,52 @@ class MobilePushServiceTest extends TestCase
         );
 
         Http::assertSent(function ($request): bool {
+            $message = $request->data()['message'] ?? [];
+
             return str_contains($request->url(), 'fcm.googleapis.com')
-                && ($request->data()['message']['token'] ?? null) === 'device-token-abc'
-                && ($request->data()['message']['data']['kind'] ?? null) === 'order_document_approval';
+                && ($message['token'] ?? null) === 'device-token-abc'
+                && ($message['data']['kind'] ?? null) === 'order_document_approval'
+                && ($message['data']['title'] ?? null) === 'Согласование заявки'
+                && ($message['data']['body'] ?? null) === 'Нужно подписать'
+                && ($message['data']['push_action_label'] ?? null) === 'Открыть'
+                && ! array_key_exists('notification', $message);
+        });
+    }
+
+    public function test_mobile_push_chat_message_uses_read_action_label(): void
+    {
+        config([
+            'fcm.enabled' => true,
+            'fcm.project_id' => 'test-project',
+            'fcm.access_token_override' => 'fake-access-token',
+        ]);
+
+        Http::fake([
+            'https://fcm.googleapis.com/*' => Http::response(['name' => 'projects/test/messages/1']),
+        ]);
+
+        $user = User::factory()->create();
+
+        UserMobileDevice::query()->create([
+            'user_id' => $user->id,
+            'device_key' => '33333333-3333-4333-8333-333333333333',
+            'pin_hash' => bcrypt('1234'),
+            'fcm_token' => 'chat-device-token',
+        ]);
+
+        app(MobilePushService::class)->notifyUser(
+            $user,
+            'chat_message',
+            'Менеджер',
+            'Новое сообщение',
+            ['conversation_id' => 42],
+        );
+
+        Http::assertSent(function ($request): bool {
+            $message = $request->data()['message'] ?? [];
+
+            return ($message['data']['push_action_label'] ?? null) === 'Прочитать'
+                && ($message['data']['conversation_id'] ?? null) === '42';
         });
     }
 }

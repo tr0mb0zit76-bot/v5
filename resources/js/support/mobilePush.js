@@ -13,6 +13,24 @@ function extractPushData(notification) {
     return notification?.data ?? notification?.notification?.data ?? {};
 }
 
+function consumeNativePendingPushAction() {
+    if (typeof window === 'undefined' || typeof window.TrakloApp?.consumePendingPushAction !== 'function') {
+        return;
+    }
+
+    try {
+        const raw = window.TrakloApp.consumePendingPushAction();
+        if (!raw) {
+            return;
+        }
+
+        const payload = JSON.parse(raw);
+        dispatchMobilePushNavigation(payload?.data ?? {});
+    } catch (error) {
+        console.warn('Failed to consume pending push action', error);
+    }
+}
+
 export async function registerMobilePushIfAvailable({ enabled = false } = {}) {
     if (!enabled || !isNativeCapacitor() || registrationStarted) {
         return;
@@ -53,6 +71,9 @@ export async function registerMobilePushIfAvailable({ enabled = false } = {}) {
         PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
             dispatchMobilePushNavigation(extractPushData(action.notification));
         });
+
+        consumeNativePendingPushAction();
+        window.addEventListener('focus', consumeNativePendingPushAction);
     } catch (error) {
         console.warn('Push notifications unavailable', error);
     }
