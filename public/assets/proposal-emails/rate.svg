@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" role="img" aria-labelledby="title desc">
+  <title id="title">Rate calculation illustration</title>
+  <desc id="desc">Outline banknote and calculator marks.</desc>
+  <g fill="none" stroke="#55565a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M82 94 202 66l17 74-120 28z"/>
+    <path d="M95 137 215 109"/>
+    <circle cx="151" cy="117" r="21"/>
+    <rect x="82" y="162" width="136" height="60" rx="5"/>
+    <path d="M107 185h29M107 205h76M154 185h39"/>
+  </g>
+  <circle cx="151" cy="117" r="10" fill="#f97316"/>
+</svg>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" role="img" aria-labelledby="title desc">
+  <title id="title">Chemical cargo illustration</title>
+  <desc id="desc">Outline chemical canister with hazard mark.</desc>
+  <g fill="none" stroke="#55565a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="79" y="106" width="142" height="118" rx="14"/>
+    <path d="M111 106V82h78v24"/>
+    <path d="M150 139 182 195h-64z"/>
+    <circle cx="95" cy="72" r="13"/>
+    <circle cx="215" cy="77" r="10"/>
+    <circle cx="230" cy="111" r="7"/>
+  </g>
+  <path d="M150 157v19" stroke="#f97316" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="150" cy="190" r="6" fill="#f97316"/>
+</svg>

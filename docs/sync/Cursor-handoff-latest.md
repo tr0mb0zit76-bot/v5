@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-05 10:12 · **Ветка:** `master` · **Контекст:** Email-шаблоны КП / cold outreach
+**Обновлено:** 2026-07-05 11:42 · **Ветка:** `master` · **Контекст:** Email-шаблоны КП / cold outreach
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
@@ -16,6 +16,7 @@
 - Старый `ProposalHtmlTemplateParallelImportDemo` оставлен совместимым фасадом на новый шаблон `parallel-import-demo`.
 - Шаблоны используют CRM-плейсхолдеры отправителя `{responsible.name}`, `{responsible.phone}`, `{responsible.email}` и обращение `{counterparty.contact_person}`; старый бренд «Логистические решения», `img.hiteml.com` и `МЕНЯЕМ_ИМЯ` из новой библиотеки убраны.
 - Добавлен локальный SVG-пак `public/assets/proposal-emails/*.svg`; шапка писем использует логотип `/assets/favicon/favicon.svg`.
+- После визуального сравнения с Unisender каркас переделан ближе к исходной композиции: ширина 660px, подпись менеджера слева, бренд справа, крупная типографика, двухколоночные блоки с иллюстрациями. SVG-пак текущий временный; нормальные иконки рисовать отдельно вне проекта и потом заменить.
 - Проверка: `vendor\bin\pint --dirty --format agent`; `php artisan test --compact tests\Unit\Support\ProposalHtmlTemplateParallelImportDemoTest.php tests\Unit\Support\ProposalHtmlTemplateColdEmailLibraryTest.php`; `php artisan db:seed --class=ProposalHtmlTemplateDemoSeeder --no-interaction`; `php artisan test --compact tests\Feature\LeadProposalHtmlTemplateTest.php --filter=test_settings_user_can_open_template_editor_index`.
 
 ---

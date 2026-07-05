@@ -199,10 +199,10 @@ class ProposalHtmlTemplateColdEmailLibrary
         return <<<'CSS'
 body {
   margin: 0;
-  padding: 24px 12px;
-  background-color: #f3f6fb;
-  font-family: Arial, Helvetica, sans-serif;
-  color: #172033;
+  padding: 0;
+  background-color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
+  color: #56565a;
 }
 table {
   border-collapse: collapse;
@@ -258,42 +258,53 @@ CSS;
         string $asset,
     ): string {
         $pointsHtml = collect($points)
-            ->map(fn (string $point): string => '<li style="margin:0 0 8px;">'.e($point).'</li>')
+            ->map(fn (string $point): string => '<li style="margin:0 0 9px;">'.e($point).'</li>')
             ->implode('');
         $assetUrl = self::ASSET_BASE.'/'.$asset;
 
         return <<<HTML
-<div style="display:none;max-height:0;overflow:hidden;color:#f3f6fb;font-size:1px;line-height:1px;">{$preheader}</div>
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f6fb;">
+<div style="display:none;max-height:0;overflow:hidden;color:#ffffff;font-size:1px;line-height:1px;">{$preheader}</div>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#ffffff;">
   <tbody>
     <tr>
-      <td align="center" style="padding:20px 10px;">
-        <table width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background-color:#ffffff;border:1px solid #dbe4f0;border-radius:18px;overflow:hidden;">
+      <td align="center" style="padding:22px 10px 34px;">
+        <table width="660" cellpadding="0" cellspacing="0" border="0" style="width:660px;max-width:660px;background-color:#ffffff;">
           <tbody>
             <tr>
-              <td style="padding:22px 28px 12px;font-family:Arial,Helvetica,sans-serif;">
+              <td style="padding:4px 18px 18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;">
                 <table width="100%" cellpadding="0" cellspacing="0" border="0">
                   <tbody>
                     <tr>
-                      <td valign="middle" style="font-family:Arial,Helvetica,sans-serif;">
+                      <td width="47%" valign="top" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;">
                         <table cellpadding="0" cellspacing="0" border="0">
                           <tbody>
                             <tr>
-                              <td width="42" valign="middle" style="padding-right:10px;">
-                                <img src="/assets/favicon/favicon.svg" width="36" height="36" alt="Автоальянс-Смоленск" style="display:block;width:36px;height:36px;">
+                              <td valign="top" style="padding-top:4px;padding-right:10px;">
+                                <img src="/assets/favicon/favicon.svg" width="28" height="28" alt="Автоальянс-Смоленск" style="display:block;width:28px;height:28px;">
                               </td>
-                              <td valign="middle" style="font-family:Arial,Helvetica,sans-serif;">
-                                <div style="font-size:20px;font-weight:800;line-height:1.2;color:#1e3a8a;">Автоальянс-Смоленск</div>
-                                <div style="margin-top:5px;font-size:12px;line-height:1.4;color:#64748b;">Международная и внутрироссийская логистика</div>
+                              <td valign="top" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;">
+                                <div style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;line-height:1.2;color:#5b5b5f;">{responsible.name}</div>
+                                <div style="margin-top:10px;font-size:15px;line-height:1.45;color:#2f3338;font-weight:700;">{responsible.phone}</div>
+                                <div style="margin-top:3px;font-size:15px;line-height:1.45;color:#1d4ed8;font-weight:700;text-decoration:underline;">{responsible.email}</div>
                               </td>
                             </tr>
                           </tbody>
                         </table>
                       </td>
-                      <td align="right" valign="middle" style="font-family:Arial,Helvetica,sans-serif;">
-                        <div style="font-size:14px;font-weight:700;color:#172033;">{responsible.name}</div>
-                        <div style="margin-top:4px;font-size:13px;color:#475569;">{responsible.phone}</div>
-                        <div style="margin-top:2px;font-size:13px;color:#1d4ed8;">{responsible.email}</div>
+                      <td width="53%" align="right" valign="top" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;">
+                        <table cellpadding="0" cellspacing="0" border="0" align="right">
+                          <tbody>
+                            <tr>
+                              <td valign="middle" style="padding-right:12px;">
+                                <img src="/assets/favicon/favicon.svg" width="54" height="54" alt="Автоальянс-Смоленск" style="display:block;width:54px;height:54px;">
+                              </td>
+                              <td valign="middle" align="left">
+                                <div style="font-size:24px;font-weight:900;line-height:1;color:#f97316;text-transform:uppercase;letter-spacing:.02em;">Автоальянс</div>
+                                <div style="margin-top:3px;font-size:27px;font-weight:900;line-height:1;color:#3f3f46;text-transform:uppercase;letter-spacing:.02em;">Смоленск</div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </td>
                     </tr>
                   </tbody>
@@ -301,17 +312,17 @@ CSS;
               </td>
             </tr>
             <tr>
-              <td style="padding:10px 28px 4px;font-family:Arial,Helvetica,sans-serif;">
+              <td style="padding:0 18px 6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;">
                 <table width="100%" cellpadding="0" cellspacing="0" border="0">
                   <tbody>
                     <tr>
-                      <td width="66%" valign="top" style="padding-right:20px;font-family:Arial,Helvetica,sans-serif;">
-                        <div style="font-size:28px;font-weight:800;line-height:1.18;color:#172033;">{$title}</div>
-                        <p style="margin:18px 0 0;font-size:16px;line-height:1.6;color:#334155;">Добрый день, {counterparty.contact_person}.</p>
-                        <p style="margin:12px 0 0;font-size:16px;line-height:1.6;color:#334155;">{$intro}</p>
+                      <td width="405" valign="top" style="padding-right:28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;">
+                        <p style="margin:0 0 28px;font-size:20px;line-height:1.45;color:#5a5a5f;">Добрый день, <strong style="color:#de3b3b;">{counterparty.contact_person}</strong>.</p>
+                        <p style="margin:0 0 28px;font-size:20px;line-height:1.48;color:#5a5a5f;">{$intro}</p>
+                        <p style="margin:0;font-size:20px;line-height:1.48;color:#5a5a5f;">{$angle}</p>
                       </td>
-                      <td width="34%" valign="top" align="right">
-                        <img src="{$assetUrl}" width="150" height="150" alt="Логистика" style="display:block;width:150px;height:150px;max-width:150px;">
+                      <td width="200" valign="middle" align="center">
+                        <img src="{$assetUrl}" width="170" height="170" alt="Логистика" style="display:block;width:170px;height:170px;max-width:170px;">
                       </td>
                     </tr>
                   </tbody>
@@ -319,12 +330,16 @@ CSS;
               </td>
             </tr>
             <tr>
-              <td style="padding:16px 28px 6px;font-family:Arial,Helvetica,sans-serif;">
-                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eef4ff;border-radius:14px;">
+              <td style="padding:30px 18px 4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
                   <tbody>
                     <tr>
-                      <td style="padding:18px 20px;font-family:Arial,Helvetica,sans-serif;">
-                        <p style="margin:0;font-size:15px;line-height:1.65;color:#334155;">{$angle}</p>
+                      <td width="405" valign="top" style="padding-right:28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;">
+                        <div style="font-size:21px;font-weight:800;color:#4f4f54;margin-bottom:10px;">{$title}</div>
+                        <ul style="margin:0;padding-left:20px;font-size:20px;line-height:1.48;color:#5a5a5f;">{$pointsHtml}</ul>
+                      </td>
+                      <td width="200" valign="middle" align="center">
+                        <img src="/assets/proposal-emails/documents.svg" width="155" height="155" alt="Документы и контроль" style="display:block;width:155px;height:155px;max-width:155px;">
                       </td>
                     </tr>
                   </tbody>
@@ -332,20 +347,25 @@ CSS;
               </td>
             </tr>
             <tr>
-              <td style="padding:12px 28px 6px;font-family:Arial,Helvetica,sans-serif;">
-                <div style="font-size:16px;font-weight:700;color:#172033;margin-bottom:10px;">Где можем быть полезны</div>
-                <ul style="margin:0;padding-left:20px;font-size:15px;line-height:1.6;color:#334155;">{$pointsHtml}</ul>
+              <td style="padding:30px 18px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tbody>
+                    <tr>
+                      <td width="405" valign="top" style="padding-right:28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;">
+                        <p style="margin:0;font-size:20px;line-height:1.48;color:#5a5a5f;">{$cta}</p>
+                        <p style="margin:20px 0 0;font-size:17px;line-height:1.45;color:#3f3f46;"><strong>{responsible.name}</strong><br>{responsible.phone}<br>{responsible.email}</p>
+                      </td>
+                      <td width="200" valign="middle" align="center">
+                        <img src="/assets/proposal-emails/rate.svg" width="155" height="155" alt="Расчёт перевозки" style="display:block;width:155px;height:155px;max-width:155px;">
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </td>
             </tr>
             <tr>
-              <td style="padding:14px 28px 24px;font-family:Arial,Helvetica,sans-serif;">
-                <p style="margin:0;font-size:15px;line-height:1.65;color:#334155;">{$cta}</p>
-                <p style="margin:18px 0 0;font-size:14px;line-height:1.55;color:#172033;"><strong>{responsible.name}</strong><br>{responsible.phone}<br>{responsible.email}</p>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:14px 28px;background-color:#172033;font-family:Arial,Helvetica,sans-serif;">
-                <div style="font-size:12px;line-height:1.5;color:#cbd5e1;">Автоальянс-Смоленск. Если письмо не по адресу, ответьте на него — больше не будем отвлекать.</div>
+              <td align="right" style="padding:14px 18px 0;font-family:Georgia,'Times New Roman',serif;">
+                <div style="font-size:12px;line-height:1.6;color:#6b6b70;">Автоальянс-Смоленск. Если письмо не по адресу, ответьте на него — больше не будем отвлекать.</div>
               </td>
             </tr>
           </tbody>

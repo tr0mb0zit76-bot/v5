@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" role="img" aria-labelledby="title desc">
+  <title id="title">Warehouse groupage cargo illustration</title>
+  <desc id="desc">Outline warehouse with grouped boxes.</desc>
+  <g fill="none" stroke="#55565a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M61 130 150 76l89 54"/>
+    <path d="M74 136v85h152v-85"/>
+    <rect x="91" y="155" width="43" height="43" rx="5"/>
+    <rect x="139" y="155" width="43" height="43" rx="5"/>
+    <rect x="187" y="155" width="31" height="43" rx="5"/>
+    <path d="M91 177h127M113 155v43M161 155v43"/>
+  </g>
+  <path d="M75 225h150" stroke="#f97316" stroke-width="10" stroke-linecap="round"/>
+</svg>

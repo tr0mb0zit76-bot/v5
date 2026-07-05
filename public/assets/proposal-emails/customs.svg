@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" role="img" aria-labelledby="title desc">
+  <title id="title">Customs logistics illustration</title>
+  <desc id="desc">Outline customs document and cargo box.</desc>
+  <g fill="none" stroke="#55565a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="73" y="51" width="118" height="158" rx="12"/>
+    <path d="M99 91h66M99 120h48M99 149h66"/>
+    <rect x="150" y="168" width="84" height="62" rx="6"/>
+    <path d="M150 191h84M192 168v62"/>
+    <circle cx="217" cy="78" r="30"/>
+  </g>
+  <path d="m203 79 11 11 22-26" fill="none" stroke="#f97316" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

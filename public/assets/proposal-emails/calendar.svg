@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" role="img" aria-labelledby="title desc">
+  <title id="title">Follow-up calendar illustration</title>
+  <desc id="desc">Outline calendar with reminder dots.</desc>
+  <g fill="none" stroke="#55565a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="70" y="79" width="160" height="150" rx="14"/>
+    <path d="M70 120h160M108 63v31M192 63v31"/>
+    <circle cx="113" cy="158" r="9"/>
+    <circle cx="150" cy="158" r="9"/>
+    <circle cx="187" cy="158" r="9"/>
+    <path d="M109 197c28-22 54-22 82 0"/>
+  </g>
+  <circle cx="187" cy="158" r="9" fill="#f97316"/>
+  <path d="M108 63v31M192 63v31" stroke="#f97316" stroke-width="8" stroke-linecap="round"/>
+</svg>

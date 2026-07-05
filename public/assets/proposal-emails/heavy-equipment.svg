@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" role="img" aria-labelledby="title desc">
+  <title id="title">Heavy equipment logistics illustration</title>
+  <desc id="desc">Outline crane truck with orange track accent.</desc>
+  <g fill="none" stroke="#55565a" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M83 192h134"/>
+    <path d="M105 192v-58h47l28 58"/>
+    <path d="M132 134l62-38 30 70"/>
+    <path d="M192 100h38"/>
+    <path d="M224 166h28v26h-35"/>
+    <circle cx="102" cy="207" r="15"/>
+    <circle cx="203" cy="207" r="15"/>
+  </g>
+  <path d="M91 225h126" fill="none" stroke="#f97316" stroke-width="12" stroke-linecap="round"/>
+  <path d="M137 134h43" fill="none" stroke="#f97316" stroke-width="8" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" role="img" aria-labelledby="title desc">
+  <title id="title">Commercial proposal illustration</title>
+  <desc id="desc">Outline proposal sheet with offer badge.</desc>
+  <g fill="none" stroke="#55565a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="78" y="56" width="144" height="188" rx="12"/>
+    <path d="M108 99h82M108 130h62M108 160h82"/>
+    <rect x="109" y="185" width="82" height="30" rx="15"/>
+    <circle cx="219" cy="80" r="25"/>
+  </g>
+  <path d="M128 200h44M207 80h24M219 68v24" stroke="#f97316" stroke-width="8" stroke-linecap="round"/>
+</svg>

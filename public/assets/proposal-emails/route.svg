@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" role="img" aria-labelledby="title desc">
+  <title id="title">Route logistics illustration</title>
+  <desc id="desc">Outline route with two destination pins.</desc>
+  <path d="M67 216c51 0 45-111 103-111 27 0 45 19 64 46" fill="none" stroke="#55565a" stroke-width="9" stroke-linecap="round" stroke-dasharray="2 22"/>
+  <g fill="none" stroke="#55565a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M83 87c0 29-35 61-35 61S13 116 13 87a35 35 0 0 1 70 0z" transform="translate(25 16)"/>
+    <path d="M83 87c0 29-35 61-35 61S13 116 13 87a35 35 0 0 1 70 0z" transform="translate(169 56)"/>
+  </g>
+  <circle cx="73" cy="103" r="10" fill="#f97316"/>
+  <circle cx="217" cy="143" r="10" fill="#f97316"/>
+  <path d="M91 216h128" fill="none" stroke="#f97316" stroke-width="11" stroke-linecap="round"/>
+</svg>

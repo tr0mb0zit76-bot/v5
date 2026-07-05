@@ -86,7 +86,7 @@ class LeadProposalHtmlRendererTest extends TestCase
         $rendered = $renderer->render($template, $lead);
 
         $this->assertStringContainsString('Автоальянс-Смоленск', $rendered['html']);
-        $this->assertStringContainsString('Добрый день, Иван.', $rendered['html']);
+        $this->assertStringContainsString('Добрый день, <strong style="color:#de3b3b;">Иван</strong>.', $rendered['html']);
         $this->assertStringContainsString('Анна Менеджер', $rendered['html']);
         $this->assertStringContainsString('/assets/proposal-emails/heavy-equipment.svg', $rendered['html']);
         $this->assertStringNotContainsString('img.hiteml.com', $rendered['html']);
