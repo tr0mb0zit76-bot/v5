@@ -77,6 +77,37 @@ class SalesBookMcpToolsTest extends TestCase
         $this->assertSame(1, SalesBookArticle::query()->where('parent_id', $parent->id)->where('title', 'Документы')->count());
     }
 
+    public function test_upsert_creates_parent_when_flag_is_set(): void
+    {
+        $user = $this->makeUserWithSalesBookWrite();
+
+        $response = CrmServer::actingAs($user)->tool(UpsertSalesBookArticleTool::class, [
+            'parent_title' => 'Руководство по CRM',
+            'title' => 'Traklo для менеджера',
+            'markdown_content' => "# Traklo\n\nИнструкция.",
+            'create_parent_if_missing' => true,
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertSee('"action":"created"', false)
+            ->assertSee('Traklo для менеджера');
+
+        $parent = SalesBookArticle::query()
+            ->whereNull('parent_id')
+            ->where('title', 'Руководство по CRM')
+            ->first();
+
+        $this->assertNotNull($parent);
+
+        $child = SalesBookArticle::query()
+            ->where('parent_id', $parent->id)
+            ->where('title', 'Traklo для менеджера')
+            ->first();
+
+        $this->assertNotNull($child);
+    }
+
     public function test_upsert_denied_without_sales_book_write(): void
     {
         $user = $this->makeUserWithSalesBookRead();

@@ -156,6 +156,7 @@ foreach ($articles as $spec) {
             'parent_title' => $spec['parent_title'],
             'title' => $spec['title'],
             'markdown_content' => $markdown,
+            'create_parent_if_missing' => true,
         ]);
         echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)."\n";
     } catch (Throwable $e) {

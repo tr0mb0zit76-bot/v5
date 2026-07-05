@@ -9,7 +9,7 @@ use RuntimeException;
 
 class UpsertSalesBookChildPageCommand extends Command
 {
-    protected $signature = 'sales-book:upsert-child-page {--parent=} {--title=} {--file=} {--user=}';
+    protected $signature = 'sales-book:upsert-child-page {--parent=} {--title=} {--file=} {--user=} {--ensure-parent}';
 
     protected $description = 'Создать или обновить дочернюю страницу Книги продаж из Markdown-файла';
 
@@ -45,6 +45,9 @@ class UpsertSalesBookChildPageCommand extends Command
                 $parentTitle,
                 $childTitle,
                 (string) file_get_contents($absolutePath),
+                null,
+                [],
+                (bool) $this->option('ensure-parent'),
             );
         } catch (RuntimeException $exception) {
             $this->error($exception->getMessage());

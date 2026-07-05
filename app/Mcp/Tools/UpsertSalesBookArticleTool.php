@@ -30,6 +30,7 @@ class UpsertSalesBookArticleTool extends Tool
                 'title' => ['required', 'string', 'max:255'],
                 'markdown_content' => ['required', 'string', 'max:500000'],
                 'sort_order' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+                'create_parent_if_missing' => ['nullable', 'boolean'],
             ]);
 
             $result = $this->salesBook->upsertChildPage(
@@ -38,6 +39,8 @@ class UpsertSalesBookArticleTool extends Tool
                 (string) $validated['title'],
                 (string) $validated['markdown_content'],
                 isset($validated['sort_order']) ? (int) $validated['sort_order'] : null,
+                [],
+                (bool) ($validated['create_parent_if_missing'] ?? false),
             );
 
             return Response::json($result);
@@ -63,6 +66,8 @@ class UpsertSalesBookArticleTool extends Tool
                 ->description('Порядок среди соседних страниц (необязательно).')
                 ->min(0)
                 ->max(1000000),
+            'create_parent_if_missing' => $schema->boolean()
+                ->description('Создать корневую родительскую страницу, если её ещё нет в Книге продаж.'),
         ];
     }
 }

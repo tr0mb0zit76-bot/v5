@@ -164,6 +164,53 @@ final class SalesBookMcpService
      *     book_url: string
      * }
      */
+    public function ensureParentPage(User $user, string $parentTitle, string $markdownContent = ''): SalesBookArticle
+    {
+        $this->ensureCanWrite($user);
+
+        $parentTitle = trim($parentTitle);
+
+        if ($parentTitle === '') {
+            throw new RuntimeException('Заголовок родительской страницы не может быть пустым.');
+        }
+
+        $parent = SalesBookArticle::query()
+            ->where('title', $parentTitle)
+            ->whereNull('parent_id')
+            ->orderBy('id')
+            ->first();
+
+        if ($parent !== null) {
+            return $parent;
+        }
+
+        $parent = SalesBookArticle::query()
+            ->where('title', $parentTitle)
+            ->orderByRaw('parent_id is null desc')
+            ->orderBy('id')
+            ->first();
+
+        if ($parent !== null) {
+            return $parent;
+        }
+
+        $markdown = trim($markdownContent);
+        if ($markdown === '') {
+            $markdown = '# '.$parentTitle;
+        }
+
+        return SalesBookArticle::query()->create([
+            'title' => $parentTitle,
+            'markdown_content' => $this->contentNormalizer->normalize($markdown),
+            'parent_id' => null,
+            'sort_order' => $this->resolveRootSortOrder(),
+            'status' => SalesBookArticleStatus::Published->value,
+            'tags' => [],
+            'created_by' => $user->id,
+            'updated_by' => $user->id,
+        ]);
+    }
+
     public function upsertChildPage(
         User $user,
         string $parentTitle,
@@ -171,10 +218,13 @@ final class SalesBookMcpService
         string $markdownContent,
         ?int $sortOrder = null,
         array $tags = [],
+        bool $createParentIfMissing = false,
     ): array {
         $this->ensureCanWrite($user);
 
-        $parent = $this->resolveParentByTitle($parentTitle);
+        $parent = $createParentIfMissing
+            ? $this->ensureParentPage($user, $parentTitle)
+            : $this->resolveParentByTitle($parentTitle);
         $normalizedMarkdown = $this->contentNormalizer->normalize($markdownContent);
         $childTitle = trim($childTitle);
 
@@ -380,6 +430,15 @@ final class SalesBookMcpService
 
         $maxSortOrder = (int) SalesBookArticle::query()
             ->where('parent_id', $parentId)
+            ->max('sort_order');
+
+        return $maxSortOrder + 1;
+    }
+
+    private function resolveRootSortOrder(): int
+    {
+        $maxSortOrder = (int) SalesBookArticle::query()
+            ->whereNull('parent_id')
             ->max('sort_order');
 
         return $maxSortOrder + 1;

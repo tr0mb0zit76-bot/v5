@@ -582,6 +582,7 @@ class AgentToolRegistry
                         'title' => ['type' => 'string'],
                         'markdown_content' => ['type' => 'string'],
                         'sort_order' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 1000000],
+                        'create_parent_if_missing' => ['type' => 'boolean'],
                         'tags' => [
                             'type' => 'array',
                             'items' => ['type' => 'string'],
@@ -599,6 +600,7 @@ class AgentToolRegistry
                     (string) $args['markdown_content'],
                     isset($args['sort_order']) ? (int) $args['sort_order'] : null,
                     is_array($args['tags'] ?? null) ? $args['tags'] : [],
+                    (bool) ($args['create_parent_if_missing'] ?? false),
                 ),
             ),
             new AgentToolDefinition(
