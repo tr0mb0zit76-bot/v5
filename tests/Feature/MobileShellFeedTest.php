@@ -212,7 +212,8 @@ class MobileShellFeedTest extends TestCase
             ->assertJsonPath('parsed.loading_location', 'Смоленска')
             ->assertJsonPath('parsed.unloading_location', 'Москву')
             ->assertJsonPath('parsed.cargo', 'паллеты 3 тонны')
-            ->assertJsonPath('parsed.phone', '+7 999 000 11 22');
+            ->assertJsonPath('parsed.phone', '+7 999 000 11 22')
+            ->assertJsonPath('parsed.parser', 'heuristic');
 
         $lead = Lead::query()
             ->where('source', 'traklo_message_intake')
@@ -224,6 +225,44 @@ class MobileShellFeedTest extends TestCase
         $this->assertSame('Смоленска', $lead->loading_location);
         $this->assertSame('Москву', $lead->unloading_location);
         $this->assertSame('паллеты 3 тонны', data_get($lead->metadata, 'traklo_message_intake.cargo'));
+    }
+
+    public function test_mobile_shell_updates_traklo_lead_draft_without_assigning_public_lead(): void
+    {
+        $user = $this->createUserWithAreas(['leads'], ['leads' => 'own']);
+        $lead = Lead::factory()->create([
+            'source' => 'traklo_public_request',
+            'responsible_id' => null,
+            'loading_location' => 'Казань',
+            'unloading_location' => 'Уфа',
+            'metadata' => [
+                'public_transport_request' => [
+                    'contact_name' => 'Пётр',
+                    'phone' => '+7 900 111 22 33',
+                    'cargo' => 'металл',
+                ],
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->patchJson(route('mobile.shell.leads.update', $lead), [
+                'loading_location' => 'Казань-1',
+                'unloading_location' => 'Уфа-2',
+                'cargo' => 'металлопрокат',
+                'phone' => '+7 900 111 22 44',
+            ])
+            ->assertOk()
+            ->assertJsonPath('lead.loading_location', 'Казань-1')
+            ->assertJsonPath('lead.unloading_location', 'Уфа-2')
+            ->assertJsonPath('lead.cargo', 'металлопрокат')
+            ->assertJsonPath('lead.phone', '+7 900 111 22 44')
+            ->assertJsonPath('lead.editable', true);
+
+        $lead->refresh();
+
+        $this->assertNull($lead->responsible_id);
+        $this->assertSame('металлопрокат', data_get($lead->metadata, 'public_transport_request.cargo'));
+        $this->assertSame('+7 900 111 22 44', data_get($lead->metadata, 'public_transport_request.phone'));
     }
 
     public function test_mobile_shell_link_preview_returns_order_number(): void

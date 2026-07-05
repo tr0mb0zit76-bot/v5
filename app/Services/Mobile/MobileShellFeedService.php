@@ -364,6 +364,8 @@ class MobileShellFeedService
 
         $lead->loadMissing(['counterparty:id,name', 'responsible:id,name']);
 
+        $intake = $this->trakloIntakeMetadata($lead);
+
         return [
             'lead' => [
                 'id' => (int) $lead->id,
@@ -371,15 +373,112 @@ class MobileShellFeedService
                 'title' => $lead->title,
                 'status' => $lead->status,
                 'status_label' => LeadStatus::label((string) $lead->status),
+                'source' => $lead->source,
                 'counterparty_name' => $lead->counterparty?->name,
                 'responsible_name' => $lead->responsible?->name,
                 'loading_location' => $lead->loading_location,
                 'unloading_location' => $lead->unloading_location,
-            ],
-            'urls' => [
-                'lead' => route('leads.show', $lead, absolute: true),
+                'planned_shipping_date' => optional($lead->planned_shipping_date)?->toDateString(),
+                'cargo' => $intake['cargo'] ?? null,
+                'phone' => $intake['phone'] ?? null,
+                'contact_name' => $intake['contact_name'] ?? null,
+                'company_name' => $intake['company_name'] ?? null,
+                'raw_text' => $intake['raw_text'] ?? null,
+                'parser' => $intake['parser'] ?? null,
+                'editable' => $this->userCanEditTrakloLeadDraft($user, $lead),
             ],
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function updateLeadDraftForUser(User $user, Lead $lead, array $payload): array
+    {
+        abort_unless($this->userCanEditTrakloLeadDraft($user, $lead), 403);
+
+        $metadataKey = $this->trakloIntakeMetadataKey($lead);
+        $metadata = is_array($lead->metadata) ? $lead->metadata : [];
+        $intake = is_array($metadata[$metadataKey] ?? null) ? $metadata[$metadataKey] : [];
+
+        if (array_key_exists('loading_location', $payload)) {
+            $lead->loading_location = filled($payload['loading_location']) ? (string) $payload['loading_location'] : null;
+        }
+
+        if (array_key_exists('unloading_location', $payload)) {
+            $lead->unloading_location = filled($payload['unloading_location']) ? (string) $payload['unloading_location'] : null;
+        }
+
+        if (array_key_exists('title', $payload)) {
+            $lead->title = filled($payload['title']) ? (string) $payload['title'] : $lead->title;
+        }
+
+        if (array_key_exists('planned_shipping_date', $payload)) {
+            $lead->planned_shipping_date = filled($payload['planned_shipping_date'])
+                ? (string) $payload['planned_shipping_date']
+                : null;
+        }
+
+        foreach (['cargo', 'contact_name', 'company_name'] as $field) {
+            if (array_key_exists($field, $payload)) {
+                $intake[$field] = filled($payload[$field]) ? (string) $payload[$field] : null;
+            }
+        }
+
+        if (array_key_exists('phone', $payload)) {
+            $phone = filled($payload['phone']) ? (string) $payload['phone'] : null;
+            $intake['phone'] = $phone;
+            $intake['contact_phone'] = $phone;
+        }
+
+        $intake['edited_in_traklo_at'] = now()->toIso8601String();
+        $intake['edited_in_traklo_by'] = $user->id;
+        $metadata[$metadataKey] = $intake;
+        $lead->metadata = $metadata;
+        $lead->updated_by = $user->id;
+        $lead->save();
+
+        return $this->leadSummaryForUser($user, $lead->fresh(['counterparty:id,name', 'responsible:id,name']));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function trakloIntakeMetadata(Lead $lead): array
+    {
+        if (! is_array($lead->metadata)) {
+            return [];
+        }
+
+        $key = $this->trakloIntakeMetadataKey($lead);
+        $intake = is_array($lead->metadata[$key] ?? null) ? $lead->metadata[$key] : [];
+
+        if (! isset($intake['phone']) && isset($intake['contact_phone'])) {
+            $intake['phone'] = $intake['contact_phone'];
+        }
+
+        return $intake;
+    }
+
+    private function trakloIntakeMetadataKey(Lead $lead): string
+    {
+        return $lead->source === 'traklo_message_intake'
+            ? 'traklo_message_intake'
+            : 'public_transport_request';
+    }
+
+    private function userCanEditTrakloLeadDraft(User $user, Lead $lead): bool
+    {
+        if (! $this->userCanViewLead($user, $lead)) {
+            return false;
+        }
+
+        if (! in_array((string) $lead->source, ['traklo_public_request', 'traklo_message_intake'], true)) {
+            return false;
+        }
+
+        return ! LeadStatus::isClosed((string) $lead->status);
     }
 
     /**

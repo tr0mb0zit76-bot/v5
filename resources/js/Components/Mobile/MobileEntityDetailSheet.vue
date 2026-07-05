@@ -54,16 +54,86 @@
                         <div v-if="entitySummary.lead.status_label">
                             <span class="text-zinc-500">Статус:</span> {{ entitySummary.lead.status_label }}
                         </div>
-                        <div v-if="entitySummary.lead.counterparty_name">
-                            <span class="text-zinc-500">Контрагент:</span> {{ entitySummary.lead.counterparty_name }}
-                        </div>
                         <div v-if="entitySummary.lead.responsible_name">
                             <span class="text-zinc-500">Ответственный:</span> {{ entitySummary.lead.responsible_name }}
                         </div>
-                        <div v-if="entitySummary.lead.loading_location || entitySummary.lead.unloading_location" class="text-xs text-zinc-400">
-                            <span v-if="entitySummary.lead.loading_location">{{ entitySummary.lead.loading_location }}</span>
-                            <span v-if="entitySummary.lead.loading_location && entitySummary.lead.unloading_location"> → </span>
-                            <span v-if="entitySummary.lead.unloading_location">{{ entitySummary.lead.unloading_location }}</span>
+                        <div v-else-if="entitySummary.lead.source === 'traklo_public_request'" class="text-xs text-amber-200">
+                            Заявка ещё не назначена — правки сохраняются как черновик.
+                        </div>
+
+                        <template v-if="entitySummary.lead.editable">
+                            <label class="block text-xs text-zinc-500">
+                                Откуда
+                                <input
+                                    v-model="leadDraft.loading_location"
+                                    type="text"
+                                    class="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 outline-none focus:border-sky-500"
+                                />
+                            </label>
+                            <label class="block text-xs text-zinc-500">
+                                Куда
+                                <input
+                                    v-model="leadDraft.unloading_location"
+                                    type="text"
+                                    class="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 outline-none focus:border-sky-500"
+                                />
+                            </label>
+                            <label class="block text-xs text-zinc-500">
+                                Груз
+                                <input
+                                    v-model="leadDraft.cargo"
+                                    type="text"
+                                    class="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 outline-none focus:border-sky-500"
+                                />
+                            </label>
+                            <label class="block text-xs text-zinc-500">
+                                Телефон
+                                <input
+                                    v-model="leadDraft.phone"
+                                    type="tel"
+                                    class="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 outline-none focus:border-sky-500"
+                                />
+                            </label>
+                            <label class="block text-xs text-zinc-500">
+                                Контакт
+                                <input
+                                    v-model="leadDraft.contact_name"
+                                    type="text"
+                                    class="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 outline-none focus:border-sky-500"
+                                />
+                            </label>
+                            <label class="block text-xs text-zinc-500">
+                                Компания
+                                <input
+                                    v-model="leadDraft.company_name"
+                                    type="text"
+                                    class="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 outline-none focus:border-sky-500"
+                                />
+                            </label>
+                        </template>
+
+                        <template v-else>
+                            <div v-if="entitySummary.lead.loading_location || entitySummary.lead.unloading_location">
+                                <span class="text-zinc-500">Маршрут:</span>
+                                {{ entitySummary.lead.loading_location || '—' }} → {{ entitySummary.lead.unloading_location || '—' }}
+                            </div>
+                            <div v-if="entitySummary.lead.cargo">
+                                <span class="text-zinc-500">Груз:</span> {{ entitySummary.lead.cargo }}
+                            </div>
+                            <div v-if="entitySummary.lead.phone">
+                                <span class="text-zinc-500">Телефон:</span> {{ entitySummary.lead.phone }}
+                            </div>
+                            <div v-if="entitySummary.lead.contact_name">
+                                <span class="text-zinc-500">Контакт:</span> {{ entitySummary.lead.contact_name }}
+                            </div>
+                            <div v-if="entitySummary.lead.company_name">
+                                <span class="text-zinc-500">Компания:</span> {{ entitySummary.lead.company_name }}
+                            </div>
+                        </template>
+
+                        <div v-if="entitySummary.lead.raw_text" class="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Исходный текст</div>
+                            <p class="mt-2 whitespace-pre-wrap text-xs leading-5 text-zinc-300">{{ entitySummary.lead.raw_text }}</p>
                         </div>
                     </div>
                 </template>
@@ -91,13 +161,16 @@
             </div>
 
             <div class="space-y-2 border-t border-white/10 p-3">
-                <a
-                    v-if="entity?.url"
-                    :href="entity.url"
-                    class="flex w-full items-center justify-center rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white active:bg-sky-500"
+                <button
+                    v-if="entity?.kind === 'lead' && entitySummary?.lead?.editable"
+                    type="button"
+                    class="flex w-full items-center justify-center rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 active:bg-sky-500"
+                    :disabled="leadSaving"
+                    @click="saveLeadDraft"
                 >
-                    Открыть в CRM
-                </a>
+                    {{ leadSaving ? 'Сохраняем…' : 'Сохранить' }}
+                </button>
+                <p v-if="leadSaveError" class="text-center text-xs text-rose-300">{{ leadSaveError }}</p>
                 <button
                     v-if="entity?.kind === 'order'"
                     type="button"
@@ -151,18 +224,69 @@
 
 <script setup>
 import { CheckSquare, FileText, Package, UserRound, Users } from 'lucide-vue-next';
+import { reactive, ref, watch } from 'vue';
 import { entityKindLabel } from '@/support/mobileMessageLinks.js';
 
-defineProps({
+const props = defineProps({
     open: { type: Boolean, default: false },
     entity: { type: Object, default: null },
     orderSummary: { type: Object, default: null },
     entitySummary: { type: Object, default: null },
     loading: { type: Boolean, default: false },
     currentUserId: { type: Number, default: null },
+    leadSaving: { type: Boolean, default: false },
 });
 
-defineEmits(['close', 'share', 'upload-document', 'message-responsible']);
+const emit = defineEmits(['close', 'share', 'upload-document', 'message-responsible', 'save-lead-draft']);
+
+const leadDraft = reactive({
+    loading_location: '',
+    unloading_location: '',
+    cargo: '',
+    phone: '',
+    contact_name: '',
+    company_name: '',
+});
+
+const leadSaveError = ref('');
+
+watch(
+    () => props.entitySummary?.lead,
+    (lead) => {
+        leadSaveError.value = '';
+
+        if (! lead) {
+            return;
+        }
+
+        leadDraft.loading_location = lead.loading_location ?? '';
+        leadDraft.unloading_location = lead.unloading_location ?? '';
+        leadDraft.cargo = lead.cargo ?? '';
+        leadDraft.phone = lead.phone ?? '';
+        leadDraft.contact_name = lead.contact_name ?? '';
+        leadDraft.company_name = lead.company_name ?? '';
+    },
+    { immediate: true },
+);
+
+function saveLeadDraft() {
+    if (! props.entity?.id) {
+        return;
+    }
+
+    leadSaveError.value = '';
+    emit('save-lead-draft', {
+        leadId: props.entity.id,
+        payload: {
+            loading_location: leadDraft.loading_location.trim() || null,
+            unloading_location: leadDraft.unloading_location.trim() || null,
+            cargo: leadDraft.cargo.trim() || null,
+            phone: leadDraft.phone.trim() || null,
+            contact_name: leadDraft.contact_name.trim() || null,
+            company_name: leadDraft.company_name.trim() || null,
+        },
+    });
+}
 
 function iconForKind(kind) {
     if (kind === 'order') {
@@ -183,4 +307,6 @@ function iconForKind(kind) {
 
     return FileText;
 }
+
+defineExpose({ setLeadSaveError: (message) => { leadSaveError.value = message; } });
 </script>

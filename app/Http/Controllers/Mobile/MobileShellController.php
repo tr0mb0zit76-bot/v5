@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Mobile;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Mobile\UpdateMobileLeadDraftRequest;
 use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\Order;
@@ -102,10 +103,24 @@ class MobileShellController extends Controller
                 'title' => $lead->title,
                 'loading_location' => $lead->loading_location,
                 'unloading_location' => $lead->unloading_location,
-                'url' => route('leads.show', $lead, absolute: true),
             ],
             'parsed' => $result['parsed'],
+            'warnings' => $result['warnings'],
         ], 201);
+    }
+
+    public function updateLeadDraft(UpdateMobileLeadDraftRequest $request, Lead $lead): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+        abort_unless(
+            Schema::hasTable('leads') && RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'leads'),
+            403,
+        );
+
+        return response()->json(
+            $this->mobileShellFeedService->updateLeadDraftForUser($user, $lead, $request->validated()),
+        );
     }
 
     public function entityChips(Request $request): JsonResponse

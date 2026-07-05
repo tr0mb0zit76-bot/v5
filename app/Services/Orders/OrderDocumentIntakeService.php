@@ -2,18 +2,16 @@
 
 namespace App\Services\Orders;
 
-use App\Contracts\Inference\ChatCompletionClient;
 use App\Models\OrderIntakeDraft;
 use App\Models\User;
 use App\Services\Agents\AiRequestGate;
 use App\Services\Ai\AiInteractionRecorder;
 use App\Services\Documents\DocumentTextExtractor;
 use App\Services\DocumentStorageService;
-use App\Services\Inference\ExternalLlmPayloadSanitizer;
 use App\Services\OrderIntakeGoldenLibraryService;
+use App\Services\TransportTextIntakeService;
 use App\Support\AiChannel;
 use App\Support\OrderIntakeDraftNavigation;
-use App\Support\OrderIntakeLlmContext;
 use App\Support\OrderIntakePhraseNormalizer;
 use App\Support\OrderIntakeSchema;
 use Illuminate\Http\UploadedFile;
@@ -26,8 +24,7 @@ class OrderDocumentIntakeService
 {
     public function __construct(
         private readonly DocumentTextExtractor $textExtractor,
-        private readonly ChatCompletionClient $chat,
-        private readonly ExternalLlmPayloadSanitizer $sanitizer,
+        private readonly TransportTextIntakeService $transportTextIntakeService,
         private readonly AiRequestGate $aiGate,
         private readonly OrderIntakeContractorResolver $contractorResolver,
         private readonly DocumentStorageService $documentStorage,
@@ -140,7 +137,8 @@ class OrderDocumentIntakeService
         $this->assertIntakeEnabled($user);
 
         try {
-            $extracted = $this->structureWithLlm($user, $text);
+            $extracted = $this->transportTextIntakeService->structureWithLlm($user, $text);
+            $extracted = OrderIntakePhraseNormalizer::normalizeExtracted($extracted, $user);
         } catch (Throwable $throwable) {
             Log::warning('order_intake_llm_failed', [
                 'user_id' => $user->id,
@@ -163,8 +161,6 @@ class OrderDocumentIntakeService
                 $field => 'Не удалось структурировать заявку: '.$throwable->getMessage(),
             ]);
         }
-
-        $extracted = OrderIntakePhraseNormalizer::normalizeExtracted($extracted, $user);
 
         $customer = is_array($extracted['customer'] ?? null) ? $extracted['customer'] : [];
         $carrier = is_array($extracted['carrier'] ?? null) ? $extracted['carrier'] : [];
@@ -255,25 +251,5 @@ class OrderDocumentIntakeService
                 'instruction' => 'Для распознавания заявок нужен DEEPSEEK_API_KEY.',
             ]);
         }
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function structureWithLlm(User $user, string $text): array
-    {
-        $messages = [
-            ['role' => 'system', 'content' => OrderIntakeSchema::llmSystemPrompt()],
-            ['role' => 'user', 'content' => OrderIntakeLlmContext::wrapUserInstruction($user, $text)],
-        ];
-
-        $messages = $this->sanitizer->sanitizeMessages($messages, 'command_bar');
-
-        $content = $this->chat->chat($messages, [
-            'temperature' => (float) config('ai.order_intake.temperature', 0.1),
-            'max_tokens' => (int) config('ai.order_intake.max_tokens', 2500),
-        ]);
-
-        return OrderIntakeSchema::parseLlmJson($content);
     }
 }

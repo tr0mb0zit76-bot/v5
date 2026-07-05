@@ -147,6 +147,14 @@ export function useMobileShell() {
         return Promise.resolve();
     }
 
+    async function saveLeadDraft(leadId, payload) {
+        const { data } = await axios.patch(route('mobile.shell.leads.update', leadId), payload, {
+            headers: { Accept: 'application/json' },
+        });
+
+        return data;
+    }
+
     return {
         tasks,
         orders,
@@ -167,6 +175,7 @@ export function useMobileShell() {
         loadOrderSummary,
         loadLeadSummary,
         loadContractorSummary,
+        saveLeadDraft,
         searchEntities,
     };
 }

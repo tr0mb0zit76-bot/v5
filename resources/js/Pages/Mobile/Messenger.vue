@@ -586,16 +586,19 @@
         />
 
         <MobileEntityDetailSheet
+            ref="detailSheetRef"
             :open="showDetailSheet"
             :entity="detailEntity"
             :order-summary="detailOrderSummary"
             :entity-summary="detailEntitySummary"
             :loading="detailLoading"
             :current-user-id="currentUserId"
+            :lead-saving="leadDraftSaving"
             @close="closeDetailSheet"
             @share="beginShareFromDetail"
             @message-responsible="openTaskResponsibleChat"
             @upload-document="openUploadWizardForOrder"
+            @save-lead-draft="handleSaveLeadDraft"
         />
 
         <MobileEntityPicker
@@ -773,8 +776,12 @@ const {
     loadOrderSummary,
     loadLeadSummary,
     loadContractorSummary,
+    saveLeadDraft,
     searchEntities,
 } = useMobileShell();
+
+const leadDraftSaving = ref(false);
+const detailSheetRef = ref(null);
 
 function beginShareToChat(payload) {
     pendingShare.value = payload;
@@ -1132,12 +1139,12 @@ async function loadEntitySummary(kind, id) {
         if (kind === 'lead') {
             detailEntitySummary.value = await loadLeadSummary(id);
 
-            if (detailEntitySummary.value?.urls?.lead) {
-                detailEntity.value.url = detailEntitySummary.value.urls.lead;
-            }
-
             if (detailEntitySummary.value?.lead?.number) {
                 detailEntity.value.label = detailEntitySummary.value.lead.number;
+            }
+
+            if (detailEntitySummary.value?.lead?.title) {
+                detailEntity.value.subtitle = detailEntitySummary.value.lead.title;
             }
         }
 
@@ -1154,6 +1161,21 @@ async function loadEntitySummary(kind, id) {
         }
     } finally {
         detailLoading.value = false;
+    }
+}
+
+async function handleSaveLeadDraft({ leadId, payload }) {
+    leadDraftSaving.value = true;
+
+    try {
+        detailEntitySummary.value = await saveLeadDraft(leadId, payload);
+        await loadTrakloLeads(search.value);
+    } catch (exception) {
+        detailSheetRef.value?.setLeadSaveError?.(
+            exception.response?.data?.message ?? 'Не удалось сохранить лид.',
+        );
+    } finally {
+        leadDraftSaving.value = false;
     }
 }
 

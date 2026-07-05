@@ -3,22 +3,52 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-05 14:00 · **Ветка:** `master` · **Контекст:** Traklo intake + APK на prod, следующий — mobile lead card + LLM-парсинг
+**Обновлено:** 2026-07-05 18:32 · **Ветка:** `master` · **HEAD:** `7707569` · **Контекст:** Traklo — единый парсинг + mobile lead draft
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
 ---
 
-## Следующий шаг (Traklo / лиды)
+## Следующий шаг (Traklo / окружение)
 
-1. **Парсинг текста → лид:** подключить серверный LLM-контур как у intake заказов (`OrderDocumentIntakeService` + `OrderIntakeSchema` + `ChatCompletionClient` + `AiRequestGate`), а не только regex в `LeadMessageIntakeService`. Отдельная схема полей лида; fallback на эвристики при отключённом AI.
-2. **Mobile карточка лида:** не тащить desktop `Leads/Wizard.vue` на телефон. Расширить `MobileEntityDetailSheet` / отдельный read-only экран «снимок лида»: маршрут, груз, контакт, статус БП, ответственный, исходный текст, задачи; кнопки «Позвонить», «В чат», «Открыть в CRM» для правок.
-3. **Ответственный:** при `traklo_message_intake` создатель = `responsible_id` (уже так). Публичная форма — без ответственного до назначения в CRM; «взять из пула» в Traklo не нужен — только передача другому в полной CRM при необходимости.
-4. **Push** о новой публичной заявке — опционально после карточки лида.
-
-**Prod (2026-07-05):** web + release APK с иконкой выложены пользователем; **git:** `89bd30a`.
+1. **Деплой на prod:** `npm run build` + tar исходников (web); APK — только при смене native/icon/version.
+2. **Laravel Nightwatch** на prod — см. раздел «Окружение» ниже (внешний дашборд, не модуль CRM).
+3. **Vitest** для `mobileMessageLinks.js` / push navigation — локально и в CI, не на эмуляторе.
+4. **Push** о новой публичной заявке — опционально.
 
 ---
+
+## Что сделано недавно (2026-07-05) — Traklo: единый парсинг + mobile lead draft
+
+- **Единый серверный intake:** `TransportTextIntakeService` (LLM через `OrderIntakeSchema` + fallback `TransportIntakeHeuristicParser`) → `LeadIntakeMapper`. Используется в `LeadMessageIntakeService` и `OrderDocumentIntakeService::structureWithLlm`.
+- **Mobile lead card:** убрана кнопка «Открыть в CRM» в `MobileEntityDetailSheet`; расширен summary (маршрут, груз, контакт, исходный текст, parser).
+- **Черновик в Traklo:** `PATCH mobile/shell/leads/{lead}` — правка маршрута/груза/контактов без назначения публичной заявки; UI с полями и «Сохранить».
+- Тесты: `tests/Unit/LeadIntakeMapperTest.php`, `TransportIntakeHeuristicParserTest.php`, доп. кейс в `MobileShellFeedTest`.
+
+---
+
+## Окружение (архитектор — согласовано / рекомендации)
+
+| Слой | Что | Где |
+| --- | --- | --- |
+| **Nightwatch** | Мониторинг Laravel (exceptions, slow requests, failed jobs) | **Облачный дашборд** [nightwatch.laravel.com](https://nightwatch.laravel.com) — **не** модуль в админке CRM. Агент на prod шлёт телеметрию; алерты email/Slack. |
+| **Vitest** | Unit-тесты JS-хелперов mobile | **Dev-машина + CI** — не Android-эмулятор и не APK |
+| **Staging** | `staging.crm…` или отдельный vhost | Smoke перед prod |
+| **CI (GitHub Actions)** | `pint`, `php artisan test`, `npm run build` | На каждый push/PR |
+| **Playwright smoke** | login → dashboard / mobile shell | После деплоя staging |
+| **Deploy artifact** | tar/release вместо git в working tree prod | Меньше сюрпризов на сервере |
+
+**Prod (2026-07-05):** web + release APK с иконкой выложены пользователем ранее; **git:** `7707569` (деплой web — после `npm run build` + tar).
+
+---
+
+## Следующий шаг (Traklo / лиды) — архив
+
+1. ~~Парсинг текста → лид через LLM~~ — сделано (`TransportTextIntakeService`).
+2. ~~Mobile карточка без CRM wizard~~ — сделано (draft PATCH + sheet).
+3. ~~Ответственный message vs public~~ — без изменений.
+4. Push — опционально.
+
 
 ## Что сделано недавно (2026-07-05) — Traklo: иконка APK из `resources/`
 

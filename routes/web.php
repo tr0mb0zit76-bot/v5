@@ -798,6 +798,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/documents', [MobileShellController::class, 'documents'])->name('documents');
         Route::get('/traklo-leads', [MobileShellController::class, 'trakloLeads'])->name('traklo-leads');
         Route::post('/leads/from-text', [MobileShellController::class, 'createLeadFromText'])->name('leads.from-text');
+        Route::patch('/leads/{lead}', [MobileShellController::class, 'updateLeadDraft'])->name('leads.update');
         Route::get('/entity-chips', [MobileShellController::class, 'entityChips'])->name('entity-chips');
         Route::get('/orders/{order}/document-slots', [MobileShellController::class, 'orderDocumentSlots'])->name('orders.document-slots');
         Route::get('/orders/{order}/summary', [MobileShellController::class, 'orderSummary'])->name('orders.summary');
