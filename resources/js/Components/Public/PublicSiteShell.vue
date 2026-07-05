@@ -32,7 +32,7 @@ const authLogoUrl = '/assets/logo_black.png?v=2';
 const headerLogoUrl = '/assets/logo_white.png?v=2';
 const companyPhoneLabel = '+7 8482 55 99 99';
 const companyPhoneHref = 'tel:+78482559999';
-const trakloApkUrl = computed(() => page.props.publicSite?.traklo_apk_url ?? '/downloads/traklo');
+const trakloApkUrl = computed(() => page.props.publicSite?.traklo_apk_url ?? '/downloads/traklo.apk');
 
 const isNonEmptyTextMap = (value) =>
     value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
@@ -495,6 +495,14 @@ onBeforeUnmount(() => {
                                 >
                                     {{ t(panel.labelKey) }}
                                 </button>
+
+                                <a
+                                    :href="trakloApkUrl"
+                                    class="sla-tile sla-tile--doc"
+                                    download="Traklo.apk"
+                                >
+                                    {{ t('sla_tile_traklo_download', 'Скачать приложение') }}
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -534,8 +542,9 @@ onBeforeUnmount(() => {
                                     v-if="showTrakloDownloadForActivePanel"
                                     :href="trakloApkUrl"
                                     class="sla-tile sla-tile--doc"
+                                    download="Traklo.apk"
                                 >
-                                    {{ t('sla_tile_traklo_download', 'Скачать Traklo') }}
+                                    {{ t('sla_tile_traklo_download', 'Скачать приложение') }}
                                 </a>
                             </div>
                         </div>
@@ -692,7 +701,7 @@ onBeforeUnmount(() => {
                     <p><a :href="companyEmailHref">{{ companyEmailLabel }}</a></p>
                     <p><a :href="companyPhoneHref">{{ companyPhoneLabel }}</a></p>
                     <p>
-                        <a :href="trakloApkUrl" class="footer-traklo-link">Скачать Traklo</a>
+                        <a :href="trakloApkUrl" class="footer-traklo-link" download="Traklo.apk">Скачать приложение</a>
                     </p>
                 </div>
 

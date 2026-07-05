@@ -27,7 +27,7 @@ class TrakloDownloadController extends Controller
 
         return response()->file($path, [
             'Content-Type' => 'application/vnd.android.package-archive',
-            'Content-Disposition' => 'attachment; filename="traklo.apk"',
+            'Content-Disposition' => 'attachment; filename="Traklo.apk"',
             'Cache-Control' => 'public, max-age=3600',
         ]);
     }

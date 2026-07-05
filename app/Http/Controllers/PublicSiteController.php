@@ -111,7 +111,7 @@ class PublicSiteController extends Controller
 
     protected function resolveTrakloApkUrl(): string
     {
-        $configured = (string) config('external_users.apk_url', '/downloads/traklo');
+        $configured = (string) config('external_users.apk_url', '/downloads/traklo.apk');
 
         if (str_starts_with($configured, 'http://') || str_starts_with($configured, 'https://')) {
             return $configured;
@@ -119,8 +119,8 @@ class PublicSiteController extends Controller
 
         $path = str_starts_with($configured, '/') ? $configured : '/'.$configured;
 
-        if (\Route::has('downloads.traklo') && in_array($path, ['/downloads/traklo', '/downloads/traklo/'], true)) {
-            $path = route('downloads.traklo', [], false);
+        if (\Route::has('downloads.traklo.file') && in_array($path, ['/downloads/traklo.apk', '/downloads/traklo.apk/'], true)) {
+            $path = route('downloads.traklo.file', [], false);
         }
 
         $crmHost = trim((string) config('app.crm_domain'));
