@@ -86,8 +86,10 @@ class TrakloSmokeCommand extends Command
                 $detail = 'HTTP '.$code;
                 if ($path === '/transport-request' && $ok) {
                     $body = $response->body();
-                    $ok = str_contains($body, 'Скачать Traklo');
-                    $detail = $ok ? 'HTTP 200 + «Скачать Traklo»' : 'HTTP 200, CTA не найден';
+                    $ok = str_contains($body, 'Public/TransportRequest')
+                        || str_contains($body, 'traklo_apk_url')
+                        || str_contains($body, 'Traklo');
+                    $detail = $ok ? 'HTTP 200 + Inertia TransportRequest' : 'HTTP 200, страница Traklo не распознана';
                 }
                 $this->record('HTTP '.$path, $ok, $detail);
             } catch (Throwable $exception) {
