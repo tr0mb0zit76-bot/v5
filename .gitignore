@@ -58,3 +58,9 @@ Thumbs.db
 # Случайные загрузки в public/change — не деплоить
 /public/change/*.xls
 /public/change/*.xlsx
+/public/downloads/*.apk
+
+# Android release signing secrets
+/android/traklo-release.properties
+/android/keystores/*.jks
+/android/keystores/*.keystore

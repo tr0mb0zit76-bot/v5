@@ -222,7 +222,7 @@ class CabinetNotifier
             return;
         }
 
-        if (Schema::hasTable('notifications') && Schema::hasTable('conversation_participants')) {
+        if (Schema::hasTable('conversation_participants')) {
             $recipients = $conversation->participants
                 ->filter(fn (User $participant): bool => (int) $participant->id !== (int) $author->id);
 
@@ -237,22 +237,20 @@ class CabinetNotifier
                     : $author->name;
                 $body = sprintf('%s: %s', $author->name, mb_strimwidth((string) $message->body, 0, 160, '…'));
                 $actionUrl = '/?messenger_conversation='.$conversation->id;
-                $notification = new CabinetInAppNotification(
+
+                $this->mobilePushService->notifyUsers(
+                    $recipients,
                     'chat_message',
                     $conversationTitle,
                     $body,
-                    $actionUrl,
                     [
+                        'action_url' => $actionUrl,
                         'conversation_id' => $conversation->id,
                         'message_id' => $message->id,
                         'author_id' => $author->id,
                         'recipient_user_id' => $message->recipient_user_id,
                     ],
                 );
-
-                foreach ($recipients as $recipient) {
-                    $this->deliver($recipient, $notification);
-                }
             }
         }
     }

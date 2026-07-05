@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "463162269562",
+    "project_id": "avtoaliyans-227e8",
+    "storage_bucket": "avtoaliyans-227e8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:463162269562:android:83c696d39b302a121300c3",
+        "android_client_info": {
+          "package_name": "ru.avtoaliyans.crm.messenger"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBHDwaJqJyGxUZ3OD_6RGABGx-7AgS-2wI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

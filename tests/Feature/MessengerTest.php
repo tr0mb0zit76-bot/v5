@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Models\UserMobileDevice;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -90,10 +92,27 @@ class MessengerTest extends TestCase
             ->assertJsonPath('conversations.0.unread_count', 0);
     }
 
-    public function test_new_message_notifies_other_participant(): void
+    public function test_new_message_updates_messenger_without_bell_notification(): void
     {
+        config([
+            'fcm.enabled' => true,
+            'fcm.project_id' => 'test-project',
+            'fcm.access_token_override' => 'fake-access-token',
+        ]);
+
+        Http::fake([
+            'https://fcm.googleapis.com/*' => Http::response(['name' => 'projects/test/messages/1']),
+        ]);
+
         $a = User::factory()->create();
         $b = User::factory()->create();
+
+        UserMobileDevice::query()->create([
+            'user_id' => $b->id,
+            'device_key' => '33333333-3333-4333-8333-333333333333',
+            'pin_hash' => bcrypt('1234'),
+            'fcm_token' => 'recipient-device-token',
+        ]);
 
         $open = $this->actingAs($a)->postJson(route('messenger.conversations.open'), [
             'user_id' => $b->id,
@@ -105,15 +124,20 @@ class MessengerTest extends TestCase
             'body' => 'Проверь рейс',
         ])->assertOk();
 
-        $notification = $b->fresh()->notifications()->first();
+        $this->actingAs($b)->getJson(route('messenger.conversations.index'))
+            ->assertOk()
+            ->assertJsonPath('conversations.0.unread_count', 1);
 
-        $this->assertNotNull($notification);
-        $this->assertSame('cabinet', $notification->type);
-        $this->assertSame('chat_message', $notification->data['kind']);
-        $this->assertSame($a->name, $notification->data['title']);
-        $this->assertSame($conversationId, $notification->data['payload']['conversation_id']);
-        $this->assertSame((int) $message->json('message.id'), $notification->data['payload']['message_id']);
+        $this->assertSame(0, $b->fresh()->notifications()->count());
         $this->assertSame(0, $a->fresh()->notifications()->count());
+
+        Http::assertSent(function ($request) use ($conversationId, $message): bool {
+            return str_contains($request->url(), 'fcm.googleapis.com')
+                && ($request->data()['message']['token'] ?? null) === 'recipient-device-token'
+                && ($request->data()['message']['data']['kind'] ?? null) === 'chat_message'
+                && ($request->data()['message']['data']['conversation_id'] ?? null) === (string) $conversationId
+                && ($request->data()['message']['data']['message_id'] ?? null) === (string) $message->json('message.id');
+        });
     }
 
     public function test_create_group_adds_participants_and_lists_title(): void

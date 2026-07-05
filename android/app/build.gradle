@@ -1,5 +1,17 @@
 apply plugin: 'com.android.application'
 
+def trakloReleaseProperties = new Properties()
+def trakloReleasePropertiesFile = rootProject.file('traklo-release.properties')
+if (trakloReleasePropertiesFile.exists()) {
+    trakloReleasePropertiesFile.withInputStream { trakloReleaseProperties.load(it) }
+}
+
+def trakloReleaseStoreFile = trakloReleaseProperties['storeFile'] ?: System.getenv('TRAKLO_RELEASE_STORE_FILE')
+def trakloReleaseStorePassword = trakloReleaseProperties['storePassword'] ?: System.getenv('TRAKLO_RELEASE_STORE_PASSWORD')
+def trakloReleaseKeyAlias = trakloReleaseProperties['keyAlias'] ?: System.getenv('TRAKLO_RELEASE_KEY_ALIAS')
+def trakloReleaseKeyPassword = trakloReleaseProperties['keyPassword'] ?: System.getenv('TRAKLO_RELEASE_KEY_PASSWORD')
+def trakloReleaseSigningReady = trakloReleaseStoreFile && trakloReleaseStorePassword && trakloReleaseKeyAlias && trakloReleaseKeyPassword
+
 android {
     namespace = "ru.avtoaliyans.crm.messenger"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,8 +28,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (trakloReleaseSigningReady) {
+                storeFile rootProject.file(trakloReleaseStoreFile)
+                storePassword trakloReleaseStorePassword
+                keyAlias trakloReleaseKeyAlias
+                keyPassword trakloReleaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            if (trakloReleaseSigningReady) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

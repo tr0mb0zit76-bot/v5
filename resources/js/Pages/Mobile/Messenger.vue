@@ -137,9 +137,18 @@
                         <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
                         <input
                             v-model="search"
-                            class="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-10 pr-4 text-base text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-sky-500"
+                            class="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-10 pr-11 text-base text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-sky-500"
                             :placeholder="activeTab === 'chats' ? 'Поиск чатов и коллег' : `Поиск: ${activeTabLabel}`"
                         />
+                        <button
+                            v-if="search.trim()"
+                            type="button"
+                            class="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-zinc-400 active:bg-white/10 active:text-zinc-100"
+                            aria-label="Очистить поиск"
+                            @click="search = ''"
+                        >
+                            <X class="h-4 w-4" />
+                        </button>
                     </div>
                     <button
                         v-if="activeTab === 'chats'"
@@ -513,17 +522,19 @@
             @close="showEntityPicker = false"
             @select="insertEntityChip"
         />
+        <MobileAppUpdateBanner />
     </div>
 </template>
 
 <script setup>
 import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
-import { ArrowLeft, CheckSquare, FileText, MessageCircle, Package, Phone, Plus, Search, Send, Upload, Users } from 'lucide-vue-next';
+import { ArrowLeft, CheckSquare, FileText, MessageCircle, Package, Phone, Plus, Search, Send, Upload, Users, X } from 'lucide-vue-next';
 import { useMessenger } from '@/composables/useMessenger.js';
 import { useMessengerPolling } from '@/composables/useMessengerPolling.js';
 import { useMobileShell } from '@/composables/useMobileShell.js';
 import { usePullToRefresh } from '@/composables/usePullToRefresh.js';
+import MobileAppUpdateBanner from '@/Components/Mobile/MobileAppUpdateBanner.vue';
 import MobileCrmLinkPreview from '@/Components/Mobile/MobileCrmLinkPreview.vue';
 import MobileDocumentUploadWizard from '@/Components/Mobile/MobileDocumentUploadWizard.vue';
 import MobileEntityDetailSheet from '@/Components/Mobile/MobileEntityDetailSheet.vue';

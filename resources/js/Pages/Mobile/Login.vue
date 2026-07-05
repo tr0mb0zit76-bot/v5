@@ -1,5 +1,6 @@
 <script setup>
 import InputError from '@/Components/InputError.vue';
+import MobileAppUpdateBanner from '@/Components/Mobile/MobileAppUpdateBanner.vue';
 import { getDeviceName, getOrCreateDeviceKey } from '@/support/mobileDevice';
 import axios from 'axios';
 import { Head, useForm } from '@inertiajs/vue3';
@@ -71,17 +72,18 @@ onMounted(() => {
 
 <template>
     <div class="flex min-h-screen bg-zinc-950 px-5 py-8 text-zinc-50">
-        <Head title="Автоальянс Чат" />
+        <Head title="Traklo" />
+        <MobileAppUpdateBanner />
 
         <main class="mx-auto flex w-full max-w-md flex-col justify-center">
             <div class="mb-8">
-                <div class="text-xs font-semibold uppercase tracking-[0.35em] text-sky-300">CRM</div>
-                <h1 class="mt-3 text-3xl font-semibold">Автоальянс Чат</h1>
+                <div class="text-xs font-semibold uppercase tracking-[0.35em] text-sky-300">TRAKLO</div>
+                <h1 class="mt-3 text-3xl font-semibold">Traklo</h1>
                 <p v-if="mode === 'pin'" class="mt-2 text-sm leading-6 text-zinc-400">
                     Сессия истекла. Введите PIN для {{ registeredUserName || 'вашего аккаунта' }}.
                 </p>
                 <p v-else class="mt-2 text-sm leading-6 text-zinc-400">
-                    Войдите рабочим email и паролем. После первого входа можно включить быстрый PIN на этом телефоне.
+                    Рабочая лента логиста: чаты, заказы, документы и задачи в одном мобильном приложении.
                 </p>
             </div>
 

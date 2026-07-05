@@ -7,7 +7,10 @@
         "dev": "vite",
         "cap:sync:android": "npm run build && npx cap sync android",
         "cap:open:android": "npx cap open android",
-        "apk:debug": "npm run cap:sync:android && cd android && gradlew assembleDebug"
+        "apk:debug": "npm run cap:sync:android && cd android && gradlew assembleDebug",
+        "traklo:apk:debug": "node tools/build-traklo-apk.mjs --debug",
+        "traklo:apk:inspect": "node tools/inspect-traklo-apk.mjs",
+        "traklo:apk:release": "node tools/build-traklo-apk.mjs --release"
     },
     "devDependencies": {
         "@inertiajs/vue3": "^2.0.0",

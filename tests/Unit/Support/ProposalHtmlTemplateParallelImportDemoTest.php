@@ -13,10 +13,13 @@ class ProposalHtmlTemplateParallelImportDemoTest extends TestCase
 
         $this->assertStringContainsString('{counterparty.contact_person}', $html);
         $this->assertStringContainsString('{responsible.name}', $html);
-        $this->assertStringContainsString('{route.loading_first_city}', $html);
-        $this->assertStringContainsString('{offer.price}', $html);
+        $this->assertStringContainsString('{responsible.phone}', $html);
+        $this->assertStringContainsString('{responsible.email}', $html);
+        $this->assertStringContainsString('Автоальянс-Смоленск', $html);
         $this->assertStringContainsString('Параллельный импорт', $html);
-        $this->assertStringContainsString('Почему выбирают нас?', $html);
+        $this->assertStringNotContainsString('Логистические решения', $html);
+        $this->assertStringNotContainsString('img.hiteml.com', $html);
+        $this->assertStringNotContainsString('МЕНЯЕМ_ИМЯ', $html);
     }
 
     public function test_demo_template_has_inline_css(): void

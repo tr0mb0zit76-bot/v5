@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\ProposalHtmlTemplate;
-use App\Support\ProposalHtmlTemplateParallelImportDemo;
+use App\Support\ProposalHtmlTemplateColdEmailLibrary;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Schema;
 
@@ -15,18 +15,20 @@ class ProposalHtmlTemplateDemoSeeder extends Seeder
             return;
         }
 
-        ProposalHtmlTemplate::query()->updateOrCreate(
-            ['slug' => ProposalHtmlTemplateParallelImportDemo::SLUG],
-            [
-                'name' => ProposalHtmlTemplateParallelImportDemo::NAME,
-                'is_active' => true,
-                'html_body' => ProposalHtmlTemplateParallelImportDemo::htmlBody(),
-                'css_inline' => ProposalHtmlTemplateParallelImportDemo::cssInline(),
-                'version' => 1,
-                'published_at' => now(),
-                'owner_user_id' => null,
-                'visibility' => 'workspace',
-            ],
-        );
+        foreach (ProposalHtmlTemplateColdEmailLibrary::templates() as $template) {
+            ProposalHtmlTemplate::query()->updateOrCreate(
+                ['slug' => $template['slug']],
+                [
+                    'name' => $template['name'],
+                    'is_active' => true,
+                    'html_body' => $template['html_body'],
+                    'css_inline' => $template['css_inline'],
+                    'version' => 2,
+                    'published_at' => now(),
+                    'owner_user_id' => null,
+                    'visibility' => 'workspace',
+                ],
+            );
+        }
     }
 }

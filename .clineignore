@@ -1,0 +1,26 @@
+# Зависимости и кеши
+node_modules/
+vendor/
+.cache/
+*.log
+
+# Файлы окружения (важно для безопасности!)
+.env
+.env.*
+!.env.example
+
+# Системные файлы Windows
+Thumbs.db
+desktop.ini
+
+# Файлы IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Временные файлы PHP
+*.tmp
+*.cache
+/session/
+/temp/

@@ -3,9 +3,46 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-04 19:00 · **Ветка:** `master` · **Контекст:** Mobile polish — FCM prod, upload budget/optimize, badges
+**Обновлено:** 2026-07-05 10:12 · **Ветка:** `master` · **Контекст:** Email-шаблоны КП / cold outreach
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано недавно (2026-07-05) — email-шаблоны КП
+
+- Модуль «Шаблоны КП» получил библиотеку cold email / КП-шаблонов под бренд **«Автоальянс-Смоленск»**: `ProposalHtmlTemplateColdEmailLibrary`.
+- `ProposalHtmlTemplateDemoSeeder` теперь сидит 10 сценариев: параллельный импорт, экспорт в Китай, химия/спецгрузы, спецтехника/негабарит, температурные, сборные, быстрый расчёт ставки, follow-up после звонка, возврат уснувшего лида, follow-up после КП.
+- Старый `ProposalHtmlTemplateParallelImportDemo` оставлен совместимым фасадом на новый шаблон `parallel-import-demo`.
+- Шаблоны используют CRM-плейсхолдеры отправителя `{responsible.name}`, `{responsible.phone}`, `{responsible.email}` и обращение `{counterparty.contact_person}`; старый бренд «Логистические решения», `img.hiteml.com` и `МЕНЯЕМ_ИМЯ` из новой библиотеки убраны.
+- Добавлен локальный SVG-пак `public/assets/proposal-emails/*.svg`; шапка писем использует логотип `/assets/favicon/favicon.svg`.
+- Проверка: `vendor\bin\pint --dirty --format agent`; `php artisan test --compact tests\Unit\Support\ProposalHtmlTemplateParallelImportDemoTest.php tests\Unit\Support\ProposalHtmlTemplateColdEmailLibraryTest.php`; `php artisan db:seed --class=ProposalHtmlTemplateDemoSeeder --no-interaction`; `php artisan test --compact tests\Feature\LeadProposalHtmlTemplateTest.php --filter=test_settings_user_can_open_template_editor_index`.
+
+---
+
+## Что сделано недавно (2026-07-04) — Android branding Traklo
+
+- Название APK/launcher: `Traklo` (`android/app/src/main/res/values/strings.xml`, `capacitor.config.json`).
+- Мобильный login screen также переименован в `Traklo`.
+- Launcher icon: выбран вариант `messenger-icon-logistics.png`; PNG-ресурсы сгенерированы в `android/app/src/main/res/mipmap-*`, фон adaptive icon `#0F172A`.
+- Обновления APK теперь не требуют ручного bump `.env`: `MobileAppUpdateController` сначала читает `public/downloads/traklo-update.json`, `.env` оставлен как emergency override (`MOBILE_APP_FORCE_CONFIG=true`).
+- Генератор: `npm run traklo:apk:debug` / `npm run traklo:apk:release` → `cap sync`, Gradle build, копия APK в `public/downloads/traklo.apk`, manifest из `android/app/build.gradle`.
+- APK игнорируется git (`/public/downloads/*.apk`), manifest можно деплоить вместе с кодом; сам APK надо положить на прод по тому же URL `/downloads/traklo.apk`.
+- Проверка: `php artisan test --compact tests/Feature/MobileAppUpdateTest.php`, `npm run traklo:apk:debug`.
+- Чтобы APK не тащил весь desktop CRM bundle, `capacitor.config.json` теперь использует `webDir: "public/capacitor"` с минимальным fallback `index.html`; реальная web-часть грузится с `server.url` (`https://crm.avtoaliyans.ru/mobile/messenger`).
+- `npm run traklo:apk:*` больше не запускает `npm run build`; для APK нужен только native shell + remote URL. Debug APK после правки: ~32.66 MB вместо ~97 MB.
+- Release-подпись внедрена: Gradle читает `android/traklo-release.properties` или env `TRAKLO_RELEASE_*`; локальные секреты игнорируются git (`android/keystores/*.jks`, `android/traklo-release.properties`).
+- Сгенерирован локальный keystore `android/keystores/traklo-release.jks`. Его нельзя терять: все будущие обновления должны подписываться этим же ключом и иметь увеличенный `versionCode`.
+- `npm run traklo:apk:release` успешно собрал signed release APK: `public/downloads/traklo.apk`, размер ~4.73 MB.
+- После ошибки `INSTALL_PARSE_FAILED_NO_CERTIFICATES` генератор исправлен: release APK теперь явно подписывается через Android `apksigner` и затем проходит `apksigner verify`; нельзя копировать `app-release-unsigned.apk` как готовый APK.
+- Проверка установки: на AVD `Avtoalyans_API_36` старая версия дала `INSTALL_FAILED_UPDATE_INCOMPATIBLE` из-за другой подписи; после `:app:uninstallRelease` команда `:app:installRelease` установила APK успешно.
+
+### Messenger vs cabinet bell
+
+- Сообщения messenger больше не создают `CabinetInAppNotification` / запись в `notifications`, поэтому не появляются в колокольчике полной CRM.
+- Messenger unread count и mobile FCM push `chat_message` сохранены через `MobilePushService::notifyUsers()`.
+- Проверка: `php artisan test --compact tests/Feature/MessengerTest.php tests/Feature/MobilePushServiceTest.php tests/Feature/CabinetInAppNotificationsTest.php`.
+- Mobile search: в `Mobile/Messenger.vue` добавлен крестик очистки общего поиска чатов/коллег/CRM. Проверка: `npm run build`.
 
 ---
 

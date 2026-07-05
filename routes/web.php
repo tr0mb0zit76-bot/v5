@@ -33,6 +33,7 @@ use App\Http\Controllers\MailThreadAnalysisController;
 use App\Http\Controllers\ManagementAccountingController;
 use App\Http\Controllers\ManagementAccountingImportController;
 use App\Http\Controllers\MessengerController;
+use App\Http\Controllers\Mobile\MobileAppUpdateController;
 use App\Http\Controllers\Mobile\MobileShellController;
 use App\Http\Controllers\Orders\OrderBasicTermsController;
 use App\Http\Controllers\Orders\OrderDocumentsModalController;
@@ -197,6 +198,9 @@ Route::middleware('throttle:60,1')->prefix('portal')->name('portal.')->group(fun
 Route::middleware('throttle:60,1')
     ->get('/verify/order-documents/{orderDocument}', [PublicOrderDocumentVerificationController::class, 'show'])
     ->name('print-verification.order-documents.show');
+
+Route::get('/mobile/app-update', MobileAppUpdateController::class)
+    ->name('mobile.app-update');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/agent/command-bar/chat', [CommandBarAgentController::class, 'chat'])
