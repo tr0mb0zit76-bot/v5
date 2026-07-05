@@ -3,9 +3,54 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-05 11:42 · **Ветка:** `master` · **Контекст:** Email-шаблоны КП / cold outreach
+**Обновлено:** 2026-07-05 14:00 · **Ветка:** `master` · **Контекст:** Traklo intake + APK на prod, следующий — mobile lead card + LLM-парсинг
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Следующий шаг (Traklo / лиды)
+
+1. **Парсинг текста → лид:** подключить серверный LLM-контур как у intake заказов (`OrderDocumentIntakeService` + `OrderIntakeSchema` + `ChatCompletionClient` + `AiRequestGate`), а не только regex в `LeadMessageIntakeService`. Отдельная схема полей лида; fallback на эвристики при отключённом AI.
+2. **Mobile карточка лида:** не тащить desktop `Leads/Wizard.vue` на телефон. Расширить `MobileEntityDetailSheet` / отдельный read-only экран «снимок лида»: маршрут, груз, контакт, статус БП, ответственный, исходный текст, задачи; кнопки «Позвонить», «В чат», «Открыть в CRM» для правок.
+3. **Ответственный:** при `traklo_message_intake` создатель = `responsible_id` (уже так). Публичная форма — без ответственного до назначения в CRM; «взять из пула» в Traklo не нужен — только передача другому в полной CRM при необходимости.
+4. **Push** о новой публичной заявке — опционально после карточки лида.
+
+**Prod (2026-07-05):** web + release APK с иконкой выложены пользователем; `git` синхронизирован commit ниже.
+
+---
+
+## Что сделано недавно (2026-07-05) — Traklo: иконка APK из `resources/`
+
+- Канон исходника: `resources/icon.png` (1024×1024), `resources/icon-foreground.png`; инструкция — `resources/README.md`.
+- Генерация mipmap + splash: `npm run traklo:icons` (`tools/generate-traklo-icons.mjs` + `@capacitor/assets`, фон `#0F172A`).
+- Первичный экспорт из текущих Android-ресурсов: `npm run traklo:icons:prepare` (`tools/prepare-traklo-icon-source.mjs`, `sharp`).
+- Дальше: заменить `resources/icon.png` → `npm run traklo:icons` → `npm run traklo:apk:release` (+ bump `versionCode`).
+
+---
+
+## Что сделано недавно (2026-07-05) — Traklo: вкладка «Лиды»
+
+- В нижней панели Traklo добавлена вкладка **«Лиды»** (только при области `leads`): кнопка **«Создать лид из текста»**, список **«Входящие заявки»**, бейдж с числом заявок.
+- Из вкладки **Чаты** убраны блок intake и входящих заявок; из меню чата убрана «Создать лид из текста» (осталась «Ссылка на заявку на перевозку»).
+- `useMobileShell.loadTab('leads')` → `loadTrakloLeads`.
+- **Деплой prod (2026-07-05 ~13:15):** tar исходников → `/var/www/www-root/data/www/avtoaliyans.ru`, `optimize:clear`, `npm run build`, `optimize:clear`. APK не обновлялся. Проверены routes `mobile.shell.*`, `public.transport-request.*`.
+
+---
+
+## Что сделано недавно (2026-07-05) — Traklo intake из мессенджера
+
+- Добавлена публичная форма `/transport-request` (`PublicTransportRequestController`, `Public/TransportRequest.vue`): внешний контакт без входа в CRM оставляет маршрут/груз/контакты, в CRM создаётся `Lead` с `source=traklo_public_request` и metadata `public_transport_request`.
+- В mobile messenger action sheet добавлена кнопка **«Ссылка на заявку на перевозку»**: вставляет в composer текст и ссылку на публичную форму, чтобы менеджер мог отправить её в чат/переслать наружу.
+- В форме есть throttle `10/min` и honeypot `website`; это не внешний кабинет и не доступ к CRM, а безопасный intake в лиды.
+- Второй слой: во вкладке **Чаты** появился блок **«Входящие заявки Traklo»** (`GET mobile/shell/traklo-leads`) — показывает открытые публичные заявки, позволяет открыть detail sheet лида, вставить ссылку на лид в чат и позвонить по телефону из заявки.
+- Видимость: пользователи с областью `leads` и scope `own` видят свои Traklo-заявки и неназначенные входящие заявки; чужие назначенные заявки не попадают в mobile feed. Summary лида разрешён для неназначенной входящей Traklo-заявки.
+- Третий слой: во вкладке **Чаты** и в thread action sheet добавлена кнопка **«Создать лид из текста»**. Менеджер вставляет сообщение клиента из WhatsApp/Telegram/SMS, endpoint `POST mobile/shell/leads/from-text` создаёт `Lead` с `source=traklo_message_intake`, текущим ответственным, исходным текстом в metadata и простым распознаванием `из … в …`, `груз …`, телефона.
+- UI создания группы в Traklo расширен: список участников теперь занимает доступную высоту до нижнего меню, кнопка создания закреплена снизу формы.
+- Служебная учётка `cursor` скрыта из `messenger.colleagues`, поэтому не показывается коллегам и в выборе участников группы.
+- Проверка: `vendor/bin/pint --dirty --format agent`; `php artisan test --compact tests/Feature/PublicTransportRequestTest.php`; `npm run build`.
+- Доп. проверка второго/третьего слоя: `php vendor/bin/pint --dirty --format agent`; `php artisan test --compact tests/Feature/MobileShellFeedTest.php tests/Feature/MessengerTest.php`; `npm.cmd run build`.
+- Деплой на prod выполнен вручную архивом исходников: распаковка в `/var/www/www-root/data/www/avtoaliyans.ru`, `php artisan optimize:clear`, `npm run build`, повторный `optimize:clear`; проверен route `mobile.shell.leads.from-text`.
 
 ---
 

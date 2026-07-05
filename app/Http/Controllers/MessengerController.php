@@ -55,6 +55,14 @@ class MessengerController extends Controller
         $users = User::query()
             ->where('id', '!=', $user->id)
             ->when(Schema::hasColumn('users', 'is_active'), fn ($q) => $q->where('is_active', true))
+            ->where(function ($query): void {
+                $query->whereNull('name')
+                    ->orWhereRaw('lower(name) != ?', ['cursor']);
+            })
+            ->where(function ($query): void {
+                $query->whereNull('email')
+                    ->orWhereRaw('lower(email) not like ?', ['cursor@%']);
+            })
             ->orderBy('name')
             ->limit(100)
             ->get($columns);

@@ -201,6 +201,79 @@ class MobileShellFeedService
     }
 
     /**
+     * @return array{leads: list<array<string, mixed>>}
+     */
+    public function trakloLeadsForUser(User $user, ?string $search = null): array
+    {
+        if (! Schema::hasTable('leads') || ! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'leads')) {
+            return ['leads' => []];
+        }
+
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
+        $needle = trim((string) $search);
+
+        $query = Lead::query()
+            ->with(['counterparty:id,name', 'responsible:id,name'])
+            ->whereIn('source', ['traklo_public_request', 'traklo_message_intake'])
+            ->whereNotIn('status', ['won', 'lost'])
+            ->when(
+                ! $user->isAdmin() && $scope !== 'all',
+                fn ($builder) => $builder->where(function ($inner) use ($user): void {
+                    $inner->where('responsible_id', $user->id)
+                        ->orWhereNull('responsible_id');
+                }),
+            );
+
+        if ($needle !== '') {
+            $like = '%'.$needle.'%';
+            $query->where(function ($builder) use ($like, $needle): void {
+                $builder->where('number', 'like', $like)
+                    ->orWhere('title', 'like', $like)
+                    ->orWhere('description', 'like', $like)
+                    ->orWhere('loading_location', 'like', $like)
+                    ->orWhere('unloading_location', 'like', $like);
+
+                if (preg_match('/^\d+$/', $needle) === 1) {
+                    $builder->orWhere('id', (int) $needle);
+                }
+            });
+        }
+
+        $leads = $query
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get();
+
+        $items = $leads->map(function (Lead $lead): array {
+            $request = is_array($lead->metadata)
+                ? ($lead->metadata['public_transport_request'] ?? $lead->metadata['traklo_message_intake'] ?? [])
+                : [];
+
+            return [
+                'id' => (int) $lead->id,
+                'number' => filled($lead->number) ? (string) $lead->number : '#'.$lead->id,
+                'source' => $lead->source,
+                'title' => $lead->title,
+                'status' => $lead->status,
+                'status_label' => LeadStatus::label((string) $lead->status),
+                'counterparty_name' => $lead->counterparty?->name,
+                'responsible_name' => $lead->responsible?->name,
+                'contact_name' => is_array($request) ? ($request['contact_name'] ?? null) : null,
+                'company_name' => is_array($request) ? ($request['company_name'] ?? null) : null,
+                'phone' => is_array($request) ? ($request['phone'] ?? $request['contact_phone'] ?? null) : null,
+                'cargo' => is_array($request) ? ($request['cargo'] ?? null) : null,
+                'loading_location' => $lead->loading_location,
+                'unloading_location' => $lead->unloading_location,
+                'planned_shipping_date' => optional($lead->planned_shipping_date)?->toDateString(),
+                'created_at' => optional($lead->created_at)?->toIso8601String(),
+                'url' => route('leads.show', $lead, absolute: true),
+            ];
+        })->values()->all();
+
+        return ['leads' => $items];
+    }
+
+    /**
      * @return array{
      *     order: array{id: int, order_number: string, customer_name: string|null},
      *     slots: list<array<string, mixed>>
@@ -426,7 +499,18 @@ class MobileShellFeedService
             return true;
         }
 
+        if ($this->isVisibleIncomingTrakloLead($lead)) {
+            return true;
+        }
+
         return (int) $lead->responsible_id === (int) $user->id;
+    }
+
+    private function isVisibleIncomingTrakloLead(Lead $lead): bool
+    {
+        return in_array((string) $lead->source, ['traklo_public_request', 'traklo_message_intake'], true)
+            && $lead->responsible_id === null
+            && ! LeadStatus::isClosed((string) $lead->status);
     }
 
     private function userCanViewContractor(User $user, Contractor $contractor): bool

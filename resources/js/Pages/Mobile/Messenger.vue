@@ -111,6 +111,14 @@
                     >
                         Прикрепить файл к заказу
                     </button>
+                    <button
+                        type="button"
+                        class="mt-2 flex w-full flex-col rounded-2xl px-4 py-3 text-left text-sm font-medium text-zinc-100 active:bg-white/10"
+                        @click="insertTransportRequestLink"
+                    >
+                        <span>Ссылка на заявку на перевозку</span>
+                        <span class="mt-1 text-xs font-normal text-zinc-400">Контрагент заполнит форму, в CRM появится лид</span>
+                    </button>
                     <a
                         v-if="threadColleaguePhone"
                         :href="`tel:${threadColleaguePhone}`"
@@ -213,16 +221,16 @@
                 <section v-if="activeTab === 'chats'" class="min-h-full">
                     <form
                         v-if="showGroupComposer"
-                        class="border-b border-white/10 bg-white/[0.03] p-4"
+                        class="flex max-h-[calc(100dvh-10.5rem)] flex-col border-b border-white/10 bg-white/[0.03] p-4"
                         @submit.prevent="submitGroup"
                     >
-                        <div class="text-sm font-semibold text-zinc-100">Новая группа</div>
+                        <div class="shrink-0 text-sm font-semibold text-zinc-100">Новая группа</div>
                         <input
                             v-model="groupTitle"
-                            class="mt-3 w-full rounded-2xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-sky-500"
+                            class="mt-3 w-full shrink-0 rounded-2xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-sky-500"
                             placeholder="Название группы"
                         />
-                        <div class="mt-3 max-h-44 space-y-1 overflow-y-auto">
+                        <div class="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto pb-2">
                             <label
                                 v-for="user in groupCandidates"
                                 :key="`group-${user.id}`"
@@ -233,10 +241,10 @@
                                 <span class="min-w-0 flex-1 truncate text-sm">{{ user.name }}</span>
                             </label>
                         </div>
-                        <p v-if="messengerError" class="mt-2 text-xs text-rose-300">{{ messengerError }}</p>
+                        <p v-if="messengerError" class="mt-2 shrink-0 text-xs text-rose-300">{{ messengerError }}</p>
                         <button
                             type="submit"
-                            class="mt-3 w-full rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                            class="mt-3 w-full shrink-0 rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
                             :disabled="groupCreating || groupTitle.trim() === '' || groupMemberIds.length === 0"
                         >
                             {{ groupCreating ? 'Создание…' : 'Создать группу' }}
@@ -410,6 +418,71 @@
                     </template>
                 </section>
 
+                <section v-else-if="activeTab === 'leads'" class="space-y-4 p-4">
+                    <button
+                        type="button"
+                        class="flex w-full items-center justify-between gap-3 rounded-3xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-left active:bg-sky-500/15"
+                        @click="openMessageLeadIntake"
+                    >
+                        <span>
+                            <span class="block text-sm font-semibold text-zinc-50">Создать лид из текста</span>
+                            <span class="mt-0.5 block text-xs text-zinc-400">Вставьте сообщение клиента из WhatsApp, Telegram или SMS</span>
+                        </span>
+                        <Plus class="h-5 w-5 shrink-0 text-sky-200" />
+                    </button>
+
+                    <div v-if="trakloLeadsLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка лидов…</div>
+                    <template v-else>
+                        <div class="space-y-2">
+                            <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Входящие заявки</div>
+                            <div
+                                v-for="lead in filteredTrakloLeads"
+                                :key="`traklo-lead-${lead.id}`"
+                                class="rounded-3xl border border-sky-400/20 bg-sky-400/10 p-3"
+                            >
+                                <button type="button" class="block w-full text-left" @click="openTrakloLeadDetail(lead)">
+                                    <div class="flex items-start gap-3">
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-100">Лид</span>
+                                                <span class="truncate text-[10px] text-zinc-400">{{ lead.status_label }}</span>
+                                            </div>
+                                            <div class="mt-1 truncate text-sm font-semibold text-zinc-50">{{ lead.number }} · {{ lead.title || 'Заявка на перевозку' }}</div>
+                                            <div class="mt-1 truncate text-xs text-zinc-400">
+                                                {{ lead.company_name || lead.contact_name || 'Контакт не указан' }}
+                                            </div>
+                                            <div v-if="lead.loading_location || lead.unloading_location" class="mt-2 text-xs text-sky-100">
+                                                {{ lead.loading_location || '—' }} → {{ lead.unloading_location || '—' }}
+                                            </div>
+                                            <div v-if="lead.cargo" class="mt-1 truncate text-xs text-zinc-500">{{ lead.cargo }}</div>
+                                        </div>
+                                        <span class="shrink-0 text-[10px] text-zinc-500">{{ formatShortDate(lead.created_at) }}</span>
+                                    </div>
+                                </button>
+                                <div class="mt-3 flex gap-2">
+                                    <button
+                                        type="button"
+                                        class="flex-1 rounded-2xl bg-white/10 px-3 py-2 text-xs font-semibold text-zinc-100 active:bg-white/15"
+                                        @click="beginShareToChat({ url: lead.url, label: lead.number })"
+                                    >
+                                        В чат
+                                    </button>
+                                    <a
+                                        v-if="normalizedPhone(lead.phone)"
+                                        :href="`tel:${normalizedPhone(lead.phone)}`"
+                                        class="rounded-2xl border border-white/10 px-3 py-2 text-xs font-semibold text-sky-100 active:bg-white/10"
+                                    >
+                                        Позвонить
+                                    </a>
+                                </div>
+                            </div>
+                            <div v-if="filteredTrakloLeads.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
+                                {{ search.trim() ? 'Ничего не найдено.' : 'Входящих заявок пока нет.' }}
+                            </div>
+                        </div>
+                    </template>
+                </section>
+
                 <section v-else-if="activeTab === 'tasks'" class="space-y-3 p-4">
                     <div v-if="tasksLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка задач…</div>
                     <template v-else>
@@ -450,9 +523,12 @@
                 </section>
             </main>
 
-            <nav class="grid shrink-0 grid-cols-4 border-t border-white/10 bg-zinc-950/95 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] pt-2">
+            <nav
+                class="grid shrink-0 border-t border-white/10 bg-zinc-950/95 px-1 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] pt-2"
+                :class="visibleTabs.length >= 5 ? 'grid-cols-5' : 'grid-cols-4'"
+            >
                 <button
-                    v-for="tab in tabs"
+                    v-for="tab in visibleTabs"
                     :key="tab.key"
                     type="button"
                     class="relative flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px]"
@@ -472,6 +548,12 @@
                         class="absolute right-4 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white"
                     >
                         {{ overdueTaskCount > 99 ? '99+' : overdueTaskCount }}
+                    </span>
+                    <span
+                        v-if="tab.key === 'leads' && trakloLeadsCount > 0"
+                        class="absolute right-2 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-600 px-1 text-[9px] font-bold text-white"
+                    >
+                        {{ trakloLeadsCount > 99 ? '99+' : trakloLeadsCount }}
                     </span>
                     <span
                         v-if="tab.key === 'documents' && documentsAttentionCount > 0"
@@ -522,14 +604,47 @@
             @close="showEntityPicker = false"
             @select="insertEntityChip"
         />
+        <div
+            v-if="showMessageLeadIntake"
+            class="absolute inset-0 z-40 flex flex-col justify-end bg-black/60"
+            @click.self="closeMessageLeadIntake"
+        >
+            <form class="rounded-t-3xl border border-white/10 bg-zinc-900 p-4" @submit.prevent="submitMessageLeadIntake">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <div class="text-base font-semibold text-zinc-50">Лид из сообщения</div>
+                        <div class="mt-1 text-xs leading-5 text-zinc-400">
+                            Вставьте текст клиента. Traklo создаст лид и попробует распознать маршрут, груз и телефон.
+                        </div>
+                    </div>
+                    <button type="button" class="rounded-full p-2 text-zinc-400 active:bg-white/10" @click="closeMessageLeadIntake">
+                        <X class="h-4 w-4" />
+                    </button>
+                </div>
+                <textarea
+                    v-model="messageLeadText"
+                    class="mt-4 h-40 w-full resize-none rounded-2xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-sky-500"
+                    placeholder="Например: прошу рассчитать стоимость перевозки из Смоленска в Москву, груз паллеты 3 тонны, тел +7..."
+                />
+                <p v-if="messageLeadError" class="mt-2 text-xs text-rose-300">{{ messageLeadError }}</p>
+                <button
+                    type="submit"
+                    class="mt-3 w-full rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                    :disabled="messageLeadCreating || messageLeadText.trim().length < 10"
+                >
+                    {{ messageLeadCreating ? 'Создаём лид…' : 'Создать лид' }}
+                </button>
+            </form>
+        </div>
         <MobileAppUpdateBanner />
     </div>
 </template>
 
 <script setup>
+import axios from 'axios';
 import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
-import { ArrowLeft, CheckSquare, FileText, MessageCircle, Package, Phone, Plus, Search, Send, Upload, Users, X } from 'lucide-vue-next';
+import { ArrowLeft, CheckSquare, FileText, Inbox, MessageCircle, Package, Phone, Plus, Search, Send, Upload, Users, X } from 'lucide-vue-next';
 import { useMessenger } from '@/composables/useMessenger.js';
 import { useMessengerPolling } from '@/composables/useMessengerPolling.js';
 import { useMobileShell } from '@/composables/useMobileShell.js';
@@ -565,6 +680,11 @@ const AvatarBubble = defineComponent({
 
 const page = usePage();
 const currentUserId = computed(() => page.props.auth?.user?.id ?? null);
+const canUseLeadIntake = computed(() => {
+    const areas = page.props.auth?.user?.role?.visibility_areas;
+
+    return Array.isArray(areas) && areas.includes('leads');
+});
 const messagesPanel = ref(null);
 const listPanel = ref(null);
 const screen = ref('list');
@@ -579,6 +699,7 @@ const showThreadMenu = ref(false);
 const showEntityPicker = ref(false);
 const showUploadWizard = ref(false);
 const showSharePicker = ref(false);
+const showMessageLeadIntake = ref(false);
 const pendingShare = ref(null);
 const highlightTarget = ref(null);
 const showDetailSheet = ref(false);
@@ -590,18 +711,24 @@ const uploadPresetOrderId = ref(null);
 const unifiedSearchResults = ref([]);
 const unifiedSearchLoading = ref(false);
 const mobileRecents = ref(readMobileRecents());
+const messageLeadText = ref('');
+const messageLeadCreating = ref(false);
+const messageLeadError = ref('');
 
 const { pullReady, refreshing: pullRefreshing, onTouchStart, onTouchMove, onTouchEnd } = usePullToRefresh(
     () => listPanel.value,
     () => refreshActiveTab(),
 );
 
-const tabs = [
+const allTabs = [
     { key: 'chats', label: 'Чаты', icon: MessageCircle },
+    { key: 'leads', label: 'Лиды', icon: Inbox, requiresLeads: true },
     { key: 'documents', label: 'Документы', icon: FileText },
     { key: 'orders', label: 'Заказы', icon: Package },
     { key: 'tasks', label: 'Задачи', icon: CheckSquare },
 ];
+
+const visibleTabs = computed(() => allTabs.filter((tab) => !tab.requiresLeads || canUseLeadIntake.value));
 
 const messenger = useMessenger({ scrollTarget: messagesPanel });
 
@@ -632,14 +759,17 @@ const {
     orders,
     recentDocuments,
     attentionDocuments,
+    trakloLeads,
     overdueTaskCount,
     tasksLoading,
     ordersLoading,
     documentsLoading,
+    trakloLeadsLoading,
     shellError,
     loadTab,
     loadDocuments,
     loadOrders,
+    loadTrakloLeads,
     loadOrderSummary,
     loadLeadSummary,
     loadContractorSummary,
@@ -744,6 +874,75 @@ function openUploadWizard() {
     uploadPresetOrderId.value = null;
     showThreadMenu.value = false;
     showUploadWizard.value = true;
+}
+
+function insertTransportRequestLink() {
+    const url = route('public.transport-request.create');
+    const current = messageBody.value.trim();
+    const text = [
+        'Можете оставить заявку на перевозку здесь:',
+        url,
+        '',
+        'Укажите маршрут, груз и контакты — менеджер увидит заявку в CRM и вернётся с расчётом.',
+    ].join('\n');
+
+    messageBody.value = current ? `${current}\n\n${text}` : text;
+    showThreadMenu.value = false;
+}
+
+function openMessageLeadIntake() {
+    showThreadMenu.value = false;
+    messageLeadError.value = '';
+    showMessageLeadIntake.value = true;
+}
+
+function closeMessageLeadIntake() {
+    if (messageLeadCreating.value) {
+        return;
+    }
+
+    showMessageLeadIntake.value = false;
+    messageLeadError.value = '';
+}
+
+async function submitMessageLeadIntake() {
+    const text = messageLeadText.value.trim();
+    if (text.length < 10) {
+        messageLeadError.value = 'Вставьте сообщение клиента.';
+
+        return;
+    }
+
+    messageLeadCreating.value = true;
+    messageLeadError.value = '';
+
+    try {
+        const { data } = await axios.post(route('mobile.shell.leads.from-text'), {
+            message: text,
+        }, {
+            headers: { Accept: 'application/json' },
+        });
+
+        messageLeadText.value = '';
+        showMessageLeadIntake.value = false;
+        await loadTrakloLeads(search.value);
+
+        if (data?.lead) {
+            openTrakloLeadDetail({
+                ...data.lead,
+                status_label: 'Новый',
+                company_name: null,
+                contact_name: null,
+                phone: data.parsed?.phone ?? null,
+                cargo: data.parsed?.cargo ?? null,
+                created_at: new Date().toISOString(),
+            });
+        }
+    } catch (exception) {
+        messageLeadError.value = exception.response?.data?.message ?? 'Не удалось создать лид из текста.';
+    } finally {
+        messageLeadCreating.value = false;
+    }
 }
 
 function openUploadWizardForOrder(orderId) {
@@ -859,6 +1058,35 @@ function openTaskDetail(task) {
     };
     detailOrderSummary.value = null;
     showDetailSheet.value = true;
+}
+
+function openTrakloLeadDetail(lead) {
+    rememberRecent({
+        kind: 'lead',
+        id: lead.id,
+        label: lead.number,
+        subtitle: lead.title || lead.company_name || lead.contact_name,
+        url: lead.url,
+    });
+
+    detailEntity.value = {
+        kind: 'lead',
+        id: lead.id,
+        label: lead.number,
+        subtitle: lead.title || lead.company_name || lead.contact_name,
+        url: lead.url,
+        meta: [
+            lead.status_label ? { label: 'Статус', value: lead.status_label } : null,
+            lead.company_name ? { label: 'Компания', value: lead.company_name } : null,
+            lead.contact_name ? { label: 'Контакт', value: lead.contact_name } : null,
+            lead.phone ? { label: 'Телефон', value: lead.phone } : null,
+            lead.cargo ? { label: 'Груз', value: lead.cargo } : null,
+        ].filter(Boolean),
+    };
+    detailOrderSummary.value = null;
+    detailEntitySummary.value = null;
+    showDetailSheet.value = true;
+    loadEntitySummary('lead', lead.id);
 }
 
 function openEntityChipDetail(entity) {
@@ -1007,7 +1235,9 @@ async function handleDocumentUploaded(document) {
     }
 }
 
-const activeTabLabel = computed(() => tabs.find((tab) => tab.key === activeTab.value)?.label ?? 'Раздел');
+const activeTabLabel = computed(() => allTabs.find((tab) => tab.key === activeTab.value)?.label ?? 'Раздел');
+
+const trakloLeadsCount = computed(() => trakloLeads.value.length);
 
 const directUnreadByUserId = computed(() => buildDirectUnreadByUserId(conversations.value));
 
@@ -1066,6 +1296,26 @@ function colleagueUnreadCount(user) {
 }
 
 const groupCandidates = computed(() => colleagues.value.slice(0, 50));
+
+const filteredTrakloLeads = computed(() => {
+    const needle = search.value.trim().toLowerCase();
+    if (needle === '') {
+        return trakloLeads.value;
+    }
+
+    return trakloLeads.value.filter((lead) =>
+        [
+            lead.number,
+            lead.title,
+            lead.company_name,
+            lead.contact_name,
+            lead.phone,
+            lead.cargo,
+            lead.loading_location,
+            lead.unloading_location,
+        ].join(' ').toLowerCase().includes(needle),
+    );
+});
 
 const filteredTasks = computed(() => {
     const needle = search.value.trim().toLowerCase();
@@ -1233,9 +1483,7 @@ function selectTab(tab) {
     search.value = '';
     showGroupComposer.value = false;
 
-    if (tab !== 'chats') {
-        loadTab(tab);
-    }
+    loadTab(tab);
 }
 
 async function refreshActiveTab() {
@@ -1338,6 +1586,10 @@ function handlePushReceived() {
         reloadAll();
         loadColleagues();
 
+        if (canUseLeadIntake.value) {
+            loadTrakloLeads();
+        }
+
         return;
     }
 
@@ -1377,6 +1629,11 @@ watch([activeTab, search], ([tab, needle]) => {
 onMounted(() => {
     reloadAll();
     loadColleagues();
+
+    if (canUseLeadIntake.value) {
+        loadTrakloLeads();
+    }
+
     mobileRecents.value = readMobileRecents();
     registerMobilePushIfAvailable({ enabled: page.props.mobile_push_enabled === true });
     window.addEventListener('crm-mobile-navigate', handleMobileNavigate);

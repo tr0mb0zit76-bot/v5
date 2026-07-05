@@ -6,10 +6,12 @@ export function useMobileShell() {
     const orders = ref([]);
     const recentDocuments = ref([]);
     const attentionDocuments = ref([]);
+    const trakloLeads = ref([]);
     const overdueTaskCount = ref(0);
     const tasksLoading = ref(false);
     const ordersLoading = ref(false);
     const documentsLoading = ref(false);
+    const trakloLeadsLoading = ref(false);
     const shellError = ref('');
 
     async function loadTasks(search = '') {
@@ -62,6 +64,23 @@ export function useMobileShell() {
             shellError.value = exception.response?.data?.message ?? 'Не удалось загрузить документы.';
         } finally {
             documentsLoading.value = false;
+        }
+    }
+
+    async function loadTrakloLeads(search = '') {
+        trakloLeadsLoading.value = true;
+        shellError.value = '';
+
+        try {
+            const { data } = await axios.get(route('mobile.shell.traklo-leads'), {
+                headers: { Accept: 'application/json' },
+                params: search.trim() !== '' ? { q: search.trim() } : {},
+            });
+            trakloLeads.value = data.leads ?? [];
+        } catch (exception) {
+            shellError.value = exception.response?.data?.message ?? 'Не удалось загрузить заявки Traklo.';
+        } finally {
+            trakloLeadsLoading.value = false;
         }
     }
 
@@ -121,6 +140,10 @@ export function useMobileShell() {
             return loadDocuments(search);
         }
 
+        if (tab === 'leads') {
+            return loadTrakloLeads(search);
+        }
+
         return Promise.resolve();
     }
 
@@ -129,14 +152,17 @@ export function useMobileShell() {
         orders,
         recentDocuments,
         attentionDocuments,
+        trakloLeads,
         overdueTaskCount,
         tasksLoading,
         ordersLoading,
         documentsLoading,
+        trakloLeadsLoading,
         shellError,
         loadTasks,
         loadOrders,
         loadDocuments,
+        loadTrakloLeads,
         loadTab,
         loadOrderSummary,
         loadLeadSummary,

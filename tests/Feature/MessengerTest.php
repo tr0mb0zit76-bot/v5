@@ -60,6 +60,21 @@ class MessengerTest extends TestCase
             ]);
     }
 
+    public function test_colleagues_endpoint_hides_cursor_service_user(): void
+    {
+        $viewer = User::factory()->create();
+        $serviceUser = User::factory()->create([
+            'name' => 'cursor',
+            'email' => 'cursor@example.test',
+        ]);
+
+        $this->actingAs($viewer)->getJson(route('messenger.colleagues'))
+            ->assertOk()
+            ->assertJsonMissing([
+                'id' => $serviceUser->id,
+            ]);
+    }
+
     public function test_user_can_send_message_and_other_sees_unread(): void
     {
         $a = User::factory()->create(['name' => 'Cursor Bot']);

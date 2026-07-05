@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Lead;
 use App\Models\Order;
 use App\Models\Task;
 use App\Models\User;
@@ -146,6 +147,83 @@ class MobileShellFeedTest extends TestCase
                 'recent',
                 'attention',
             ]);
+    }
+
+    public function test_mobile_shell_traklo_leads_returns_unassigned_public_requests_for_leads_user(): void
+    {
+        $user = $this->createUserWithAreas(['leads'], ['leads' => 'own']);
+        $other = User::factory()->create();
+
+        $visibleLead = Lead::factory()->create([
+            'number' => 'TRK-MOB-1',
+            'source' => 'traklo_public_request',
+            'responsible_id' => null,
+            'title' => 'Перевозка станка',
+            'metadata' => [
+                'public_transport_request' => [
+                    'contact_name' => 'Иван',
+                    'phone' => '+79990000000',
+                    'cargo' => 'Станок',
+                ],
+            ],
+        ]);
+
+        Lead::factory()->create([
+            'number' => 'TRK-MOB-2',
+            'source' => 'traklo_public_request',
+            'responsible_id' => $other->id,
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('mobile.shell.traklo-leads'))
+            ->assertOk()
+            ->assertJsonCount(1, 'leads')
+            ->assertJsonPath('leads.0.id', $visibleLead->id)
+            ->assertJsonPath('leads.0.number', 'TRK-MOB-1')
+            ->assertJsonPath('leads.0.contact_name', 'Иван')
+            ->assertJsonPath('leads.0.cargo', 'Станок');
+    }
+
+    public function test_mobile_shell_lead_summary_allows_unassigned_public_traklo_request(): void
+    {
+        $user = $this->createUserWithAreas(['leads'], ['leads' => 'own']);
+        $lead = Lead::factory()->create([
+            'source' => 'traklo_public_request',
+            'responsible_id' => null,
+            'title' => 'Публичная заявка Traklo',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('mobile.shell.leads.summary', $lead))
+            ->assertOk()
+            ->assertJsonPath('lead.id', $lead->id)
+            ->assertJsonPath('lead.title', 'Публичная заявка Traklo');
+    }
+
+    public function test_mobile_shell_creates_lead_from_pasted_message_text(): void
+    {
+        $user = $this->createUserWithAreas(['leads'], ['leads' => 'own']);
+
+        $this->actingAs($user)
+            ->postJson(route('mobile.shell.leads.from-text'), [
+                'message' => 'Прошу рассчитать стоимость перевозки из Смоленска в Москву, груз паллеты 3 тонны, телефон +7 999 000 11 22',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('parsed.loading_location', 'Смоленска')
+            ->assertJsonPath('parsed.unloading_location', 'Москву')
+            ->assertJsonPath('parsed.cargo', 'паллеты 3 тонны')
+            ->assertJsonPath('parsed.phone', '+7 999 000 11 22');
+
+        $lead = Lead::query()
+            ->where('source', 'traklo_message_intake')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($lead);
+        $this->assertSame($user->id, $lead->responsible_id);
+        $this->assertSame('Смоленска', $lead->loading_location);
+        $this->assertSame('Москву', $lead->unloading_location);
+        $this->assertSame('паллеты 3 тонны', data_get($lead->metadata, 'traklo_message_intake.cargo'));
     }
 
     public function test_mobile_shell_link_preview_returns_order_number(): void

@@ -51,6 +51,7 @@ use App\Http\Controllers\ProposalHtmlTemplateController;
 use App\Http\Controllers\PublicOrderDocumentVerificationController;
 use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\PublicSlaDocumentController;
+use App\Http\Controllers\PublicTransportRequestController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\RoleManagementController;
 use App\Http\Controllers\SalesAssistantController;
@@ -78,6 +79,12 @@ $showcaseHosts = config('app.showcase_hosts', []);
 $sameShowcaseAndCrmHost = $crmDomain !== ''
     && count($showcaseHosts) === 1
     && strcasecmp($crmDomain, $showcaseHosts[0]) === 0;
+
+Route::get('/transport-request', [PublicTransportRequestController::class, 'create'])
+    ->name('public.transport-request.create');
+Route::post('/transport-request', [PublicTransportRequestController::class, 'store'])
+    ->middleware('throttle:10,1')
+    ->name('public.transport-request.store');
 
 if ($sameShowcaseAndCrmHost) {
     // Один хост: лендинг и кабинет на одном origin (без редиректа витрина→CRM).
@@ -789,6 +796,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/tasks', [MobileShellController::class, 'tasks'])->name('tasks');
         Route::get('/orders', [MobileShellController::class, 'orders'])->name('orders');
         Route::get('/documents', [MobileShellController::class, 'documents'])->name('documents');
+        Route::get('/traklo-leads', [MobileShellController::class, 'trakloLeads'])->name('traklo-leads');
+        Route::post('/leads/from-text', [MobileShellController::class, 'createLeadFromText'])->name('leads.from-text');
         Route::get('/entity-chips', [MobileShellController::class, 'entityChips'])->name('entity-chips');
         Route::get('/orders/{order}/document-slots', [MobileShellController::class, 'orderDocumentSlots'])->name('orders.document-slots');
         Route::get('/orders/{order}/summary', [MobileShellController::class, 'orderSummary'])->name('orders.summary');

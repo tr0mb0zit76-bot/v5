@@ -6,10 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\Order;
+use App\Services\LeadMessageIntakeService;
 use App\Services\Mobile\MobileEntityChipService;
 use App\Services\Mobile\MobileShellFeedService;
+use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class MobileShellController extends Controller
@@ -17,6 +20,7 @@ class MobileShellController extends Controller
     public function __construct(
         private MobileShellFeedService $mobileShellFeedService,
         private MobileEntityChipService $mobileEntityChipService,
+        private LeadMessageIntakeService $leadMessageIntakeService,
     ) {}
 
     public function tasks(Request $request): JsonResponse
@@ -59,6 +63,49 @@ class MobileShellController extends Controller
         return response()->json(
             $this->mobileShellFeedService->documentsForUser($user, $validated['q'] ?? null),
         );
+    }
+
+    public function trakloLeads(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        $validated = $request->validate([
+            'q' => ['sometimes', 'nullable', 'string', 'max:100'],
+        ]);
+
+        return response()->json(
+            $this->mobileShellFeedService->trakloLeadsForUser($user, $validated['q'] ?? null),
+        );
+    }
+
+    public function createLeadFromText(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+        abort_unless(
+            Schema::hasTable('leads') && RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'leads'),
+            403,
+        );
+
+        $validated = $request->validate([
+            'message' => ['required', 'string', 'min:10', 'max:4000'],
+        ]);
+
+        $result = $this->leadMessageIntakeService->createFromText($validated['message'], $user);
+        $lead = $result['lead'];
+
+        return response()->json([
+            'lead' => [
+                'id' => (int) $lead->id,
+                'number' => $lead->number,
+                'title' => $lead->title,
+                'loading_location' => $lead->loading_location,
+                'unloading_location' => $lead->unloading_location,
+                'url' => route('leads.show', $lead, absolute: true),
+            ],
+            'parsed' => $result['parsed'],
+        ], 201);
     }
 
     public function entityChips(Request $request): JsonResponse
