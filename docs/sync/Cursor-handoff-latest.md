@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-05 16:47 · **HEAD:** `3dcdde7` · **Ветка:** `master` · **Контекст:** External users Traklo — фаза D завершена, ОТДАТЬ
+**Обновлено:** 2026-07-06 07:45 · **HEAD:** `2dfee73` · **Ветка:** `master` · **Контекст:** SLA/APK на витрине, push-кнопки в Android, аудит HTTPS на prod; E2EE не нужен
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
@@ -11,9 +11,31 @@
 
 ## Следующий шаг (external users / Traklo)
 
-1. **`php artisan migrate`** + **`npm run build`** + smoke (runbook § smoke-чеклист).
-2. **Книга продаж:** `php scripts/mcp-prod-upsert-traklo.php` (prod) или `sales-book:upsert-child-page` (local).
-3. Деплой на prod.
+1. **Переустановить свежий release APK** на телефонах (native push + кнопки «Прочитать» в шторке).
+2. **Smoke на prod** — чеклист в `docs/traklo-runbook.md` (invite, 403 external, Traklo chat, порталы, push при свёрнутом приложении).
+3. **Книга продаж:** опубликовать черновики **«Traklo для менеджера»** (id=111) и **«Traklo для контрагента»** (id=112), если нужен статус published.
+4. Опционально: desktop-кабинет контрагента (отложено в ТЗ §2); SMS-invite; WebSocket вместо poll.
+
+---
+
+## Что сделано (2026-07-05–06) — SLA, APK, push, безопасность
+
+- **Витрина SLA:** третья плитка «Скачать приложение» на hub `/sla` (под «Для клиентов» / «Для перевозчиков»); прямая ссылка на `/downloads/traklo.apk`; footer-ссылка убрана (`937d897`, `2dfee73`).
+- **Landing `/downloads/traklo` удалён** — только статический APK + `.htaccess` MIME; `PublicSiteController::resolveTrakloApkUrl()` нормализует legacy path.
+- **Android push:** `TrakloFirebaseMessagingService` — action buttons «Прочитать» / «Открыть»; backend data-only FCM (`MobilePushService`); `firebase-messaging` в app module.
+- **Prod:** deploy + `traklo.apk` на сервере (~5.8 MB, HTTP 200); `FCM_ENABLED` + credentials заполнены.
+- **Безопасность (аудит prod):** HTTPS/HSTS/TLS 1.2–1.3 ок для задачи «защита от перехвата по сети»; **E2EE не планируем** — переписка с контрагентами должна анализироваться на сервере. `.env` на prod: права/владелец поправлены вручную. phpMyAdmin/SSH/nginx-заголовки — не трогали (осторожно с ISPmanager).
+
+---
+
+## Что сделано (2026-07-05) — push / deploy / Книга продаж
+
+- **Git push:** `0f558c1` (фаза A docs), `9ea05e5` (`ensureParentPage` + `--ensure-parent` для upsert).
+- **Prod deploy:** `git reset --hard origin/master`, миграции `2026_07_05_*`, `npm run build`, `optimize:clear` — HEAD `9ea05e5`.
+- **Книга продаж (prod):** создан родитель «Руководство по CRM», дочерние страницы:
+  - [Traklo для менеджера](https://crm.avtoaliyans.ru/sales-assistant/book?article_id=111)
+  - [Traklo для контрагента](https://crm.avtoaliyans.ru/sales-assistant/book?article_id=112)
+  - Команда: `php artisan sales-book:upsert-child-page --ensure-parent …`
 
 ---
 

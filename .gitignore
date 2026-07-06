@@ -28,6 +28,10 @@ Homestead.yaml
 Thumbs.db
 .zip
 .osp
+.cline-rules
+.clinerules
+.codex
+.gemini
 
 # Корневые отладочные скрипты (не путать с каталогом tests/)
 /test_*.php
