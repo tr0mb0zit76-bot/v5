@@ -1,6 +1,7 @@
 <template>
     <div
-        class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+        class="flex min-h-0 flex-col rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+        :class="editable ? 'flex-1 overflow-hidden' : ''"
         v-bind="$attrs"
     >
         <div
@@ -72,8 +73,8 @@
         </div>
 
         <div
-            class="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-            :class="editable ? '' : 'cursor-default'"
+            class="min-h-0"
+            :class="editable ? 'flex-1 overflow-y-auto overscroll-contain' : 'cursor-default'"
         >
             <EditorContent :editor="editor" class="tiptap-body px-4 py-3" />
             <div

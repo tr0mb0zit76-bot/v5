@@ -316,10 +316,9 @@
                         </span>
                     </div>
 
-                    <div class="min-h-0 flex-1 overflow-y-auto">
+                    <div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
                         <TiptapEditor
                             :key="readonlyEditorKey"
-                            class="min-h-[12rem]"
                             :model-value="selectedArticle.markdown_content_display"
                             :upload-url="route('sales-assistant.book.assets.upload')"
                             :editable="false"

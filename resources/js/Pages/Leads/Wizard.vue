@@ -86,6 +86,17 @@
                     @manual-change="markStatusTouchedByUser"
                 />
 
+                <LeadCloseOutcomeFields
+                    v-if="showCloseOutcomeFields"
+                    v-model:primary-flag="form.close_outcome_primary_flag"
+                    v-model:note="form.close_outcome_note"
+                    :terminal-outcome="form.status === 'won' ? 'won' : 'lost'"
+                    :lost-options="lostCloseOutcomeOptions"
+                    :won-options="wonCloseOutcomeOptions"
+                    :error="form.errors.close_outcome_primary_flag || form.errors.close_outcome_note"
+                    :input-class="crmFieldFluid"
+                />
+
                 <div
                     v-if="followUpPrompt"
                     class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100"
@@ -254,17 +265,6 @@
                 <div class="grid gap-4 md:grid-cols-2">
                     <input v-model="form.next_contact_at" type="datetime-local" :class="crmFieldFluid" placeholder="Следующий контакт" />
                 </div>
-
-                <LeadCloseOutcomeFields
-                    v-if="showCloseOutcomeFields"
-                    v-model:primary-flag="form.close_outcome_primary_flag"
-                    v-model:note="form.close_outcome_note"
-                    :terminal-outcome="form.status === 'won' ? 'won' : 'lost'"
-                    :lost-options="lostCloseOutcomeOptions"
-                    :won-options="wonCloseOutcomeOptions"
-                    :error="form.errors.close_outcome_primary_flag || form.errors.close_outcome_note"
-                    :input-class="crmFieldFluid"
-                />
 
                 <div
                     v-if="selectedLeadId && form.counterparty_id && hasQualificationForPortraitMerge"
