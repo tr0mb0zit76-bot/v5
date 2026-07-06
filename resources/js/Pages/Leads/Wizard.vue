@@ -68,6 +68,16 @@
         />
 
         <div :class="crmWizardBody">
+            <div
+                v-if="hasFormValidationErrors"
+                class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-950 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-100"
+            >
+                <p class="font-medium">Исправьте ошибки перед сохранением</p>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    <li v-for="error in formValidationErrors" :key="error.field">{{ error.message }}</li>
+                </ul>
+            </div>
+
             <div v-if="activeTab === 'main'" class="space-y-5">
                 <LeadStatusPipeline
                     v-model="form.status"
@@ -151,7 +161,8 @@
                     <h3 class="text-base font-semibold">Суть сделки</h3>
                     <div class="space-y-2">
                         <label :class="crmLabel">Тема</label>
-                        <input v-model="form.title" type="text" :class="crmFieldFluid" />
+                        <input v-model="form.title" type="text" :class="crmFieldFluid" required />
+                        <p v-if="form.errors.title" class="text-sm text-rose-600 dark:text-rose-300">{{ form.errors.title }}</p>
                     </div>
                     <div class="space-y-2">
                         <textarea v-model="form.description" rows="4" :class="crmFieldFluid" placeholder="Суть запроса, ограничения, особенности груза или клиента" />
@@ -245,7 +256,7 @@
                 </div>
 
                 <LeadCloseOutcomeFields
-                    v-if="showLegacyCloseOutcomeFields"
+                    v-if="showCloseOutcomeFields"
                     v-model:primary-flag="form.close_outcome_primary_flag"
                     v-model:note="form.close_outcome_note"
                     :terminal-outcome="form.status === 'won' ? 'won' : 'lost'"
@@ -643,6 +654,7 @@ function leadToForm(lead) {
         orders: lead.orders ?? [],
         tasks: lead.tasks ?? [],
         attachments: lead.attachments ?? [],
+        business_process_id: lead.business_process_id ?? props.businessProcesses?.[0]?.id ?? null,
     };
 }
 
@@ -682,7 +694,7 @@ const nextStepForm = useForm({
     priority: 'high',
 });
 
-watch(() => [props.selectedLead, props.leadTemplate], () => {
+function resetFormFromProps() {
     const payload = leadToForm(initialLeadPayload.value);
     form.defaults(payload);
     form.reset();
@@ -694,7 +706,21 @@ watch(() => [props.selectedLead, props.leadTemplate], () => {
     nextStepForm.responsible_id = payload.responsible_id ?? defaultResponsibleId();
     nextStepForm.priority = 'high';
     advanceStageId.value = '';
+}
+
+watch(() => props.selectedLead?.id ?? null, (leadId, previousLeadId) => {
+    if (previousLeadId !== undefined && leadId === previousLeadId) {
+        return;
+    }
+
+    resetFormFromProps();
 }, { immediate: true });
+
+watch(() => props.leadTemplate, () => {
+    if (!props.selectedLead?.id) {
+        resetFormFromProps();
+    }
+});
 
 const selectedLeadId = computed(() => props.selectedLead?.id ?? null);
 const processProgress = computed(() => form.process_progress ?? props.selectedLead?.process_progress ?? null);
@@ -709,13 +735,12 @@ function handleFocusAction({ tab, kind }) {
         });
     }
 }
-const showLegacyCloseOutcomeFields = computed(() => {
-    if (processProgress.value) {
-        return false;
-    }
-
-    return form.status === 'lost' || form.status === 'won';
-});
+const showCloseOutcomeFields = computed(() => form.status === 'lost' || form.status === 'won');
+const hasFormValidationErrors = computed(() => Object.keys(form.errors).length > 0);
+const formValidationErrors = computed(() => Object.entries(form.errors).map(([field, message]) => ({
+    field,
+    message,
+})));
 const leadAttachments = computed(() => form.attachments ?? props.selectedLead?.attachments ?? []);
 const attachmentFile = ref(null);
 const attachmentForm = useForm({ file: null });
@@ -1208,31 +1233,33 @@ function markStatusTouchedByUser() {
 }
 
 function submit() {
-    const payload = {
-        ...form.data(),
+    const submitOptions = {
+        preserveScroll: true,
+        onSuccess: () => {
+            statusTouchedByUser.value = false;
+        },
+        onError: () => {
+            activeTab.value = 'main';
+        },
+    };
+
+    form.transform((data) => ({
+        ...data,
         preserve_status: statusTouchedByUser.value,
         offers: undefined,
         orders: undefined,
         tasks: undefined,
         attachments: undefined,
         process_progress: undefined,
-    };
+    }));
 
     if (selectedLeadId.value) {
-        router.patch(route('leads.update', selectedLeadId.value), payload, {
-            onSuccess: () => {
-                statusTouchedByUser.value = false;
-            },
-        });
+        form.patch(route('leads.update', selectedLeadId.value), submitOptions);
 
         return;
     }
 
-    router.post(route('leads.store'), payload, {
-        onSuccess: () => {
-            statusTouchedByUser.value = false;
-        },
-    });
+    form.post(route('leads.store'), submitOptions);
 }
 
 const showSendOfferModal = ref(false);

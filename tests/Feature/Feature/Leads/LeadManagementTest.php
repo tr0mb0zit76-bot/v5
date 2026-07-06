@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Feature\Leads;
 
+use App\Enums\LeadCloseOutcomeFlag;
 use App\Models\BusinessProcess;
 use App\Models\BusinessProcessStage;
 use App\Models\Lead;
@@ -445,6 +446,100 @@ class LeadManagementTest extends TestCase
         ]);
     }
 
+    public function test_update_lead_to_lost_requires_close_outcome(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $processId = $this->defaultBusinessProcessId();
+
+        $lead = Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'business_process_id' => $processId,
+            'status' => 'negotiation',
+            'title' => 'Лид для закрытия без сделки',
+            'target_currency' => 'RUB',
+        ]);
+
+        $response = $this->actingAs($manager)->patch(route('leads.update', $lead), [
+            ...$this->leadUpdatePayload($lead),
+            'status' => 'lost',
+            'preserve_status' => true,
+        ]);
+
+        $response->assertSessionHasErrors('close_outcome_primary_flag');
+        $this->assertDatabaseHas('leads', [
+            'id' => $lead->id,
+            'status' => 'negotiation',
+        ]);
+    }
+
+    public function test_update_lead_to_lost_with_close_outcome_succeeds(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $processId = $this->defaultBusinessProcessId();
+
+        $lead = Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'business_process_id' => $processId,
+            'status' => 'negotiation',
+            'title' => 'Лид закрывается без сделки',
+            'target_currency' => 'RUB',
+        ]);
+
+        $response = $this->actingAs($manager)->patch(route('leads.update', $lead), [
+            ...$this->leadUpdatePayload($lead),
+            'status' => 'lost',
+            'preserve_status' => true,
+            'close_outcome_primary_flag' => LeadCloseOutcomeFlag::LostOther->value,
+            'close_outcome_note' => 'Клиент отказался',
+        ]);
+
+        $response->assertRedirect(route('leads.show', $lead));
+        $this->assertDatabaseHas('leads', [
+            'id' => $lead->id,
+            'status' => 'lost',
+            'close_outcome_primary_flag' => LeadCloseOutcomeFlag::LostOther->value,
+        ]);
+    }
+
+    public function test_cannot_create_lead_without_title(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+
+        $response = $this->actingAs($manager)->post(route('leads.store'), [
+            ...$this->leadStoreDefaults($manager),
+            'status' => 'new',
+            'title' => '',
+            'target_currency' => 'RUB',
+        ]);
+
+        $response->assertSessionHasErrors('title');
+        $this->assertDatabaseCount('leads', 0);
+    }
+
+    public function test_update_lead_without_business_process_id_uses_existing_value(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $processId = $this->defaultBusinessProcessId();
+
+        $lead = Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'business_process_id' => $processId,
+            'title' => 'Лид с процессом',
+            'target_currency' => 'RUB',
+        ]);
+
+        $payload = $this->leadUpdatePayload($lead);
+        unset($payload['business_process_id']);
+
+        $response = $this->actingAs($manager)->patch(route('leads.update', $lead), $payload);
+
+        $response->assertRedirect(route('leads.show', $lead));
+        $this->assertDatabaseHas('leads', [
+            'id' => $lead->id,
+            'business_process_id' => $processId,
+        ]);
+    }
+
     public function test_manager_opens_lead_card_over_index_grid(): void
     {
         $manager = $this->createUserWithRole('manager');
@@ -781,6 +876,36 @@ class LeadManagementTest extends TestCase
         return [
             'responsible_id' => $manager->id,
             'business_process_id' => $this->defaultBusinessProcessId(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function leadUpdatePayload(Lead $lead): array
+    {
+        return [
+            'business_process_id' => $lead->business_process_id ?? $this->defaultBusinessProcessId(),
+            'status' => $lead->status,
+            'source' => $lead->source,
+            'counterparty_id' => $lead->counterparty_id,
+            'responsible_id' => $lead->responsible_id,
+            'title' => $lead->title,
+            'description' => $lead->description,
+            'transport_type' => $lead->transport_type,
+            'loading_location' => $lead->loading_location,
+            'unloading_location' => $lead->unloading_location,
+            'planned_shipping_date' => optional($lead->planned_shipping_date)->toDateString(),
+            'target_price' => $lead->target_price,
+            'target_currency' => $lead->target_currency,
+            'calculated_cost' => $lead->calculated_cost,
+            'expected_margin' => $lead->expected_margin,
+            'next_contact_at' => optional($lead->next_contact_at)->toDateString(),
+            'lost_reason' => $lead->lost_reason,
+            'qualification' => [],
+            'route_points' => [],
+            'cargo_items' => [],
+            'activities' => [],
         ];
     }
 

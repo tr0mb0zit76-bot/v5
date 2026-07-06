@@ -9,6 +9,18 @@ use Illuminate\Validation\Rule;
 
 class UpdateLeadRequest extends StoreLeadRequest
 {
+    protected function prepareForValidation(): void
+    {
+        parent::prepareForValidation();
+
+        /** @var Lead|null $lead */
+        $lead = $this->route('lead');
+
+        if ($lead !== null && ! $this->filled('business_process_id') && $lead->business_process_id !== null) {
+            $this->merge(['business_process_id' => $lead->business_process_id]);
+        }
+    }
+
     /**
      * @return array<string, ValidationRule|array<int, ValidationRule|string>|string>
      */
