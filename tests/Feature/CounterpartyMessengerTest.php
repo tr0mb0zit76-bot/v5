@@ -10,6 +10,7 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class CounterpartyMessengerTest extends TestCase
@@ -134,6 +135,91 @@ class CounterpartyMessengerTest extends TestCase
             'contractor_id' => $contractor->id,
             'external_party' => 'carrier',
         ])->assertForbidden();
+    }
+
+    public function test_external_user_cannot_open_direct_chat_with_unrelated_staff(): void
+    {
+        if (! Schema::hasColumn('users', 'is_external')) {
+            $this->markTestSkipped('users.is_external migration is not applied.');
+        }
+
+        [, $external] = $this->createExternalUser('carrier', 'carrier-direct@test.test');
+        $unrelatedStaff = User::factory()->create();
+
+        $this->actingAs($external)->postJson(route('messenger.conversations.open'), [
+            'user_id' => $unrelatedStaff->id,
+        ])->assertForbidden();
+    }
+
+    public function test_external_user_can_reopen_direct_chat_with_existing_counterparty_staff(): void
+    {
+        if (! Schema::hasColumn('conversations', 'channel')) {
+            $this->markTestSkipped('conversations.channel migration is not applied.');
+        }
+
+        [$staff, $external, $contractor] = $this->createCarrierCounterpartyFixtures();
+
+        $this->actingAs($staff)->postJson(route('messenger.conversations.open-counterparty'), [
+            'contractor_id' => $contractor->id,
+            'external_party' => 'carrier',
+        ])->assertOk();
+
+        $this->actingAs($external)->postJson(route('messenger.conversations.open'), [
+            'user_id' => $staff->id,
+        ])->assertOk()
+            ->assertJsonPath('conversation.channel', 'counterparty');
+    }
+
+    public function test_counterparty_message_rejects_inaccessible_order_id(): void
+    {
+        if (! Schema::hasColumn('chat_messages', 'order_id')) {
+            $this->markTestSkipped('chat_messages.order_id migration is not applied.');
+        }
+
+        [$staff, $external, $contractor] = $this->createCarrierCounterpartyFixtures();
+        $accessibleOrder = Order::query()->create([
+            'order_number' => 'ORD-CP-ACCESS',
+            'company_code' => 'ORD',
+            'order_date' => now()->toDateString(),
+            'status' => 'draft',
+            'is_active' => true,
+        ]);
+        $this->linkCarrierToOrder($accessibleOrder, $contractor, $staff);
+
+        $hiddenOrder = Order::query()->create([
+            'order_number' => 'ORD-CP-HIDDEN',
+            'company_code' => 'ORD',
+            'order_date' => now()->toDateString(),
+            'status' => 'draft',
+            'is_active' => true,
+        ]);
+
+        $open = $this->actingAs($staff)->postJson(route('messenger.conversations.open-counterparty'), [
+            'contractor_id' => $contractor->id,
+            'external_party' => 'carrier',
+            'order_id' => $accessibleOrder->id,
+        ])->assertOk();
+
+        $conversationId = (int) $open->json('conversation.id');
+
+        $this->actingAs($external)->postJson(route('messenger.conversations.messages.store', $conversationId), [
+            'body' => 'Документ по чужому заказу',
+            'order_id' => $hiddenOrder->id,
+        ])->assertForbidden();
+    }
+
+    public function test_external_mobile_api_document_chips_are_empty(): void
+    {
+        if (! Schema::hasColumn('users', 'is_external')) {
+            $this->markTestSkipped('users.is_external migration is not applied.');
+        }
+
+        [, $external] = $this->createExternalUser('carrier', 'carrier-docchips@test.test');
+        Sanctum::actingAs($external);
+
+        $this->getJson(route('mobile.messenger.document-chips', ['q' => 'акт']))
+            ->assertOk()
+            ->assertJsonPath('documents', []);
     }
 
     /**

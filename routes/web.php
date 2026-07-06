@@ -37,6 +37,7 @@ use App\Http\Controllers\ManagementAccountingImportController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\Mobile\MobileAppUpdateController;
 use App\Http\Controllers\Mobile\MobileCounterpartyShellController;
+use App\Http\Controllers\Mobile\MobileShellController;
 use App\Http\Controllers\Orders\OrderBasicTermsController;
 use App\Http\Controllers\Orders\OrderDocumentsModalController;
 use App\Http\Controllers\Orders\OrderDocumentWorkflowController;

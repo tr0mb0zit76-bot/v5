@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-06 07:45 · **HEAD:** `0ffcb79` · **Ветка:** `master` · **Контекст:** SLA/APK на витрине, push-кнопки в Android, аудит HTTPS на prod; E2EE не нужен
+**Обновлено:** 2026-07-06 11:03 · **HEAD:** `2453790` · **Ветка:** `master` · **Контекст:** Traklo external security hardening; SLA/APK на витрине, push-кнопки в Android, аудит HTTPS на prod; E2EE не нужен
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
@@ -15,6 +15,15 @@
 2. **Smoke на prod** — чеклист в `docs/traklo-runbook.md` (invite, 403 external, Traklo chat, порталы, push при свёрнутом приложении).
 3. **Книга продаж:** опубликовать черновики **«Traklo для менеджера»** (id=111) и **«Traklo для контрагента»** (id=112), если нужен статус published.
 4. Опционально: desktop-кабинет контрагента (отложено в ТЗ §2); SMS-invite; WebSocket вместо poll.
+
+---
+
+## Что сделано (2026-07-06) — Traklo external security hardening
+
+- **Messenger API:** external больше не получает общие `document-chips`; `openDirect` для external разрешён только с уже связанными сотрудниками из counterparty conversations; `order_id` в сообщении counterparty-чата проверяется через `CounterpartyOrderAccess` по внешнему участнику.
+- **Mobile shell:** общий `entity-chips` для external возвращает пустую выдачу; UI action sheet у external скрывает внутренние CRM-действия (ссылки на лид/заказ/контрагента, публичная transport-request ссылка), оставляет релевантный upload/phone.
+- **Regression tests:** добавлены проверки в `CounterpartyMessengerTest` и `RejectExternalFromInternalRoutesTest`.
+- **Проверка:** `vendor/bin/pint --dirty --format agent`, `php -l` изменённых PHP-файлов, `npm run build` — OK. `php artisan test --compact tests/Feature/CounterpartyMessengerTest.php tests/Feature/RejectExternalFromInternalRoutesTest.php` не стартует на этой машине: отсутствует `mysql.exe` в `PATH`/установке, Laravel schema dump не загружается.
 
 ---
 

@@ -56,4 +56,38 @@ class RejectExternalFromInternalRoutesTest extends TestCase
             ->assertOk()
             ->assertJsonPath('orders', []);
     }
+
+    public function test_external_user_cannot_open_internal_mobile_shell_feeds(): void
+    {
+        if (! Schema::hasColumn('users', 'is_external')) {
+            $this->markTestSkipped('is_external migration is not applied.');
+        }
+
+        $user = $this->createExternalUser('counterparty_carrier', 'carrier');
+
+        foreach ([
+            route('mobile.shell.tasks'),
+            route('mobile.shell.documents'),
+            route('mobile.shell.traklo-leads'),
+            route('mobile.shell.entity-chips', ['kind' => 'lead']),
+        ] as $url) {
+            $this->actingAs($user)
+                ->getJson($url)
+                ->assertForbidden();
+        }
+    }
+
+    private function createExternalUser(string $roleName, string $party): User
+    {
+        $role = Role::query()->where('name', $roleName)->first();
+        $this->assertNotNull($role);
+
+        return User::factory()->create([
+            'role_id' => $role->id,
+            'is_external' => true,
+            'contractor_id' => null,
+            'external_party' => $party,
+            'email_verified_at' => now(),
+        ]);
+    }
 }

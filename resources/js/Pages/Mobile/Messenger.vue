@@ -118,6 +118,7 @@
             >
                 <div class="rounded-t-3xl border border-white/10 bg-zinc-900 p-3">
                     <button
+                        v-if="!isExternalUser"
                         type="button"
                         class="flex w-full rounded-2xl px-4 py-3 text-left text-sm font-medium text-zinc-100 active:bg-white/10"
                         @click="openEntityPicker"
@@ -132,6 +133,7 @@
                         Прикрепить файл к заказу
                     </button>
                     <button
+                        v-if="!isExternalUser"
                         type="button"
                         class="mt-2 flex w-full flex-col rounded-2xl px-4 py-3 text-left text-sm font-medium text-zinc-100 active:bg-white/10"
                         @click="insertTransportRequestLink"
@@ -151,6 +153,7 @@
             </div>
 
             <MobileEntityPicker
+                v-if="!isExternalUser"
                 :open="showEntityPicker"
                 @close="showEntityPicker = false"
                 @select="insertEntityChip"
@@ -473,6 +476,7 @@
 
                 <section v-else-if="activeTab === 'leads'" class="space-y-4 p-4">
                     <button
+                        v-if="canUseLeadIntake"
                         type="button"
                         class="flex w-full items-center justify-between gap-3 rounded-3xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-left active:bg-sky-500/15"
                         @click="openMessageLeadIntake"

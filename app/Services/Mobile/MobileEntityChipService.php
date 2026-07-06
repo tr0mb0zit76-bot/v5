@@ -22,6 +22,10 @@ class MobileEntityChipService
      */
     public function search(User $user, ?string $search = null, ?string $kind = null): array
     {
+        if ($user->isExternal()) {
+            return ['entities' => []];
+        }
+
         $needle = trim((string) $search);
         $entities = [];
 

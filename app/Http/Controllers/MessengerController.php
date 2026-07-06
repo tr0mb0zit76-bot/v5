@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\CabinetNotifier;
 use App\Services\ExternalUsers\CounterpartyConversationService;
 use App\Services\MessengerService;
+use App\Support\CounterpartyOrderAccess;
 use App\Support\CounterpartyPartyResolver;
 use App\Support\ExternalParty;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +25,7 @@ class MessengerController extends Controller
     public function __construct(
         private readonly MessengerService $messengerService,
         private readonly CounterpartyConversationService $counterpartyConversationService,
+        private readonly CounterpartyOrderAccess $counterpartyOrderAccess,
         private readonly CabinetNotifier $cabinetNotifier,
     ) {}
 
@@ -105,6 +107,10 @@ class MessengerController extends Controller
         abort_if($user === null, 403);
 
         if (! Schema::hasTable('order_documents')) {
+            return response()->json(['documents' => []]);
+        }
+
+        if ($user->isExternal()) {
             return response()->json(['documents' => []]);
         }
 
@@ -251,6 +257,8 @@ class MessengerController extends Controller
         ]);
 
         $other = User::query()->findOrFail($validated['user_id']);
+        $this->authorizeDirectRecipient($user, $other);
+
         $conversation = $this->messengerService->findOrCreateDirect($user, $other);
         $conversation->loadMissing(['latestMessage.author:id,name', 'participants']);
 
@@ -361,6 +369,7 @@ class MessengerController extends Controller
             Schema::hasColumn('chat_messages', 'order_id')
             && filled($validated['order_id'] ?? null)
         ) {
+            $this->authorizeMessageOrder($user, $conversation, (int) $validated['order_id']);
             $payload['order_id'] = (int) $validated['order_id'];
         }
 
@@ -397,6 +406,40 @@ class MessengerController extends Controller
             $conversation->participants()->where('user_id', $user->id)->exists(),
             403
         );
+    }
+
+    private function authorizeDirectRecipient(User $user, User $other): void
+    {
+        if (! $user->isExternal()) {
+            return;
+        }
+
+        abort_unless(! $other->isExternal(), 403);
+
+        $allowedStaffIds = collect($this->staffContactsForExternalUser($user))
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+
+        abort_unless(in_array((int) $other->id, $allowedStaffIds, true), 403);
+    }
+
+    private function authorizeMessageOrder(User $user, Conversation $conversation, int $orderId): void
+    {
+        $isCounterpartyChannel = $this->counterpartyConversationService->isCounterpartyChannel($conversation);
+
+        if (! $user->isExternal() && ! $isCounterpartyChannel) {
+            return;
+        }
+
+        abort_unless($isCounterpartyChannel, 403);
+
+        $order = Order::query()->find($orderId);
+        abort_if($order === null, 404);
+
+        $externalUser = $this->counterpartyConversationService->externalParticipant($conversation);
+        abort_unless($externalUser instanceof User, 403);
+        abort_unless($this->counterpartyOrderAccess->userCanViewOrder($externalUser, $order), 403);
     }
 
     /**
