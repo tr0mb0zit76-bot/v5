@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-06 07:45 · **HEAD:** `2dfee73` · **Ветка:** `master` · **Контекст:** SLA/APK на витрине, push-кнопки в Android, аудит HTTPS на prod; E2EE не нужен
+**Обновлено:** 2026-07-06 07:45 · **HEAD:** `d102476` · **Ветка:** `master` · **Контекст:** SLA/APK на витрине, push-кнопки в Android, аудит HTTPS на prod; E2EE не нужен
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
