@@ -167,6 +167,7 @@ class LeadBusinessProcessService
 
         return [
             'process_id' => $process->id,
+            'process_slug' => $process->slug,
             'process_name' => $process->name,
             'process_description' => $process->description,
             'current_stage_id' => $currentStageId,

@@ -35,7 +35,7 @@
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex flex-wrap gap-2">
                     <button
-                        v-for="tab in tabs"
+                        v-for="tab in visibleTabs"
                         :key="tab.key"
                         type="button"
                         class="inline-flex items-center gap-2 text-sm transition-colors"
@@ -81,20 +81,14 @@
             <div v-if="activeTab === 'main'" class="space-y-5">
                 <LeadStatusPipeline
                     v-model="form.status"
+                    v-model:close-outcome-primary-flag="form.close_outcome_primary_flag"
+                    v-model:close-outcome-note="form.close_outcome_note"
                     :selected-lead-id="selectedLeadId"
                     :converted-order-number="convertedOrderNumber"
+                    :lost-close-outcome-options="lostCloseOutcomeOptions"
+                    :won-close-outcome-options="wonCloseOutcomeOptions"
+                    :close-outcome-error="form.errors.close_outcome_primary_flag || form.errors.close_outcome_note"
                     @manual-change="markStatusTouchedByUser"
-                />
-
-                <LeadCloseOutcomeFields
-                    v-if="showCloseOutcomeFields"
-                    v-model:primary-flag="form.close_outcome_primary_flag"
-                    v-model:note="form.close_outcome_note"
-                    :terminal-outcome="form.status === 'won' ? 'won' : 'lost'"
-                    :lost-options="lostCloseOutcomeOptions"
-                    :won-options="wonCloseOutcomeOptions"
-                    :error="form.errors.close_outcome_primary_flag || form.errors.close_outcome_note"
-                    :input-class="crmFieldFluid"
                 />
 
                 <div
@@ -178,7 +172,7 @@
                     <div class="space-y-2">
                         <textarea v-model="form.description" rows="4" :class="crmFieldFluid" placeholder="Суть запроса, ограничения, особенности груза или клиента" />
                     </div>
-                    <div class="grid gap-4 md:grid-cols-2">
+                    <div class="grid gap-4" :class="isContractSigningCard ? 'md:grid-cols-1' : 'md:grid-cols-2'">
                         <div class="space-y-2">
                             <label :class="crmLabel">Источник</label>
                             <select v-model="form.source" :class="crmFieldFluid">
@@ -186,7 +180,7 @@
                                 <option v-for="option in sourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                             </select>
                         </div>
-                        <div class="space-y-2">
+                        <div v-if="!isContractSigningCard" class="space-y-2">
                             <label :class="crmLabel">Тип перевозки</label>
                             <select v-model="form.transport_type" :class="crmFieldFluid">
                                 <option value="">Не выбрано</option>
@@ -448,7 +442,6 @@ import { ArrowRightLeft, Banknote, ClipboardList, FileText, History, MapPinned, 
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CardSmartLinksBar from '@/Components/Crm/CardSmartLinksBar.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import LeadCloseOutcomeFields from '@/Components/Leads/LeadCloseOutcomeFields.vue';
 import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';
 import LeadFocusNowPanel from '@/Components/Leads/LeadFocusNowPanel.vue';
 import LeadSalesCoachingPanel from '@/Components/Leads/LeadSalesCoachingPanel.vue';
@@ -467,6 +460,11 @@ import {
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import { normalizeLeadCargoItems } from '@/support/leadWizardCargo.js';
 import { defaultLeadRoutePoints, normalizeLeadRoutePoints } from '@/support/leadWizardRoute.js';
+import {
+    isContractSigningLeadWizard,
+    leadWizardVisibleTabKeys,
+    resolveLeadBusinessProcessSlug,
+} from '@/support/leadWizardTabs.js';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import {
     crmBtnCreate,
@@ -571,7 +569,7 @@ const statusTouchedByUser = ref(false);
 const selectedTemplateId = ref('');
 const selectedHtmlTemplateId = ref('');
 const contractors = ref([...props.contractors]);
-const tabs = [
+const allWizardTabs = [
     { key: 'main', label: 'Основное', icon: ClipboardList },
     { key: 'route', label: 'Маршрут', icon: MapPinned },
     { key: 'cargo', label: 'Груз', icon: Package },
@@ -725,9 +723,30 @@ watch(() => props.leadTemplate, () => {
 const selectedLeadId = computed(() => props.selectedLead?.id ?? null);
 const processProgress = computed(() => form.process_progress ?? props.selectedLead?.process_progress ?? null);
 const operationalBrief = computed(() => props.selectedLead?.operational_brief ?? null);
+const selectedBusinessProcessSlug = computed(() => resolveLeadBusinessProcessSlug(
+    form.business_process_id,
+    props.businessProcesses,
+    processProgress.value?.process_slug ?? null,
+));
+const visibleTabs = computed(() => {
+    const allowedKeys = new Set(leadWizardVisibleTabKeys(selectedBusinessProcessSlug.value));
+
+    return allWizardTabs.filter((tab) => allowedKeys.has(tab.key));
+});
+const isContractSigningCard = computed(() => isContractSigningLeadWizard(selectedBusinessProcessSlug.value));
+
+function ensureActiveTabVisible() {
+    if (!visibleTabs.value.some((tab) => tab.key === activeTab.value)) {
+        activeTab.value = 'main';
+    }
+}
+
+watch(selectedBusinessProcessSlug, ensureActiveTabVisible);
+watch(() => form.business_process_id, ensureActiveTabVisible);
 
 function handleFocusAction({ tab, kind }) {
-    activeTab.value = tab ?? 'main';
+    const requestedTab = tab ?? 'main';
+    activeTab.value = visibleTabs.value.some((item) => item.key === requestedTab) ? requestedTab : 'main';
 
     if (kind === 'next_step') {
         nextTick(() => {
@@ -735,7 +754,6 @@ function handleFocusAction({ tab, kind }) {
         });
     }
 }
-const showCloseOutcomeFields = computed(() => form.status === 'lost' || form.status === 'won');
 const hasFormValidationErrors = computed(() => Object.keys(form.errors).length > 0);
 const formValidationErrors = computed(() => Object.entries(form.errors).map(([field, message]) => ({
     field,

@@ -741,6 +741,7 @@ class LeadController extends Controller
                     ->map(fn (BusinessProcess $process): array => [
                         'id' => $process->id,
                         'name' => $process->name,
+                        'slug' => $process->slug,
                         'description' => $process->description,
                         'stages' => $process->stages->map(fn (BusinessProcessStage $stage): array => [
                             'id' => $stage->id,

@@ -1,26 +1,49 @@
 <template>
-    <div v-if="showBlock" class="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
-        <div>
-            <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ heading }}</h3>
-            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{{ hint }}</p>
-        </div>
-
-        <div class="flex flex-wrap gap-2">
-            <button
-                v-for="option in activeOptions"
-                :key="option.value"
-                type="button"
-                class="rounded-full border px-3 py-1.5 text-xs font-medium transition"
-                :class="primaryFlag === option.value
-                    ? 'border-sky-700 bg-sky-700 text-white dark:border-sky-500 dark:bg-sky-600'
-                    : 'border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200'"
-                @click="primaryFlag = option.value"
+    <div
+        v-if="showBlock"
+        :class="variant === 'inline'
+            ? 'flex min-w-0 flex-1 flex-wrap items-end gap-x-3 gap-y-2'
+            : 'space-y-2 rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-950/40'"
+    >
+        <div :class="variant === 'inline' ? 'min-w-[12rem] flex-1 space-y-1' : 'space-y-1'">
+            <label
+                v-if="variant !== 'inline'"
+                class="text-sm font-semibold text-zinc-900 dark:text-zinc-100"
             >
-                {{ option.label }}
-            </button>
+                {{ heading }}
+            </label>
+            <label
+                v-else
+                class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500"
+            >
+                {{ headingShort }}
+            </label>
+            <select
+                v-model="primaryFlag"
+                :class="selectClass"
+                :required="terminalOutcome === 'lost'"
+            >
+                <option value="" disabled hidden>{{ selectPlaceholder }}</option>
+                <option
+                    v-for="option in activeOptions"
+                    :key="option.value"
+                    :value="option.value"
+                >
+                    {{ option.label }}
+                </option>
+            </select>
+            <p
+                v-if="variant !== 'inline' && terminalOutcome === 'lost'"
+                class="text-xs text-zinc-500 dark:text-zinc-400"
+            >
+                {{ hint }}
+            </p>
         </div>
 
-        <div v-if="primaryFlag === 'lost_other' || primaryFlag === 'won_other'" class="space-y-1">
+        <div
+            v-if="needsNote"
+            :class="variant === 'inline' ? 'min-w-[12rem] flex-1 space-y-1' : 'space-y-1'"
+        >
             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Уточнение</label>
             <input
                 v-model="note"
@@ -30,12 +53,19 @@
             />
         </div>
 
-        <p v-if="error" class="text-xs text-rose-600 dark:text-rose-400">{{ error }}</p>
+        <p
+            v-if="error"
+            class="w-full text-xs text-rose-600 dark:text-rose-400"
+            :class="variant === 'inline' ? 'basis-full' : ''"
+        >
+            {{ error }}
+        </p>
     </div>
 </template>
 
 <script setup>
 import { computed } from 'vue';
+import { crmFieldFluid } from '@/support/crmUi.js';
 
 const props = defineProps({
     terminalOutcome: {
@@ -58,6 +88,11 @@ const props = defineProps({
         type: String,
         default: '',
     },
+    variant: {
+        type: String,
+        default: 'card',
+        validator: (value) => ['card', 'inline'].includes(value),
+    },
 });
 
 const primaryFlag = defineModel('primaryFlag', { type: String, default: '' });
@@ -78,9 +113,25 @@ const activeOptions = computed(() => {
 
 const heading = computed(() => (props.terminalOutcome === 'won' ? 'Причина выигрыша' : 'Причина проигрыша'));
 
+const headingShort = computed(() => (props.terminalOutcome === 'won' ? 'Выигрыш' : 'Причина'));
+
 const hint = computed(() =>
     props.terminalOutcome === 'won'
         ? 'Опционально — поможет аналитике Outcome Intelligence.'
         : 'Обязательно при закрытии лида как проигранного.',
 );
+
+const selectPlaceholder = computed(() =>
+    props.terminalOutcome === 'won' ? 'Выберите причину' : 'Выберите причину проигрыша',
+);
+
+const needsNote = computed(() => primaryFlag.value === 'lost_other' || primaryFlag.value === 'won_other');
+
+const selectClass = computed(() => {
+    if (props.variant === 'inline') {
+        return `${crmFieldFluid} !w-auto min-w-[11rem] flex-1 rounded-lg border-zinc-300 bg-zinc-50 py-1.5 text-sm text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-200`;
+    }
+
+    return props.inputClass;
+});
 </script>

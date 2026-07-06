@@ -1,9 +1,12 @@
 <script setup>
 import { computed } from 'vue';
+import LeadCloseOutcomeFields from '@/Components/Leads/LeadCloseOutcomeFields.vue';
 import { crmFieldFluid } from '@/support/crmUi.js';
 import { LEAD_PIPELINE_STEPS, LEAD_TERMINAL_STATUS_OPTIONS, leadPipelineIndex } from '@/support/leadStatusPipeline.js';
 
 const status = defineModel({ type: String, required: true });
+const closeOutcomePrimaryFlag = defineModel('closeOutcomePrimaryFlag', { type: String, default: '' });
+const closeOutcomeNote = defineModel('closeOutcomeNote', { type: String, default: '' });
 
 const props = defineProps({
     selectedLeadId: {
@@ -11,6 +14,18 @@ const props = defineProps({
         default: null,
     },
     convertedOrderNumber: {
+        type: String,
+        default: '',
+    },
+    lostCloseOutcomeOptions: {
+        type: Array,
+        default: () => [],
+    },
+    wonCloseOutcomeOptions: {
+        type: Array,
+        default: () => [],
+    },
+    closeOutcomeError: {
         type: String,
         default: '',
     },
@@ -44,6 +59,10 @@ const progressPercent = computed(() => {
 const showProgressBar = computed(() => Boolean(props.selectedLeadId));
 
 const terminalSelectValue = computed(() => (isTerminal.value ? status.value : ''));
+
+const showCloseOutcome = computed(() => status.value === 'lost' || status.value === 'won');
+
+const closeOutcomeTerminal = computed(() => (status.value === 'won' ? 'won' : 'lost'));
 
 function selectPipelineStatus(nextStatus) {
     status.value = nextStatus;
@@ -117,22 +136,35 @@ function stepClasses(step, index) {
                 </button>
             </div>
 
-            <div class="flex shrink-0 items-center gap-2 border-l border-dashed border-zinc-300 pl-3 dark:border-zinc-600">
-                <span class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">Исход</span>
-                <select
-                    :value="terminalSelectValue"
-                    :class="`${crmFieldFluid} !w-auto min-w-[10.5rem] rounded-lg border-zinc-300 bg-zinc-50 py-1.5 text-sm text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-200`"
-                    @change="onTerminalSelect"
-                >
-                    <option value="" disabled hidden>Не выбран</option>
-                    <option
-                        v-for="option in LEAD_TERMINAL_STATUS_OPTIONS"
-                        :key="option.value"
-                        :value="option.value"
+            <div class="flex shrink-0 flex-wrap items-end gap-3 border-l border-dashed border-zinc-300 pl-3 dark:border-zinc-600">
+                <div class="flex items-center gap-2">
+                    <span class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">Исход</span>
+                    <select
+                        :value="terminalSelectValue"
+                        :class="`${crmFieldFluid} !w-auto min-w-[10.5rem] rounded-lg border-zinc-300 bg-zinc-50 py-1.5 text-sm text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-200`"
+                        @change="onTerminalSelect"
                     >
-                        {{ option.label }}
-                    </option>
-                </select>
+                        <option value="" disabled hidden>Не выбран</option>
+                        <option
+                            v-for="option in LEAD_TERMINAL_STATUS_OPTIONS"
+                            :key="option.value"
+                            :value="option.value"
+                        >
+                            {{ option.label }}
+                        </option>
+                    </select>
+                </div>
+
+                <LeadCloseOutcomeFields
+                    v-if="showCloseOutcome"
+                    v-model:primary-flag="closeOutcomePrimaryFlag"
+                    v-model:note="closeOutcomeNote"
+                    variant="inline"
+                    :terminal-outcome="closeOutcomeTerminal"
+                    :lost-options="lostCloseOutcomeOptions"
+                    :won-options="wonCloseOutcomeOptions"
+                    :error="closeOutcomeError"
+                />
             </div>
         </div>
     </section>

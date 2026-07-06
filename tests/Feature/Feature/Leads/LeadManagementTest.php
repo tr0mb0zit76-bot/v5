@@ -104,6 +104,48 @@ class LeadManagementTest extends TestCase
         );
     }
 
+    public function test_lead_wizard_exposes_business_process_slugs(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+
+        $response = $this->actingAs($manager)->get(route('leads.create'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Leads/Index')
+            ->has('businessProcesses')
+            ->where('businessProcesses', function (array $processes): bool {
+                return collect($processes)->contains(
+                    fn (array $process): bool => ($process['slug'] ?? null) === 'contract-signing',
+                );
+            })
+        );
+    }
+
+    public function test_lead_process_progress_includes_process_slug(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $processId = BusinessProcess::query()->where('slug', 'contract-signing')->value('id');
+
+        if ($processId === null) {
+            $this->markTestSkipped('contract-signing process not seeded');
+        }
+
+        $lead = Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'business_process_id' => $processId,
+            'title' => 'Лид по подписанию контракта',
+            'target_currency' => 'RUB',
+        ]);
+
+        $response = $this->actingAs($manager)->get(route('leads.show', $lead));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->where('selectedLead.process_progress.process_slug', 'contract-signing')
+        );
+    }
+
     public function test_manager_sees_only_own_leads(): void
     {
         $manager = $this->createUserWithRole('manager');
