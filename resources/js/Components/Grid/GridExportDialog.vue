@@ -8,7 +8,7 @@
             <div :class="`${crmModalPanel} flex max-h-[90vh] w-full max-w-2xl flex-col shadow-2xl`">
                 <div class="flex shrink-0 items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
                     <div>
-                        <div class="text-lg font-semibold">Экспорт в Excel</div>
+                        <div class="text-lg font-semibold">Экспорт в CSV</div>
                         <div class="text-sm text-zinc-500 dark:text-zinc-400">
                             Выгружаются строки с учётом текущих фильтров и поиска в таблице
                         </div>
@@ -96,7 +96,7 @@
                         :disabled="selectedColumnCount === 0 || !canSubmitResponsible"
                         @click="submit"
                     >
-                        Скачать Excel
+                        Скачать CSV
                     </button>
                 </div>
             </div>

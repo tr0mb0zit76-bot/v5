@@ -31,7 +31,7 @@
 
 ## Экспорт Excel
 
-- `gridExcelExport.js`, `GridExportDialog.vue` — заказы и контрагенты; флаг `can_export_grid` в `RoleAccess` / Inertia.
+- `gridCsvExport.js`, `GridExportDialog.vue` — заказы и контрагенты; флаг `can_export_grid` в `RoleAccess` / Inertia.
 
 ## Тесты
 

@@ -1,5 +1,3 @@
-import * as XLSX from 'xlsx';
-
 const DEFAULT_EXCLUDED_FIELDS = new Set([
     'actions',
     '__actions',
@@ -131,7 +129,33 @@ function buildResponsibleRowPredicate({ responsibleMode, responsibleIds, idField
     };
 }
 
-export function exportAgGridToExcel({
+function escapeCsvCell(value) {
+    const text = String(value ?? '');
+
+    if (/[",\n\r;]/.test(text)) {
+        return `"${text.replace(/"/g, '""')}"`;
+    }
+
+    return text;
+}
+
+function downloadCsvFile(headers, body, fileName) {
+    const normalizedName = fileName.endsWith('.csv') ? fileName : `${fileName}.csv`;
+    const lines = [
+        headers.map(escapeCsvCell).join(';'),
+        ...body.map((row) => row.map(escapeCsvCell).join(';')),
+    ];
+    const blob = new Blob([`\uFEFF${lines.join('\r\n')}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = normalizedName;
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
+export function exportAgGridToCsv({
     gridApi,
     columns,
     fileName,
@@ -170,11 +194,7 @@ export function exportAgGridToExcel({
         );
     });
 
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...body]);
-    const workbook = XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Данные');
-    XLSX.writeFile(workbook, fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`);
+    downloadCsvFile(headers, body, fileName);
 
     return { exportedRows: body.length };
 }
@@ -182,5 +202,5 @@ export function exportAgGridToExcel({
 export function defaultGridExportFileName(prefix) {
     const date = new Date().toISOString().slice(0, 10);
 
-    return `${prefix}_${date}.xlsx`;
+    return `${prefix}_${date}.csv`;
 }

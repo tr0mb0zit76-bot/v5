@@ -51,11 +51,11 @@
           v-if="canExportGrid"
           type="button"
           :class="crmGridToolbarBtn"
-          title="Экспорт в Excel"
+          title="Экспорт в CSV"
           @click="openExportModal"
         >
           <Download class="h-4 w-4" />
-          Excel
+          CSV
         </button>
 
         <GridViewsBar
@@ -273,8 +273,8 @@ import {
     buildExportColumnsFromGrid,
     buildResponsibleOptionsFromRows,
     defaultGridExportFileName,
-    exportAgGridToExcel,
-} from '@/support/gridExcelExport.js';
+    exportAgGridToCsv,
+} from '@/support/gridCsvExport.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -1485,7 +1485,7 @@ function handleGridExport(payload) {
     return;
   }
 
-  exportAgGridToExcel({
+  exportAgGridToCsv({
     gridApi: gridApi.value,
     columns: payload.columns,
     fileName: defaultGridExportFileName('zakazy'),
