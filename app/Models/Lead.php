@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\LeadFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -77,6 +78,33 @@ class Lead extends Model
         }
 
         return $casts;
+    }
+
+    /**
+     * @param  Builder<static>  $query
+     * @return Builder<static>
+     */
+    public function scopeWithoutTrashed(Builder $query): Builder
+    {
+        if (Schema::hasColumn($this->getTable(), 'deleted_at')) {
+            return $query->whereNull($this->qualifyColumn('deleted_at'));
+        }
+
+        return $query;
+    }
+
+    public function resolveRouteBinding($value, $field = null): ?static
+    {
+        $query = $this->newQuery()->where($field ?? $this->getRouteKeyName(), $value);
+
+        if ($this->hasDeletedAtColumn()) {
+            $query->whereNull($this->qualifyColumn('deleted_at'));
+        }
+
+        /** @var static|null $lead */
+        $lead = $query->first();
+
+        return $lead;
     }
 
     public function delete(): ?bool

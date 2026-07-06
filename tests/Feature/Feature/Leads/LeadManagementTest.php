@@ -910,6 +910,45 @@ class LeadManagementTest extends TestCase
         );
     }
 
+    public function test_manager_can_destroy_lead_and_it_disappears_from_index(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $lead = Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'status' => 'qualification',
+            'title' => 'На удаление',
+        ]);
+
+        $this->actingAs($manager)
+            ->delete(route('leads.destroy', $lead))
+            ->assertRedirect(route('leads.index'));
+
+        $this->assertNotNull($lead->fresh()?->deleted_at);
+
+        $this->actingAs($manager)
+            ->get(route('leads.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('leads')
+                ->where('leads', fn ($leads) => collect($leads)->doesntContain('id', $lead->id))
+            );
+    }
+
+    public function test_destroyed_lead_is_not_accessible_via_show_route(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $lead = Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'status' => 'qualification',
+        ]);
+
+        $lead->delete();
+
+        $this->actingAs($manager)
+            ->get(route('leads.show', $lead))
+            ->assertNotFound();
+    }
+
     /**
      * @return array<string, mixed>
      */

@@ -22,6 +22,7 @@ final class DocumentRegistryGridColumnApplicabilityResolver
 
     /** @var list<string> */
     private const CLOSING_CARRIER_COLUMNS = [
+        'carrier_invoice',
         'carrier_upd',
         'carrier_act',
         'carrier_invoice_factura',
@@ -39,6 +40,17 @@ final class DocumentRegistryGridColumnApplicabilityResolver
         'carrier_contract_request',
     ];
 
+    /** @var list<string> */
+    private const OWN_FLEET_CARRIER_GRID_COLUMNS = [
+        'carrier_invoice',
+        'carrier_upd',
+        'carrier_act',
+        'carrier_invoice_factura',
+        'carrier_request',
+        'carrier_contract_request',
+        'transport_docs',
+    ];
+
     public function __construct(
         private readonly OrderDocumentRequirementService $requirementService,
     ) {}
@@ -48,7 +60,15 @@ final class DocumentRegistryGridColumnApplicabilityResolver
      */
     public function mapForOrder(Order $order): array
     {
-        return self::mapFromRules($this->requirementService->requirementRulesForOrder($order));
+        $map = self::mapFromRules($this->requirementService->requirementRulesForOrder($order));
+
+        if (self::orderIsOwnFleetCarrierOnly($order)) {
+            foreach (self::OWN_FLEET_CARRIER_GRID_COLUMNS as $column) {
+                $map[$column] = false;
+            }
+        }
+
+        return $map;
     }
 
     /**
@@ -111,5 +131,16 @@ final class DocumentRegistryGridColumnApplicabilityResolver
         }
 
         return $map;
+    }
+
+    public static function orderIsOwnFleetCarrierOnly(Order $order): bool
+    {
+        $performers = $order->performers;
+
+        if (! is_array($performers) || $performers === []) {
+            return false;
+        }
+
+        return OwnFleetCatalog::isOwnFleetCarrierOnly($performers);
     }
 }

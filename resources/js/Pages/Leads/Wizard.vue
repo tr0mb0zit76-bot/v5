@@ -1326,7 +1326,22 @@ function submitSendOffer() {
 }
 function convertLead() { if (selectedLeadId.value) router.post(route('leads.convert', selectedLeadId.value), {}); }
 function openLoadBoardFromLead() { if (selectedLeadId.value) router.get(route('load-board.index', { from_lead: selectedLeadId.value }), {}, { preserveScroll: true }); }
-function destroyLead() { if (selectedLeadId.value) router.delete(route('leads.destroy', selectedLeadId.value)); }
+function destroyLead() {
+    if (!selectedLeadId.value) {
+        return;
+    }
+
+    const label = form.number ? `лид ${form.number}` : `лид #${selectedLeadId.value}`;
+    if (!window.confirm(`Удалить ${label}? Это действие необратимо.`)) {
+        return;
+    }
+
+    router.delete(route('leads.destroy', selectedLeadId.value), {
+        onSuccess: () => {
+            emit('close');
+        },
+    });
+}
 function prefillFollowUpTask() {
     if (!followUpPrompt.value) {
         return;

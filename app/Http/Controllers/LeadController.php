@@ -312,7 +312,9 @@ class LeadController extends Controller
         abort_unless($this->hasLeadsFeatureTables(), 404);
         abort_unless($this->canAccessLead($request, $lead), 403);
 
-        $lead->delete();
+        if (! $lead->trashed()) {
+            $lead->delete();
+        }
 
         return to_route('leads.index');
     }
@@ -658,6 +660,7 @@ class LeadController extends Controller
         }
 
         $leads = Lead::query()
+            ->withoutTrashed()
             ->with($relations)
             ->when(
                 $user !== null && ! $user->isAdmin() && $leadsScope !== 'all',

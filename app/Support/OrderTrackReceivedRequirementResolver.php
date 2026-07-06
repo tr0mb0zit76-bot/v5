@@ -76,10 +76,16 @@ final class OrderTrackReceivedRequirementResolver
      */
     public static function flagsForOrder(Order $order, ?FinancialTerm $financialTerm = null): array
     {
-        return [
+        $flags = [
             'needs_track_received_date_customer' => self::orderNeedsCustomerTrackReceived($order, $financialTerm),
             'needs_track_received_date_carrier' => self::orderNeedsCarrierTrackReceived($order, $financialTerm),
         ];
+
+        if (DocumentRegistryGridColumnApplicabilityResolver::orderIsOwnFleetCarrierOnly($order)) {
+            $flags['needs_track_received_date_carrier'] = false;
+        }
+
+        return $flags;
     }
 
     /**

@@ -190,6 +190,11 @@ function handleLeadDeleteRequest(row) {
 
     router.delete(route('leads.destroy', row.id), {
         preserveScroll: true,
+        onSuccess: () => {
+            isCreateModalOpen.value = false;
+            isLeadModalDismissed.value = true;
+            window.history.replaceState(window.history.state, '', route('leads.index'));
+        },
     });
 }
 

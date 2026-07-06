@@ -55,7 +55,7 @@ class OrderTableColumns
             ['field' => 'invoice_number', 'label' => 'Счет', 'width' => 130, 'minWidth' => 100, 'type' => null],
             ['field' => 'upd_number', 'label' => 'УПД', 'width' => 120, 'minWidth' => 90, 'type' => null],
             ['field' => 'waybill_number', 'label' => 'ТТН', 'width' => 120, 'minWidth' => 90, 'type' => null],
-            ['field' => 'track_number_customer', 'label' => 'Трек заказчика', 'width' => 160, 'minWidth' => 130, 'type' => null],
+            ['field' => 'track_number_customer', 'label' => 'Трек заказчику', 'width' => 160, 'minWidth' => 130, 'type' => null],
             ['field' => 'track_sent_date_customer', 'label' => 'Трек заказчику отправлен', 'width' => 200, 'minWidth' => 160, 'type' => 'date'],
             ['field' => 'track_received_date_customer', 'label' => 'Закрывашки заказчиком получены', 'width' => 230, 'minWidth' => 190, 'type' => 'date'],
             ['field' => 'track_number_carrier', 'label' => 'Трек перевозчика', 'width' => 170, 'minWidth' => 140, 'type' => null],

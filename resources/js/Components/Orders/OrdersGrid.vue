@@ -105,6 +105,7 @@
           :maintainColumnOrder="true"
           :suppressDragLeaveHidesColumns="true"
           @cell-double-clicked="onCellDoubleClicked"
+          @cell-clicked="onCellClicked"
           @cell-value-changed="onCellValueChanged"
           @grid-ready="onGridReady"
           @first-data-rendered="onFirstDataRendered"
@@ -436,6 +437,14 @@ const FLOATING_FILTER_FIELDS = new Set([
   'cargo_description',
   'customer_name',
   'carrier_name',
+]);
+
+const INLINE_TEXT_EDITABLE_FIELDS = new Set([
+  'invoice_number',
+  'upd_number',
+  'waybill_number',
+  'track_number_customer',
+  'track_number_carrier',
 ]);
 
 const agGrid = ref(null);
@@ -1204,6 +1213,11 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.valueFormatter = (params) => paymentFormValueLabels.value[params.value] ?? formatEmpty(params.value);
     }
 
+    if (INLINE_TEXT_EDITABLE_FIELDS.has(column.field) && roleAllowsEdit) {
+      columnDefinition.cellEditor = 'agTextCellEditor';
+      columnDefinition.singleClickEdit = true;
+    }
+
     if (['customer_payment_term', 'carrier_payment_term'].includes(column.field)) {
       columnDefinition.valueFormatter = (params) => formatPaymentTermsDisplay(params.value);
     }
@@ -1299,7 +1313,38 @@ const onCellDoubleClicked = (params) => {
     return;
   }
 
+  const field = params.colDef?.field;
+  if (field && isGridCellEditable(field, params.data)) {
+    params.api.startEditingCell({
+      rowIndex: params.node.rowIndex,
+      colKey: field,
+    });
+
+    return;
+  }
+
   emit('row-dblclick', params.data);
+};
+
+const onCellClicked = (params) => {
+  const field = params.colDef?.field;
+
+  if (!field || !params.data || !INLINE_TEXT_EDITABLE_FIELDS.has(field)) {
+    return;
+  }
+
+  if (!isGridCellEditable(field, params.data)) {
+    return;
+  }
+
+  if (params.api.getEditingCells().length > 0) {
+    return;
+  }
+
+  params.api.startEditingCell({
+    rowIndex: params.node.rowIndex,
+    colKey: field,
+  });
 };
 
 const onCellValueChanged = (params) => {

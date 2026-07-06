@@ -98,6 +98,9 @@ class DocumentRegistryGridNotRequiredTest extends TestCase
                 ->has('rows', 1)
                 ->where('rows.0.column_applicable.carrier_upd', false)
                 ->where('rows.0.column_applicable.carrier_request', false)
+                ->where('rows.0.column_applicable.carrier_invoice', false)
+                ->where('rows.0.column_applicable.transport_docs', false)
+                ->where('rows.0.needs_track_received_date_carrier', false)
                 ->where('rows.0.column_applicable.customer_upd', false)
                 ->where('rows.0.column_applicable.customer_request', true),
             );
