@@ -13,6 +13,7 @@ final class LeadSource
         'referral' => 'Рекомендация',
         'website' => 'Сайт',
         'existing_customer' => 'Действующий клиент',
+        'base_reprocessing' => 'Повторная обработка базы',
         'other' => 'Другое',
     ];
 

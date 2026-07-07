@@ -11,6 +11,7 @@ class LeadSourceTest extends TestCase
     {
         $this->assertSame('Входящий', LeadSource::label('inbound'));
         $this->assertSame('Действующий клиент', LeadSource::label('existing_customer'));
+        $this->assertSame('Повторная обработка базы', LeadSource::label('base_reprocessing'));
     }
 
     public function test_label_returns_original_value_for_unknown_source(): void
