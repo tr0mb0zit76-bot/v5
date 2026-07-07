@@ -15,6 +15,17 @@
             </button>
             <button type="button" :class="buttonClass(false)" @click="setLink">Ссылка</button>
             <button type="button" title="Загрузить файл или картинку" :class="buttonClass(false)" @click="triggerFileUpload">📎</button>
+            <select
+                class="h-7 rounded-md border border-zinc-200 bg-white px-2 pr-7 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                value=""
+                title="Вставить готовый блок"
+                @change="insertQuickBlock($event.target.value); $event.target.value = ''"
+            >
+                <option value="">Блок</option>
+                <option value="callout">Заметка</option>
+                <option value="checklist">Чек-лист</option>
+                <option value="divider">Разделитель</option>
+            </select>
 
             <span class="mx-1 self-stretch w-px bg-zinc-200 dark:bg-zinc-700" aria-hidden="true" />
 
@@ -416,6 +427,16 @@ function insertMarkdown(markdown) {
         .focus()
         .insertContent(markdown, { contentType: 'markdown' })
         .run();
+}
+
+function insertQuickBlock(type) {
+    const blocks = {
+        callout: '\n\n> **Важно:** краткая подсказка для менеджера.\n',
+        checklist: '\n\n- [ ] Первый шаг\n- [ ] Второй шаг\n- [ ] Проверить результат\n',
+        divider: '\n\n---\n',
+    };
+
+    insertMarkdown(blocks[type] ?? '');
 }
 
 function toggleListForSelection(listType) {

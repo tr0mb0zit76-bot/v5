@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-07 19:54 · **HEAD:** `94f1098` · **Ветка:** `master` · **Контекст:** Книга продаж 2.0 — поиск/подборки + SQL-pass
+**Обновлено:** 2026-07-07 20:01 · **HEAD:** `98b4521` · **Ветка:** `master` · **Контекст:** Книга продаж 2.0 — быстрые блоки после коммита
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
@@ -23,6 +23,8 @@
 - Свойство `Проверка` (`review_status`) убрано из MVP-каталога: для публикации уже есть статус статьи `draft/published`.
 - SQL-pass: явной склейки пользовательского ввода в raw SQL не найдено; `DB::unprepared` в `OrderWizardService` заменён на `DB::table(...)->where(...)->delete()`.
 - Проверка: `pwsh -NoProfile -Command "php vendor/bin/pint --dirty --format agent"`; Sales Book tests — 22 passed; Order Wizard tests — 36 passed, 4 skipped; `pwsh -NoProfile -Command "npm run build"` — успешно; IDE lints — без ошибок; `pwsh -File scripts/sync-docs-to-yandex.ps1` — успешно.
+- Коммит: `98b4521` (`Книга продаж: добавить views, blocks и подборки`).
+- После коммита начат следующий шаг к block-UX: в toolbar `TiptapEditor` добавлен compact dropdown `Блок` с быстрыми вставками `Заметка`, `Чек-лист`, `Разделитель`. Проверка после правки: IDE lints — без ошибок; `pwsh -NoProfile -Command "npm run build"` — успешно.
 
 ---
 
