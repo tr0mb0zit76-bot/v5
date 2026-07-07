@@ -21,6 +21,7 @@ use App\Support\PaymentScheduleTableColumns;
 use App\Support\RoleAccess;
 use App\Support\ShowcaseUrl;
 use App\Support\SidebarMenuFavoritesResolver;
+use App\Support\TableColumnsPreset;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -157,7 +158,7 @@ class HandleInertiaRequests extends Middleware
                             ? $visibilityScopes
                             : RoleAccess::defaultVisibilityScopes($roleNameForDefaults),
                         'columns_config' => (function () use ($assignedRoles, $roleNameForDefaults): array {
-                            $columnsConfig = [];
+                            $presetsByTable = [];
 
                             foreach ($assignedRoles as $role) {
                                 $roleConfig = is_array($role->columns_config ?? null)
@@ -165,52 +166,48 @@ class HandleInertiaRequests extends Middleware
                                     : [];
 
                                 foreach ($roleConfig as $table => $preset) {
-                                    if (! is_string($table) || ! is_array($preset)) {
+                                    if (! is_string($table) || ! is_array($preset) || $preset === []) {
                                         continue;
                                     }
 
-                                    if (! isset($columnsConfig[$table])) {
-                                        $columnsConfig[$table] = $preset;
-
-                                        continue;
-                                    }
-
-                                    foreach ($preset as $columnKey => $columnState) {
-                                        if (! is_array($columnState)) {
-                                            continue;
-                                        }
-
-                                        $existing = $columnsConfig[$table][$columnKey] ?? [];
-                                        $columnsConfig[$table][$columnKey] = [
-                                            ...$existing,
-                                            ...$columnState,
-                                            'visible' => (bool) (($existing['visible'] ?? false) || ($columnState['visible'] ?? false)),
-                                        ];
-                                    }
+                                    $presetsByTable[$table][] = $preset;
                                 }
                             }
 
-                            $ordersPreset = $columnsConfig['orders'] ?? OrderTableColumns::defaultState($roleNameForDefaults);
-                            $columnsConfig['orders'] = OrderTableColumns::mergePresetWithCatalog(
-                                is_array($ordersPreset) ? $ordersPreset : [],
-                            );
+                            $resolveMergedPreset = function (string $table, array $presets, callable $defaultState, callable $mergeWithCatalog): array {
+                                if ($presets === []) {
+                                    return $mergeWithCatalog($defaultState());
+                                }
 
-                            $leadsPreset = $columnsConfig['leads'] ?? LeadTableColumns::defaultState($roleNameForDefaults);
-                            $columnsConfig['leads'] = LeadTableColumns::mergePresetWithCatalog(
-                                is_array($leadsPreset) ? $leadsPreset : [],
-                            );
+                                return $mergeWithCatalog(TableColumnsPreset::unionPresetsByColId($presets));
+                            };
 
-                            $contractorsPreset = $columnsConfig['contractors'] ?? ContractorTableColumns::defaultState($roleNameForDefaults);
-                            $columnsConfig['contractors'] = ContractorTableColumns::mergePresetWithCatalog(
-                                is_array($contractorsPreset) ? $contractorsPreset : [],
-                            );
-
-                            $paymentSchedulePreset = $columnsConfig['payment_schedule'] ?? PaymentScheduleTableColumns::defaultState($roleNameForDefaults);
-                            $columnsConfig['payment_schedule'] = PaymentScheduleTableColumns::mergePresetWithCatalog(
-                                is_array($paymentSchedulePreset) ? $paymentSchedulePreset : [],
-                            );
-
-                            return $columnsConfig;
+                            return [
+                                'orders' => $resolveMergedPreset(
+                                    'orders',
+                                    $presetsByTable['orders'] ?? [],
+                                    fn (): array => OrderTableColumns::defaultState($roleNameForDefaults),
+                                    fn (array $preset): array => OrderTableColumns::mergePresetWithCatalog($preset),
+                                ),
+                                'leads' => $resolveMergedPreset(
+                                    'leads',
+                                    $presetsByTable['leads'] ?? [],
+                                    fn (): array => LeadTableColumns::defaultState($roleNameForDefaults),
+                                    fn (array $preset): array => LeadTableColumns::mergePresetWithCatalog($preset),
+                                ),
+                                'contractors' => $resolveMergedPreset(
+                                    'contractors',
+                                    $presetsByTable['contractors'] ?? [],
+                                    fn (): array => ContractorTableColumns::defaultState($roleNameForDefaults),
+                                    fn (array $preset): array => ContractorTableColumns::mergePresetWithCatalog($preset),
+                                ),
+                                'payment_schedule' => $resolveMergedPreset(
+                                    'payment_schedule',
+                                    $presetsByTable['payment_schedule'] ?? [],
+                                    fn (): array => PaymentScheduleTableColumns::defaultState($roleNameForDefaults),
+                                    fn (array $preset): array => PaymentScheduleTableColumns::mergePresetWithCatalog($preset),
+                                ),
+                            ];
                         })(),
                     ];
                 })(),

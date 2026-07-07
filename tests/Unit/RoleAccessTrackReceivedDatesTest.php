@@ -38,4 +38,22 @@ class RoleAccessTrackReceivedDatesTest extends TestCase
 
         $this->assertFalse(RoleAccess::canEditTrackReceivedDates($user));
     }
+
+    public function test_clerk_order_inline_editable_fields_include_track_numbers(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'clerk',
+            'display_name' => 'Делопроизводитель',
+            'permissions' => [],
+            'visibility_areas' => ['orders'],
+        ]);
+
+        $user = User::factory()->make(['role_id' => $role->id]);
+        $user->setRelation('role', $role);
+
+        $fields = RoleAccess::orderInlineEditableFieldsForUser($user);
+
+        $this->assertContains('track_number_customer', $fields);
+        $this->assertContains('track_number_carrier', $fields);
+    }
 }

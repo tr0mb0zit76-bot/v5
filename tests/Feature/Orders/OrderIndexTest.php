@@ -292,7 +292,58 @@ class OrderIndexTest extends TestCase
         $response->assertInertia(fn (Assert $page) => $page
             ->where('roleKey', 'clerk')
             ->has('rows', 2)
+            ->has('orderInlineEditableFields')
         );
+    }
+
+    public function test_clerk_can_inline_update_track_number_on_foreign_order(): void
+    {
+        if (! Schema::hasColumn('orders', 'track_number_customer')) {
+            $this->markTestSkipped('Колонка track_number_customer недоступна.');
+        }
+
+        $clerkRoleId = $this->createRole('clerk', ['orders' => 'all']);
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+
+        $clerk = User::factory()->create();
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $clerk->id)->update(['role_id' => $clerkRoleId]);
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $clerk->role_id = $clerkRoleId;
+
+        $orderId = $this->createOrder('CLERK-TRACK', $manager->id);
+
+        $response = $this->actingAs($clerk)->patch(route('orders.inline-update', $orderId), [
+            'field' => 'track_number_customer',
+            'value' => 'RU123456789',
+        ]);
+
+        $response->assertRedirect(route('orders.index'));
+        $this->assertDatabaseHasOrder([
+            'id' => $orderId,
+            'track_number_customer' => 'RU123456789',
+        ]);
+    }
+
+    public function test_clerk_cannot_inline_update_carrier_rate_on_foreign_order(): void
+    {
+        $clerkRoleId = $this->createRole('clerk', ['orders' => 'all']);
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+
+        $clerk = User::factory()->create();
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $clerk->id)->update(['role_id' => $clerkRoleId]);
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $clerk->role_id = $clerkRoleId;
+
+        $orderId = $this->createOrder('CLERK-NO-RATE', $manager->id);
+
+        $this->actingAs($clerk)->patch(route('orders.inline-update', $orderId), [
+            'field' => 'carrier_rate',
+            'value' => 5000,
+        ])->assertForbidden();
     }
 
     public function test_manager_can_delete_own_order_before_loading(): void

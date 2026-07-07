@@ -148,6 +148,7 @@
                     :available-columns="availableColumns"
                     :role-key="roleKey"
                     :role-columns-config="roleColumnsConfig"
+                    :inline-editable-fields="orderInlineEditableFields"
                     :user-id="userId"
                     :payment-form-select-options="paymentFormOptions"
                     :editable="true"
@@ -210,6 +211,7 @@ const canUseLoadBoard = computed(() => {
     return Boolean(role.is_admin) || role.name === 'admin' || areas.includes('load_board');
 });
 const availableColumns = computed(() => page.props.orderColumns ?? []);
+const orderInlineEditableFields = computed(() => page.props.orderInlineEditableFields ?? []);
 const rows = computed(() => page.props.rows ?? []);
 const orderDateFrom = ref(null);
 const orderDateTo = ref(null);

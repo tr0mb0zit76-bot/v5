@@ -320,6 +320,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  inlineEditableFields: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const page = usePage();
@@ -403,6 +407,8 @@ const baseVisibleFields = [
   'invoice_number',
   'upd_number',
   'waybill_number',
+  'track_number_customer',
+  'track_number_carrier',
 ];
 
 /** В реестре заказов не показываем колонки AI / ATI / metadata и служебную колонку действий. */
@@ -844,6 +850,20 @@ const roleDefaults = {
       'carrier_payment_form',
     ],
   },
+  clerk: {
+    visible: baseVisibleFields.filter((field) => field !== 'salary_paid'),
+    editable: [
+      'invoice_number',
+      'upd_number',
+      'waybill_number',
+      'track_number_customer',
+      'track_sent_date_customer',
+      'track_received_date_customer',
+      'track_number_carrier',
+      'track_sent_date_carrier',
+      'track_received_date_carrier',
+    ],
+  },
 };
 
 const getRoleKey = () => props.roleKey || 'manager';
@@ -878,7 +898,13 @@ const getDefaultVisibleFields = () => {
   return roleDefaults[getRoleKey()]?.visible ?? baseVisibleFields;
 };
 
-const getDefaultEditableFields = () => roleDefaults[getRoleKey()]?.editable ?? [];
+const getDefaultEditableFields = () => {
+  if (Array.isArray(props.inlineEditableFields) && props.inlineEditableFields.length > 0) {
+    return props.inlineEditableFields;
+  }
+
+  return roleDefaults[getRoleKey()]?.editable ?? [];
+};
 
 function isGridCellEditable(columnField, row) {
   if (!getDefaultEditableFields().includes(columnField) || !props.editable) {
@@ -1365,27 +1391,25 @@ const syncModalColumnsWithGrid = () => {
       ...column,
       visible: true,
     }));
+
     return;
   }
 
-  const columnsByField = new Map(allColumns.map((column) => [column.field, column]));
+  const gridColumnsByField = new Map(
+    gridApi.value
+      .getAllGridColumns()
+      .map((gridColumn) => [gridColumn.getColId(), gridColumn]),
+  );
 
-  modalColumns.value = gridApi.value
-    .getAllGridColumns()
-    .map((gridColumn) => {
-      const column = columnsByField.get(gridColumn.getColId());
+  modalColumns.value = allColumns.map((column) => {
+    const gridColumn = gridColumnsByField.get(column.field);
 
-      if (!column) {
-        return null;
-      }
-
-      return {
-        ...column,
-        width: gridColumn.getActualWidth(),
-        visible: gridColumn.isVisible(),
-      };
-    })
-    .filter(Boolean);
+    return {
+      ...column,
+      width: gridColumn?.getActualWidth() ?? column.width,
+      visible: gridColumn ? gridColumn.isVisible() : true,
+    };
+  });
 };
 
 function cloneAgFilterModel(model) {

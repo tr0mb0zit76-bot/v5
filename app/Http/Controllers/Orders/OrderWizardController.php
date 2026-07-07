@@ -540,6 +540,11 @@ class OrderWizardController extends Controller
             return true;
         }
 
+        $field = $request->input('field');
+        if (is_string($field) && RoleAccess::canClerkEditOrderInlineField($user, $field)) {
+            return true;
+        }
+
         if (! $user->isManager()) {
             return false;
         }

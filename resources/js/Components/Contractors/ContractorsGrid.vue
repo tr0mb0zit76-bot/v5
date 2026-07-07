@@ -390,6 +390,7 @@ const CONTRACTORS_SET_FILTER_FIELDS = new Set([
   'status_text',
   'activity_types_label',
   'type_label',
+  'owner_name',
 ]);
 
 const CONTRACTORS_GRID_EXCLUDED_FIELDS = new Set([
@@ -523,11 +524,39 @@ function contractorSetFilterLabel(field, row) {
 function collectContractorSetFilterValues(field) {
   const values = new Set();
 
+  if (field === 'owner_name' && Array.isArray(props.users)) {
+    for (const user of props.users) {
+      const name = String(user?.name ?? '').trim();
+
+      if (name !== '') {
+        values.add(name);
+      }
+    }
+  }
+
   for (const row of props.rows ?? []) {
     values.add(contractorSetFilterLabel(field, row));
   }
 
   return [...values].sort((left, right) => String(left).localeCompare(String(right), 'ru'));
+}
+
+function sanitizeContractorsFilterModel(model) {
+  if (!model || typeof model !== 'object') {
+    return model;
+  }
+
+  const next = { ...model };
+  const ownerFilter = next.owner_name;
+
+  if (
+    ownerFilter
+    && (ownerFilter.filterType === 'text' || typeof ownerFilter.filter === 'string' || typeof ownerFilter.type === 'string')
+  ) {
+    delete next.owner_name;
+  }
+
+  return next;
 }
 
 const getAllColumns = () => {
@@ -963,7 +992,7 @@ const loadPersistedFilterModel = () => {
   }
 
   try {
-    const model = JSON.parse(raw);
+    const model = sanitizeContractorsFilterModel(JSON.parse(raw));
     if (model && typeof model === 'object') {
       gridApi.value.setFilterModel(model);
     }

@@ -118,6 +118,8 @@ class OrderTableColumns
             'invoice_number',
             'upd_number',
             'waybill_number',
+            'track_number_customer',
+            'track_number_carrier',
         ];
 
         return match ($roleName) {

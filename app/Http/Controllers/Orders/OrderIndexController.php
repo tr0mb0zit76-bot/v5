@@ -233,6 +233,7 @@ class OrderIndexController extends Controller
             'rows' => $rows,
             'roleKey' => $roleName ?? 'manager',
             'orderColumns' => OrderTableColumns::options(),
+            'orderInlineEditableFields' => RoleAccess::orderInlineEditableFieldsForUser($user),
             'paymentFormOptions' => PaymentFormDictionary::options(),
         ]);
     }

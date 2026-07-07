@@ -971,6 +971,112 @@ class RoleAccess
     }
 
     /**
+     * @return list<string>
+     */
+    public static function clerkEditableInlineOrderFields(): array
+    {
+        return [
+            'invoice_number',
+            'upd_number',
+            'waybill_number',
+            'track_number_customer',
+            'track_sent_date_customer',
+            'track_received_date_customer',
+            'track_number_carrier',
+            'track_sent_date_carrier',
+            'track_received_date_carrier',
+        ];
+    }
+
+    public static function canClerkEditOrderInlineField(?User $user, string $field): bool
+    {
+        if ($user === null || ! static::userHasRoleName($user, 'clerk')) {
+            return false;
+        }
+
+        return in_array($field, static::clerkEditableInlineOrderFields(), true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function supervisorOrderInlineEditableFields(): array
+    {
+        return [
+            'customer_rate',
+            'carrier_rate',
+            'additional_expenses',
+            'insurance',
+            'bonus',
+            'invoice_number',
+            'upd_number',
+            'waybill_number',
+            'track_number_customer',
+            'track_sent_date_customer',
+            'track_received_date_customer',
+            'track_number_carrier',
+            'track_sent_date_carrier',
+            'track_received_date_carrier',
+            'customer_payment_form',
+            'carrier_payment_form',
+            'manual_status',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function managerOrderInlineEditableFields(): array
+    {
+        return [
+            'customer_rate',
+            'carrier_rate',
+            'additional_expenses',
+            'insurance',
+            'bonus',
+            'invoice_number',
+            'upd_number',
+            'waybill_number',
+            'track_number_customer',
+            'track_sent_date_customer',
+            'track_received_date_customer',
+            'track_number_carrier',
+            'track_sent_date_carrier',
+            'track_received_date_carrier',
+            'customer_payment_form',
+            'carrier_payment_form',
+        ];
+    }
+
+    /**
+     * Поля inline-редактирования в гриде заказов с учётом всех назначенных ролей.
+     *
+     * @return list<string>
+     */
+    public static function orderInlineEditableFieldsForUser(?User $user): array
+    {
+        if ($user === null) {
+            return [];
+        }
+
+        if ($user->isAdmin() || static::userHasRoleName($user, 'supervisor')) {
+            return static::supervisorOrderInlineEditableFields();
+        }
+
+        $fields = [];
+
+        if ($user->isManager()) {
+            $fields = array_merge($fields, static::managerOrderInlineEditableFields());
+        }
+
+        if (static::userHasRoleName($user, 'clerk')) {
+            $fields = array_merge($fields, static::clerkEditableInlineOrderFields());
+        }
+
+        return array_values(array_unique($fields));
+    }
+
+    /**
      * Редактор сценариев (структура версий, узлы, переходы) — только администраторы и роли с доступом к системным настройкам.
      */
     public static function canManageSalesScripts(?User $user): bool
