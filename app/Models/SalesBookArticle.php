@@ -18,12 +18,16 @@ class SalesBookArticle extends Model
         'status',
         'tags',
         'cover_image_path',
+        'properties',
+        'content_format',
+        'blocks_snapshot',
         'created_by',
         'updated_by',
     ];
 
     protected $attributes = [
         'status' => 'published',
+        'content_format' => 'markdown',
     ];
 
     /**
@@ -36,6 +40,8 @@ class SalesBookArticle extends Model
             'sort_order' => 'integer',
             'status' => SalesBookArticleStatus::class,
             'tags' => 'array',
+            'properties' => 'array',
+            'blocks_snapshot' => 'array',
         ];
     }
 

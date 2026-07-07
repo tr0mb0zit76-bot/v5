@@ -3,9 +3,26 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-07 15:58 · **HEAD:** `cd6b841` · **Ветка:** `master` · **Контекст:** грид лидов — inline + массовые действия; источник «Повторная обработка базы»
+**Обновлено:** 2026-07-07 19:54 · **HEAD:** `94f1098` · **Ветка:** `master` · **Контекст:** Книга продаж 2.0 — поиск/подборки + SQL-pass
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано (2026-07-07) — Книга продаж 2.0 / Collabis patterns
+
+- Изучен `@collabis/client` как MIT-референс API-дизайна: `pages`, `blocks`, `databases`, `views`, `search`, block builders, pagination, typed errors.
+- Self-hosted Collabis engine публично не найден; AFFiNE/AppFlowy/Colanode/Bloc/Open-Silong/Docmost рассмотрены как источники идей, не как интеграции.
+- Добавлено ТЗ `docs/sales-book-v2-architecture.md`: эволюция текущей Книги от `markdown_content` к `pages + blocks + properties + views` без внешней интеграции и без резкого переписывания редактора.
+- Реализована фаза 1 локально: миграция `properties/content_format`, `SalesBookPropertyCatalog`, `SalesBookViewService`, системные views (`tree`, `table`, `by-stage`, `manager-materials`), фильтры MCP search по `properties/view_slug`, компактный UI-переключатель views в боковой навигации.
+- UX-корректировка views: отдельное поле `Иконка` убрано (emoji живут прямо в заголовке статьи); центральный обзор `Таблица`/`По этапам`/`Для менеджера` над статьёй удалён, чтобы представления не дублировали навигацию и не забивали контентную область.
+- UX-корректировка панели: дублирующие поля тегов в создании/импорте убраны (теги редактируются в инструментах статьи); drop-зона “вынести в корень” удалена; select-контролы получили правый отступ под системную галочку/стрелку; свойство `Сложность` удалено из каталога; toolbar Tiptap уплотнён — одна скрепка для файлов/картинок и dropdown для цвета/маркера.
+- UX-навигация: в боковую панель добавлены локальный поиск и фильтры по роли/этапу/направлению; при активном поиске дерево отображает плоский список найденных материалов.
+- Реализована фаза 2 foundation локально: миграция `blocks_snapshot`, `SalesBookBlockSnapshotService`, schema `sales_book_blocks_v1`, snapshot при web create/update/import, MCP upsert и sync child-links; MCP `get_sales_book_article(format=blocks|both)`; MCP `upsert_sales_book_article` принимает `markdown_content` или builder-like `blocks`.
+- Реализована фаза 3 foundation локально: block type `article_collection`, Markdown directive `sales-book-view` с JSON, `SalesBookEmbeddedCollectionService`, embedded-подборки материалов внутри статьи в UI; служебный directive скрывается из reader mode; в редактор добавлена вставка подборки без ручного JSON.
+- Свойство `Проверка` (`review_status`) убрано из MVP-каталога: для публикации уже есть статус статьи `draft/published`.
+- SQL-pass: явной склейки пользовательского ввода в raw SQL не найдено; `DB::unprepared` в `OrderWizardService` заменён на `DB::table(...)->where(...)->delete()`.
+- Проверка: `pwsh -NoProfile -Command "php vendor/bin/pint --dirty --format agent"`; Sales Book tests — 22 passed; Order Wizard tests — 36 passed, 4 skipped; `pwsh -NoProfile -Command "npm run build"` — успешно; IDE lints — без ошибок; `pwsh -File scripts/sync-docs-to-yandex.ps1` — успешно.
 
 ---
 

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SalesBookArticle;
+use App\Services\SalesBook\SalesBookBlockSnapshotService;
 use Illuminate\Support\Collection;
 
 class SalesBookParentChildLinksService
@@ -13,6 +14,7 @@ class SalesBookParentChildLinksService
 
     public function __construct(
         private SalesBookArticleTreeService $treeService,
+        private SalesBookBlockSnapshotService $blockSnapshotService,
     ) {}
 
     public function articlePath(int $articleId): string
@@ -76,6 +78,7 @@ class SalesBookParentChildLinksService
 
         $parent->update([
             'markdown_content' => $updatedContent,
+            'blocks_snapshot' => $this->blockSnapshotService->fromStoredMarkdown($updatedContent),
             'updated_by' => $updatedBy,
         ]);
     }

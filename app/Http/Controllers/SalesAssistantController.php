@@ -20,8 +20,11 @@ use App\Models\SalesScript;
 use App\Models\SalesScriptPlaySession;
 use App\Models\User;
 use App\Services\SalesBook\SalesBookArticleFeedbackSummaryService;
+use App\Services\SalesBook\SalesBookBlockSnapshotService;
+use App\Services\SalesBook\SalesBookEmbeddedCollectionService;
 use App\Services\SalesBook\SalesBookQuizAttemptService;
 use App\Services\SalesBook\SalesBookQuizInsightsService;
+use App\Services\SalesBook\SalesBookViewService;
 use App\Services\SalesBookArticleTreeService;
 use App\Services\SalesBookParentChildLinksService;
 use App\Services\SalesMarginCounterService;
@@ -30,6 +33,7 @@ use App\Services\SalesScripts\TrainerFeedbackDigestService;
 use App\Services\SalesScripts\TrainerRubricService;
 use App\Support\RoleAccess;
 use App\Support\SalesBookContentNormalizer;
+use App\Support\SalesBookPropertyCatalog;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -77,22 +81,27 @@ class SalesAssistantController extends Controller
         SalesBookParentChildLinksService $childLinksService,
         SalesBookContentNormalizer $contentNormalizer,
         SalesBookArticleFeedbackSummaryService $feedbackSummaryService,
+        SalesBookViewService $viewService,
+        SalesBookBlockSnapshotService $blockSnapshotService,
+        SalesBookEmbeddedCollectionService $embeddedCollectionService,
     ): Response {
         abort_unless(RoleAccess::canReadSalesBook($request->user()), 403);
 
         $canWriteSalesBook = RoleAccess::canWriteSalesBook($request->user());
+        $activeView = $viewService->resolve($request->query('view'));
         $articles = SalesBookArticle::query()
             ->when(! $canWriteSalesBook, fn ($query) => $query->published())
             ->orderBy('parent_id')
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
+        $viewArticles = $viewService->apply($articles, $activeView['filters']);
 
         $selectedArticleId = $request->integer('article_id');
-        $selectedArticle = $articles->firstWhere('id', $selectedArticleId);
+        $selectedArticle = $viewArticles->firstWhere('id', $selectedArticleId);
 
         if ($selectedArticle === null) {
-            $selectedArticle = $articles->first();
+            $selectedArticle = $viewArticles->first() ?? $articles->first();
         }
 
         if ($selectedArticle !== null) {
@@ -123,7 +132,12 @@ class SalesAssistantController extends Controller
                 'parent_id' => $article->parent_id,
                 'status' => $article->status?->value ?? SalesBookArticleStatus::Published->value,
                 'tags' => $article->tags ?? [],
+                'properties' => SalesBookPropertyCatalog::normalize($article->properties ?? []),
             ])->values(),
+            'bookViews' => $viewService->systemViews(),
+            'activeBookView' => $activeView,
+            'bookViewRows' => $viewService->rows($viewArticles),
+            'salesBookPropertyCatalog' => SalesBookPropertyCatalog::definitions(),
             'directChildPages' => $directChildPages,
             'selectedArticle' => $selectedArticle === null
                 ? null
@@ -134,9 +148,13 @@ class SalesAssistantController extends Controller
                     'sort_order' => $selectedArticle->sort_order,
                     'status' => $selectedArticle->status?->value ?? SalesBookArticleStatus::Published->value,
                     'tags' => $selectedArticle->tags ?? [],
+                    'properties' => SalesBookPropertyCatalog::normalize($selectedArticle->properties ?? []),
+                    'content_format' => $selectedArticle->content_format ?? 'markdown',
                     'cover_image_url' => $this->bookAssetUrl($selectedArticle->cover_image_path),
                     'markdown_content' => $contentNormalizer->forEditor((string) ($selectedArticle->markdown_content ?? '')),
-                    'markdown_content_display' => $contentNormalizer->forReader((string) ($selectedArticle->markdown_content ?? '')),
+                    'markdown_content_display' => $blockSnapshotService->stripCollectionDirectives($contentNormalizer->forReader((string) ($selectedArticle->markdown_content ?? ''))),
+                    'blocks_snapshot' => $blockSnapshotService->forArticle($selectedArticle),
+                    'embedded_collections' => $embeddedCollectionService->forArticle($selectedArticle, $articles),
                     'quiz' => $contentNormalizer->parseQuiz((string) ($selectedArticle->markdown_content ?? '')),
                     'updated_at' => $selectedArticle->updated_at?->toIso8601String(),
                 ],
@@ -247,19 +265,24 @@ class SalesAssistantController extends Controller
         SalesBookArticleTreeService $treeService,
         SalesBookParentChildLinksService $childLinksService,
         SalesBookContentNormalizer $contentNormalizer,
+        SalesBookBlockSnapshotService $blockSnapshotService,
     ): RedirectResponse {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
         $data = $request->validated();
         $parentId = $treeService->resolveParentId($data);
+        $markdown = $this->resolveMarkdownPayload($data, $contentNormalizer);
 
         $article = SalesBookArticle::query()->create([
             'title' => $data['title'],
-            'markdown_content' => $this->resolveMarkdownPayload($data, $contentNormalizer),
+            'markdown_content' => $markdown,
             'parent_id' => $parentId,
             'sort_order' => $this->resolveSortOrder($parentId, $data['sort_order'] ?? null),
             'status' => $data['status'] ?? SalesBookArticleStatus::Draft->value,
             'tags' => $this->normalizeArticleTags($data['tags'] ?? []),
+            'properties' => SalesBookPropertyCatalog::normalize($data['properties'] ?? []),
+            'content_format' => $data['content_format'] ?? 'markdown',
+            'blocks_snapshot' => $blockSnapshotService->fromStoredMarkdown($markdown),
             'created_by' => $request->user()?->id,
             'updated_by' => $request->user()?->id,
         ]);
@@ -278,6 +301,7 @@ class SalesAssistantController extends Controller
         SalesBookArticleTreeService $treeService,
         SalesBookParentChildLinksService $childLinksService,
         SalesBookContentNormalizer $contentNormalizer,
+        SalesBookBlockSnapshotService $blockSnapshotService,
     ): RedirectResponse {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
@@ -301,6 +325,8 @@ class SalesAssistantController extends Controller
             'sort_order' => $sortOrder,
             'status' => $data['status'] ?? $salesBookArticle->status?->value ?? SalesBookArticleStatus::Published->value,
             'tags' => $this->normalizeArticleTags($data['tags'] ?? []),
+            'properties' => SalesBookPropertyCatalog::normalize($data['properties'] ?? []),
+            'content_format' => $data['content_format'] ?? $salesBookArticle->content_format ?? 'markdown',
             'updated_by' => $request->user()?->id,
         ];
 
@@ -312,6 +338,7 @@ class SalesAssistantController extends Controller
                 ),
                 $salesBookArticle->id,
             );
+            $payload['blocks_snapshot'] = $blockSnapshotService->fromStoredMarkdown($payload['markdown_content']);
         }
 
         $salesBookArticle->update($payload);
@@ -381,6 +408,7 @@ class SalesAssistantController extends Controller
         SalesBookArticleTreeService $treeService,
         SalesBookParentChildLinksService $childLinksService,
         SalesBookContentNormalizer $contentNormalizer,
+        SalesBookBlockSnapshotService $blockSnapshotService,
     ): RedirectResponse {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
@@ -398,6 +426,7 @@ class SalesAssistantController extends Controller
             'sort_order' => $this->resolveSortOrder($parentId, $data['sort_order'] ?? null),
             'status' => SalesBookArticleStatus::Draft->value,
             'tags' => $this->normalizeArticleTags($data['tags'] ?? []),
+            'blocks_snapshot' => $blockSnapshotService->fromStoredMarkdown($markdown),
             'created_by' => $request->user()?->id,
             'updated_by' => $request->user()?->id,
         ]);

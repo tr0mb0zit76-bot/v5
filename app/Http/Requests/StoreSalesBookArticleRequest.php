@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\SalesBookArticleStatus;
 use App\Models\SalesBookArticle;
+use App\Support\SalesBookPropertyCatalog;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -43,6 +44,22 @@ class StoreSalesBookArticleRequest extends FormRequest
             'status' => ['nullable', 'string', Rule::enum(SalesBookArticleStatus::class)],
             'tags' => ['nullable', 'array', 'max:20'],
             'tags.*' => ['string', 'max:50'],
+            'content_format' => ['nullable', 'string', Rule::in(['markdown'])],
+            'properties' => ['nullable', 'array'],
+            'properties.*' => ['nullable'],
         ];
+    }
+
+    public function validated($key = null, $default = null)
+    {
+        $validated = parent::validated($key, $default);
+
+        if ($key !== null || ! is_array($validated)) {
+            return $validated;
+        }
+
+        $validated['properties'] = SalesBookPropertyCatalog::normalize($validated['properties'] ?? []);
+
+        return $validated;
     }
 }

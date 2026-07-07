@@ -10,7 +10,7 @@
 
 ## Домены (Components)
 
-- [[Orders]] · [[Leads]] · [[Contractors]] · [[Sales Assistant]] · [[Sales Scripts Editor]]
+- [[Orders]] · [[Leads]] · [[Contractors]] · [[Sales Assistant]] · [[Sales Book]] · [[Sales Scripts Editor]]
 - [[Finance]] · [[Management Accounting]] · [[Fleet]] · [[Mail]] · [[Documents]]
 - [[Tasks and Kanban]] · [[Reports]] · [[Roles and Users]] · [[Settings]]
 - [[Utility Modules]] · [[Import Cost Calculator]] · [[Commercial Roadmap]] · [[Integrations]]
@@ -40,6 +40,7 @@
 | **Commercial roadmap (1–5)** | `v5-local-Components-Commercial-Roadmap.md` |
 | **Собственный парк / Рейсы** | `v5-local-Components-Fleet-Own-Fleet.md` |
 | **Документы / реестр / track received** | `v5-local-Components-Documents-Registry.md` |
+| **Книга продаж** | `v5-local-Components-Sales-Book.md` |
 | Растаможка | `v5-local-Components-Import-Cost-Calculator.md` |
 | Управленческий учёт | `v5-local-Components-Management-Accounting.md` |
 | QR / verify печати | `v5-local-Components-Print-Forms-Verification.md` |

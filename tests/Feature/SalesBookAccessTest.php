@@ -137,6 +137,112 @@ class SalesBookAccessTest extends TestCase
             );
     }
 
+    public function test_writer_can_save_sales_book_article_properties(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'writer_manager',
+            'display_name' => 'Writer manager',
+            'permissions' => ['sales_book_write'],
+            'visibility_areas' => ['scripts', 'sales_assistant_book'],
+        ]);
+
+        $user = User::factory()->create(['role_id' => $role->id]);
+
+        $article = SalesBookArticle::query()->create([
+            'title' => 'Материал по КП',
+            'markdown_content' => 'Исходный текст',
+            'sort_order' => 0,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->patch(route('sales-assistant.book.articles.update', $article), [
+                'title' => 'Материал по КП',
+                'markdown_content' => 'Обновленный текст',
+                'status' => 'published',
+                'tags' => ['КП'],
+                'content_format' => 'markdown',
+                'properties' => [
+                    'audience_role' => 'manager',
+                    'sales_stage' => 'offer',
+                    'unknown' => 'drop-me',
+                ],
+            ])
+            ->assertRedirect(route('sales-assistant.book', ['article_id' => $article->id]));
+
+        $article->refresh();
+
+        $this->assertSame('markdown', $article->content_format);
+        $this->assertEquals([
+            'audience_role' => 'manager',
+            'sales_stage' => 'offer',
+        ], $article->properties);
+        $this->assertSame('sales_book_blocks_v1', $article->blocks_snapshot['schema']);
+        $this->assertSame('paragraph', $article->blocks_snapshot['blocks'][0]['type']);
+        $this->assertSame('Обновленный текст', $article->blocks_snapshot['blocks'][0]['text']);
+    }
+
+    public function test_book_page_resolves_embedded_article_collections(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'reader_manager',
+            'display_name' => 'Reader manager',
+            'permissions' => ['sales_book_read'],
+            'visibility_areas' => ['scripts', 'sales_assistant_book'],
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+        ]);
+
+        $navigator = SalesBookArticle::query()->create([
+            'title' => 'Навигатор КП',
+            'markdown_content' => <<<'MD'
+# Навигатор КП
+
+```sales-book-view
+{
+  "title": "КП для менеджера",
+  "view_slug": "manager-materials",
+  "filters": {"sales_stage": "offer"},
+  "limit": 5
+}
+```
+MD,
+            'sort_order' => 0,
+        ]);
+
+        $matching = SalesBookArticle::query()->create([
+            'title' => 'Как отправить КП',
+            'markdown_content' => 'Инструкция.',
+            'sort_order' => 1,
+            'properties' => [
+                'audience_role' => 'manager',
+                'sales_stage' => 'offer',
+            ],
+        ]);
+
+        SalesBookArticle::query()->create([
+            'title' => 'Материал для логиста',
+            'markdown_content' => 'Не должен попасть.',
+            'sort_order' => 2,
+            'properties' => [
+                'audience_role' => 'logist',
+                'sales_stage' => 'offer',
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('sales-assistant.book', ['article_id' => $navigator->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('selectedArticle.embedded_collections.0.title', 'КП для менеджера')
+                ->where('selectedArticle.embedded_collections.0.rows.0.id', $matching->id)
+                ->where('selectedArticle.embedded_collections.0.rows.0.title', 'Как отправить КП')
+                ->where('selectedArticle.markdown_content_display', '# Навигатор КП')
+            );
+    }
+
     public function test_book_page_is_forbidden_without_book_visibility_area(): void
     {
         $role = Role::query()->create([

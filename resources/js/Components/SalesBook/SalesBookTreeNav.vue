@@ -1,18 +1,5 @@
 <template>
     <div class="space-y-1">
-        <div
-            v-if="canWrite"
-            class="rounded-lg border border-dashed px-2 py-1.5 text-xs transition"
-            :class="rootDropActive
-                ? 'border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-200'
-                : 'border-zinc-300 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400'"
-            @dragover.prevent="rootDropActive = true"
-            @dragleave="rootDropActive = false"
-            @drop.prevent="onRootDrop"
-        >
-            Перетащите сюда, чтобы вынести в корень
-        </div>
-
         <SalesBookTreeNavNode
             :nodes="tree"
             :depth="0"
@@ -60,7 +47,6 @@ const emit = defineEmits(['select', 'move']);
 const expandedIds = ref(new Set());
 const draggingId = ref(null);
 const dropHint = ref(null);
-const rootDropActive = ref(false);
 
 watch(
     () => props.selectedId,
@@ -171,7 +157,6 @@ function onDragStart(id) {
 function onDragEnd() {
     draggingId.value = null;
     dropHint.value = null;
-    rootDropActive.value = false;
 }
 
 function onDragOver(payload) {
@@ -194,19 +179,4 @@ function onDrop(payload) {
     onDragEnd();
 }
 
-function onRootDrop() {
-    if (draggingId.value === null) {
-        rootDropActive.value = false;
-
-        return;
-    }
-
-    emit('move', {
-        id: draggingId.value,
-        parent_id: null,
-        sort_order: props.tree.length,
-    });
-
-    onDragEnd();
-}
 </script>

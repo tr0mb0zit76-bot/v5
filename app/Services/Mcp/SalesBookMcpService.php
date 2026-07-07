@@ -5,9 +5,12 @@ namespace App\Services\Mcp;
 use App\Enums\SalesBookArticleStatus;
 use App\Models\SalesBookArticle;
 use App\Models\User;
+use App\Services\SalesBook\SalesBookBlockSnapshotService;
+use App\Services\SalesBook\SalesBookViewService;
 use App\Services\SalesBookParentChildLinksService;
 use App\Support\RoleAccess;
 use App\Support\SalesBookContentNormalizer;
+use App\Support\SalesBookPropertyCatalog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use RuntimeException;
 
@@ -16,6 +19,8 @@ final class SalesBookMcpService
     public function __construct(
         private readonly SalesBookContentNormalizer $contentNormalizer,
         private readonly SalesBookParentChildLinksService $childLinksService,
+        private readonly SalesBookViewService $viewService,
+        private readonly SalesBookBlockSnapshotService $blockSnapshotService,
     ) {}
 
     /**
@@ -25,16 +30,23 @@ final class SalesBookMcpService
      *     parent_id: int|null,
      *     parent_title: string|null,
      *     tags: list<string>,
+     *     properties: array<string, mixed>,
+     *     property_labels: array<string, string>,
      *     matched_in: string|null,
      *     excerpt: string|null
      * }>}
      */
-    public function search(User $user, string $query, int $limit): array
+    public function search(User $user, string $query, int $limit, array $propertyFilters = [], ?string $viewSlug = null): array
     {
         $this->ensureCanRead($user);
 
         $limit = max(1, min($limit, 50));
         $trimmedQuery = trim($query);
+        $activeView = $this->viewService->resolve($viewSlug);
+        $filters = array_filter([
+            ...$activeView['filters'],
+            ...SalesBookPropertyCatalog::normalize($propertyFilters),
+        ], fn (mixed $value): bool => $value !== null && $value !== '' && $value !== []);
 
         $builder = SalesBookArticle::query()
             ->published()
@@ -63,8 +75,12 @@ final class SalesBookMcpService
             }
         }
 
-        $fetchLimit = $trimmedQuery !== '' ? min(100, $limit * 3) : $limit;
+        $fetchLimit = $trimmedQuery !== '' || $filters !== [] ? min(200, max($limit * 5, 50)) : $limit;
         $articles = $builder->limit($fetchLimit)->get();
+
+        if ($filters !== []) {
+            $articles = $this->viewService->apply($articles, $filters);
+        }
 
         if ($trimmedQuery !== '') {
             $articles = $articles
@@ -75,6 +91,8 @@ final class SalesBookMcpService
                 ->values()
                 ->take($limit);
         }
+
+        $articles = $articles->values()->take($limit);
 
         $parentsById = SalesBookArticle::query()
             ->published()
@@ -90,6 +108,8 @@ final class SalesBookMcpService
                     ? (string) ($parentsById[$article->parent_id] ?? null)
                     : null,
                 'tags' => $this->normalizeTags($article->tags ?? []),
+                'properties' => SalesBookPropertyCatalog::normalize($article->properties ?? []),
+                'property_labels' => $this->propertyLabels($article),
                 'matched_in' => $this->resolveMatchedIn($article, $trimmedQuery),
                 'excerpt' => $this->buildSearchExcerpt($article, $trimmedQuery),
             ])->values()->all(),
@@ -104,13 +124,16 @@ final class SalesBookMcpService
      *     parent_title: string|null,
      *     breadcrumb: list<array{id: int, title: string}>,
      *     tags: list<string>,
-     *     markdown_content: string,
+     *     properties: array<string, mixed>,
+     *     property_labels: array<string, string>,
+     *     markdown_content?: string,
+     *     blocks_snapshot?: array<string, mixed>,
      *     content_truncated: bool,
      *     book_url: string,
      *     updated_at: string|null
      * }}
      */
-    public function get(User $user, int $articleId, ?int $maxChars = null): array
+    public function get(User $user, int $articleId, ?int $maxChars = null, string $format = 'markdown'): array
     {
         $this->ensureCanRead($user);
 
@@ -124,6 +147,7 @@ final class SalesBookMcpService
         $maxChars ??= (int) config('ai.sales_book.article_max_chars', 12000);
         $markdown = $this->contentNormalizer->forReader((string) ($article->markdown_content ?? ''));
         $contentTruncated = false;
+        $format = in_array($format, ['markdown', 'blocks', 'both'], true) ? $format : 'markdown';
 
         if (mb_strlen($markdown) > $maxChars) {
             $markdown = rtrim(mb_substr($markdown, 0, $maxChars))."\n\n…";
@@ -138,20 +162,29 @@ final class SalesBookMcpService
                 ->value('title');
         }
 
-        return [
-            'article' => [
-                'id' => $article->id,
-                'title' => $article->title,
-                'parent_id' => $article->parent_id,
-                'parent_title' => is_string($parentTitle) ? $parentTitle : null,
-                'breadcrumb' => $this->buildBreadcrumb($article),
-                'tags' => $this->normalizeTags($article->tags ?? []),
-                'markdown_content' => $markdown,
-                'content_truncated' => $contentTruncated,
-                'book_url' => route('sales-assistant.book', ['article_id' => $article->id]),
-                'updated_at' => $article->updated_at?->toIso8601String(),
-            ],
+        $payload = [
+            'id' => $article->id,
+            'title' => $article->title,
+            'parent_id' => $article->parent_id,
+            'parent_title' => is_string($parentTitle) ? $parentTitle : null,
+            'breadcrumb' => $this->buildBreadcrumb($article),
+            'tags' => $this->normalizeTags($article->tags ?? []),
+            'properties' => SalesBookPropertyCatalog::normalize($article->properties ?? []),
+            'property_labels' => $this->propertyLabels($article),
+            'content_truncated' => $contentTruncated,
+            'book_url' => route('sales-assistant.book', ['article_id' => $article->id]),
+            'updated_at' => $article->updated_at?->toIso8601String(),
         ];
+
+        if (in_array($format, ['markdown', 'both'], true)) {
+            $payload['markdown_content'] = $markdown;
+        }
+
+        if (in_array($format, ['blocks', 'both'], true)) {
+            $payload['blocks_snapshot'] = $this->blocksSnapshotFor($article);
+        }
+
+        return ['article' => $payload];
     }
 
     /**
@@ -199,13 +232,16 @@ final class SalesBookMcpService
             $markdown = '# '.$parentTitle;
         }
 
+        $normalizedMarkdown = $this->contentNormalizer->normalize($markdown);
+
         return SalesBookArticle::query()->create([
             'title' => $parentTitle,
-            'markdown_content' => $this->contentNormalizer->normalize($markdown),
+            'markdown_content' => $normalizedMarkdown,
             'parent_id' => null,
             'sort_order' => $this->resolveRootSortOrder(),
             'status' => SalesBookArticleStatus::Published->value,
             'tags' => [],
+            'blocks_snapshot' => $this->blockSnapshotService->fromStoredMarkdown($normalizedMarkdown),
             'created_by' => $user->id,
             'updated_by' => $user->id,
         ]);
@@ -219,13 +255,18 @@ final class SalesBookMcpService
         ?int $sortOrder = null,
         array $tags = [],
         bool $createParentIfMissing = false,
+        array $blocks = [],
     ): array {
         $this->ensureCanWrite($user);
 
         $parent = $createParentIfMissing
             ? $this->ensureParentPage($user, $parentTitle)
             : $this->resolveParentByTitle($parentTitle);
-        $normalizedMarkdown = $this->contentNormalizer->normalize($markdownContent);
+        $normalizedMarkdown = $this->contentNormalizer->normalize(
+            $blocks !== []
+                ? $this->blockSnapshotService->markdownFromBlocks($blocks)
+                : $markdownContent,
+        );
         $childTitle = trim($childTitle);
 
         $article = SalesBookArticle::query()
@@ -241,6 +282,7 @@ final class SalesBookMcpService
                 'markdown_content' => $normalizedMarkdown,
                 'sort_order' => $sortOrder ?? $article->sort_order,
                 'tags' => $this->normalizeTags($tags),
+                'blocks_snapshot' => $this->blockSnapshotService->fromStoredMarkdown($normalizedMarkdown),
                 'updated_by' => $user->id,
             ]);
         } else {
@@ -251,6 +293,7 @@ final class SalesBookMcpService
                 'sort_order' => $this->resolveSortOrder($parent->id, $sortOrder),
                 'status' => SalesBookArticleStatus::Draft->value,
                 'tags' => $this->normalizeTags($tags),
+                'blocks_snapshot' => $this->blockSnapshotService->fromStoredMarkdown($normalizedMarkdown),
                 'created_by' => $user->id,
                 'updated_by' => $user->id,
             ]);
@@ -442,6 +485,39 @@ final class SalesBookMcpService
             ->max('sort_order');
 
         return $maxSortOrder + 1;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function propertyLabels(SalesBookArticle $article): array
+    {
+        $properties = SalesBookPropertyCatalog::normalize($article->properties ?? []);
+        $labels = SalesBookPropertyCatalog::optionLabelsByProperty();
+
+        return collect($properties)
+            ->mapWithKeys(function (mixed $value, string $key) use ($labels): array {
+                if (is_array($value)) {
+                    return [
+                        $key => collect($value)
+                            ->map(fn (mixed $item): string => $labels[$key][(string) $item] ?? (string) $item)
+                            ->implode(', '),
+                    ];
+                }
+
+                return [
+                    $key => $labels[$key][(string) $value] ?? (string) $value,
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function blocksSnapshotFor(SalesBookArticle $article): array
+    {
+        return $this->blockSnapshotService->forArticle($article);
     }
 
     /**

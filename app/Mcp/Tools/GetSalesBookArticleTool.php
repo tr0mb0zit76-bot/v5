@@ -29,6 +29,7 @@ class GetSalesBookArticleTool extends Tool
             $validated = $request->validate([
                 'article_id' => ['required', 'integer', 'min:1'],
                 'max_chars' => ['nullable', 'integer', 'min:500', 'max:50000'],
+                'format' => ['nullable', 'string', 'in:markdown,blocks,both'],
             ]);
 
             try {
@@ -36,6 +37,7 @@ class GetSalesBookArticleTool extends Tool
                     $user,
                     (int) $validated['article_id'],
                     isset($validated['max_chars']) ? (int) $validated['max_chars'] : null,
+                    (string) ($validated['format'] ?? 'markdown'),
                 );
             } catch (ModelNotFoundException) {
                 return Response::error('Страница Книги продаж не найдена.');
@@ -59,6 +61,9 @@ class GetSalesBookArticleTool extends Tool
                 ->description('Лимит символов текста (по умолчанию из конфигурации).')
                 ->min(500)
                 ->max(50000),
+            'format' => $schema->string()
+                ->description('Формат ответа: markdown (по умолчанию), blocks или both.')
+                ->enum(['markdown', 'blocks', 'both']),
         ];
     }
 }

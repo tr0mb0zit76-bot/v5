@@ -959,16 +959,12 @@ class OrderWizardService
 
     private function deleteOrderLegRows(Order $order): void
     {
-        $orderId = (int) $order->id;
-
-        DB::unprepared("DELETE FROM order_legs WHERE order_id = {$orderId}");
+        DB::table('order_legs')->where('order_id', $order->id)->delete();
     }
 
     private function deleteCargoRowsForOrder(Order $order): void
     {
-        $orderId = (int) $order->id;
-
-        DB::unprepared("DELETE FROM cargos WHERE order_id = {$orderId}");
+        DB::table('cargos')->where('order_id', $order->id)->delete();
     }
 
     /**

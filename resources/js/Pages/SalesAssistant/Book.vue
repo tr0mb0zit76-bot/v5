@@ -12,15 +12,9 @@
                     placeholder="Новый заголовок страницы"
                     class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
                 />
-                <input
-                    v-model="createForm.tags_text"
-                    type="text"
-                    placeholder="Теги через запятую"
-                    class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-                />
                 <select
                     v-model="createForm.parent_id"
-                    class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                    class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 pr-8 text-sm dark:border-zinc-700 dark:bg-zinc-900"
                 >
                     <option value="">Без родителя</option>
                     <option v-for="option in indentedArticleOptions" :key="option.id" :value="String(option.id)">
@@ -45,19 +39,13 @@
                 />
                 <select
                     v-model="importForm.parent_id"
-                    class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                    class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 pr-8 text-sm dark:border-zinc-700 dark:bg-zinc-900"
                 >
                     <option value="">Импорт в корень</option>
                     <option v-for="option in indentedArticleOptions" :key="`import-${option.id}`" :value="String(option.id)">
                         {{ option.label }}
                     </option>
                 </select>
-                <input
-                    v-model="importForm.tags_text"
-                    type="text"
-                    placeholder="Теги импортируемой статьи"
-                    class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-                />
                 <button
                     type="submit"
                     :disabled="importForm.processing"
@@ -67,10 +55,61 @@
                 </button>
             </form>
 
+            <div class="mt-3 shrink-0 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                <label class="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400" for="sales-book-view">
+                    Представление
+                </label>
+                <select
+                    id="sales-book-view"
+                    class="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 pr-8 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                    :value="activeBookView.slug"
+                    @change="openBookView($event.target.value)"
+                >
+                    <option
+                        v-for="view in bookViews"
+                        :key="view.slug"
+                        :value="view.slug"
+                    >
+                        {{ view.label }}
+                    </option>
+                </select>
+                <p class="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">{{ activeBookView.description }}</p>
+            </div>
+
+            <div class="mt-3 shrink-0 space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                <input
+                    v-model="sidebarSearch"
+                    type="search"
+                    placeholder="Найти материал..."
+                    class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                />
+                <div class="grid grid-cols-1 gap-1">
+                    <select
+                        v-for="definition in sidebarFilterDefinitions"
+                        :key="`sidebar-filter-${definition.key}`"
+                        v-model="sidebarFilters[definition.key]"
+                        class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 pr-8 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                    >
+                        <option value="">{{ definition.label }}: все</option>
+                        <option v-for="option in definition.options" :key="`${definition.key}-${option.value}`" :value="option.value">
+                            {{ option.label }}
+                        </option>
+                    </select>
+                </div>
+                <button
+                    v-if="sidebarFiltersActive"
+                    type="button"
+                    class="text-xs font-medium text-sky-700 hover:text-sky-800 dark:text-sky-300 dark:hover:text-sky-200"
+                    @click="resetSidebarFilters"
+                >
+                    Сбросить поиск и фильтры
+                </button>
+            </div>
+
             <div class="mt-3 min-h-0 flex-1 overflow-y-auto border-t border-zinc-100 pt-3 dark:border-zinc-800">
                 <p v-if="articlesTree.length === 0" class="text-sm text-zinc-500">Пока нет страниц.</p>
                 <SalesBookTreeNav
-                    v-else
+                    v-else-if="activeBookView.layout === 'tree' && !sidebarFiltersActive"
                     :tree="articlesTree"
                     :article-options="articleOptions"
                     :selected-id="selectedArticle?.id ?? null"
@@ -78,6 +117,48 @@
                     @select="openArticle"
                     @move="moveArticle"
                 />
+                <div v-else-if="activeBookView.layout === 'stage'" class="space-y-3">
+                    <p v-if="filteredBookViewRows.length === 0" class="text-sm text-zinc-500">Нет материалов по текущим условиям.</p>
+                    <div v-for="group in groupedRowsByStage" :key="group.value" class="space-y-1">
+                        <p class="px-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                            {{ group.label }}
+                        </p>
+                        <button
+                            v-for="row in group.rows"
+                            :key="`stage-row-${row.id}`"
+                            type="button"
+                            class="block w-full rounded-lg px-2 py-1.5 text-left text-xs transition"
+                            :class="row.id === selectedArticle?.id
+                                ? 'bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-100'
+                                : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800'"
+                            @click="openArticle(row.id)"
+                        >
+                            <span class="font-medium">{{ row.title }}</span>
+                            <span v-if="row.property_labels?.audience_role" class="mt-0.5 block text-[11px] text-zinc-500">
+                                {{ row.property_labels.audience_role }}
+                            </span>
+                        </button>
+                    </div>
+                </div>
+                <div v-else class="space-y-1">
+                    <p v-if="filteredNavigationRows.length === 0" class="text-sm text-zinc-500">Нет материалов по текущим условиям.</p>
+                    <button
+                        v-for="row in filteredNavigationRows"
+                        :key="`nav-row-${row.id}`"
+                        type="button"
+                        class="block w-full rounded-lg px-2 py-1.5 text-left text-xs transition"
+                        :class="row.id === selectedArticle?.id
+                            ? 'bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-100'
+                            : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800'"
+                        @click="openArticle(row.id)"
+                    >
+                        <span class="font-medium">{{ row.title }}</span>
+                        <span class="mt-0.5 block truncate text-[11px] text-zinc-500">
+                            {{ propertyLabelForRow(row, 'audience_role') || 'Без роли' }}
+                            <template v-if="propertyLabelForRow(row, 'sales_stage')"> · {{ propertyLabelForRow(row, 'sales_stage') }}</template>
+                        </span>
+                    </button>
+                </div>
             </div>
         </aside>
 
@@ -162,7 +243,7 @@
                         <span>Родитель:</span>
                         <select
                             v-model="editForm.parent_id"
-                            class="rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                            class="rounded-md border border-zinc-200 bg-white px-2 py-1 pr-8 text-xs dark:border-zinc-700 dark:bg-zinc-900"
                         >
                             <option value="">Корень</option>
                             <option v-for="option in parentOptionsForEdit" :key="`edit-${option.id}`" :value="String(option.id)">
@@ -172,7 +253,7 @@
                         <span>Статус:</span>
                         <select
                             v-model="editForm.status"
-                            class="rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                            class="rounded-md border border-zinc-200 bg-white px-2 py-1 pr-8 text-xs dark:border-zinc-700 dark:bg-zinc-900"
                         >
                             <option v-for="option in articleStatusOptions" :key="option.value" :value="option.value">
                                 {{ option.label }}
@@ -185,6 +266,36 @@
                             placeholder="через запятую"
                             class="min-w-[12rem] rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
                         />
+                        <template v-for="definition in propertyDefinitions" :key="definition.key">
+                            <span>{{ definition.label }}:</span>
+                            <select
+                                v-model="editForm.properties[definition.key]"
+                                class="rounded-md border border-zinc-200 bg-white px-2 py-1 pr-8 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                            >
+                                <option value="">Не задано</option>
+                                <option v-for="option in definition.options" :key="`${definition.key}-${option.value}`" :value="option.value">
+                                    {{ option.label }}
+                                </option>
+                            </select>
+                        </template>
+                        <template v-if="collectionInsertViews.length > 0">
+                            <span>Подборка:</span>
+                            <select
+                                v-model="collectionInsertViewSlug"
+                                class="rounded-md border border-zinc-200 bg-white px-2 py-1 pr-8 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                            >
+                                <option v-for="view in collectionInsertViews" :key="`collection-view-${view.slug}`" :value="view.slug">
+                                    {{ view.label }}
+                                </option>
+                            </select>
+                            <button
+                                type="button"
+                                :class="`${crmBtnNeutral} px-2 py-1 text-xs`"
+                                @click="insertEmbeddedCollection"
+                            >
+                                Вставить
+                            </button>
+                        </template>
                         <span v-if="selectedArticle.updated_at">Обновлено: {{ formatDate(selectedArticle.updated_at) }}</span>
                     </div>
 
@@ -316,6 +427,16 @@
                         </span>
                     </div>
 
+                    <div v-if="selectedArticlePropertyBadges.length > 0" class="flex shrink-0 flex-wrap gap-1">
+                        <span
+                            v-for="badge in selectedArticlePropertyBadges"
+                            :key="`readonly-property-${badge.key}`"
+                            class="rounded-full border border-sky-100 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200"
+                        >
+                            {{ badge.label }}: {{ badge.value }}
+                        </span>
+                    </div>
+
                     <div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
                         <TiptapEditor
                             :key="readonlyEditorKey"
@@ -324,6 +445,49 @@
                             :editable="false"
                             placeholder=""
                         />
+
+                        <div v-if="selectedArticleEmbeddedCollections.length > 0" class="mt-4 space-y-3">
+                            <section
+                                v-for="collection in selectedArticleEmbeddedCollections"
+                                :key="collection.block_id"
+                                class="rounded-xl border border-sky-100 bg-sky-50/60 p-3 dark:border-sky-900 dark:bg-sky-950/20"
+                            >
+                                <div class="mb-2 flex items-center justify-between gap-3">
+                                    <div>
+                                        <h3 class="text-sm font-semibold text-sky-950 dark:text-sky-100">
+                                            {{ collection.title }}
+                                        </h3>
+                                        <p class="text-xs text-sky-700/80 dark:text-sky-200/75">
+                                            Автоподборка · {{ collection.rows.length }} материалов
+                                        </p>
+                                    </div>
+                                    <span class="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-zinc-900 dark:text-sky-200">
+                                        {{ collection.view_slug }}
+                                    </span>
+                                </div>
+
+                                <div v-if="collection.rows.length === 0" class="rounded-lg border border-dashed border-sky-200 bg-white/70 px-3 py-2 text-xs text-sky-800 dark:border-sky-900 dark:bg-zinc-950/50 dark:text-sky-200">
+                                    В этой подборке пока нет материалов.
+                                </div>
+                                <div v-else class="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                    <button
+                                        v-for="row in collection.rows"
+                                        :key="`embedded-${collection.block_id}-${row.id}`"
+                                        type="button"
+                                        class="rounded-lg border border-white bg-white px-3 py-2 text-left text-xs shadow-sm transition hover:border-sky-200 hover:bg-sky-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-sky-900 dark:hover:bg-sky-950/40"
+                                        @click="openArticle(row.id)"
+                                    >
+                                        <span class="block truncate font-semibold text-zinc-900 dark:text-zinc-50">
+                                            {{ row.title }}
+                                        </span>
+                                        <span class="mt-1 block truncate text-[11px] text-zinc-500">
+                                            {{ row.property_labels?.audience_role || 'Без роли' }}
+                                            <template v-if="row.property_labels?.sales_stage"> · {{ row.property_labels.sales_stage }}</template>
+                                        </span>
+                                    </button>
+                                </div>
+                            </section>
+                        </div>
 
                         <SalesBookQuiz
                             v-if="selectedArticleQuiz"
@@ -385,6 +549,22 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    bookViews: {
+        type: Array,
+        default: () => [],
+    },
+    activeBookView: {
+        type: Object,
+        default: () => ({ slug: 'tree', label: 'Дерево', layout: 'tree', filters: {} }),
+    },
+    bookViewRows: {
+        type: Array,
+        default: () => [],
+    },
+    salesBookPropertyCatalog: {
+        type: Array,
+        default: () => [],
+    },
     selectedArticle: {
         type: Object,
         default: null,
@@ -412,13 +592,11 @@ const page = usePage();
 const createForm = useForm({
     title: '',
     parent_id: '',
-    tags_text: '',
 });
 
 const importForm = useForm({
     file: null,
     parent_id: '',
-    tags_text: '',
 });
 
 const editForm = useForm({
@@ -427,6 +605,7 @@ const editForm = useForm({
     parent_id: '',
     status: 'published',
     tags_text: '',
+    properties: {},
 });
 
 const feedbackForm = useForm({
@@ -441,6 +620,13 @@ const coverInputRef = ref(null);
 const coverUploading = ref(false);
 const coverError = ref('');
 const readerPreview = ref(false);
+const sidebarSearch = ref('');
+const sidebarFilters = ref({
+    audience_role: '',
+    sales_stage: '',
+    product_area: '',
+});
+const collectionInsertViewSlug = ref('manager-materials');
 
 const readonlyEditorKey = computed(() => {
     if (!props.selectedArticle) {
@@ -487,6 +673,58 @@ const parentOptionsForEdit = computed(() => {
 
 const selectedArticleTags = computed(() => normalizeTags(props.selectedArticle?.tags ?? []));
 const selectedArticleQuiz = computed(() => props.selectedArticle?.quiz ?? null);
+const selectedArticleEmbeddedCollections = computed(() => props.selectedArticle?.embedded_collections ?? []);
+const propertyDefinitions = computed(() => props.salesBookPropertyCatalog ?? []);
+const collectionInsertViews = computed(() => props.bookViews.filter((view) => view.slug !== 'tree'));
+const sidebarFilterDefinitions = computed(() => propertyDefinitions.value.filter((definition) => [
+    'audience_role',
+    'sales_stage',
+    'product_area',
+].includes(definition.key)));
+const selectedArticlePropertyBadges = computed(() => propertyDefinitions.value
+    .map((definition) => {
+        const value = props.selectedArticle?.properties?.[definition.key] ?? '';
+        const option = definition.options?.find((candidate) => candidate.value === value);
+
+        return option ? { key: definition.key, label: definition.label, value: option.label } : null;
+    })
+    .filter(Boolean));
+const groupedRowsByStage = computed(() => {
+    const stageDefinition = propertyDefinitions.value.find((definition) => definition.key === 'sales_stage');
+    const labels = new Map((stageDefinition?.options ?? []).map((option) => [option.value, option.label]));
+    const groups = new Map();
+
+    filteredBookViewRows.value.forEach((row) => {
+        const value = row.properties?.sales_stage || 'without-stage';
+        const label = labels.get(value) ?? 'Без этапа';
+        const group = groups.get(value) ?? { value, label, rows: [] };
+        group.rows.push(row);
+        groups.set(value, group);
+    });
+
+    return Array.from(groups.values());
+});
+const sidebarFiltersActive = computed(() => {
+    if (sidebarSearch.value.trim() !== '') {
+        return true;
+    }
+
+    return Object.values(sidebarFilters.value).some((value) => value !== '');
+});
+const navigationRows = computed(() => {
+    if (props.activeBookView.layout === 'tree') {
+        return props.articleOptions.map((article) => ({
+            id: article.id,
+            title: article.title,
+            tags: normalizeTags(article.tags ?? []),
+            properties: article.properties ?? {},
+        }));
+    }
+
+    return props.bookViewRows;
+});
+const filteredBookViewRows = computed(() => props.bookViewRows.filter(rowMatchesSidebarFilters));
+const filteredNavigationRows = computed(() => navigationRows.value.filter(rowMatchesSidebarFilters));
 
 watch(
     () => props.selectedArticle,
@@ -504,6 +742,7 @@ watch(
             parent_id: value.parent_id ? String(value.parent_id) : '',
             status: value.status ?? 'published',
             tags_text: formatTags(value.tags ?? []),
+            properties: normalizeProperties(value.properties ?? {}),
         });
 
         if (articleChanged || serverMarkdownChanged) {
@@ -514,6 +753,7 @@ watch(
             editForm.parent_id = value.parent_id ? String(value.parent_id) : '';
             editForm.status = value.status ?? 'published';
             editForm.tags_text = formatTags(value.tags ?? []);
+            editForm.properties = normalizeProperties(value.properties ?? {});
         }
 
         if (articleChanged) {
@@ -587,7 +827,7 @@ function withNormalizedParent(form) {
     return form.transform((data) => ({
         ...data,
         parent_id: normalizeParentId(data.parent_id),
-        tags: parseTags(data.tags_text),
+        tags: parseTags(data.tags_text ?? ''),
     }));
 }
 
@@ -624,6 +864,61 @@ function normalizeTags(tags) {
         .slice(0, 20);
 }
 
+function normalizeProperties(properties) {
+    const source = properties && typeof properties === 'object' ? properties : {};
+
+    return Object.fromEntries(propertyDefinitions.value.map((definition) => [
+        definition.key,
+        source[definition.key] ?? '',
+    ]));
+}
+
+function propertyLabelForRow(row, key) {
+    const directLabel = row.property_labels?.[key];
+    if (directLabel) {
+        return directLabel;
+    }
+
+    const value = row.properties?.[key] ?? '';
+    const definition = propertyDefinitions.value.find((candidate) => candidate.key === key);
+    const option = definition?.options?.find((candidate) => candidate.value === value);
+
+    return option?.label ?? '';
+}
+
+function rowMatchesSidebarFilters(row) {
+    const search = sidebarSearch.value.trim().toLocaleLowerCase('ru-RU');
+
+    if (search !== '') {
+        const searchable = [
+            row.title,
+            ...(normalizeTags(row.tags ?? [])),
+            ...sidebarFilterDefinitions.value.map((definition) => propertyLabelForRow(row, definition.key)),
+        ]
+            .join(' ')
+            .toLocaleLowerCase('ru-RU');
+
+        if (!searchable.includes(search)) {
+            return false;
+        }
+    }
+
+    return sidebarFilterDefinitions.value.every((definition) => {
+        const filterValue = sidebarFilters.value[definition.key] ?? '';
+
+        return filterValue === '' || row.properties?.[definition.key] === filterValue;
+    });
+}
+
+function resetSidebarFilters() {
+    sidebarSearch.value = '';
+    sidebarFilters.value = {
+        audience_role: '',
+        sales_stage: '',
+        product_area: '',
+    };
+}
+
 function formatTags(tags) {
     return normalizeTags(tags).join(', ');
 }
@@ -636,12 +931,51 @@ function formatDate(value) {
     return new Date(value).toLocaleString();
 }
 
+function insertEmbeddedCollection() {
+    const view = collectionInsertViews.value.find((candidate) => candidate.slug === collectionInsertViewSlug.value)
+        ?? collectionInsertViews.value[0];
+
+    if (!view) {
+        return;
+    }
+
+    const payload = {
+        title: view.label,
+        view_slug: view.slug,
+        limit: 8,
+        layout: view.layout === 'stage' ? 'grouped' : 'list',
+    };
+    const directive = `\n\n\`\`\`sales-book-view\n${JSON.stringify(payload, null, 2)}\n\`\`\`\n`;
+
+    if (editEditorRef.value?.insertMarkdown) {
+        editEditorRef.value.insertMarkdown(directive);
+        contentDirty.value = true;
+
+        return;
+    }
+
+    editForm.markdown_content = `${editForm.markdown_content ?? ''}${directive}`;
+    contentDirty.value = true;
+}
+
 function openArticle(articleId) {
-    router.get(route('sales-assistant.book'), { article_id: articleId }, {
+    router.get(route('sales-assistant.book'), { article_id: articleId, view: props.activeBookView.slug }, {
         preserveState: true,
         preserveScroll: true,
         replace: true,
-        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'directChildPages', 'articleFeedbackSummary'],
+        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'bookViews', 'activeBookView', 'bookViewRows', 'salesBookPropertyCatalog', 'directChildPages', 'articleFeedbackSummary'],
+    });
+}
+
+function openBookView(viewSlug) {
+    router.get(route('sales-assistant.book'), {
+        view: viewSlug,
+        article_id: props.selectedArticle?.id ?? undefined,
+    }, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'bookViews', 'activeBookView', 'bookViewRows', 'salesBookPropertyCatalog', 'directChildPages', 'articleFeedbackSummary'],
     });
 }
 
@@ -739,6 +1073,8 @@ function saveArticle() {
         parent_id: normalizeParentId(editForm.parent_id),
         status: editForm.status,
         tags: parseTags(editForm.tags_text),
+        properties: editForm.properties,
+        content_format: props.selectedArticle.content_format ?? 'markdown',
         markdown_content: markdownContent,
     }, {
         preserveScroll: true,

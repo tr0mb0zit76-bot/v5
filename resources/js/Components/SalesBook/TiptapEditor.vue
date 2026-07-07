@@ -14,50 +14,47 @@
                 {{ item.label }}
             </button>
             <button type="button" :class="buttonClass(false)" @click="setLink">Ссылка</button>
-            <button type="button" :class="buttonClass(false)" @click="triggerImageUpload">Картинка</button>
-            <button type="button" :class="buttonClass(false)" @click="triggerFileUpload">Файл</button>
+            <button type="button" title="Загрузить файл или картинку" :class="buttonClass(false)" @click="triggerFileUpload">📎</button>
 
             <span class="mx-1 self-stretch w-px bg-zinc-200 dark:bg-zinc-700" aria-hidden="true" />
 
-            <span class="self-center px-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">Цвет</span>
             <label
-                class="relative flex h-7 w-7 cursor-pointer items-center justify-center overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700"
-                title="Свой цвет текста"
+                class="self-center text-xs font-medium text-zinc-500 dark:text-zinc-400"
+                for="sales-book-text-color"
             >
-                <span class="pointer-events-none text-[10px] font-bold leading-none text-zinc-600 dark:text-zinc-300">A</span>
-                <input
-                    type="color"
-                    class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    :value="textColorPickerValue"
-                    @input="applyTextColor($event.target.value)"
-                />
+                Цвет
             </label>
-            <button
-                v-for="swatch in textColorSwatches"
-                :key="`text-${swatch}`"
-                type="button"
-                :title="`Цвет текста ${swatch}`"
-                :class="swatchButtonClass(isTextColorActive(swatch))"
-                :style="{ color: swatch }"
-                @click="applyTextColor(swatch)"
+            <select
+                id="sales-book-text-color"
+                class="h-7 rounded-md border border-zinc-200 bg-white px-2 pr-7 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                :value="activeTextColorValue"
+                @change="onTextColorChange($event.target.value)"
             >
-                A
-            </button>
-            <button type="button" title="Сбросить цвет текста" :class="buttonClass(false)" @click="clearTextColor">×</button>
+                <option value="">Авто</option>
+                <option v-for="option in textColorOptions" :key="`text-${option.value}`" :value="option.value">
+                    {{ option.label }}
+                </option>
+            </select>
 
             <span class="mx-1 self-stretch w-px bg-zinc-200 dark:bg-zinc-700" aria-hidden="true" />
 
-            <span class="self-center px-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">Маркер</span>
-            <button
-                v-for="swatch in highlightSwatches"
-                :key="`mark-${swatch}`"
-                type="button"
-                :title="`Маркер ${swatch}`"
-                :class="swatchButtonClass(isHighlightActive(swatch))"
-                :style="{ backgroundColor: swatch }"
-                @click="applyHighlight(swatch)"
-            />
-            <button type="button" title="Убрать маркер" :class="buttonClass(false)" @click="clearHighlight">×</button>
+            <label
+                class="self-center text-xs font-medium text-zinc-500 dark:text-zinc-400"
+                for="sales-book-highlight"
+            >
+                Маркер
+            </label>
+            <select
+                id="sales-book-highlight"
+                class="h-7 rounded-md border border-zinc-200 bg-white px-2 pr-7 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                :value="activeHighlightValue"
+                @change="onHighlightChange($event.target.value)"
+            >
+                <option value="">Нет</option>
+                <option v-for="option in highlightOptions" :key="`mark-${option.value}`" :value="option.value">
+                    {{ option.label }}
+                </option>
+            </select>
         </div>
 
         <div
@@ -95,7 +92,6 @@
             </div>
         </div>
 
-        <input ref="imageInput" type="file" accept="image/*" class="hidden" @change="uploadAndInsert($event, true)" />
         <input ref="fileInput" type="file" class="hidden" @change="uploadAndInsert($event, false)" />
     </div>
 </template>
@@ -151,15 +147,28 @@ defineOptions({
 
 const emit = defineEmits(['update:modelValue']);
 
-const imageInput = ref(null);
 const fileInput = ref(null);
 const isApplyingExternalContent = ref(false);
 const isEditorBootstrapping = ref(true);
 const toolbarRevision = ref(0);
 
-const textColorSwatches = ['#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#2563eb', '#9333ea', '#18181b'];
-const highlightSwatches = ['#fef08a', '#bbf7d0', '#bfdbfe', '#fbcfe8', '#fed7aa', '#e9d5ff'];
-const defaultTextColorPickerValue = '#2563eb';
+const textColorOptions = [
+    { value: '#18181b', label: 'Черный' },
+    { value: '#dc2626', label: 'Красный' },
+    { value: '#ea580c', label: 'Оранжевый' },
+    { value: '#ca8a04', label: 'Желтый' },
+    { value: '#16a34a', label: 'Зеленый' },
+    { value: '#2563eb', label: 'Синий' },
+    { value: '#9333ea', label: 'Фиолетовый' },
+];
+const highlightOptions = [
+    { value: '#fef08a', label: 'Желтый' },
+    { value: '#bbf7d0', label: 'Зеленый' },
+    { value: '#bfdbfe', label: 'Синий' },
+    { value: '#fbcfe8', label: 'Розовый' },
+    { value: '#fed7aa', label: 'Оранжевый' },
+    { value: '#e9d5ff', label: 'Фиолетовый' },
+];
 
 function setEditorContent(value) {
     if (!editor.value?.markdown) {
@@ -309,14 +318,23 @@ onBeforeUnmount(() => {
 
 defineExpose({
     getMarkdown: () => editor.value?.getMarkdown() ?? '',
+    insertMarkdown,
 });
 
-const textColorPickerValue = computed(() => {
+const activeTextColorValue = computed(() => {
     toolbarRevision.value;
 
     const color = editor.value?.getAttributes('textStyle').color;
 
-    return typeof color === 'string' && color !== '' ? color : defaultTextColorPickerValue;
+    return textColorOptions.some((option) => option.value === color) ? color : '';
+});
+
+const activeHighlightValue = computed(() => {
+    toolbarRevision.value;
+
+    const active = highlightOptions.find((option) => editor.value?.isActive('highlight', { color: option.value }));
+
+    return active?.value ?? '';
 });
 
 const toolbarItems = computed(() => {
@@ -386,6 +404,18 @@ function insertTableWithPrompt() {
     const cols = Math.min(12, Math.max(1, Number.parseInt(colsRaw, 10) || 3));
 
     editor.value.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
+}
+
+function insertMarkdown(markdown) {
+    if (!editor.value || !props.editable || typeof markdown !== 'string' || markdown.trim() === '') {
+        return;
+    }
+
+    editor.value
+        .chain()
+        .focus()
+        .insertContent(markdown, { contentType: 'markdown' })
+        .run();
 }
 
 function toggleListForSelection(listType) {
@@ -498,24 +528,6 @@ function buttonClass(active) {
         : `${crmSegmentedBtn} px-2 py-1 text-xs`;
 }
 
-function swatchButtonClass(active) {
-    return active
-        ? `${crmSegmentedBtnActive} h-7 w-7 rounded-md border border-zinc-300 text-xs font-bold dark:border-zinc-600`
-        : `${crmSegmentedBtn} h-7 w-7 rounded-md border border-zinc-200 text-xs font-bold dark:border-zinc-700`;
-}
-
-function isTextColorActive(color) {
-    toolbarRevision.value;
-
-    return editor.value?.isActive('textStyle', { color }) ?? false;
-}
-
-function isHighlightActive(color) {
-    toolbarRevision.value;
-
-    return editor.value?.isActive('highlight', { color }) ?? false;
-}
-
 function applyTextColor(color) {
     if (!editor.value || !props.editable || !color) {
         return;
@@ -530,6 +542,16 @@ function clearTextColor() {
     }
 
     editor.value.chain().focus().unsetColor().run();
+}
+
+function onTextColorChange(color) {
+    if (color === '') {
+        clearTextColor();
+
+        return;
+    }
+
+    applyTextColor(color);
 }
 
 function applyHighlight(color) {
@@ -552,6 +574,16 @@ function clearHighlight() {
     }
 
     editor.value.chain().focus().unsetHighlight().run();
+}
+
+function onHighlightChange(color) {
+    if (color === '') {
+        clearHighlight();
+
+        return;
+    }
+
+    applyHighlight(color);
 }
 
 function extractBookArticleId(href) {
@@ -632,14 +664,6 @@ function setLink() {
     }
 
     editor.value.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-}
-
-function triggerImageUpload() {
-    if (!props.editable) {
-        return;
-    }
-
-    imageInput.value?.click();
 }
 
 function triggerFileUpload() {

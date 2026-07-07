@@ -28,12 +28,16 @@ class SearchSalesBookArticlesTool extends Tool
             $validated = $request->validate([
                 'query' => ['nullable', 'string', 'max:120'],
                 'limit' => ['nullable', 'integer', 'min:1', 'max:50'],
+                'view_slug' => ['nullable', 'string', 'max:80'],
+                'properties' => ['nullable', 'array'],
             ]);
 
             $result = $this->salesBook->search(
                 $user,
                 (string) ($validated['query'] ?? ''),
                 (int) ($validated['limit'] ?? 20),
+                $validated['properties'] ?? [],
+                isset($validated['view_slug']) ? (string) $validated['view_slug'] : null,
             );
 
             return Response::json($result);
@@ -53,6 +57,11 @@ class SearchSalesBookArticlesTool extends Tool
                 ->description('Максимум записей (1–50).')
                 ->min(1)
                 ->max(50),
+            'view_slug' => $schema->string()
+                ->description('Системное представление: tree, table, by-stage или manager-materials.')
+                ->max(80),
+            'properties' => $schema->object()
+                ->description('Фильтры по свойствам, например {"audience_role":"manager","sales_stage":"offer"}.'),
         ];
     }
 }

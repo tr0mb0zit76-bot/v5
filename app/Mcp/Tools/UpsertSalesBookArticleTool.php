@@ -28,7 +28,9 @@ class UpsertSalesBookArticleTool extends Tool
             $validated = $request->validate([
                 'parent_title' => ['required', 'string', 'max:255'],
                 'title' => ['required', 'string', 'max:255'],
-                'markdown_content' => ['required', 'string', 'max:500000'],
+                'markdown_content' => ['nullable', 'required_without:blocks', 'string', 'max:500000'],
+                'blocks' => ['nullable', 'required_without:markdown_content', 'array', 'max:200'],
+                'blocks.*' => ['array'],
                 'sort_order' => ['nullable', 'integer', 'min:0', 'max:1000000'],
                 'create_parent_if_missing' => ['nullable', 'boolean'],
             ]);
@@ -37,10 +39,11 @@ class UpsertSalesBookArticleTool extends Tool
                 $user,
                 (string) $validated['parent_title'],
                 (string) $validated['title'],
-                (string) $validated['markdown_content'],
+                (string) ($validated['markdown_content'] ?? ''),
                 isset($validated['sort_order']) ? (int) $validated['sort_order'] : null,
                 [],
                 (bool) ($validated['create_parent_if_missing'] ?? false),
+                $validated['blocks'] ?? [],
             );
 
             return Response::json($result);
@@ -60,8 +63,11 @@ class UpsertSalesBookArticleTool extends Tool
                 ->description('Заголовок дочерней страницы, например «Документы».')
                 ->max(255),
             'markdown_content' => $schema->string()
-                ->description('Полный текст страницы в Markdown.')
+                ->description('Полный текст страницы в Markdown. Можно не передавать, если переданы blocks.')
                 ->max(500000),
+            'blocks' => $schema->array()
+                ->items($schema->object())
+                ->description('Структурные блоки v1. Поддерживаются heading, paragraph, list, todo_list, table, code, quote, image.'),
             'sort_order' => $schema->integer()
                 ->description('Порядок среди соседних страниц (необязательно).')
                 ->min(0)

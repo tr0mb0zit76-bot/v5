@@ -3,6 +3,7 @@
 namespace Tests\Feature\Mcp;
 
 use App\Mcp\Servers\CrmServer;
+use App\Mcp\Tools\GetSalesBookArticleTool;
 use App\Mcp\Tools\SearchSalesBookArticlesTool;
 use App\Mcp\Tools\UpsertSalesBookArticleTool;
 use App\Models\Role;
@@ -106,6 +107,66 @@ class SalesBookMcpToolsTest extends TestCase
             ->first();
 
         $this->assertNotNull($child);
+    }
+
+    public function test_get_sales_book_article_can_return_blocks_format(): void
+    {
+        $user = $this->makeUserWithSalesBookRead();
+
+        $article = SalesBookArticle::query()->create([
+            'title' => 'Скрипт КП',
+            'markdown_content' => "## Подготовка\n\n- собрать вводные",
+            'sort_order' => 0,
+        ]);
+
+        $response = CrmServer::actingAs($user)->tool(GetSalesBookArticleTool::class, [
+            'article_id' => $article->id,
+            'format' => 'blocks',
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertSee('"blocks_snapshot"', false)
+            ->assertSee('"type":"heading"', false)
+            ->assertDontSee('"markdown_content"', false);
+    }
+
+    public function test_upsert_sales_book_article_accepts_blocks(): void
+    {
+        $user = $this->makeUserWithSalesBookWrite();
+
+        $parent = SalesBookArticle::query()->create([
+            'title' => 'Руководство по продажам',
+            'markdown_content' => '# Руководство',
+            'sort_order' => 0,
+        ]);
+
+        $response = CrmServer::actingAs($user)->tool(UpsertSalesBookArticleTool::class, [
+            'parent_title' => 'Руководство по продажам',
+            'title' => 'Возражение по цене',
+            'blocks' => [
+                ['type' => 'heading', 'level' => 2, 'text' => 'Цена'],
+                ['type' => 'paragraph', 'text' => 'Показываем риски и сроки.'],
+                ['type' => 'list', 'items' => [
+                    ['text' => 'сравнить маршрут'],
+                    ['text' => 'зафиксировать дедлайн'],
+                ]],
+            ],
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertSee('"action":"created"', false);
+
+        $article = SalesBookArticle::query()
+            ->where('parent_id', $parent->id)
+            ->where('title', 'Возражение по цене')
+            ->first();
+
+        $this->assertNotNull($article);
+        $this->assertStringContainsString('## Цена', (string) $article->markdown_content);
+        $this->assertSame('sales_book_blocks_v1', $article->blocks_snapshot['schema']);
+        $this->assertSame(['heading', 'paragraph', 'list'], array_column($article->blocks_snapshot['blocks'], 'type'));
     }
 
     public function test_upsert_denied_without_sales_book_write(): void

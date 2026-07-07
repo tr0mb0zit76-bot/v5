@@ -50,6 +50,75 @@ class SalesBookMcpServiceTest extends TestCase
     }
 
     #[Test]
+    public function search_filters_articles_by_properties(): void
+    {
+        $user = $this->adminUser();
+
+        SalesBookArticle::query()->create([
+            'title' => 'Материал для руководителя',
+            'markdown_content' => 'Планерка и контроль.',
+            'parent_id' => null,
+            'sort_order' => 0,
+            'properties' => [
+                'audience_role' => 'supervisor',
+                'sales_stage' => 'negotiation',
+            ],
+        ]);
+
+        $managerArticle = SalesBookArticle::query()->create([
+            'title' => 'Материал для менеджера',
+            'markdown_content' => 'Как подготовить КП.',
+            'parent_id' => null,
+            'sort_order' => 1,
+            'properties' => [
+                'audience_role' => 'manager',
+                'sales_stage' => 'offer',
+            ],
+        ]);
+
+        $result = $this->service->search($user, '', 10, [
+            'audience_role' => 'manager',
+            'unknown' => 'ignored',
+        ]);
+
+        $this->assertCount(1, $result['articles']);
+        $this->assertSame($managerArticle->id, $result['articles'][0]['id']);
+        $this->assertSame('manager', $result['articles'][0]['properties']['audience_role']);
+        $this->assertSame('Менеджер', $result['articles'][0]['property_labels']['audience_role']);
+    }
+
+    #[Test]
+    public function search_can_use_system_view_filters(): void
+    {
+        $user = $this->adminUser();
+
+        SalesBookArticle::query()->create([
+            'title' => 'Для логиста',
+            'markdown_content' => 'Маршрут.',
+            'parent_id' => null,
+            'sort_order' => 0,
+            'properties' => [
+                'audience_role' => 'logist',
+            ],
+        ]);
+
+        $managerArticle = SalesBookArticle::query()->create([
+            'title' => 'Для менеджера',
+            'markdown_content' => 'Возражения клиента.',
+            'parent_id' => null,
+            'sort_order' => 1,
+            'properties' => [
+                'audience_role' => 'manager',
+            ],
+        ]);
+
+        $result = $this->service->search($user, '', 10, [], 'manager-materials');
+
+        $this->assertCount(1, $result['articles']);
+        $this->assertSame($managerArticle->id, $result['articles'][0]['id']);
+    }
+
+    #[Test]
     public function get_returns_reader_markdown_with_breadcrumb(): void
     {
         $user = $this->adminUser();
@@ -79,6 +148,26 @@ class SalesBookMcpServiceTest extends TestCase
         ], $result['article']['breadcrumb']);
         $this->assertStringContainsString('контрагентов', $result['article']['markdown_content']);
         $this->assertFalse($result['article']['content_truncated']);
+    }
+
+    #[Test]
+    public function get_can_return_blocks_snapshot(): void
+    {
+        $user = $this->adminUser();
+
+        $article = SalesBookArticle::query()->create([
+            'title' => 'Работа с возражениями',
+            'markdown_content' => "## Цена\n\n- Уточнить маршрут\n- Показать риски",
+            'parent_id' => null,
+            'sort_order' => 0,
+        ]);
+
+        $result = $this->service->get($user, $article->id, null, 'blocks');
+
+        $this->assertArrayNotHasKey('markdown_content', $result['article']);
+        $this->assertSame('sales_book_blocks_v1', $result['article']['blocks_snapshot']['schema']);
+        $this->assertSame(['heading', 'list'], array_column($result['article']['blocks_snapshot']['blocks'], 'type'));
+        $this->assertSame('Цена', $result['article']['blocks_snapshot']['blocks'][0]['text']);
     }
 
     #[Test]
