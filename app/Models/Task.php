@@ -29,6 +29,8 @@ class Task extends Model
         'lead_id',
         'order_id',
         'contractor_id',
+        'company_initiative_id',
+        'company_initiative_milestone_id',
         'meta',
     ];
 
@@ -76,6 +78,22 @@ class Task extends Model
     public function contractor(): BelongsTo
     {
         return $this->belongsTo(Contractor::class, 'contractor_id');
+    }
+
+    /**
+     * @return BelongsTo<CompanyInitiative, $this>
+     */
+    public function companyInitiative(): BelongsTo
+    {
+        return $this->belongsTo(CompanyInitiative::class, 'company_initiative_id');
+    }
+
+    /**
+     * @return BelongsTo<CompanyInitiativeMilestone, $this>
+     */
+    public function companyInitiativeMilestone(): BelongsTo
+    {
+        return $this->belongsTo(CompanyInitiativeMilestone::class, 'company_initiative_milestone_id');
     }
 
     /**

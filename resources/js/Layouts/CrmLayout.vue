@@ -840,6 +840,7 @@ const hasSettingsMotivationAccess = computed(() => {
 });
 const hasFinanceSalaryAccess = computed(() => isAdminUser.value || visibleAreas.value.includes('finance_salary'));
 const hasManagementAccess = computed(() => isAdminUser.value || Boolean(authUser.value?.belongs_to_management));
+const hasCompanyPlanningAccess = computed(() => isAdminUser.value || (hasManagementAccess.value && visibleAreas.value.includes('company_planning')));
 const hasManagementAccountingAccess = computed(() => isAdminUser.value || Boolean(authUser.value?.can_management_accounting));
 
 function canPinMenuKey(key) {
@@ -905,6 +906,7 @@ const MENU_ROUTES = {
     kanban: '/kanban',
     disposition: '/disposition',
     pipeline: '/pipeline',
+    'company-planning': '/company-planning',
     'orders-create': '/orders/create',
     contractors: '/contractors',
     'fleet-vehicles': '/fleet/vehicles',
@@ -1188,6 +1190,9 @@ const menuItems = computed(() => {
     }
     if (isAdmin || areas.includes('pipeline')) {
         planningChildren.push({ key: 'pipeline', label: 'Pipeline' });
+    }
+    if (hasCompanyPlanningAccess.value) {
+        planningChildren.push({ key: 'company-planning', label: 'План компании' });
     }
     const planningItem =
         planningChildren.length > 0

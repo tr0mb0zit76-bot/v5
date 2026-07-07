@@ -4,6 +4,7 @@ use App\Http\Controllers\ActivityTimelineController;
 use App\Http\Controllers\BudgetingController;
 use App\Http\Controllers\CabinetNotificationController;
 use App\Http\Controllers\CommandBarAgentController;
+use App\Http\Controllers\CompanyPlanningController;
 use App\Http\Controllers\ContractorContactTrakloController;
 use App\Http\Controllers\ContractorController;
 use App\Http\Controllers\ContractorInsightDraftController;
@@ -386,6 +387,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
     Route::get('/disposition', [DispositionController::class, 'index'])->middleware('visibility.area:orders')->name('disposition.index');
     Route::post('/disposition/entries', [DispositionController::class, 'upsert'])->middleware('visibility.area:orders')->name('disposition.entries.upsert');
+
+    Route::prefix('company-planning')->name('company-planning.')->group(function () {
+        Route::get('/', [CompanyPlanningController::class, 'index'])->name('index');
+        Route::post('/', [CompanyPlanningController::class, 'store'])->name('store');
+        Route::get('/{initiative}', [CompanyPlanningController::class, 'show'])->name('show');
+        Route::patch('/{initiative}', [CompanyPlanningController::class, 'update'])->name('update');
+        Route::delete('/{initiative}', [CompanyPlanningController::class, 'destroy'])->name('destroy');
+        Route::post('/{initiative}/milestones', [CompanyPlanningController::class, 'storeMilestone'])->name('milestones.store');
+        Route::patch('/milestones/{milestone}', [CompanyPlanningController::class, 'updateMilestone'])->name('milestones.update');
+        Route::delete('/milestones/{milestone}', [CompanyPlanningController::class, 'destroyMilestone'])->name('milestones.destroy');
+        Route::post('/milestones/{milestone}/spawn-task', [CompanyPlanningController::class, 'spawnTask'])->name('milestones.spawn-task');
+    });
     Route::get('/pipeline', [PipelineController::class, 'index'])->middleware('visibility.area.any:pipeline|leads')->name('pipeline.index');
     Route::post('/pipeline/orders/{order}/accounting-handoff', [PipelineController::class, 'markAccountingHandoff'])
         ->middleware('visibility.area:pipeline')

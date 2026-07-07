@@ -66,6 +66,7 @@ class RoleAccess
             ['key' => 'tasks', 'label' => 'Задачи', 'description' => 'Управление внутренними и клиентскими задачами'],
             ['key' => 'kanban', 'label' => 'Канбан', 'description' => 'Визуальная доска задач'],
             ['key' => 'pipeline', 'label' => 'Pipeline', 'description' => 'Сквозная доска заказов и лидов по этапам'],
+            ['key' => 'company_planning', 'label' => 'План компании', 'description' => 'Управленческие инициативы, этапы, сроки и бюджет'],
             ['key' => 'reports', 'label' => 'Отчеты', 'description' => 'Финансовые и операционные отчеты'],
             ['key' => 'modules', 'label' => 'Модули', 'description' => 'Каталог доступных модулей; при выборе компонентов уточните строки ниже'],
             ['key' => 'modules_catalog', 'label' => 'Модули: каталог', 'description' => 'Страница со списком модулей'],
@@ -124,7 +125,7 @@ class RoleAccess
     {
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
-            'supervisor' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'load_board', 'pipeline', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports', 'settings_motivation'],
+            'supervisor' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'load_board', 'pipeline', 'company_planning', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports', 'settings_motivation'],
             'manager' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'load_board', 'pipeline', 'scripts', 'contractors', 'documents', 'payment_schedules', 'tasks', 'kanban', 'reports'],
             'dispatcher' => ['dashboard', 'dashboard_tiles', 'orders', 'load_board', 'pipeline', 'scripts', 'drivers', 'payment_schedules', 'tasks', 'kanban'],
             'accountant' => ['dashboard', 'dashboard_tiles', 'orders', 'pipeline', 'documents', 'finance_salary', 'payment_schedules', 'finance_payment_reconcile', 'tasks', 'kanban', 'reports'],
@@ -1041,6 +1042,26 @@ class RoleAccess
         }
 
         return $user->belongsToManagement();
+    }
+
+    /**
+     * Модуль «План компании» — группа «Управление» + область company_planning.
+     */
+    public static function canAccessCompanyPlanning(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if (! $user->belongsToManagement()) {
+            return false;
+        }
+
+        return static::hasVisibilityArea(static::userVisibilityAreas($user), 'company_planning');
     }
 
     /**
