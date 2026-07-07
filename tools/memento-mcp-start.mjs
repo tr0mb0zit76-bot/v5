@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Memento MCP entrypoint — resolves npx-installed package and runs stdio server.
- * Use with system Node (see ~/.cursor/mcp.json), not Cursor's bundled Node 22.
+ * Must run with system Node (ABI matches npx better-sqlite3). Cursor's bundled Node 22 breaks native sqlite.
  */
 import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";

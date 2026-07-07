@@ -50,6 +50,7 @@ class ContractorTableColumns
                 'type_label',
                 'inn',
                 'primary_contact',
+                'owner_name',
             ],
             default => [
                 'id',
@@ -59,6 +60,7 @@ class ContractorTableColumns
                 'type_label',
                 'inn',
                 'primary_contact',
+                'owner_name',
                 'phone',
                 'email',
                 'contacts_count',

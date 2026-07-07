@@ -378,6 +378,7 @@ const defaultVisibleFields = [
   'type_label',
   'inn',
   'primary_contact',
+  'owner_name',
   'phone',
   'email',
   'orders_count',

@@ -2,21 +2,26 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreCompanyInitiativeDependencyRequest;
 use App\Http\Requests\StoreCompanyInitiativeMilestoneRequest;
 use App\Http\Requests\StoreCompanyInitiativeRequest;
 use App\Http\Requests\UpdateCompanyInitiativeMilestoneRequest;
 use App\Http\Requests\UpdateCompanyInitiativeRequest;
 use App\Models\CompanyInitiative;
+use App\Models\CompanyInitiativeDependency;
 use App\Models\CompanyInitiativeMilestone;
 use App\Models\ManagementExpenseCategory;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\CompanyPlanning\CompanyInitiativeBudgetFactService;
+use App\Services\CompanyPlanning\CompanyPlanningDependencyCycleGuard;
 use App\Services\CompanyPlanning\CompanyPlanningProgressService;
 use App\Support\CompanyPlanningCatalog;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -24,6 +29,8 @@ class CompanyPlanningController extends Controller
 {
     public function __construct(
         private readonly CompanyPlanningProgressService $progressService,
+        private readonly CompanyInitiativeBudgetFactService $budgetFactService,
+        private readonly CompanyPlanningDependencyCycleGuard $dependencyCycleGuard,
     ) {}
 
     public function index(Request $request): Response
@@ -42,7 +49,7 @@ class CompanyPlanningController extends Controller
             ->orderByRaw("FIELD(status, 'active', 'on_hold', 'draft', 'completed', 'cancelled')")
             ->orderByDesc('id')
             ->get()
-            ->map(fn (CompanyInitiative $initiative): array => $this->serializeInitiativeSummary($initiative));
+            ->map(fn (CompanyInitiative $initiative): array => $this->serializeInitiativeSummary($initiative, includeBudget: true));
 
         return Inertia::render('CompanyPlanning/Index', [
             'initiatives' => $initiatives,
@@ -66,6 +73,8 @@ class CompanyPlanningController extends Controller
             'managementExpenseCategory:id,name,code',
             'milestones.responsible:id,name',
             'milestones.task:id,number,title,status',
+            'dependencies.blockedMilestone:id,title',
+            'dependencies.dependsOnMilestone:id,title',
         ]);
 
         return Inertia::render('CompanyPlanning/Show', [
@@ -75,10 +84,12 @@ class CompanyPlanningController extends Controller
             'priority_labels' => CompanyPlanningCatalog::priorityLabels(),
             'direction_labels' => CompanyPlanningCatalog::directionLabels(),
             'risk_labels' => CompanyPlanningCatalog::riskLevelLabels(),
+            'dependency_type_labels' => CompanyPlanningCatalog::dependencyTypeLabels(),
             'users' => $this->managementUsers(),
             'expense_categories' => $this->expenseCategoryOptions(),
             'can_spawn_tasks' => Schema::hasTable('tasks')
                 && RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($request->user()), 'tasks'),
+            'can_open_management_accounting' => RoleAccess::canAccessManagementAccounting($request->user()),
         ]);
     }
 
@@ -161,6 +172,10 @@ class CompanyPlanningController extends Controller
         abort_unless(RoleAccess::canAccessCompanyPlanning($request->user()), 403);
 
         $initiativeId = (int) $milestone->company_initiative_id;
+        CompanyInitiativeDependency::query()
+            ->where('blocked_milestone_id', $milestone->id)
+            ->orWhere('depends_on_milestone_id', $milestone->id)
+            ->delete();
         $milestone->delete();
         $initiative = CompanyInitiative::query()->find($initiativeId);
 
@@ -208,6 +223,45 @@ class CompanyPlanningController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Задача для этапа создана.']);
     }
 
+    public function storeDependency(
+        StoreCompanyInitiativeDependencyRequest $request,
+        CompanyInitiative $initiative,
+    ): RedirectResponse {
+        $payload = $request->validated();
+        $blockedId = (int) $payload['blocked_milestone_id'];
+        $dependsOnId = (int) $payload['depends_on_milestone_id'];
+
+        $initiative->load('dependencies');
+
+        if ($this->dependencyCycleGuard->wouldCreateCycle($initiative, $blockedId, $dependsOnId)) {
+            throw ValidationException::withMessages([
+                'depends_on_milestone_id' => 'Такая зависимость создаст цикл между этапами.',
+            ]);
+        }
+
+        CompanyInitiativeDependency::query()->create([
+            'company_initiative_id' => $initiative->id,
+            'blocked_milestone_id' => $blockedId,
+            'depends_on_milestone_id' => $dependsOnId,
+            'type' => $payload['type'] ?? 'finish_to_start',
+            'notes' => $payload['notes'] ?? null,
+        ]);
+
+        return to_route('company-planning.show', $initiative)
+            ->with('flash', ['type' => 'success', 'message' => 'Зависимость добавлена.']);
+    }
+
+    public function destroyDependency(Request $request, CompanyInitiativeDependency $dependency): RedirectResponse
+    {
+        abort_unless(RoleAccess::canAccessCompanyPlanning($request->user()), 403);
+
+        $initiativeId = (int) $dependency->company_initiative_id;
+        $dependency->delete();
+
+        return to_route('company-planning.show', $initiativeId)
+            ->with('flash', ['type' => 'success', 'message' => 'Зависимость удалена.']);
+    }
+
     /**
      * @return list<array{id: int, name: string}>
      */
@@ -249,9 +303,9 @@ class CompanyPlanningController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function serializeInitiativeSummary(CompanyInitiative $initiative): array
+    private function serializeInitiativeSummary(CompanyInitiative $initiative, bool $includeBudget = false): array
     {
-        return [
+        $payload = [
             'id' => (int) $initiative->id,
             'title' => $initiative->title,
             'status' => $initiative->status,
@@ -268,10 +322,18 @@ class CompanyPlanningController extends Controller
             'progress_percent' => (int) $initiative->progress_percent,
             'planned_budget_amount' => $initiative->planned_budget_amount,
             'budget_currency' => $initiative->budget_currency,
+            'management_expense_category_id' => $initiative->management_expense_category_id,
+            'expense_category_name' => $initiative->managementExpenseCategory?->name,
             'risk_level' => $initiative->risk_level,
             'milestones_count' => (int) ($initiative->milestones_count ?? 0),
             'show_url' => route('company-planning.show', $initiative),
         ];
+
+        if ($includeBudget) {
+            $payload['budget_snapshot'] = $this->budgetFactService->snapshot($initiative);
+        }
+
+        return $payload;
     }
 
     /**
@@ -279,16 +341,36 @@ class CompanyPlanningController extends Controller
      */
     private function serializeInitiativeDetail(CompanyInitiative $initiative): array
     {
+        $blockedBy = [];
+        foreach ($initiative->dependencies as $dependency) {
+            $blockedId = (int) $dependency->blocked_milestone_id;
+            $blockedBy[$blockedId][] = [
+                'id' => (int) $dependency->depends_on_milestone_id,
+                'title' => $dependency->dependsOnMilestone?->title,
+            ];
+        }
+
         return [
-            ...$this->serializeInitiativeSummary($initiative),
+            ...$this->serializeInitiativeSummary($initiative, includeBudget: true),
             'description' => $initiative->description,
             'goal' => $initiative->goal,
             'expected_result' => $initiative->expected_result,
             'budget_notes' => $initiative->budget_notes,
             'risk_summary' => $initiative->risk_summary,
-            'management_expense_category_id' => $initiative->management_expense_category_id,
-            'expense_category_name' => $initiative->managementExpenseCategory?->name,
             'creator_name' => $initiative->creator?->name,
+            'dependencies' => $initiative->dependencies
+                ->map(fn (CompanyInitiativeDependency $dependency): array => [
+                    'id' => (int) $dependency->id,
+                    'blocked_milestone_id' => (int) $dependency->blocked_milestone_id,
+                    'blocked_milestone_title' => $dependency->blockedMilestone?->title,
+                    'depends_on_milestone_id' => (int) $dependency->depends_on_milestone_id,
+                    'depends_on_milestone_title' => $dependency->dependsOnMilestone?->title,
+                    'type' => $dependency->type,
+                    'type_label' => CompanyPlanningCatalog::dependencyTypeLabels()[$dependency->type] ?? $dependency->type,
+                    'notes' => $dependency->notes,
+                ])
+                ->values()
+                ->all(),
             'milestones' => $initiative->milestones
                 ->map(fn (CompanyInitiativeMilestone $milestone): array => [
                     'id' => (int) $milestone->id,
@@ -309,6 +391,7 @@ class CompanyPlanningController extends Controller
                     'task_number' => $milestone->task?->number,
                     'task_title' => $milestone->task?->title,
                     'task_status' => $milestone->task?->status,
+                    'blocked_by' => $blockedBy[(int) $milestone->id] ?? [],
                 ])
                 ->values()
                 ->all(),

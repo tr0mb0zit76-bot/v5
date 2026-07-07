@@ -50,6 +50,11 @@ final class CompanyPlanningCatalog
         'general',
     ];
 
+    /** @var list<string> */
+    public const DEPENDENCY_TYPES = [
+        'finish_to_start',
+    ];
+
     /**
      * @return array<string, string>
      */
@@ -116,6 +121,16 @@ final class CompanyPlanningCatalog
             'it' => 'IT',
             'legal' => 'Юридический блок',
             'general' => 'Общее',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function dependencyTypeLabels(): array
+    {
+        return [
+            'finish_to_start' => 'После завершения',
         ];
     }
 }

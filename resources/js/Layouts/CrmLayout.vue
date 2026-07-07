@@ -1801,9 +1801,11 @@ async function handleAiSubmit(payload) {
             ?? error?.response?.data?.errors?.['attachments.0']?.[0]
             ?? (error?.response?.status === 504 || error?.code === 'ECONNABORTED'
                 ? 'Ассистент не успел ответить за отведённое время. Попробуйте короче запрос или без вложений.'
-                : error?.response?.status === 419
-                    ? 'Сессия истекла — обновите страницу (F5).'
-                    : 'Не удалось связаться с ассистентом. Проверьте DEEPSEEK_API_KEY и логи сервера.');
+                : error?.response?.status === 401
+                    ? 'Сессия истекла — обновите страницу (F5) и войдите снова.'
+                    : error?.response?.status === 419
+                        ? 'Сессия истекла — обновите страницу (F5).'
+                        : 'Не удалось связаться с ассистентом. Проверьте DEEPSEEK_API_KEY и логи сервера.');
 
         agentError.value = message;
     } finally {

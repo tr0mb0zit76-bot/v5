@@ -100,6 +100,62 @@
             />
 
             <section
+                v-if="companyPlanningPortfolio?.available && companyPlanningPortfolio.items.length > 0"
+                class="crm-panel p-6"
+            >
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h2 :class="crmSectionTitle">План компании</h2>
+                        <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                            Активных инициатив: {{ companyPlanningPortfolio.total_active }}
+                        </p>
+                    </div>
+                    <Link
+                        v-if="companyPlanningPortfolio.index_url"
+                        :href="companyPlanningPortfolio.index_url"
+                        :class="crmBtnNeutral"
+                    >
+                        Все инициативы
+                    </Link>
+                </div>
+
+                <div class="mt-4 space-y-3">
+                    <Link
+                        v-for="item in companyPlanningPortfolio.items"
+                        :key="item.id"
+                        :href="item.show_url"
+                        class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200 px-4 py-3 transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:border-zinc-700 dark:hover:bg-zinc-900/60"
+                    >
+                        <div class="min-w-0">
+                            <div class="truncate font-medium text-zinc-900 dark:text-zinc-50">{{ item.title }}</div>
+                            <div class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                {{ item.owner_name || 'Владелец не назначен' }}
+                                · {{ item.status_label }}
+                                <span v-if="item.ends_on"> · до {{ formatDashboardDate(item.ends_on) }}</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span
+                                v-if="item.is_overdue || item.overdue_milestones_count > 0"
+                                class="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-200"
+                            >
+                                {{ item.overdue_milestones_count > 0 ? `Просрочено этапов: ${item.overdue_milestones_count}` : 'Просрочена' }}
+                            </span>
+                            <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                                {{ item.progress_percent }}%
+                            </span>
+                            <span
+                                v-if="item.risk_level === 'high' || item.risk_level === 'critical'"
+                                class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                            >
+                                {{ item.risk_label }}
+                            </span>
+                        </div>
+                    </Link>
+                </div>
+            </section>
+
+            <section
                 v-if="showFinanceFlowSection"
                 class="crm-panel p-6"
             >
@@ -342,6 +398,7 @@ import { BarChart3, Bot, Building2, FileText, Package, SquarePen, Target } from 
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import LeadAttentionPanel from '@/Components/Leads/LeadAttentionPanel.vue';
 import {
+    crmBtnNeutral,
     crmBtnPrimary,
     crmField,
     crmFilterBar,
@@ -391,8 +448,13 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    company_planning_portfolio: {
+        type: Object,
+        default: null,
+    },
 });
 
+const companyPlanningPortfolio = computed(() => props.company_planning_portfolio);
 const dispositionKpi = computed(() => props.metrics?.disposition_kpi ?? null);
 const dispositionKpiOwn = computed(() => props.metrics?.disposition_kpi_own ?? null);
 
@@ -596,6 +658,19 @@ function formatCurrency(value) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     }).format(Number(value || 0));
+}
+
+function formatDashboardDate(value) {
+    if (!value) {
+        return '';
+    }
+
+    const parts = String(value).split('-');
+    if (parts.length !== 3) {
+        return value;
+    }
+
+    return `${parts[2]}.${parts[1]}.${parts[0]}`;
 }
 
 const mobileSections = [

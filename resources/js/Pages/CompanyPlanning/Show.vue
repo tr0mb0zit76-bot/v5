@@ -102,6 +102,58 @@
                         <button type="submit" :class="crmBtnPrimary" :disabled="initiativeForm.processing">Сохранить</button>
                     </div>
                 </form>
+
+                <div
+                    v-if="initiative.budget_snapshot"
+                    class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
+                >
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Бюджет: план и факт</h3>
+                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                {{ initiative.expense_category_name || 'Статья управленки' }}
+                                · {{ formatDate(initiative.budget_snapshot.period_start) }} — {{ formatDate(initiative.budget_snapshot.period_end) }}
+                            </p>
+                        </div>
+                        <Link
+                            v-if="canOpenManagementAccounting"
+                            :href="route('finance.management-accounting.index')"
+                            :class="crmBtnNeutral"
+                        >
+                            Управленка
+                        </Link>
+                    </div>
+
+                    <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                        <article class="rounded-xl bg-zinc-50 p-3 dark:bg-zinc-900">
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">План</div>
+                            <div class="mt-1 text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                                {{ formatMoney(initiative.budget_snapshot.planned_amount) }}
+                            </div>
+                        </article>
+                        <article class="rounded-xl bg-zinc-50 p-3 dark:bg-zinc-900">
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">Факт (расход)</div>
+                            <div class="mt-1 text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                                {{ formatMoney(initiative.budget_snapshot.fact_out_amount) }}
+                            </div>
+                        </article>
+                        <article class="rounded-xl bg-zinc-50 p-3 dark:bg-zinc-900">
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">Отклонение</div>
+                            <div
+                                class="mt-1 text-lg font-semibold tabular-nums"
+                                :class="varianceTone(initiative.budget_snapshot.variance_amount)"
+                            >
+                                {{ formatMoney(initiative.budget_snapshot.variance_amount, true) }}
+                            </div>
+                            <div
+                                v-if="initiative.budget_snapshot.usage_percent !== null"
+                                class="mt-1 text-xs text-zinc-500 dark:text-zinc-400"
+                            >
+                                Использовано {{ initiative.budget_snapshot.usage_percent }}% плана
+                            </div>
+                        </article>
+                    </div>
+                </div>
             </section>
 
             <section :class="`${crmPanel} space-y-4 p-5`">
@@ -178,6 +230,19 @@
                             {{ milestone.done_criteria }}
                         </p>
 
+                        <div
+                            v-if="milestone.blocked_by?.length"
+                            class="mt-3 flex flex-wrap gap-2"
+                        >
+                            <span
+                                v-for="blocker in milestone.blocked_by"
+                                :key="`${milestone.id}-${blocker.id}`"
+                                class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                            >
+                                Ждёт: {{ blocker.title || `#${blocker.id}` }}
+                            </span>
+                        </div>
+
                         <div class="mt-3 flex flex-wrap gap-2">
                             <button type="button" :class="crmBtnNeutral" @click="editMilestone(milestone)">Изменить</button>
                             <button
@@ -194,6 +259,73 @@
                             <button type="button" :class="crmBtnDangerMuted" @click="deleteMilestone(milestone)">Удалить</button>
                         </div>
                     </article>
+                </div>
+
+                <div v-if="initiative.milestones.length >= 2" class="space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+                    <div class="flex items-center justify-between gap-3">
+                        <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Зависимости этапов</h3>
+                        <button type="button" :class="crmBtnNeutral" @click="dependencyOpen = !dependencyOpen">
+                            {{ dependencyOpen ? 'Скрыть' : 'Добавить' }}
+                        </button>
+                    </div>
+
+                    <form
+                        v-if="dependencyOpen"
+                        class="grid gap-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
+                        @submit.prevent="submitDependency"
+                    >
+                        <label :class="crmFilterField">
+                            <span :class="crmLabelCompact">Этап (зависит от другого)</span>
+                            <select v-model="dependencyForm.blocked_milestone_id" :class="crmFieldFluid">
+                                <option :value="null">Выберите этап</option>
+                                <option v-for="milestone in initiative.milestones" :key="`blocked-${milestone.id}`" :value="milestone.id">
+                                    {{ milestone.title }}
+                                </option>
+                            </select>
+                            <InputError :message="dependencyForm.errors.blocked_milestone_id" />
+                        </label>
+                        <label :class="crmFilterField">
+                            <span :class="crmLabelCompact">Предшествующий этап</span>
+                            <select v-model="dependencyForm.depends_on_milestone_id" :class="crmFieldFluid">
+                                <option :value="null">Выберите этап</option>
+                                <option v-for="milestone in initiative.milestones" :key="`depends-${milestone.id}`" :value="milestone.id">
+                                    {{ milestone.title }}
+                                </option>
+                            </select>
+                            <InputError :message="dependencyForm.errors.depends_on_milestone_id" />
+                        </label>
+                        <label :class="crmFilterField" class="md:col-span-2">
+                            <span :class="crmLabelCompact">Комментарий</span>
+                            <textarea v-model="dependencyForm.notes" rows="2" :class="crmFieldFluid" />
+                        </label>
+                        <div class="md:col-span-2 flex justify-end">
+                            <button type="submit" :class="crmBtnPrimary" :disabled="dependencyForm.processing">Добавить зависимость</button>
+                        </div>
+                    </form>
+
+                    <div v-if="!(initiative.dependencies?.length)" class="text-sm text-zinc-500 dark:text-zinc-400">
+                        Связи между этапами пока не заданы.
+                    </div>
+
+                    <div v-else class="space-y-2">
+                        <article
+                            v-for="dependency in initiative.dependencies"
+                            :key="dependency.id"
+                            class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-800"
+                        >
+                            <div class="text-sm text-zinc-700 dark:text-zinc-300">
+                                <span class="font-medium">{{ dependency.blocked_milestone_title }}</span>
+                                <span class="mx-2 text-zinc-400">←</span>
+                                <span>{{ dependency.depends_on_milestone_title }}</span>
+                                <span v-if="dependency.notes" class="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">
+                                    {{ dependency.notes }}
+                                </span>
+                            </div>
+                            <button type="button" :class="crmBtnDangerMuted" @click="deleteDependency(dependency)">
+                                Удалить
+                            </button>
+                        </article>
+                    </div>
                 </div>
             </section>
         </div>
@@ -300,6 +432,7 @@ const props = defineProps({
     users: { type: Array, default: () => [] },
     expense_categories: { type: Array, default: () => [] },
     can_spawn_tasks: { type: Boolean, default: false },
+    can_open_management_accounting: { type: Boolean, default: false },
 });
 
 const statusLabels = computed(() => props.status_labels);
@@ -310,8 +443,10 @@ const riskLabels = computed(() => props.risk_labels);
 const users = computed(() => props.users);
 const expenseCategories = computed(() => props.expense_categories);
 const canSpawnTasks = computed(() => props.can_spawn_tasks);
+const canOpenManagementAccounting = computed(() => props.can_open_management_accounting);
 
 const milestoneOpen = ref(false);
+const dependencyOpen = ref(false);
 const editMilestoneModal = ref(false);
 const editingMilestoneId = ref(null);
 
@@ -351,6 +486,13 @@ const editMilestoneForm = useForm({
     ends_on: null,
     done_criteria: null,
     progress_percent: 0,
+});
+
+const dependencyForm = useForm({
+    blocked_milestone_id: null,
+    depends_on_milestone_id: null,
+    type: 'finish_to_start',
+    notes: null,
 });
 
 const timelineStart = computed(() => {
@@ -502,6 +644,27 @@ function spawnTask(milestone) {
     });
 }
 
+function submitDependency() {
+    dependencyForm.post(route('company-planning.dependencies.store', props.initiative.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            dependencyForm.reset();
+            dependencyForm.type = 'finish_to_start';
+            dependencyOpen.value = false;
+        },
+    });
+}
+
+function deleteDependency(dependency) {
+    if (!window.confirm('Удалить зависимость между этапами?')) {
+        return;
+    }
+
+    router.delete(route('company-planning.dependencies.destroy', dependency.id), {
+        preserveScroll: true,
+    });
+}
+
 function destroyInitiative() {
     if (!window.confirm(`Удалить инициативу «${props.initiative.title}»?`)) {
         return;
@@ -529,5 +692,43 @@ function formatDate(value) {
     }
 
     return `${parts[2]}.${parts[1]}.${parts[0]}`;
+}
+
+function formatMoney(value, signed = false) {
+    if (value === null || value === undefined || value === '') {
+        return '—';
+    }
+
+    const amount = Number(value);
+    const formatted = new Intl.NumberFormat('ru-RU', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(Math.abs(amount));
+
+    if (signed && amount > 0) {
+        return `+${formatted}`;
+    }
+
+    if (signed && amount < 0) {
+        return `−${formatted}`;
+    }
+
+    return formatted;
+}
+
+function varianceTone(value) {
+    if (value === null || value === undefined) {
+        return 'text-zinc-900 dark:text-zinc-50';
+    }
+
+    if (Number(value) > 0) {
+        return 'text-rose-700 dark:text-rose-300';
+    }
+
+    if (Number(value) < 0) {
+        return 'text-emerald-700 dark:text-emerald-300';
+    }
+
+    return 'text-zinc-900 dark:text-zinc-50';
 }
 </script>

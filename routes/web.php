@@ -398,6 +398,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/milestones/{milestone}', [CompanyPlanningController::class, 'updateMilestone'])->name('milestones.update');
         Route::delete('/milestones/{milestone}', [CompanyPlanningController::class, 'destroyMilestone'])->name('milestones.destroy');
         Route::post('/milestones/{milestone}/spawn-task', [CompanyPlanningController::class, 'spawnTask'])->name('milestones.spawn-task');
+        Route::post('/{initiative}/dependencies', [CompanyPlanningController::class, 'storeDependency'])->name('dependencies.store');
+        Route::delete('/dependencies/{dependency}', [CompanyPlanningController::class, 'destroyDependency'])->name('dependencies.destroy');
     });
     Route::get('/pipeline', [PipelineController::class, 'index'])->middleware('visibility.area.any:pipeline|leads')->name('pipeline.index');
     Route::post('/pipeline/orders/{order}/accounting-handoff', [PipelineController::class, 'markAccountingHandoff'])
