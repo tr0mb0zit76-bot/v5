@@ -61,6 +61,12 @@
           @applied="onGridViewApplied"
           @pinned-changed="onGridViewsPinnedChanged"
         />
+
+        <GridBulkIconActions
+          :selected-count="selectedLeadIds.length"
+          :actions="bulkActions"
+          @action="onBulkAction"
+        />
       </div>
     </div>
 
@@ -90,6 +96,8 @@
           @grid-ready="onGridReady"
           @first-data-rendered="onFirstDataRendered"
           @cell-double-clicked="onCellDoubleClicked"
+          @cell-value-changed="onCellValueChanged"
+          @selection-changed="onSelectionChanged"
           @column-visible="saveColumnState"
           @column-resized="saveColumnState"
           @column-moved="saveColumnState"
@@ -112,6 +120,83 @@
     </div>
 
     <Teleport to="body">
+      <div
+        v-if="activeBulkModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        @click.self="closeBulkModal"
+      >
+        <div :class="`${crmModalPanel} w-full max-w-md shadow-2xl`">
+          <div class="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+            <div class="text-lg font-semibold">{{ bulkModalTitle }}</div>
+            <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Выбрано лидов: {{ selectedLeadIds.length }}
+            </div>
+          </div>
+
+          <div class="space-y-3 p-5">
+            <select
+              v-if="activeBulkModal === 'source'"
+              v-model="bulkSourceValue"
+              class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            >
+              <option value="">Не указан</option>
+              <option v-for="option in sourceOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+
+            <select
+              v-else-if="activeBulkModal === 'responsible_id'"
+              v-model="bulkResponsibleId"
+              class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            >
+              <option value="">Выберите ответственного</option>
+              <option v-for="user in responsibleUsers" :key="user.id" :value="String(user.id)">
+                {{ user.name }}
+              </option>
+            </select>
+
+            <select
+              v-else-if="activeBulkModal === 'status'"
+              v-model="bulkStatusValue"
+              class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            >
+              <option value="">Выберите статус</option>
+              <option v-for="option in inlineStatusOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+
+            <p v-else-if="activeBulkModal === 'delete'" class="text-sm text-zinc-600 dark:text-zinc-300">
+              Удалить выбранные лиды? Это действие необратимо.
+            </p>
+
+            <p v-if="bulkError" class="text-sm text-rose-600 dark:text-rose-400">
+              {{ bulkError }}
+            </p>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
+            <button
+              type="button"
+              :class="crmBtnNeutral"
+              :disabled="bulkProcessing"
+              @click="closeBulkModal"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              :class="activeBulkModal === 'delete' ? 'inline-flex items-center justify-center rounded-xl bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50' : crmBtnCreate"
+              :disabled="bulkProcessing || selectedLeadIds.length === 0 || !canSubmitBulkModal"
+              @click="submitBulkModal"
+            >
+              {{ bulkProcessing ? 'Сохранение…' : bulkModalSubmitLabel }}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div
         v-if="showColumnModal"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -206,9 +291,10 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { Rows3, Search, Settings2, X } from 'lucide-vue-next';
+import { Megaphone, Rows3, Search, Settings2, Trash2, UserRound, Workflow, X } from 'lucide-vue-next';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -219,6 +305,7 @@ import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } 
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import GridBulkIconActions from '@/Components/Grid/GridBulkIconActions.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
@@ -266,6 +353,18 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  responsibleUsers: {
+    type: Array,
+    default: () => [],
+  },
+  statusOptions: {
+    type: Array,
+    default: () => [],
+  },
+  canAssignResponsible: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const page = usePage();
@@ -290,7 +389,163 @@ function sourceLabel(value) {
   return sourceLabels.value[value] ?? value;
 }
 
-const emit = defineEmits(['create', 'create-from', 'row-dblclick', 'columns-changed', 'delete-request']);
+const emit = defineEmits(['create', 'create-from', 'row-dblclick', 'columns-changed', 'delete-request', 'grid-updated']);
+
+const CLOSED_STATUSES = new Set(['won', 'lost']);
+
+const inlineStatusOptions = computed(() => (props.statusOptions ?? []).filter((option) => !CLOSED_STATUSES.has(option?.value)));
+
+const statusLabelByValue = computed(() => {
+  const labels = { ...statusLabels };
+
+  for (const option of props.statusOptions ?? []) {
+    if (option?.value) {
+      labels[option.value] = option.label ?? option.value;
+    }
+  }
+
+  return labels;
+});
+
+const inlineStatusLabels = computed(() => inlineStatusOptions.value.map((option) => option.label));
+
+const sourceLabelsByValue = computed(() => {
+  const labels = { ...fallbackSourceLabels };
+
+  for (const option of props.sourceOptions ?? []) {
+    if (option?.value) {
+      labels[option.value] = option.label ?? option.value;
+    }
+  }
+
+  return labels;
+});
+
+const sourceLabelsForEditor = computed(() => Object.values(sourceLabelsByValue.value)
+  .sort((left, right) => String(left).localeCompare(String(right), 'ru')));
+
+const userIdByName = computed(() => {
+  const map = new Map();
+
+  for (const user of props.responsibleUsers ?? []) {
+    if (user?.name && user?.id) {
+      map.set(user.name, user.id);
+    }
+  }
+
+  return map;
+});
+
+const responsibleNamesForEditor = computed(() => (props.responsibleUsers ?? [])
+  .map((user) => user?.name)
+  .filter(Boolean)
+  .sort((left, right) => String(left).localeCompare(String(right), 'ru')));
+
+const selectedRows = ref([]);
+const selectedLeadIds = computed(() => selectedRows.value
+  .map((row) => Number(row?.id))
+  .filter((id) => Number.isFinite(id) && id > 0));
+
+const activeBulkModal = ref(null);
+const bulkSourceValue = ref('');
+const bulkResponsibleId = ref('');
+const bulkStatusValue = ref('');
+const bulkError = ref('');
+const bulkProcessing = ref(false);
+
+const bulkActions = computed(() => {
+  const actions = [
+    {
+      key: 'source',
+      icon: Megaphone,
+      title: 'Сменить источник',
+      label: 'Сменить источник',
+    },
+  ];
+
+  if (props.canAssignResponsible) {
+    actions.push({
+      key: 'responsible_id',
+      icon: UserRound,
+      title: 'Сменить ответственного',
+      label: 'Сменить ответственного',
+    });
+  }
+
+  actions.push(
+    {
+      key: 'status',
+      icon: Workflow,
+      title: 'Сменить статус',
+      label: 'Сменить статус',
+    },
+    {
+      key: 'delete',
+      icon: Trash2,
+      title: 'Удалить выбранные',
+      label: 'Удалить',
+      danger: true,
+    },
+  );
+
+  return actions;
+});
+
+const bulkModalTitle = computed(() => {
+  if (activeBulkModal.value === 'source') {
+    return 'Сменить источник';
+  }
+
+  if (activeBulkModal.value === 'responsible_id') {
+    return 'Сменить ответственного';
+  }
+
+  if (activeBulkModal.value === 'status') {
+    return 'Сменить статус';
+  }
+
+  if (activeBulkModal.value === 'delete') {
+    return 'Удалить лиды';
+  }
+
+  return '';
+});
+
+const bulkModalSubmitLabel = computed(() => {
+  if (activeBulkModal.value === 'delete') {
+    return 'Удалить';
+  }
+
+  return 'Применить';
+});
+
+const canSubmitBulkModal = computed(() => {
+  if (activeBulkModal.value === 'source') {
+    return true;
+  }
+
+  if (activeBulkModal.value === 'responsible_id') {
+    return bulkResponsibleId.value !== '';
+  }
+
+  if (activeBulkModal.value === 'status') {
+    return bulkStatusValue.value !== '';
+  }
+
+  if (activeBulkModal.value === 'delete') {
+    return true;
+  }
+
+  return false;
+});
+
+function canEditGridField(row, field) {
+  return Array.isArray(row?.inline_editable_fields) && row.inline_editable_fields.includes(field);
+}
+
+function canEditResponsibleCell(row) {
+  return canEditGridField(row, 'responsible_id');
+}
 
 const statusLabels = {
   new: 'Новый',
@@ -440,8 +695,24 @@ const gridOptions = {
   localeText: agGridLocaleRu,
   animateRows: false,
   preventDefaultOnContextMenu: true,
+  singleClickEdit: true,
+  stopEditingWhenCellsLoseFocus: true,
   getRowId: (params) => String(params.data?.id ?? ''),
   getRowClass: (params) => (params.data?.is_stage_overdue ? 'ag-row-lead-stage-overdue' : ''),
+  rowSelection: {
+    mode: 'multiRow',
+    checkboxes: true,
+    headerCheckbox: true,
+    enableClickSelection: false,
+  },
+  selectionColumnDef: {
+    pinned: 'left',
+    sortable: false,
+    resizable: false,
+    suppressHeaderMenuButton: true,
+    maxWidth: 48,
+    minWidth: 48,
+  },
   onCellContextMenu,
 };
 
@@ -628,6 +899,64 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.lockPinned = true;
       columnDefinition.cellClass = 'orders-grid-order-number-cell';
       columnDefinition.headerClass = 'orders-grid-order-number-header';
+    } else if (column.field === 'status') {
+      columnDefinition.colId = 'status';
+      columnDefinition.valueGetter = (params) => statusLabelByValue.value[params.data?.status] ?? params.data?.status ?? '—';
+      columnDefinition.valueSetter = (params) => {
+        const option = inlineStatusOptions.value.find((item) => item.label === params.newValue);
+        if (!option) {
+          return false;
+        }
+        params.data.status = option.value;
+
+        return true;
+      };
+      columnDefinition.editable = (params) => canEditGridField(params.data, 'status');
+      columnDefinition.cellEditor = 'agSelectCellEditor';
+      columnDefinition.cellEditorParams = {
+        values: inlineStatusLabels.value,
+      };
+      columnDefinition.cellClass = (params) => (canEditGridField(params.data, 'status') ? 'orders-grid-editable-cell' : '');
+    } else if (column.field === 'source') {
+      columnDefinition.valueGetter = (params) => sourceLabel(params.data?.source);
+      columnDefinition.valueSetter = (params) => {
+        const entry = Object.entries(sourceLabelsByValue.value).find(([, label]) => label === params.newValue);
+        if (!entry && params.newValue !== '—') {
+          return false;
+        }
+        params.data.source = entry ? entry[0] : null;
+
+        return true;
+      };
+      columnDefinition.editable = (params) => canEditGridField(params.data, 'source');
+      columnDefinition.cellEditor = 'agSelectCellEditor';
+      columnDefinition.cellEditorParams = {
+        values: sourceLabelsForEditor.value,
+      };
+      columnDefinition.cellClass = (params) => (canEditGridField(params.data, 'source') ? 'orders-grid-editable-cell' : '');
+    } else if (column.field === 'responsible_name') {
+      columnDefinition.colId = 'responsible_name';
+      columnDefinition.valueGetter = (params) => {
+        const name = String(params.data?.responsible_name ?? '').trim();
+
+        return name === '' ? '—' : name;
+      };
+      columnDefinition.valueSetter = (params) => {
+        const userId = userIdByName.value.get(params.newValue);
+        if (!userId) {
+          return false;
+        }
+        params.data.responsible_id = userId;
+        params.data.responsible_name = params.newValue;
+
+        return true;
+      };
+      columnDefinition.editable = (params) => canEditResponsibleCell(params.data);
+      columnDefinition.cellEditor = 'agSelectCellEditor';
+      columnDefinition.cellEditorParams = {
+        values: responsibleNamesForEditor.value,
+      };
+      columnDefinition.cellClass = (params) => (canEditResponsibleCell(params.data) ? 'orders-grid-editable-cell' : '');
     } else if (column.field === 'title') {
       columnDefinition.flex = 1;
     } else if (column.field === 'is_stage_overdue') {
@@ -974,10 +1303,154 @@ const onFirstDataRendered = () => {
 };
 
 const onCellDoubleClicked = (event) => {
+  const field = event.colDef?.field ?? event.colDef?.colId;
+  const inlineFields = new Set(['status', 'source', 'responsible_name']);
+
+  if (inlineFields.has(field) && canEditGridField(event.data, field === 'responsible_name' ? 'responsible_id' : field)) {
+    return;
+  }
+
   if (event.data?.id) {
     emit('row-dblclick', event.data);
   }
 };
+
+function onSelectionChanged() {
+  if (!gridApi.value) {
+    selectedRows.value = [];
+
+    return;
+  }
+
+  selectedRows.value = gridApi.value.getSelectedRows() ?? [];
+}
+
+async function saveGridField(row, field, value) {
+  if (!row?.id || !field) {
+    return;
+  }
+
+  try {
+    const response = await axios.patch(route('leads.grid-field.update', row.id), {
+      field,
+      value,
+    });
+
+    const updatedLead = response.data?.lead;
+    if (updatedLead) {
+      Object.assign(row, updatedLead);
+      gridApi.value?.refreshCells({ rowNodes: [gridApi.value.getRowNode(String(row.id))].filter(Boolean), force: true });
+    }
+
+    emit('grid-updated');
+  } catch (error) {
+    const message = error?.response?.data?.message ?? 'Не удалось сохранить изменение.';
+    window.alert(message);
+    router.reload({ only: ['leads'], preserveScroll: true });
+  }
+}
+
+function onCellValueChanged(params) {
+  if (params.newValue === params.oldValue) {
+    return;
+  }
+
+  const colId = params.colDef.colId ?? params.colDef.field;
+
+  if (colId === 'responsible_name') {
+    saveGridField(params.data, 'responsible_id', params.data.responsible_id);
+
+    return;
+  }
+
+  if (colId === 'status') {
+    saveGridField(params.data, 'status', params.data.status);
+
+    return;
+  }
+
+  if (colId === 'source' || params.colDef.field === 'source') {
+    saveGridField(params.data, 'source', params.data.source);
+  }
+}
+
+function onBulkAction(actionKey) {
+  if (selectedLeadIds.value.length === 0) {
+    return;
+  }
+
+  bulkError.value = '';
+
+  if (actionKey === 'source') {
+    bulkSourceValue.value = '';
+  } else if (actionKey === 'responsible_id') {
+    bulkResponsibleId.value = '';
+  } else if (actionKey === 'status') {
+    bulkStatusValue.value = '';
+  }
+
+  activeBulkModal.value = actionKey;
+}
+
+function closeBulkModal() {
+  if (bulkProcessing.value) {
+    return;
+  }
+
+  activeBulkModal.value = null;
+  bulkError.value = '';
+}
+
+function bulkValueForAction(action) {
+  if (action === 'source') {
+    return bulkSourceValue.value === '' ? null : bulkSourceValue.value;
+  }
+
+  if (action === 'responsible_id') {
+    return Number(bulkResponsibleId.value);
+  }
+
+  if (action === 'status') {
+    return bulkStatusValue.value;
+  }
+
+  return null;
+}
+
+async function submitBulkModal() {
+  if (!activeBulkModal.value || selectedLeadIds.value.length === 0) {
+    return;
+  }
+
+  bulkProcessing.value = true;
+  bulkError.value = '';
+
+  try {
+    const payload = {
+      lead_ids: selectedLeadIds.value,
+      action: activeBulkModal.value,
+    };
+
+    if (activeBulkModal.value !== 'delete') {
+      payload.value = bulkValueForAction(activeBulkModal.value);
+    }
+
+    await axios.post(route('leads.mass-update'), payload);
+
+    gridApi.value?.deselectAll();
+    selectedRows.value = [];
+    activeBulkModal.value = null;
+
+    router.reload({
+      only: ['leads', 'leadAttentionQueue', 'salesCoachingInsights'],
+      preserveScroll: true,
+    });
+  } catch (error) {
+    bulkError.value = error?.response?.data?.message ?? 'Не удалось выполнить массовое действие.';
+  } finally {
+    bulkProcessing.value = false;
+  }
+}
 
 watch(quickSearch, (value) => {
   if (gridApi.value) {

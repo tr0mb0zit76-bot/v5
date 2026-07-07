@@ -44,4 +44,17 @@ final class LeadStatus
     {
         return in_array($value, ['won', 'lost'], true);
     }
+
+    /**
+     * Статусы, которые можно менять из грида (без БП и без закрытия лида).
+     *
+     * @return list<string>
+     */
+    public static function inlineEditableValues(): array
+    {
+        return array_values(array_filter(
+            self::values(),
+            static fn (string $status): bool => ! self::isClosed($status),
+        ));
+    }
 }

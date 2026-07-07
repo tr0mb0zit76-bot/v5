@@ -239,6 +239,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/leads', 'store')->name('leads.store');
         Route::post('/leads/contractors', 'storeInlineContractor')->name('leads.contractors.store');
         Route::get('/leads/counterparty-authority-hint', 'counterpartyAuthorityHint')->name('leads.counterparty-authority-hint');
+        Route::post('/leads/mass-update', 'massUpdate')->name('leads.mass-update');
         Route::get('/leads/{lead}', 'show')->name('leads.show');
         Route::patch('/leads/{lead}', 'update')->name('leads.update');
         Route::delete('/leads/{lead}', 'destroy')->name('leads.destroy');
@@ -735,6 +736,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/leads/{lead}/status', [LeadController::class, 'updateStatus'])
         ->middleware('visibility.area:leads')
         ->name('leads.status.update');
+
+    Route::patch('/leads/{lead}/grid-field', [LeadController::class, 'updateGridField'])
+        ->middleware('visibility.area:leads')
+        ->name('leads.grid-field.update');
 
     Route::get('/modules', fn () => Inertia::render('Modules/Index'))
         ->middleware('visibility.area.any:modules_how_much_fits|modules_how_much_costs|modules_import_cost|modules_proposal_templates|modules')

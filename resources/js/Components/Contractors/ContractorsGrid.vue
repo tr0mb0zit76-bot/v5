@@ -58,18 +58,11 @@
           CSV
         </button>
 
-        <button
-          type="button"
-          :class="crmGridToolbarBtn"
-          :disabled="selectedContractorIds.length === 0"
-          title="Массово сменить владельца выбранных контрагентов"
-          @click="openBulkOwnerModal"
-        >
-          Сменить владельца
-          <span v-if="selectedContractorIds.length > 0" class="text-xs text-zinc-500 dark:text-zinc-400">
-            {{ selectedContractorIds.length }}
-          </span>
-        </button>
+        <GridBulkIconActions
+          :selected-count="selectedContractorIds.length"
+          :actions="bulkOwnerActions"
+          @action="openBulkOwnerModal"
+        />
 
         <GridViewsBar
           grid-key="contractors"
@@ -293,7 +286,7 @@ import { usePage, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { Rows3, Search, Settings2, Download, X } from 'lucide-vue-next';
+import { Rows3, Search, Settings2, Download, UserRound, X } from 'lucide-vue-next';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -303,6 +296,7 @@ import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import GridBulkIconActions from '@/Components/Grid/GridBulkIconActions.vue';
 import GridExportDialog from '@/Components/Grid/GridExportDialog.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
@@ -501,6 +495,15 @@ const canExportGrid = computed(() => page.props.can_export_grid === true);
 const selectedContractorIds = computed(() => selectedRows.value
   .map((row) => Number(row?.id))
   .filter((id) => Number.isFinite(id) && id > 0));
+
+const bulkOwnerActions = computed(() => ([
+  {
+    key: 'owner',
+    icon: UserRound,
+    title: 'Сменить владельца',
+    label: 'Сменить владельца',
+  },
+]));
 
 const defaultColDef = {
   sortable: true,

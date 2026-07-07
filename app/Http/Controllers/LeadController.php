@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Enums\LeadCloseOutcomeFlag;
 use App\Http\Requests\AdvanceLeadProcessStageRequest;
 use App\Http\Requests\ConvertLeadRequest;
+use App\Http\Requests\MassUpdateLeadsRequest;
 use App\Http\Requests\MergeLeadPortraitRequest;
 use App\Http\Requests\StoreInlineOrderContractorRequest;
 use App\Http\Requests\StoreLeadAttachmentRequest;
 use App\Http\Requests\StoreLeadNextStepRequest;
 use App\Http\Requests\StoreLeadRequest;
+use App\Http\Requests\UpdateLeadGridFieldRequest;
 use App\Http\Requests\UpdateLeadRequest;
 use App\Http\Requests\UpdateLeadStatusRequest;
 use App\Models\BusinessProcess;
@@ -35,6 +37,7 @@ use App\Services\LeadConversionService;
 use App\Services\LeadLinkedTaskService;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\Leads\LeadBasedOnTemplateBuilder;
+use App\Services\Leads\LeadGridMutationService;
 use App\Services\Leads\LeadOperationalBriefService;
 use App\Services\Leads\LeadRoutePriceBenchmarkService;
 use App\Services\Leads\TaskLeadTemplateBuilder;
@@ -82,6 +85,7 @@ class LeadController extends Controller
         private readonly ContractorPortraitService $contractorPortraitService,
         private readonly LeadOperationalBriefService $leadOperationalBriefService,
         private readonly LeadRoutePriceBenchmarkService $leadRoutePriceBenchmark,
+        private readonly LeadGridMutationService $leadGridMutationService,
     ) {}
 
     public function index(Request $request): Response
@@ -668,7 +672,7 @@ class LeadController extends Controller
             )
             ->latest('id')
             ->get()
-            ->map(function (Lead $lead) use ($processReady): array {
+            ->map(function (Lead $lead) use ($processReady, $request): array {
                 $row = [
                     'id' => $lead->id,
                     'number' => $lead->number,
@@ -676,7 +680,11 @@ class LeadController extends Controller
                     'title' => $lead->title,
                     'source' => $lead->source,
                     'counterparty_name' => $lead->counterparty?->name,
+                    'responsible_id' => $lead->responsible_id,
                     'responsible_name' => $lead->responsible?->name,
+                    'business_process_id' => Schema::hasColumn('leads', 'business_process_id')
+                        ? $lead->business_process_id
+                        : null,
                     'planned_shipping_date' => optional($lead->planned_shipping_date)->toDateString(),
                     'target_price' => $lead->target_price,
                     'target_currency' => $lead->target_currency,
@@ -686,6 +694,9 @@ class LeadController extends Controller
                     'current_stage_name' => null,
                     'stage_due_at' => null,
                     'is_stage_overdue' => false,
+                    'inline_editable_fields' => $request->user() !== null
+                        ? $this->leadGridMutationService->inlineEditableFields($lead, $request->user())
+                        : [],
                 ];
 
                 if ($processReady) {
@@ -782,6 +793,26 @@ class LeadController extends Controller
                     (int) config('outcome_intelligence.coaching_default_days', 90),
                 )
                 : null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function gridFieldPayload(Lead $lead, Request $request): array
+    {
+        return [
+            'id' => $lead->id,
+            'source' => $lead->source,
+            'status' => $lead->status,
+            'responsible_id' => $lead->responsible_id,
+            'responsible_name' => $lead->responsible?->name,
+            'business_process_id' => Schema::hasColumn('leads', 'business_process_id')
+                ? $lead->business_process_id
+                : null,
+            'inline_editable_fields' => $request->user() !== null
+                ? $this->leadGridMutationService->inlineEditableFields($lead, $request->user())
+                : [],
         ];
     }
 
@@ -1405,6 +1436,67 @@ class LeadController extends Controller
             : null;
 
         return $this->redirectToLeadShow($lead, 'Этап бизнес-процесса обновлён.', $followUp);
+    }
+
+    public function updateGridField(UpdateLeadGridFieldRequest $request, Lead $lead): JsonResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+
+        $result = $this->leadGridMutationService->applyField(
+            $lead,
+            $request->user(),
+            $request->string('field')->toString(),
+            $request->input('value'),
+        );
+
+        if (! $result['updated']) {
+            return response()->json([
+                'message' => $result['message'] ?? 'Не удалось сохранить изменение.',
+            ], 422);
+        }
+
+        $lead->refresh()->load(['responsible:id,name']);
+
+        return response()->json([
+            'lead' => $this->gridFieldPayload($lead, $request),
+        ]);
+    }
+
+    public function massUpdate(MassUpdateLeadsRequest $request): JsonResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+
+        $leadIds = collect($request->input('lead_ids', []))
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $result = $this->leadGridMutationService->massApply(
+            $request->user(),
+            $leadIds,
+            $request->string('action')->toString(),
+            $request->input('value'),
+        );
+
+        $message = match ($request->string('action')->toString()) {
+            'delete' => sprintf(
+                'Удалено лидов: %d. Пропущено: %d.',
+                $result['updated_count'],
+                $result['skipped_count'],
+            ),
+            default => sprintf(
+                'Обновлено лидов: %d. Пропущено: %d.',
+                $result['updated_count'],
+                $result['skipped_count'],
+            ),
+        };
+
+        return response()->json([
+            'message' => $message,
+            ...$result,
+        ]);
     }
 
     public function updateStatus(UpdateLeadStatusRequest $request, Lead $lead): JsonResponse
