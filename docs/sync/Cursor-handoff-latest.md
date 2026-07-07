@@ -3,9 +3,27 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-06 11:42 · **HEAD:** `818722c` · **Ветка:** `master` · **Контекст:** Traklo external security hardening; SLA/APK на витрине, push-кнопки в Android, аудит HTTPS на prod; E2EE не нужен
+**Обновлено:** 2026-07-07 15:58 · **HEAD:** `cd6b841` · **Ветка:** `master` · **Контекст:** грид лидов — inline + массовые действия; источник «Повторная обработка базы»
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Следующий шаг (лиды / гриды)
+
+1. **Smoke на prod:** грид «Лиды» — inline источник/ответственный/статус (без БП); чекбоксы + иконки bulk (источник, ответственный, статус, удалить).
+2. **Контрагенты:** массовая смена владельца — та же панель `GridBulkIconActions` (иконка).
+3. PHPUnit `LeadGridMutationTest` — прогнать на машине с `mysql` в PATH.
+
+---
+
+## Что сделано (2026-07-07) — грид лидов inline + bulk
+
+- **Inline:** источник, ответственный, статусы без БП (`won`/`lost` и лиды с `business_process_id` — только в карточке). API: `PATCH leads/{lead}/grid-field`.
+- **Массовые действия:** `POST leads/mass-update` (source, responsible_id, status, delete); UI — `GridBulkIconActions.vue` (переиспользуемый для лидов и контрагентов).
+- **Бэкенд:** `LeadGridMutationService`, `LeadStatus::inlineEditableValues()`, строки грида с `inline_editable_fields`.
+- **Коммиты:** `900419b` (источник `base_reprocessing`), `cd6b841` (inline + bulk).
+- **Prod:** `git reset --hard origin/master`, `npm run build`, `optimize:clear` — HEAD `cd6b841`. Миграций нет.
 
 ---
 
