@@ -281,11 +281,44 @@
                         <template v-if="collectionInsertViews.length > 0">
                             <span>Подборка:</span>
                             <select
-                                v-model="collectionInsertViewSlug"
+                                v-model="collectionInsertForm.view_slug"
                                 class="rounded-md border border-zinc-200 bg-white px-2 py-1 pr-8 text-xs dark:border-zinc-700 dark:bg-zinc-900"
                             >
                                 <option v-for="view in collectionInsertViews" :key="`collection-view-${view.slug}`" :value="view.slug">
                                     {{ view.label }}
+                                </option>
+                            </select>
+                            <input
+                                v-model="collectionInsertForm.title"
+                                type="text"
+                                placeholder="Заголовок подборки"
+                                class="w-36 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                            />
+                            <input
+                                v-model.number="collectionInsertForm.limit"
+                                type="number"
+                                min="1"
+                                max="30"
+                                class="w-16 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                                title="Сколько материалов показать"
+                            />
+                            <select
+                                v-model="collectionInsertForm.layout"
+                                class="rounded-md border border-zinc-200 bg-white px-2 py-1 pr-8 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                            >
+                                <option value="list">Список</option>
+                                <option value="cards">Карточки</option>
+                                <option value="grouped">Группы</option>
+                            </select>
+                            <select
+                                v-for="definition in sidebarFilterDefinitions"
+                                :key="`collection-filter-${definition.key}`"
+                                v-model="collectionInsertForm.filters[definition.key]"
+                                class="rounded-md border border-zinc-200 bg-white px-2 py-1 pr-8 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                            >
+                                <option value="">{{ definition.label }}: все</option>
+                                <option v-for="option in definition.options" :key="`collection-${definition.key}-${option.value}`" :value="option.value">
+                                    {{ option.label }}
                                 </option>
                             </select>
                             <button
@@ -626,7 +659,17 @@ const sidebarFilters = ref({
     sales_stage: '',
     product_area: '',
 });
-const collectionInsertViewSlug = ref('manager-materials');
+const collectionInsertForm = ref({
+    title: '',
+    view_slug: 'manager-materials',
+    limit: 8,
+    layout: 'list',
+    filters: {
+        audience_role: '',
+        sales_stage: '',
+        product_area: '',
+    },
+});
 
 const readonlyEditorKey = computed(() => {
     if (!props.selectedArticle) {
@@ -932,19 +975,27 @@ function formatDate(value) {
 }
 
 function insertEmbeddedCollection() {
-    const view = collectionInsertViews.value.find((candidate) => candidate.slug === collectionInsertViewSlug.value)
+    const view = collectionInsertViews.value.find((candidate) => candidate.slug === collectionInsertForm.value.view_slug)
         ?? collectionInsertViews.value[0];
 
     if (!view) {
         return;
     }
 
+    const filters = Object.fromEntries(Object.entries(collectionInsertForm.value.filters)
+        .filter(([, value]) => value !== ''));
+    const limit = Math.min(30, Math.max(1, Number(collectionInsertForm.value.limit) || 8));
     const payload = {
-        title: view.label,
+        title: collectionInsertForm.value.title.trim() || view.label,
         view_slug: view.slug,
-        limit: 8,
-        layout: view.layout === 'stage' ? 'grouped' : 'list',
+        limit,
+        layout: collectionInsertForm.value.layout || (view.layout === 'stage' ? 'grouped' : 'list'),
     };
+
+    if (Object.keys(filters).length > 0) {
+        payload.filters = filters;
+    }
+
     const directive = `\n\n\`\`\`sales-book-view\n${JSON.stringify(payload, null, 2)}\n\`\`\`\n`;
 
     if (editEditorRef.value?.insertMarkdown) {

@@ -37,6 +37,7 @@
 - [[Roadmap/Design/AI Agent Personas|AI Agent Personas — Джарвис, Галя, Юрик, Страж]]
 
 - [[knowledge-graph-notes|Граф знаний — Obsidian vs Hive Mind]]
+- [[sql-security-hygiene|SQL Security Hygiene]]
 
 ## Архитектура (Hive Mind)
 

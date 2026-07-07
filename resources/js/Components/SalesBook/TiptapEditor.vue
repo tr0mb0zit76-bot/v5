@@ -25,6 +25,11 @@
                 <option value="callout">Заметка</option>
                 <option value="checklist">Чек-лист</option>
                 <option value="divider">Разделитель</option>
+                <option value="reply-script">Скрипт ответа</option>
+                <option value="objection">Возражение</option>
+                <option value="mini-offer">Мини-КП</option>
+                <option value="next-step">Следующий шаг</option>
+                <option value="control-questions">Контрольные вопросы</option>
             </select>
 
             <span class="mx-1 self-stretch w-px bg-zinc-200 dark:bg-zinc-700" aria-hidden="true" />
@@ -434,6 +439,11 @@ function insertQuickBlock(type) {
         callout: '\n\n> **Важно:** краткая подсказка для менеджера.\n',
         checklist: '\n\n- [ ] Первый шаг\n- [ ] Второй шаг\n- [ ] Проверить результат\n',
         divider: '\n\n---\n',
+        'reply-script': '\n\n### Скрипт ответа\n\n**Ситуация:** \n\n**Что сказать клиенту:**\n> \n\n**Цель ответа:** \n',
+        objection: '\n\n### Возражение\n\n**Клиент говорит:** “...”\n\n**Не спорим:** \n\n**Уточняем:** \n\n**Отвечаем:** \n\n**Следующий вопрос:** \n',
+        'mini-offer': '\n\n### Мини-КП\n\n**Задача клиента:** \n\n**Наше решение:** \n\n**Что входит:**\n- \n\n**Почему это безопасно:** \n\n**Следующий шаг:** \n',
+        'next-step': '\n\n### Следующий шаг\n\n- **Кто делает:** \n- **Что делает:** \n- **До когда:** \n- **Какой результат фиксируем:** \n',
+        'control-questions': '\n\n### Контрольные вопросы\n\n1. \n2. \n3. \n',
     };
 
     insertMarkdown(blocks[type] ?? '');

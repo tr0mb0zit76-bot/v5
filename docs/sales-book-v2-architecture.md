@@ -253,7 +253,7 @@
 - “Возражения по цене” как table/board;
 - “Что обновить” как view по `review_status`.
 
-Статус локально (2026-07-07): foundation реализован. Поддержан block type `article_collection`; в Markdown он хранится как fenced directive `sales-book-view` с JSON (`title`, `view_slug`, `filters`, `limit`, `layout`). `SalesBookEmbeddedCollectionService` резолвит подборки через `SalesBookViewService`, исключает текущую статью и отдаёт строки для UI. В режиме чтения служебный directive скрывается, вместо него показываются карточки материалов. В редактор добавлена кнопка вставки подборки, чтобы не писать JSON вручную. Боковая навигация получила локальный поиск и фильтры по роли, этапу и направлению. Отдельный `review_status` в MVP убран: для публикации уже есть статус статьи (`draft` / `published`), а проверку актуальности лучше делать отдельным workflow в фазе 4.
+Статус локально (2026-07-07): foundation реализован. Поддержан block type `article_collection`; в Markdown он хранится как fenced directive `sales-book-view` с JSON (`title`, `view_slug`, `filters`, `limit`, `layout`). `SalesBookEmbeddedCollectionService` резолвит подборки через `SalesBookViewService`, исключает текущую статью и отдаёт строки для UI. В режиме чтения служебный directive скрывается, вместо него показываются карточки материалов. В редактор добавлена настройка вставки подборки: view, заголовок, лимит, layout и фильтры по роли/этапу/направлению. Боковая навигация получила локальный поиск и фильтры по роли, этапу и направлению. Отдельный `review_status` в MVP убран: для публикации уже есть статус статьи (`draft` / `published`), а проверку актуальности лучше делать отдельным workflow в фазе 4.
 
 ### Фаза 4 — версии и review workflow
 
@@ -273,7 +273,7 @@
 
 Изменения:
 
-- `SalesBookSearchService`;
+- `SalesBookSearchService` — базовый backend-сервис уже выделен из MCP;
 - индекс plaintext blocks;
 - скоринг по title/tags/properties/feedback;
 - “контекстные подборки” для command bar и тренажёра.

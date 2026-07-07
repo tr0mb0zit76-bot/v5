@@ -20,16 +20,16 @@
 - `blocks` → структурное тело статьи рядом с legacy `markdown_content`;
 - `properties` → роль, этап продаж, продуктовая область;
 - `views` → компактные режимы навигации Книги (`tree`, `table`, `by-stage`, `manager-materials`);
-- `search` → отдельный `SalesBookSearchService` с индексом title/content/tags/properties.
+- `search` → `SalesBookSearchService`; сейчас ищет по title/content/tags/properties, позже можно добавить отдельный индекс blocks/plaintext.
 
 Фаза 1 реализована локально: `properties/content_format`, `SalesBookPropertyCatalog`, `SalesBookViewService`, системные views (`tree`, `table`, `by-stage`, `manager-materials`), фильтры MCP search, компактный UI-переключатель views в боковой навигации.
 
 Фаза 2 foundation реализована локально: `blocks_snapshot`, `SalesBookBlockSnapshotService`, deterministic schema `sales_book_blocks_v1`, сохранение snapshot при web/MCP/import и sync child-links, MCP `get_sales_book_article(format=blocks|both)`, MCP `upsert_sales_book_article` с builder-like `blocks`.
 
-Фаза 3 foundation реализована локально: block type `article_collection`, Markdown directive `sales-book-view` с JSON, `SalesBookEmbeddedCollectionService`, embedded-подборки материалов внутри статьи в UI; в редакторе есть вставка подборки без ручного JSON.
+Фаза 3 foundation реализована локально: block type `article_collection`, Markdown directive `sales-book-view` с JSON, `SalesBookEmbeddedCollectionService`, embedded-подборки материалов внутри статьи в UI; в редакторе есть настройка вставки подборки без ручного JSON (view, заголовок, лимит, layout, фильтры).
 
 UX навигации: боковая панель содержит компактный переключатель views, локальный поиск и фильтры по роли/этапу/направлению. При активном поиске дерево показывается плоским списком найденных материалов.
 
-UX редактора: toolbar уплотнён; есть одна скрепка для файлов/картинок, dropdown цвета/маркера и dropdown `Блок` для быстрых вставок `Заметка`, `Чек-лист`, `Разделитель`.
+UX редактора: toolbar уплотнён; есть одна скрепка для файлов/картинок, dropdown цвета/маркера и dropdown `Блок` для быстрых вставок `Заметка`, `Чек-лист`, `Разделитель`, `Скрипт ответа`, `Возражение`, `Мини-КП`, `Следующий шаг`, `Контрольные вопросы`.
 
 *Обновлено: 2026-07-07.*
