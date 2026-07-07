@@ -157,6 +157,9 @@
                             {{ propertyLabelForRow(row, 'audience_role') || 'Без роли' }}
                             <template v-if="propertyLabelForRow(row, 'sales_stage')"> · {{ propertyLabelForRow(row, 'sales_stage') }}</template>
                         </span>
+                        <span v-if="row.excerpt" class="mt-1 block text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+                            {{ row.excerpt }}
+                        </span>
                     </button>
                 </div>
             </div>
@@ -554,7 +557,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import TiptapEditor from '@/Components/SalesBook/TiptapEditor.vue';
@@ -593,6 +596,10 @@ const props = defineProps({
     bookViewRows: {
         type: Array,
         default: () => [],
+    },
+    bookSearch: {
+        type: Object,
+        default: () => ({ query: '', filters: {}, active: false }),
     },
     salesBookPropertyCatalog: {
         type: Array,
@@ -653,12 +660,25 @@ const coverInputRef = ref(null);
 const coverUploading = ref(false);
 const coverError = ref('');
 const readerPreview = ref(false);
-const sidebarSearch = ref('');
+const sidebarSearch = ref(props.bookSearch?.query ?? '');
 const sidebarFilters = ref({
-    audience_role: '',
-    sales_stage: '',
-    product_area: '',
+    audience_role: props.bookSearch?.filters?.audience_role ?? '',
+    sales_stage: props.bookSearch?.filters?.sales_stage ?? '',
+    product_area: props.bookSearch?.filters?.product_area ?? '',
 });
+let sidebarSearchTimer = null;
+const bookPartialReloadProps = [
+    'selectedArticle',
+    'articlesTree',
+    'articleOptions',
+    'bookViews',
+    'activeBookView',
+    'bookViewRows',
+    'bookSearch',
+    'salesBookPropertyCatalog',
+    'directChildPages',
+    'articleFeedbackSummary',
+];
 const collectionInsertForm = ref({
     title: '',
     view_slug: 'manager-materials',
@@ -737,7 +757,7 @@ const groupedRowsByStage = computed(() => {
     const labels = new Map((stageDefinition?.options ?? []).map((option) => [option.value, option.label]));
     const groups = new Map();
 
-    filteredBookViewRows.value.forEach((row) => {
+    props.bookViewRows.forEach((row) => {
         const value = row.properties?.sales_stage || 'without-stage';
         const label = labels.get(value) ?? 'Без этапа';
         const group = groups.get(value) ?? { value, label, rows: [] };
@@ -755,7 +775,7 @@ const sidebarFiltersActive = computed(() => {
     return Object.values(sidebarFilters.value).some((value) => value !== '');
 });
 const navigationRows = computed(() => {
-    if (props.activeBookView.layout === 'tree') {
+    if (props.activeBookView.layout === 'tree' && !sidebarFiltersActive.value) {
         return props.articleOptions.map((article) => ({
             id: article.id,
             title: article.title,
@@ -766,8 +786,8 @@ const navigationRows = computed(() => {
 
     return props.bookViewRows;
 });
-const filteredBookViewRows = computed(() => props.bookViewRows.filter(rowMatchesSidebarFilters));
-const filteredNavigationRows = computed(() => navigationRows.value.filter(rowMatchesSidebarFilters));
+const filteredBookViewRows = computed(() => props.bookViewRows);
+const filteredNavigationRows = computed(() => navigationRows.value);
 
 watch(
     () => props.selectedArticle,
@@ -805,6 +825,26 @@ watch(
     },
     { immediate: true },
 );
+
+watch(
+    [sidebarSearch, sidebarFilters],
+    () => {
+        if (sidebarSearchTimer) {
+            window.clearTimeout(sidebarSearchTimer);
+        }
+
+        sidebarSearchTimer = window.setTimeout(() => {
+            applyBackendSearch();
+        }, 350);
+    },
+    { deep: true },
+);
+
+onBeforeUnmount(() => {
+    if (sidebarSearchTimer) {
+        window.clearTimeout(sidebarSearchTimer);
+    }
+});
 
 function onEditorUpdate(markdown) {
     const serverMarkdown = props.selectedArticle?.markdown_content ?? '';
@@ -929,30 +969,6 @@ function propertyLabelForRow(row, key) {
     return option?.label ?? '';
 }
 
-function rowMatchesSidebarFilters(row) {
-    const search = sidebarSearch.value.trim().toLocaleLowerCase('ru-RU');
-
-    if (search !== '') {
-        const searchable = [
-            row.title,
-            ...(normalizeTags(row.tags ?? [])),
-            ...sidebarFilterDefinitions.value.map((definition) => propertyLabelForRow(row, definition.key)),
-        ]
-            .join(' ')
-            .toLocaleLowerCase('ru-RU');
-
-        if (!searchable.includes(search)) {
-            return false;
-        }
-    }
-
-    return sidebarFilterDefinitions.value.every((definition) => {
-        const filterValue = sidebarFilters.value[definition.key] ?? '';
-
-        return filterValue === '' || row.properties?.[definition.key] === filterValue;
-    });
-}
-
 function resetSidebarFilters() {
     sidebarSearch.value = '';
     sidebarFilters.value = {
@@ -960,6 +976,32 @@ function resetSidebarFilters() {
         sales_stage: '',
         product_area: '',
     };
+}
+
+function cleanSidebarFilters() {
+    return Object.fromEntries(Object.entries(sidebarFilters.value)
+        .filter(([, value]) => value !== ''));
+}
+
+function bookSearchParams(overrides = {}) {
+    const filters = cleanSidebarFilters();
+    const query = sidebarSearch.value.trim();
+
+    return {
+        view: overrides.viewSlug ?? props.activeBookView.slug,
+        article_id: overrides.articleId ?? props.selectedArticle?.id ?? undefined,
+        q: query !== '' ? query : undefined,
+        filters: Object.keys(filters).length > 0 ? filters : undefined,
+    };
+}
+
+function applyBackendSearch() {
+    router.get(route('sales-assistant.book'), bookSearchParams(), {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        only: bookPartialReloadProps,
+    });
 }
 
 function formatTags(tags) {
@@ -1010,23 +1052,23 @@ function insertEmbeddedCollection() {
 }
 
 function openArticle(articleId) {
-    router.get(route('sales-assistant.book'), { article_id: articleId, view: props.activeBookView.slug }, {
+    router.get(route('sales-assistant.book'), bookSearchParams({ articleId }), {
         preserveState: true,
         preserveScroll: true,
         replace: true,
-        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'bookViews', 'activeBookView', 'bookViewRows', 'salesBookPropertyCatalog', 'directChildPages', 'articleFeedbackSummary'],
+        only: bookPartialReloadProps,
     });
 }
 
 function openBookView(viewSlug) {
-    router.get(route('sales-assistant.book'), {
-        view: viewSlug,
-        article_id: props.selectedArticle?.id ?? undefined,
-    }, {
+    router.get(route('sales-assistant.book'), bookSearchParams({
+        viewSlug,
+        articleId: props.selectedArticle?.id ?? undefined,
+    }), {
         preserveState: true,
         preserveScroll: true,
         replace: true,
-        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'bookViews', 'activeBookView', 'bookViewRows', 'salesBookPropertyCatalog', 'directChildPages', 'articleFeedbackSummary'],
+        only: bookPartialReloadProps,
     });
 }
 

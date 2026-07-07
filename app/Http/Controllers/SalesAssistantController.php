@@ -24,6 +24,7 @@ use App\Services\SalesBook\SalesBookBlockSnapshotService;
 use App\Services\SalesBook\SalesBookEmbeddedCollectionService;
 use App\Services\SalesBook\SalesBookQuizAttemptService;
 use App\Services\SalesBook\SalesBookQuizInsightsService;
+use App\Services\SalesBook\SalesBookSearchService;
 use App\Services\SalesBook\SalesBookViewService;
 use App\Services\SalesBookArticleTreeService;
 use App\Services\SalesBookParentChildLinksService;
@@ -82,6 +83,7 @@ class SalesAssistantController extends Controller
         SalesBookContentNormalizer $contentNormalizer,
         SalesBookArticleFeedbackSummaryService $feedbackSummaryService,
         SalesBookViewService $viewService,
+        SalesBookSearchService $searchService,
         SalesBookBlockSnapshotService $blockSnapshotService,
         SalesBookEmbeddedCollectionService $embeddedCollectionService,
     ): Response {
@@ -89,19 +91,42 @@ class SalesAssistantController extends Controller
 
         $canWriteSalesBook = RoleAccess::canWriteSalesBook($request->user());
         $activeView = $viewService->resolve($request->query('view'));
+        $bookSearchQuery = trim((string) $request->query('q', ''));
+        $rawBookSearchFilters = $request->query('filters', []);
+        $bookSearchFilters = SalesBookPropertyCatalog::normalize(is_array($rawBookSearchFilters) ? $rawBookSearchFilters : []);
+        $bookSearchActive = $bookSearchQuery !== '' || $bookSearchFilters !== [];
         $articles = SalesBookArticle::query()
             ->when(! $canWriteSalesBook, fn ($query) => $query->published())
             ->orderBy('parent_id')
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
-        $viewArticles = $viewService->apply($articles, $activeView['filters']);
+        $bookViewRows = null;
+
+        if ($bookSearchActive) {
+            $searchResult = $searchService->search(
+                $bookSearchQuery,
+                200,
+                $bookSearchFilters,
+                $activeView['slug'] ?? null,
+                publishedOnly: ! $canWriteSalesBook,
+            );
+            $bookViewRows = collect($searchResult['articles']);
+            $articlesById = $articles->keyBy('id');
+            $viewArticles = $bookViewRows
+                ->pluck('id')
+                ->map(fn (mixed $id): ?SalesBookArticle => $articlesById->get((int) $id))
+                ->filter()
+                ->values();
+        } else {
+            $viewArticles = $viewService->apply($articles, $activeView['filters']);
+        }
 
         $selectedArticleId = $request->integer('article_id');
         $selectedArticle = $viewArticles->firstWhere('id', $selectedArticleId);
 
         if ($selectedArticle === null) {
-            $selectedArticle = $viewArticles->first() ?? $articles->first();
+            $selectedArticle = $viewArticles->first() ?? ($bookSearchActive ? null : $articles->first());
         }
 
         if ($selectedArticle !== null) {
@@ -136,7 +161,12 @@ class SalesAssistantController extends Controller
             ])->values(),
             'bookViews' => $viewService->systemViews(),
             'activeBookView' => $activeView,
-            'bookViewRows' => $viewService->rows($viewArticles),
+            'bookViewRows' => $bookViewRows?->values()->all() ?? $viewService->rows($viewArticles),
+            'bookSearch' => [
+                'query' => $bookSearchQuery,
+                'filters' => $bookSearchFilters,
+                'active' => $bookSearchActive,
+            ],
             'salesBookPropertyCatalog' => SalesBookPropertyCatalog::definitions(),
             'directChildPages' => $directChildPages,
             'selectedArticle' => $selectedArticle === null

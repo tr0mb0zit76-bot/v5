@@ -26,8 +26,13 @@ final class SalesBookSearchService
      *     excerpt: string|null
      * }>}
      */
-    public function search(string $query, int $limit, array $propertyFilters = [], ?string $viewSlug = null): array
-    {
+    public function search(
+        string $query,
+        int $limit,
+        array $propertyFilters = [],
+        ?string $viewSlug = null,
+        bool $publishedOnly = true,
+    ): array {
         $limit = max(1, min($limit, 50));
         $trimmedQuery = trim($query);
         $activeView = $this->viewService->resolve($viewSlug);
@@ -37,7 +42,7 @@ final class SalesBookSearchService
         ], fn (mixed $value): bool => $value !== null && $value !== '' && $value !== []);
 
         $builder = SalesBookArticle::query()
-            ->published()
+            ->when($publishedOnly, fn ($query) => $query->published())
             ->orderBy('sort_order')
             ->orderBy('id');
 
@@ -83,7 +88,7 @@ final class SalesBookSearchService
         $articles = $articles->values()->take($limit);
 
         $parentsById = SalesBookArticle::query()
-            ->published()
+            ->when($publishedOnly, fn ($query) => $query->published())
             ->whereIn('id', $articles->pluck('parent_id')->filter()->unique())
             ->pluck('title', 'id');
 

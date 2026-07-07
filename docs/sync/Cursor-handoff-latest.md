@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-07 20:08 · **HEAD:** `93f3414` · **Ветка:** `master` · **Контекст:** Книга продаж 2.0 — настройка подборок, search service, SQL hygiene
+**Обновлено:** 2026-07-07 20:16 · **HEAD:** `d09ccfc` · **Ветка:** `master` · **Контекст:** Книга продаж 2.0 — backend search в UI
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
@@ -17,7 +17,7 @@
 - Реализована фаза 1 локально: миграция `properties/content_format`, `SalesBookPropertyCatalog`, `SalesBookViewService`, системные views (`tree`, `table`, `by-stage`, `manager-materials`), фильтры MCP search по `properties/view_slug`, компактный UI-переключатель views в боковой навигации.
 - UX-корректировка views: отдельное поле `Иконка` убрано (emoji живут прямо в заголовке статьи); центральный обзор `Таблица`/`По этапам`/`Для менеджера` над статьёй удалён, чтобы представления не дублировали навигацию и не забивали контентную область.
 - UX-корректировка панели: дублирующие поля тегов в создании/импорте убраны (теги редактируются в инструментах статьи); drop-зона “вынести в корень” удалена; select-контролы получили правый отступ под системную галочку/стрелку; свойство `Сложность` удалено из каталога; toolbar Tiptap уплотнён — одна скрепка для файлов/картинок и dropdown для цвета/маркера.
-- UX-навигация: в боковую панель добавлены локальный поиск и фильтры по роли/этапу/направлению; при активном поиске дерево отображает плоский список найденных материалов.
+- UX-навигация: в боковую панель добавлены поиск и фильтры по роли/этапу/направлению; текущий незакоммиченный шаг переводит их на backend `SalesBookSearchService`, включая поиск по содержимому статьи и excerpt в списке.
 - Реализована фаза 2 foundation локально: миграция `blocks_snapshot`, `SalesBookBlockSnapshotService`, schema `sales_book_blocks_v1`, snapshot при web create/update/import, MCP upsert и sync child-links; MCP `get_sales_book_article(format=blocks|both)`; MCP `upsert_sales_book_article` принимает `markdown_content` или builder-like `blocks`.
 - Реализована фаза 3 foundation локально: block type `article_collection`, Markdown directive `sales-book-view` с JSON, `SalesBookEmbeddedCollectionService`, embedded-подборки материалов внутри статьи в UI; служебный directive скрывается из reader mode; в редактор добавлена вставка подборки без ручного JSON.
 - Свойство `Проверка` (`review_status`) убрано из MVP-каталога: для публикации уже есть статус статьи `draft/published`.
@@ -25,7 +25,8 @@
 - Проверка: `pwsh -NoProfile -Command "php vendor/bin/pint --dirty --format agent"`; Sales Book tests — 22 passed; Order Wizard tests — 36 passed, 4 skipped; `pwsh -NoProfile -Command "npm run build"` — успешно; IDE lints — без ошибок; `pwsh -File scripts/sync-docs-to-yandex.ps1` — успешно.
 - Коммит: `98b4521` (`Книга продаж: добавить views, blocks и подборки`).
 - Коммит: `93f3414` (`Книга продаж: добавить быстрые блоки редактора`).
-- Текущий незакоммиченный пакет: настройка вставки embedded-подборки (view, заголовок, лимит, layout, filters); CRM-шаблоны блоков (`Скрипт ответа`, `Возражение`, `Мини-КП`, `Следующий шаг`, `Контрольные вопросы`); `SalesBookSearchService` выделен из MCP; добавлен `docs/sync/sql-security-hygiene.md` и sync-map.
+- Коммит: `d09ccfc` (`Книга продаж: настроить подборки и поиск`).
+- Последний пакет текущей сессии: UI Книги продаж подключает боковой поиск и фильтры к `SalesBookSearchService`; `review workflow` оставлен в roadmap как будущая фаза, AI-резюме статьи не планируется.
 
 ---
 

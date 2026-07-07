@@ -243,6 +243,54 @@ MD,
             );
     }
 
+    public function test_book_page_uses_backend_search_for_sidebar_results(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'reader_manager',
+            'display_name' => 'Reader manager',
+            'permissions' => ['sales_book_read'],
+            'visibility_areas' => ['scripts', 'sales_assistant_book'],
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+        ]);
+
+        $matching = SalesBookArticle::query()->create([
+            'title' => 'Материал без ключевого слова в заголовке',
+            'markdown_content' => 'Внутри статьи есть редкое слово альфацентавра для backend-поиска.',
+            'sort_order' => 1,
+            'properties' => [
+                'audience_role' => 'manager',
+            ],
+        ]);
+
+        SalesBookArticle::query()->create([
+            'title' => 'Другой материал',
+            'markdown_content' => 'Обычная статья без совпадения.',
+            'sort_order' => 2,
+            'properties' => [
+                'audience_role' => 'logist',
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('sales-assistant.book', [
+                'q' => 'альфацентавра',
+                'filters' => [
+                    'audience_role' => 'manager',
+                ],
+            ]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('bookSearch.query', 'альфацентавра')
+                ->where('bookSearch.filters.audience_role', 'manager')
+                ->where('bookViewRows.0.id', $matching->id)
+                ->where('bookViewRows.0.matched_in', 'content')
+                ->where('selectedArticle.id', $matching->id)
+            );
+    }
+
     public function test_book_page_is_forbidden_without_book_visibility_area(): void
     {
         $role = Role::query()->create([
