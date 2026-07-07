@@ -157,10 +157,11 @@ class SalesScriptFlowTest extends TestCase
         $scriptTitles = SalesScript::query()->pluck('title')->all();
 
         $this->assertGreaterThanOrEqual(90, $nodes->count());
-        $this->assertSame(13, SalesScriptVersion::query()->where('is_active', true)->whereNotNull('published_at')->count());
+        $this->assertSame(14, SalesScriptVersion::query()->where('is_active', true)->whereNotNull('published_at')->count());
         $this->assertContains('Дожим КП после отправки', $scriptTitles);
         $this->assertContains('Тендер / закупщик', $scriptTitles);
         $this->assertContains('Возврат уснувшего лида', $scriptTitles);
+        $this->assertContains('Реактивация тёплой базы', $scriptTitles);
         $this->assertContains('Переговоры по цене и марже', $scriptTitles);
         $this->assertContains('Проблемный рейс / удержание клиента', $scriptTitles);
         $this->assertContains('Повторная продажа действующему клиенту', $scriptTitles);
