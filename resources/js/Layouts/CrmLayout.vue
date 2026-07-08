@@ -601,6 +601,7 @@ import {
     ClipboardList,
     Download,
     FileText,
+    Gavel,
     House,
     Kanban,
     LayoutDashboard,
@@ -979,7 +980,7 @@ function continueMobileBrowserCabinet() {
 const MOBILE_NAV_DEF = [
     { key: 'dashboard', label: 'Главная', icon: House },
     { key: 'orders', label: 'Заказы', icon: Package },
-    { key: 'load-board', label: 'Биржа', icon: ClipboardList },
+    { key: 'load-board', label: 'Биржа', icon: Gavel },
     { key: 'leads', label: 'Лиды', icon: Target },
     { key: 'tasks', label: 'Задачи', icon: ClipboardList },
     { key: 'kanban', label: 'Канбан', icon: Kanban },
@@ -1251,7 +1252,7 @@ const menuItems = computed(() => {
         ...(favoritesItem ? [favoritesItem] : []),
         { key: 'leads', label: 'Лиды', icon: Target, visibilityArea: 'leads' },
         { key: 'orders', label: 'Заказы', icon: Package, visibilityArea: 'orders' },
-        { key: 'load-board', label: 'Биржа грузов', icon: ClipboardList, visibilityArea: 'load_board' },
+        { key: 'load-board', label: 'Биржа грузов', icon: Gavel, visibilityArea: 'load_board' },
         { key: 'contractors', label: 'Контрагенты', icon: Users, visibilityArea: 'contractors' },
         {
             key: 'fleet',

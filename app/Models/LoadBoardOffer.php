@@ -15,6 +15,7 @@ class LoadBoardOffer extends Model
         'carrier_id',
         'created_by',
         'status',
+        'source',
         'carrier_rate',
         'carrier_rate_currency',
         'payment_form',

@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Models\Contractor;
 use App\Models\LoadBoardOffer;
 use App\Models\LoadBoardPost;
+use App\Models\LoadBoardRateObservation;
 use App\Models\Order;
 use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\LoadBoard\LoadBoardCorridorKey;
 use Tests\TestCase;
 
 class LoadBoardTest extends TestCase
@@ -162,8 +164,171 @@ class LoadBoardTest extends TestCase
         $this->assertSame($offer->id, $post->accepted_offer_id);
         $this->assertSame($seller->id, $post->accepted_by);
         $this->assertSame($carrier->id, $order->carrier_id);
-        $this->assertSame('145000.00', (string) $order->carrier_rate);
+        $this->assertOrderCarrierRate($order->id, 145000.0);
         $this->assertSame($offer->id, $order->metadata['load_board_accepted_offer']['offer_id']);
         $this->assertSame('done', $task->status);
+    }
+
+    public function test_index_returns_paginated_posts_payload(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'load_board_role_index',
+            'display_name' => 'Load board role index',
+            'visibility_areas' => ['load_board'],
+        ]);
+
+        $user = User::factory()->create(['role_id' => $role->id]);
+
+        $this->actingAs($user)
+            ->get(route('load-board.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('LoadBoard/Index')
+                ->has('posts.data')
+                ->has('posts.meta')
+                ->where('posts.meta.per_page', 50)
+                ->has('activePostsCount'));
+    }
+
+    public function test_rows_endpoint_returns_next_page_for_infinite_scroll(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'load_board_role_rows',
+            'display_name' => 'Load board role rows',
+            'visibility_areas' => ['load_board'],
+        ]);
+
+        $user = User::factory()->create(['role_id' => $role->id]);
+
+        for ($index = 1; $index <= 55; $index++) {
+            LoadBoardPost::query()->create([
+                'seller_id' => $user->id,
+                'status' => 'new',
+                'priority' => 'normal',
+                'title' => "Груз {$index}",
+                'published_at' => now(),
+            ]);
+        }
+
+        $firstPage = $this->actingAs($user)
+            ->getJson(route('load-board.rows', ['filter' => 'all', 'page' => 1]))
+            ->assertOk()
+            ->json();
+
+        $this->assertCount(50, $firstPage['data']);
+        $this->assertTrue($firstPage['meta']['has_more']);
+        $this->assertSame(55, $firstPage['meta']['total']);
+
+        $secondPage = $this->actingAs($user)
+            ->getJson(route('load-board.rows', ['filter' => 'all', 'page' => 2]))
+            ->assertOk()
+            ->json();
+
+        $this->assertCount(5, $secondPage['data']);
+        $this->assertFalse($secondPage['meta']['has_more']);
+    }
+
+    public function test_store_offer_records_rate_observation_with_source(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'load_board_role_observation',
+            'display_name' => 'Load board observation',
+            'visibility_areas' => ['load_board'],
+        ]);
+
+        $buyer = User::factory()->create(['role_id' => $role->id]);
+        $carrier = Contractor::query()->create([
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик',
+            'is_active' => true,
+        ]);
+
+        $post = LoadBoardPost::query()->create([
+            'seller_id' => $buyer->id,
+            'status' => 'in_work',
+            'priority' => 'normal',
+            'title' => 'Москва → Казань',
+            'loading_location' => 'Москва',
+            'unloading_location' => 'Казань',
+            'cargo_weight' => 20,
+            'customer_rate' => 180000,
+            'customer_rate_currency' => 'RUB',
+            'published_at' => now(),
+        ]);
+
+        $this->actingAs($buyer)
+            ->post(route('load-board.offers.store', $post), [
+                'carrier_id' => $carrier->id,
+                'carrier_rate' => 145000,
+                'carrier_rate_currency' => 'RUB',
+                'source' => 'ati_manual',
+            ])
+            ->assertRedirect();
+
+        $offer = LoadBoardOffer::query()->firstOrFail();
+
+        $this->assertDatabaseHas('load_board_rate_observations', [
+            'load_board_post_id' => $post->id,
+            'load_board_offer_id' => $offer->id,
+            'carrier_rate' => 145000,
+            'source' => 'ati_manual',
+            'outcome' => 'open',
+        ]);
+
+        $row = $this->actingAs($buyer)
+            ->getJson(route('load-board.rows', ['filter' => 'all', 'page' => 1]))
+            ->assertOk()
+            ->json('data.0');
+
+        $this->assertSame(145000.0, (float) $row['offers_summary']['best_rate']);
+        $this->assertSame('ATI (вручную)', $row['offers_summary']['sources_label']);
+    }
+
+    public function test_insights_endpoint_returns_corridor_statistics(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'load_board_role_insights',
+            'display_name' => 'Load board insights',
+            'visibility_areas' => ['load_board'],
+        ]);
+
+        $user = User::factory()->create(['role_id' => $role->id]);
+
+        $post = LoadBoardPost::query()->create([
+            'seller_id' => $user->id,
+            'status' => 'has_offers',
+            'priority' => 'normal',
+            'title' => 'Москва → Казань',
+            'loading_location' => 'Москва',
+            'unloading_location' => 'Казань',
+            'cargo_weight' => 20,
+            'customer_rate' => 200000,
+            'customer_rate_currency' => 'RUB',
+            'published_at' => now(),
+        ]);
+
+        LoadBoardRateObservation::query()->create([
+            'load_board_post_id' => $post->id,
+            'carrier_rate' => 150000,
+            'carrier_rate_currency' => 'RUB',
+            'corridor_key' => LoadBoardCorridorKey::forPost($post),
+            'loading_location' => $post->loading_location,
+            'unloading_location' => $post->unloading_location,
+            'customer_rate' => 200000,
+            'customer_rate_currency' => 'RUB',
+            'margin_abs' => 50000,
+            'margin_pct' => 25,
+            'source' => 'internal_crm',
+            'outcome' => 'open',
+            'observed_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('load-board.insights', $post))
+            ->assertOk()
+            ->assertJsonPath('post_id', $post->id)
+            ->assertJsonPath('insights.available', true)
+            ->assertJsonPath('insights.sample_size', 1)
+            ->assertJsonPath('insights.carrier_rate.min', 150000);
     }
 }

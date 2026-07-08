@@ -376,6 +376,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('orders.transport-summary');
     Route::middleware('visibility.area:load_board')->prefix('load-board')->name('load-board.')->group(function () {
         Route::get('/', [LoadBoardController::class, 'index'])->name('index');
+        Route::get('/rows', [LoadBoardController::class, 'rows'])->name('rows');
+        Route::get('/{post}/insights', [LoadBoardController::class, 'insights'])->name('insights');
         Route::post('/', [LoadBoardController::class, 'store'])->name('store');
         Route::post('/{post}/take', [LoadBoardController::class, 'take'])->name('take');
         Route::post('/{post}/release', [LoadBoardController::class, 'release'])->name('release');

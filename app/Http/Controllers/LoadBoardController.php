@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreLoadBoardOfferRequest;
 use App\Http\Requests\StoreLoadBoardPostRequest;
 use App\Models\Contractor;
+use App\Models\FinancialTerm;
 use App\Models\Lead;
 use App\Models\LoadBoardOffer;
 use App\Models\LoadBoardPost;
@@ -13,18 +14,30 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\LoadBoard\LoadBoardAtiReadinessService;
 use App\Services\LoadBoard\LoadBoardBuyerTaskService;
+use App\Services\LoadBoard\LoadBoardPostIndexService;
+use App\Services\LoadBoard\LoadBoardPostPresenter;
+use App\Services\LoadBoard\LoadBoardRateObservationService;
 use App\Support\AtiDictionaryOptionCatalog;
+use App\Support\LoadBoardOfferSource;
 use App\Support\RoleAccess;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class LoadBoardController extends Controller
 {
+    public function __construct(
+        private readonly LoadBoardPostIndexService $postIndex,
+        private readonly LoadBoardPostPresenter $postPresenter,
+        private readonly LoadBoardRateObservationService $rateObservations,
+    ) {}
+
     /**
      * @return array<string, string>
      */
@@ -59,40 +72,12 @@ class LoadBoardController extends Controller
         $user = $request->user();
         abort_if($user === null, 403);
 
-        $filter = $request->string('filter')->toString();
-        if (! in_array($filter, ['active', 'my', 'buyer', 'closed', 'all'], true)) {
-            $filter = 'active';
-        }
-
+        $filter = $this->postIndex->normalizeFilter($request->string('filter')->toString());
         $prefill = $this->prefillFromRequest($request);
 
-        $posts = LoadBoardPost::query()
-            ->with([
-                'seller:id,name',
-                'buyer:id,name',
-                'customer:id,name',
-                'lead:id,number,title',
-                'order:id,order_number',
-                'acceptedOffer.carrier:id,name',
-                'accepter:id,name',
-                'offers.carrier:id,name',
-                'offers.creator:id,name',
-            ])
-            ->withCount('offers')
-            ->when($filter === 'active', fn ($query) => $query->whereNotIn('status', ['closed', 'cancelled', 'no_options']))
-            ->when($filter === 'my', fn ($query) => $query->where('seller_id', $user->id))
-            ->when($filter === 'buyer', fn ($query) => $query->where('buyer_id', $user->id))
-            ->when($filter === 'closed', fn ($query) => $query->whereIn('status', ['closed', 'cancelled', 'no_options']))
-            ->orderByRaw("FIELD(priority, 'urgent', 'high', 'normal', 'low')")
-            ->orderByRaw("FIELD(status, 'new', 'in_work', 'has_offers', 'seller_review', 'no_options', 'closed', 'cancelled')")
-            ->latest('updated_at')
-            ->limit(200)
-            ->get()
-            ->map(fn (LoadBoardPost $post): array => $this->formatPost($post))
-            ->values();
-
         return Inertia::render('LoadBoard/Index', [
-            'posts' => $posts,
+            'posts' => $this->postIndex->pagePayload($filter, $user),
+            'activePostsCount' => $this->postIndex->countActive(),
             'filter' => $filter,
             'statusLabels' => self::statusLabels(),
             'priorityLabels' => self::priorityLabels(),
@@ -101,7 +86,34 @@ class LoadBoardController extends Controller
             'leadOptions' => Lead::query()->select(['id', 'number', 'title'])->latest('id')->limit(100)->get(),
             'orderOptions' => Order::query()->select(['id', 'order_number'])->latest('id')->limit(100)->get(),
             'atiDictionaries' => $this->atiDictionaries(),
+            'offerSourceOptions' => LoadBoardOfferSource::labels(),
             'prefill' => $prefill,
+        ]);
+    }
+
+    public function rows(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        $validated = $request->validate([
+            'filter' => ['sometimes', 'string', Rule::in(LoadBoardPostIndexService::FILTERS)],
+            'page' => ['sometimes', 'integer', 'min:1'],
+        ]);
+
+        $filter = $this->postIndex->normalizeFilter($validated['filter'] ?? 'active');
+        $page = (int) ($validated['page'] ?? 1);
+
+        return response()->json($this->postIndex->pagePayload($filter, $user, $page));
+    }
+
+    public function insights(Request $request, LoadBoardPost $post): JsonResponse
+    {
+        abort_if($request->user() === null, 403);
+
+        return response()->json([
+            'post_id' => $post->id,
+            'insights' => $this->rateObservations->corridorInsightsForPost($post),
         ]);
     }
 
@@ -190,11 +202,14 @@ class LoadBoardController extends Controller
     {
         $validated = $request->validated();
 
-        $post->offers()->create([
+        $offer = $post->offers()->create([
             ...$validated,
             'created_by' => $request->user()?->id,
+            'source' => $validated['source'] ?? LoadBoardOfferSource::INTERNAL_CRM,
             'carrier_rate_currency' => strtoupper((string) ($validated['carrier_rate_currency'] ?? 'RUB')),
         ]);
+
+        $this->rateObservations->recordOfferCreated($post, $offer);
 
         if (! in_array($post->status, ['closed', 'cancelled', 'no_options'], true)) {
             $post->update([
@@ -212,7 +227,9 @@ class LoadBoardController extends Controller
         abort_unless($offer->load_board_post_id === $post->id, 404);
 
         DB::transaction(function () use ($post, $offer): void {
+            $rejectedOffers = $post->offers()->where('id', '!=', $offer->id)->get();
             $post->offers()->where('id', '!=', $offer->id)->update(['status' => 'rejected']);
+            $this->rateObservations->markOffersOutcome($rejectedOffers, 'not_selected');
             $offer->update([
                 'status' => 'selected',
                 'selected_at' => now(),
@@ -231,13 +248,19 @@ class LoadBoardController extends Controller
         abort_if($user === null, 403);
         abort_unless($offer->load_board_post_id === $post->id, 404);
 
+        $post->refresh();
+        $offer->refresh();
+
         if ($post->status !== 'seller_review' || $offer->status !== 'selected') {
             return back()->with('message', 'Сначала выберите вариант перевозчика для согласования.');
         }
 
         DB::transaction(function () use ($post, $offer, $user): void {
+            $rejectedOffers = $post->offers()->where('id', '!=', $offer->id)->get();
             $post->offers()->where('id', '!=', $offer->id)->update(['status' => 'rejected']);
+            $this->rateObservations->markOffersOutcome($rejectedOffers, 'rejected');
             $offer->update(['status' => 'approved']);
+            $this->rateObservations->markOfferOutcome($offer, 'approved');
 
             $metadata = is_array($post->metadata) ? $post->metadata : [];
             $metadata['accepted_offer'] = $this->acceptedOfferMetadata($offer);
@@ -268,6 +291,10 @@ class LoadBoardController extends Controller
             'status' => $validated['status'],
             'closed_at' => $validated['status'] === 'closed' ? now() : $post->closed_at,
         ]);
+
+        if (in_array($validated['status'], ['closed', 'cancelled', 'no_options'], true)) {
+            $this->rateObservations->closeOpenObservationsForPost($post, 'expired');
+        }
 
         return back()->with('message', 'Статус груза обновлён.');
     }
@@ -333,15 +360,49 @@ class LoadBoardController extends Controller
             $payload['carrier_id'] = $offer->carrier_id;
         }
 
-        if ($order->carrier_rate === null && $offer->carrier_rate !== null) {
+        if (
+            Schema::hasColumn('orders', 'carrier_rate')
+            && $order->carrier_rate === null
+            && $offer->carrier_rate !== null
+        ) {
             $payload['carrier_rate'] = $offer->carrier_rate;
         }
 
-        if (blank($order->carrier_payment_form) && filled($offer->payment_form)) {
+        if (
+            Schema::hasColumn('orders', 'carrier_payment_form')
+            && blank($order->carrier_payment_form)
+            && filled($offer->payment_form)
+        ) {
             $payload['carrier_payment_form'] = $offer->payment_form;
         }
 
         $order->forceFill($payload)->save();
+
+        if (
+            ! Schema::hasColumn('orders', 'carrier_rate')
+            && $offer->carrier_rate !== null
+            && Schema::hasTable('financial_terms')
+        ) {
+            $this->syncAcceptedOfferToFinancialTerms($order, $offer);
+        }
+    }
+
+    private function syncAcceptedOfferToFinancialTerms(Order $order, LoadBoardOffer $offer): void
+    {
+        $financialTerm = FinancialTerm::query()->firstOrNew(['order_id' => $order->id]);
+        $costs = is_array($financialTerm->contractors_costs) ? $financialTerm->contractors_costs : [];
+
+        if ($costs !== []) {
+            return;
+        }
+
+        $financialTerm->contractors_costs = [[
+            'contractor_id' => $offer->carrier_id,
+            'amount' => (float) $offer->carrier_rate,
+            'payment_form' => $offer->payment_form,
+            'currency' => strtoupper((string) ($offer->carrier_rate_currency ?: 'RUB')),
+        ]];
+        $financialTerm->save();
     }
 
     private function closeBuyerTask(LoadBoardPost $post): void
@@ -353,110 +414,6 @@ class LoadBoardController extends Controller
                 'status' => 'done',
                 'completed_at' => now(),
             ]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function formatPost(LoadBoardPost $post): array
-    {
-        return [
-            'id' => $post->id,
-            'lead_id' => $post->lead_id,
-            'order_id' => $post->order_id,
-            'customer_id' => $post->customer_id,
-            'seller_id' => $post->seller_id,
-            'buyer_id' => $post->buyer_id,
-            'accepted_offer_id' => $post->accepted_offer_id,
-            'accepted_by' => $post->accepted_by,
-            'accepted_at' => $post->accepted_at?->toDateTimeString(),
-            'status' => $post->status,
-            'priority' => $post->priority,
-            'title' => $post->title,
-            'loading_location' => $post->loading_location,
-            'unloading_location' => $post->unloading_location,
-            'loading_date' => $post->loading_date?->toDateString(),
-            'unloading_date' => $post->unloading_date?->toDateString(),
-            'cargo_name' => $post->cargo_name,
-            'ati_cargo_name' => $post->ati_cargo_name,
-            'cargo_weight' => $post->cargo_weight,
-            'cargo_volume' => $post->cargo_volume,
-            'cargo_type_id' => $post->cargo_type_id,
-            'cargo_type' => $post->cargo_type,
-            'cargo_type_label' => $post->cargo_type_label,
-            'pack_type_id' => $post->pack_type_id,
-            'package_type' => $post->package_type,
-            'pack_type_label' => $post->pack_type_label,
-            'package_count' => $post->package_count,
-            'loading_type_id' => $post->loading_type_id,
-            'loading_type_code' => $post->loading_type_code,
-            'loading_type_label' => $post->loading_type_label,
-            'loading_type_items' => $post->loading_type_items ?? [],
-            'truck_body_type_id' => $post->truck_body_type_id,
-            'truck_body_type_code' => $post->truck_body_type_code,
-            'truck_body_type_label' => $post->truck_body_type_label,
-            'truck_body_type_items' => $post->truck_body_type_items ?? [],
-            'trailer_type_id' => $post->trailer_type_id,
-            'trailer_type_code' => $post->trailer_type_code,
-            'trailer_type_label' => $post->trailer_type_label,
-            'trailer_type_items' => $post->trailer_type_items ?? [],
-            'length' => $post->length,
-            'width' => $post->width,
-            'height' => $post->height,
-            'diameter' => $post->diameter,
-            'is_hazardous' => $post->is_hazardous,
-            'hazard_class' => $post->hazard_class,
-            'needs_temperature' => $post->needs_temperature,
-            'temp_min' => $post->temp_min,
-            'temp_max' => $post->temp_max,
-            'is_oversized' => $post->is_oversized,
-            'is_fragile' => $post->is_fragile,
-            'hs_code' => $post->hs_code,
-            'ati_cargo_payload' => $post->ati_cargo_payload ?? [],
-            'transport_type' => $post->transport_type,
-            'customer_rate' => $post->customer_rate,
-            'customer_rate_currency' => $post->customer_rate_currency,
-            'target_carrier_rate' => $post->target_carrier_rate,
-            'payment_form' => $post->payment_form,
-            'requirements' => $post->requirements,
-            'seller_comment' => $post->seller_comment,
-            'metadata' => $post->metadata ?? [],
-            'published_at' => $post->published_at?->toDateTimeString(),
-            'taken_at' => $post->taken_at?->toDateTimeString(),
-            'closed_at' => $post->closed_at?->toDateTimeString(),
-            'updated_at' => $post->updated_at?->toDateTimeString(),
-            'seller' => $post->seller?->only(['id', 'name']),
-            'buyer' => $post->buyer?->only(['id', 'name']),
-            'accepted_offer' => $post->acceptedOffer?->only(['id', 'carrier_id', 'carrier_rate', 'carrier_rate_currency', 'payment_form']),
-            'accepter' => $post->accepter?->only(['id', 'name']),
-            'customer' => $post->customer?->only(['id', 'name']),
-            'lead' => $post->lead?->only(['id', 'number', 'title']),
-            'order' => $post->order?->only(['id', 'order_number']),
-            'offers_count' => $post->offers_count,
-            'offers' => $post->offers
-                ->sortByDesc(fn (LoadBoardOffer $offer): int => match ($offer->status) {
-                    'approved' => 3,
-                    'selected' => 2,
-                    default => 1,
-                })
-                ->map(fn (LoadBoardOffer $offer): array => [
-                    'id' => $offer->id,
-                    'carrier_id' => $offer->carrier_id,
-                    'status' => $offer->status,
-                    'carrier_rate' => $offer->carrier_rate,
-                    'carrier_rate_currency' => $offer->carrier_rate_currency,
-                    'payment_form' => $offer->payment_form,
-                    'available_date' => $offer->available_date?->toDateString(),
-                    'carrier_contact' => $offer->carrier_contact,
-                    'conditions' => $offer->conditions,
-                    'comment' => $offer->comment,
-                    'selected_at' => $offer->selected_at?->toDateTimeString(),
-                    'carrier' => $offer->carrier?->only(['id', 'name']),
-                    'creator' => $offer->creator?->only(['id', 'name']),
-                ])
-                ->values()
-                ->all(),
-        ];
     }
 
     /**

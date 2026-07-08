@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\LoadBoardOfferSource;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -31,6 +32,7 @@ class StoreLoadBoardOfferRequest extends FormRequest
             'carrier_contact' => ['nullable', 'string', 'max:255'],
             'conditions' => ['nullable', 'string', 'max:5000'],
             'comment' => ['nullable', 'string', 'max:5000'],
+            'source' => ['nullable', 'string', 'in:'.implode(',', LoadBoardOfferSource::values())],
         ];
     }
 }

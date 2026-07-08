@@ -1,7 +1,7 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         <CrmPageHeader
-            :lead="`Внутренний спрос продаж на закупку перевозчиков. Активных грузов: ${activeCount}`"
+            :lead="`Внутренний спрос продаж на закупку перевозчиков. Активных грузов: ${activePostsCount}`"
             title="Биржа грузов"
         >
             <template #actions>
@@ -284,7 +284,7 @@
             </Link>
         </div>
 
-        <section v-if="posts.length === 0" :class="`${crmPanel} p-6 text-sm text-zinc-500 dark:text-zinc-400`">
+        <section v-if="allPosts.length === 0" :class="`${crmPanel} p-6 text-sm text-zinc-500 dark:text-zinc-400`">
             Грузов по выбранному фильтру пока нет.
         </section>
 
@@ -316,7 +316,7 @@
                     </div>
 
                     <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                        Выбрано: #{{ selectedPost?.id ?? '—' }}
+                        Показано {{ allPosts.length }} из {{ postsMeta.total }} · выбрано #{{ selectedPost?.id ?? '—' }}
                     </div>
                 </div>
 
@@ -347,6 +347,10 @@
                     </div>
                 </div>
 
+                <p v-if="loadingMorePosts" class="text-center text-xs text-zinc-500 dark:text-zinc-400">
+                    Загружаем ещё грузы…
+                </p>
+
                 <GridContextMenu
                     :open="contextMenu.open"
                     :x="contextMenu.x"
@@ -356,208 +360,18 @@
                 />
             </div>
 
-            <article
+            <LoadBoardPostCard
                 v-for="post in selectedPost ? [selectedPost] : []"
                 :key="post.id"
-                :class="`${crmPanel} overflow-hidden`"
-            >
-                <div class="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)]">
-                    <div class="min-w-0 space-y-4">
-                        <div class="flex flex-wrap items-start justify-between gap-3">
-                            <div class="min-w-0">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <span class="border px-2 py-1 text-xs font-semibold uppercase tracking-wide" :class="statusClass(post.status)">
-                                        {{ statusLabels[post.status] ?? post.status }}
-                                    </span>
-                                    <span class="border px-2 py-1 text-xs font-semibold uppercase tracking-wide" :class="priorityClass(post.priority)">
-                                        {{ priorityLabels[post.priority] ?? post.priority }}
-                                    </span>
-                                    <span class="text-xs text-zinc-500 dark:text-zinc-400">#{{ post.id }}</span>
-                                </div>
-                                <h2 class="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">{{ post.title }}</h2>
-                                <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                                    {{ routeSummary(post) }}
-                                </p>
-                            </div>
-                            <div class="text-right text-xs text-zinc-500 dark:text-zinc-400">
-                                <div>Продавец: {{ post.seller?.name ?? '—' }}</div>
-                                <div>Закупщик: {{ post.buyer?.name ?? 'не назначен' }}</div>
-                                <div v-if="post.accepted_at">Принял: {{ post.accepter?.name ?? '—' }}</div>
-                            </div>
-                        </div>
-
-                        <dl class="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
-                            <div>
-                                <dt class="text-xs uppercase tracking-wide text-zinc-500">Даты</dt>
-                                <dd class="mt-1 text-zinc-900 dark:text-zinc-100">{{ dateRange(post) }}</dd>
-                            </div>
-                            <div>
-                                <dt class="text-xs uppercase tracking-wide text-zinc-500">Груз</dt>
-                                <dd class="mt-1 text-zinc-900 dark:text-zinc-100">{{ cargoSummary(post) }}</dd>
-                            </div>
-                            <div>
-                                <dt class="text-xs uppercase tracking-wide text-zinc-500">Ставка клиента</dt>
-                                <dd class="mt-1 text-zinc-900 dark:text-zinc-100">{{ money(post.customer_rate, post.customer_rate_currency) }}</dd>
-                            </div>
-                            <div>
-                                <dt class="text-xs uppercase tracking-wide text-zinc-500">Макс. перевозчик</dt>
-                                <dd class="mt-1 text-zinc-900 dark:text-zinc-100">{{ money(post.target_carrier_rate, post.customer_rate_currency) }}</dd>
-                            </div>
-                        </dl>
-
-                        <div v-if="atiSummary(post)" class="border border-sky-100 bg-sky-50/70 p-3 text-sm text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/20 dark:text-sky-100">
-                            <div class="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">ATI</div>
-                            <p class="mt-1">{{ atiSummary(post) }}</p>
-                        </div>
-
-                        <div v-if="atiPreviewForPost(post)" class="space-y-3 border border-indigo-200 bg-indigo-50/70 p-3 text-sm text-indigo-950 dark:border-indigo-900/60 dark:bg-indigo-950/20 dark:text-indigo-100">
-                            <div class="flex flex-wrap items-center justify-between gap-2">
-                                <div>
-                                    <div class="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Подготовка к ATI</div>
-                                    <p class="mt-1 font-medium">
-                                        {{ atiPreviewForPost(post).ready ? 'Готов к внешней публикации' : 'Нужно заполнить обязательные поля' }}
-                                    </p>
-                                </div>
-                                <span
-                                    class="border px-2 py-1 text-xs font-semibold uppercase tracking-wide"
-                                    :class="atiPreviewForPost(post).ready
-                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'
-                                        : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200'"
-                                >
-                                    {{ atiPreviewForPost(post).ready ? 'ready' : 'draft' }}
-                                </span>
-                            </div>
-                            <div v-if="atiPreviewForPost(post).missing.length" class="space-y-1">
-                                <div class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Обязательные поля</div>
-                                <ul class="list-disc space-y-0.5 pl-5">
-                                    <li v-for="item in atiPreviewForPost(post).missing" :key="item.field">{{ item.label }}</li>
-                                </ul>
-                            </div>
-                            <div v-if="atiPreviewForPost(post).warnings.length" class="space-y-1">
-                                <div class="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Рекомендации</div>
-                                <ul class="list-disc space-y-0.5 pl-5">
-                                    <li v-for="item in atiPreviewForPost(post).warnings" :key="item.field">{{ item.label }}</li>
-                                </ul>
-                            </div>
-                            <details class="border border-indigo-200 bg-white/70 p-2 dark:border-indigo-900/60 dark:bg-zinc-950/60">
-                                <summary class="cursor-pointer text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Payload для ATI</summary>
-                                <pre class="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-800 dark:text-zinc-100">{{ atiPayloadJson(atiPreviewForPost(post)) }}</pre>
-                            </details>
-                        </div>
-
-                        <div class="grid gap-3 text-sm md:grid-cols-2">
-                            <div v-if="post.requirements" class="border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
-                                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Требования</div>
-                                <p class="mt-1 whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">{{ post.requirements }}</p>
-                            </div>
-                            <div v-if="post.seller_comment" class="border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
-                                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Комментарий продавца</div>
-                                <p class="mt-1 whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">{{ post.seller_comment }}</p>
-                            </div>
-                        </div>
-
-                        <div class="flex flex-wrap gap-2">
-                            <label v-if="!isClosed(post)" class="flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                                <span>Закупщик</span>
-                                <select
-                                    :value="post.buyer_id ?? ''"
-                                    class="border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                                    @change="assignBuyer(post, $event.target.value)"
-                                >
-                                    <option value="">Не назначен</option>
-                                    <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
-                                </select>
-                            </label>
-                            <button v-if="!isClosed(post) && post.buyer_id !== currentUserId" type="button" :class="crmBtnNeutral" @click="takePost(post)">
-                                Взять в работу
-                            </button>
-                            <button v-if="post.buyer_id === currentUserId && !isClosed(post)" type="button" :class="crmBtnNeutral" @click="releasePost(post)">
-                                Вернуть в общий список
-                            </button>
-                            <button v-if="!isClosed(post)" type="button" :class="crmBtnNeutral" @click="openOfferForm(post)">
-                                Добавить вариант
-                            </button>
-                            <button v-if="!isClosed(post)" type="button" :class="crmBtnNeutral" @click="prepareAti(post)">
-                                Подготовить к ATI
-                            </button>
-                            <button v-if="!isClosed(post)" type="button" :class="crmBtnCreate" @click="setStatus(post, 'closed')">
-                                Закрыть
-                            </button>
-                            <button v-if="!isClosed(post)" type="button" :class="crmBtnNeutral" @click="setStatus(post, 'no_options')">
-                                Без вариантов
-                            </button>
-                            <button v-if="!isClosed(post)" type="button" :class="crmBtnDangerMuted" @click="setStatus(post, 'cancelled')">
-                                Отменить
-                            </button>
-                        </div>
-                    </div>
-
-                    <aside class="space-y-3 border-t border-zinc-200 pt-4 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0 dark:border-zinc-800">
-                        <div class="flex items-center justify-between gap-2">
-                            <h3 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                                Варианты перевозчиков · {{ post.offers.length }}
-                            </h3>
-                        </div>
-
-                        <form v-if="offerFormPostId === post.id" class="space-y-3 border border-sky-200 bg-sky-50 p-3 dark:border-sky-900/60 dark:bg-sky-950/30" @submit.prevent="submitOffer(post)">
-                            <select v-model="offerForm.carrier_id" :class="crmFieldFluid">
-                                <option :value="null">Перевозчик не указан</option>
-                                <option v-for="contractor in contractors" :key="contractor.id" :value="contractor.id">{{ contractor.name }}</option>
-                            </select>
-                            <div class="grid gap-2 sm:grid-cols-2">
-                                <input v-model="offerForm.carrier_rate" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="Ставка" />
-                                <input v-model="offerForm.carrier_rate_currency" maxlength="3" :class="crmFieldFluid" placeholder="RUB" />
-                            </div>
-                            <div class="grid gap-2 sm:grid-cols-2">
-                                <input v-model="offerForm.payment_form" :class="crmFieldFluid" placeholder="Форма оплаты" />
-                                <input v-model="offerForm.available_date" type="date" :class="crmFieldFluid" />
-                            </div>
-                            <input v-model="offerForm.carrier_contact" :class="crmFieldFluid" placeholder="Контакт перевозчика" />
-                            <textarea v-model="offerForm.conditions" rows="2" :class="crmFieldFluid" placeholder="Условия" />
-                            <textarea v-model="offerForm.comment" rows="2" :class="crmFieldFluid" placeholder="Комментарий закупщика" />
-                            <InputError :message="offerForm.errors.carrier_rate" />
-                            <div class="flex justify-end gap-2">
-                                <button type="button" :class="crmBtnNeutral" @click="offerFormPostId = null">Отмена</button>
-                                <button type="submit" :class="crmBtnCreate" :disabled="offerForm.processing">
-                                    Добавить
-                                </button>
-                            </div>
-                        </form>
-
-                        <div v-if="post.offers.length === 0" class="border border-dashed border-zinc-200 p-3 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                            Вариантов пока нет.
-                        </div>
-                        <div v-for="offer in post.offers" :key="offer.id" class="border border-zinc-200 bg-white p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950">
-                            <div class="flex items-start justify-between gap-2">
-                                <div>
-                                    <div class="font-medium text-zinc-900 dark:text-zinc-50">
-                                        {{ offer.carrier?.name ?? 'Перевозчик не указан' }}
-                                    </div>
-                                    <div class="mt-0.5 text-zinc-600 dark:text-zinc-300">
-                                        {{ money(offer.carrier_rate, offer.carrier_rate_currency) }}
-                                        <template v-if="offer.payment_form"> · {{ offer.payment_form }}</template>
-                                    </div>
-                                </div>
-                                <span class="text-xs uppercase tracking-wide" :class="offerStatusClass(offer.status)">
-                                    {{ offerStatusLabel(offer.status) }}
-                                </span>
-                            </div>
-                            <p v-if="offer.available_date" class="mt-2 text-xs text-zinc-500">Подача: {{ formatDate(offer.available_date) }}</p>
-                            <p v-if="offer.carrier_contact" class="mt-1 text-xs text-zinc-500">Контакт: {{ offer.carrier_contact }}</p>
-                            <p v-if="offer.conditions" class="mt-2 whitespace-pre-wrap text-zinc-700 dark:text-zinc-200">{{ offer.conditions }}</p>
-                            <p v-if="offer.comment" class="mt-2 whitespace-pre-wrap text-xs text-zinc-500 dark:text-zinc-400">{{ offer.comment }}</p>
-                            <div class="mt-3 flex flex-wrap gap-2">
-                                <button v-if="!['selected', 'approved'].includes(offer.status) && !isClosed(post)" type="button" class="text-sm font-medium text-sky-700 hover:underline dark:text-sky-300" @click="selectOffer(post, offer)">
-                                    Выбрать этот вариант
-                                </button>
-                                <button v-if="post.status === 'seller_review' && offer.status === 'selected'" type="button" class="text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-300" @click="approveOffer(post, offer)">
-                                    Принять вариант
-                                </button>
-                            </div>
-                        </div>
-                    </aside>
-                </div>
-            </article>
+                :post="post"
+                :users="users"
+                :contractors="contractors"
+                :status-labels="statusLabels"
+                :priority-labels="priorityLabels"
+                :offer-source-options="offerSourceOptions"
+                :current-user-id="currentUserId"
+                :ati-preview="atiPreview"
+            />
         </section>
     </div>
 </template>
@@ -565,13 +379,15 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import { AgGridVue } from 'ag-grid-vue3';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import InputError from '@/Components/InputError.vue';
+import LoadBoardPostCard from '@/Components/LoadBoard/LoadBoardPostCard.vue';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
+import { useAgGridInfiniteScroll } from '@/composables/useAgGridInfiniteScroll.js';
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
@@ -607,7 +423,8 @@ defineOptions({
 });
 
 const props = defineProps({
-    posts: { type: Array, default: () => [] },
+    posts: { type: Object, default: () => ({ data: [], meta: { current_page: 1, last_page: 1, per_page: 50, total: 0, has_more: false } }) },
+    activePostsCount: { type: Number, default: 0 },
     filter: { type: String, default: 'active' },
     statusLabels: { type: Object, default: () => ({}) },
     priorityLabels: { type: Object, default: () => ({}) },
@@ -616,6 +433,7 @@ const props = defineProps({
     leadOptions: { type: Array, default: () => [] },
     orderOptions: { type: Array, default: () => [] },
     atiDictionaries: { type: Object, default: () => ({}) },
+    offerSourceOptions: { type: Object, default: () => ({}) },
     prefill: { type: Object, default: null },
 });
 
@@ -624,24 +442,60 @@ const currentUserId = computed(() => page.props.auth?.user?.id ?? null);
 const flash = computed(() => page.props.flash ?? {});
 const atiPreview = computed(() => flash.value.load_board_ati_preview ?? null);
 const createOpen = ref(Boolean(props.prefill));
-const offerFormPostId = ref(null);
 
 const filterItems = [
     { value: 'active', label: 'Активные' },
     { value: 'my', label: 'Мои продажи' },
     { value: 'buyer', label: 'Моя закупка' },
+    { value: 'has_offers', label: 'Есть офферы' },
     { value: 'closed', label: 'Закрытые' },
     { value: 'all', label: 'Все' },
 ];
 
-const activeCount = computed(() => props.posts.filter((post) => !isClosed(post)).length);
+function normalizePostsPayload(posts) {
+    if (Array.isArray(posts)) {
+        return {
+            data: posts,
+            meta: {
+                current_page: 1,
+                last_page: 1,
+                per_page: posts.length,
+                total: posts.length,
+                has_more: false,
+            },
+        };
+    }
+
+    return {
+        data: Array.isArray(posts?.data) ? posts.data : [],
+        meta: posts?.meta ?? {
+            current_page: 1,
+            last_page: 1,
+            per_page: 50,
+            total: 0,
+            has_more: false,
+        },
+    };
+}
+
+function syncPostsFromProps() {
+    const payload = normalizePostsPayload(props.posts);
+    allPosts.value = [...payload.data];
+    postsMeta.value = payload.meta;
+}
+
+const allPosts = ref([]);
+const postsMeta = ref(normalizePostsPayload(props.posts).meta);
+syncPostsFromProps();
+
+const activePostsCount = computed(() => Number(props.activePostsCount ?? 0));
 const prefillSourceLabel = computed(() => props.prefill?.source_label ?? '');
 const cargoTypeOptions = computed(() => props.atiDictionaries?.cargoTypes ?? []);
 const packageTypeOptions = computed(() => props.atiDictionaries?.packageTypes ?? []);
 const loadingTypeOptions = computed(() => props.atiDictionaries?.loadingTypes ?? []);
 const truckBodyTypeOptions = computed(() => props.atiDictionaries?.truckBodyTypes ?? []);
 const trailerTypeOptions = computed(() => props.atiDictionaries?.trailerTypes ?? []);
-const selectedPostId = ref(props.posts[0]?.id ?? null);
+const selectedPostId = ref(allPosts.value[0]?.id ?? null);
 const quickSearch = ref('');
 const gridApi = ref(null);
 const gridViewsRevision = ref(0);
@@ -655,15 +509,52 @@ const columnStorageKey = computed(() => `${loadBoardGridKey}_grid_columns_v1_${g
 const filterModelStorageKey = computed(() => `${loadBoardGridKey}_grid_filter_model_v1_${gridUserId.value}`);
 
 const selectedPost = computed(() => {
-    const current = props.posts.find((post) => Number(post.id) === Number(selectedPostId.value));
+    const current = allPosts.value.find((post) => Number(post.id) === Number(selectedPostId.value));
 
-    return current ?? props.posts[0] ?? null;
+    return current ?? allPosts.value[0] ?? null;
 });
 
-const gridRows = computed(() => props.posts.map((post) => {
+const hasMorePosts = computed(() => Boolean(postsMeta.value?.has_more));
+
+async function loadMorePosts() {
+    if (!hasMorePosts.value) {
+        return;
+    }
+
+    const nextPage = Number(postsMeta.value.current_page ?? 1) + 1;
+    const response = await axios.get(route('load-board.rows'), {
+        params: {
+            filter: props.filter,
+            page: nextPage,
+        },
+    });
+
+    const existingIds = new Set(allPosts.value.map((post) => Number(post.id)));
+    const incoming = (response.data?.data ?? []).filter((post) => !existingIds.has(Number(post.id)));
+
+    allPosts.value = [...allPosts.value, ...incoming];
+    postsMeta.value = response.data?.meta ?? postsMeta.value;
+}
+
+const { loading: loadingMorePosts } = useAgGridInfiniteScroll({
+    gridApi,
+    hasMore: hasMorePosts,
+    loadMore: loadMorePosts,
+});
+
+const gridRows = computed(() => allPosts.value.map((post) => {
     const offers = Array.isArray(post.offers) ? post.offers : [];
     const selectedOffer = offers.find((offer) => ['selected', 'approved'].includes(offer.status)) ?? null;
     const preview = atiPreviewForPost(post);
+    const summary = post.offers_summary ?? {};
+    const bestOffer = offers.reduce((best, offer) => {
+        if (!best || Number(offer.carrier_rate) < Number(best.carrier_rate)) {
+            return offer;
+        }
+
+        return best;
+    }, null);
+    const currency = post.customer_rate_currency || 'RUB';
 
     return {
         ...post,
@@ -677,7 +568,16 @@ const gridRows = computed(() => props.posts.map((post) => {
         seller_name: post.seller?.name ?? '—',
         buyer_name: post.buyer?.name ?? '—',
         offers_count: offers.length,
+        best_offer_rate_label: summary.best_rate != null
+            ? money(summary.best_rate, currency)
+            : (bestOffer ? money(bestOffer.carrier_rate, bestOffer.carrier_rate_currency) : '—'),
+        best_margin_label: summary.best_margin_abs != null && summary.best_margin_pct != null
+            ? marginLabelFromSummary(summary, currency)
+            : marginLabel(bestOffer, currency),
+        offer_sources_label: summary.sources_label
+            ?? ([...new Set(offers.map((offer) => offer.source_label).filter(Boolean))].join(', ') || '—'),
         selected_offer_rate: selectedOffer ? money(selectedOffer.carrier_rate, selectedOffer.carrier_rate_currency) : '—',
+        selected_margin_label: marginLabel(selectedOffer, currency),
         customer_rate_label: money(post.customer_rate, post.customer_rate_currency),
         target_rate_label: money(post.target_carrier_rate, post.customer_rate_currency),
         accepted_label: post.accepted_offer_id ? 'Принят' : '—',
@@ -767,8 +667,32 @@ const baseColumnDefs = computed(() => [
         filter: 'agNumberColumnFilter',
     },
     {
+        field: 'best_offer_rate_label',
+        headerName: 'Лучшая ставка',
+        width: 150,
+        minWidth: 125,
+    },
+    {
+        field: 'best_margin_label',
+        headerName: 'Маржа (лучш.)',
+        width: 165,
+        minWidth: 140,
+    },
+    setListColumn({
+        field: 'offer_sources_label',
+        headerName: 'Источники',
+        width: 180,
+        minWidth: 140,
+    }),
+    {
         field: 'selected_offer_rate',
         headerName: 'Выбранная ставка',
+        width: 165,
+        minWidth: 140,
+    },
+    {
+        field: 'selected_margin_label',
+        headerName: 'Маржа (выбр.)',
         width: 165,
         minWidth: 140,
     },
@@ -1027,17 +951,6 @@ const postForm = useForm({
 
 normalizeAtiSelections(postForm);
 
-const offerForm = useForm({
-    carrier_id: null,
-    carrier_rate: '',
-    carrier_rate_currency: 'RUB',
-    payment_form: '',
-    available_date: '',
-    carrier_contact: '',
-    conditions: '',
-    comment: '',
-});
-
 function resetPostForm() {
     postForm.defaults({ ...blankPostForm });
     postForm.reset();
@@ -1107,22 +1020,6 @@ function applyTrailerTypeOption(form = postForm) {
 }
 
 
-function openOfferForm(post) {
-    offerFormPostId.value = post.id;
-    offerForm.reset();
-    offerForm.clearErrors();
-}
-
-function submitOffer(post) {
-    offerForm.post(route('load-board.offers.store', post.id), {
-        preserveScroll: true,
-        onSuccess: () => {
-            offerFormPostId.value = null;
-            offerForm.reset();
-        },
-    });
-}
-
 function takePost(post) {
     router.post(route('load-board.take', post.id), {}, { preserveScroll: true });
 }
@@ -1131,25 +1028,11 @@ function releasePost(post) {
     router.post(route('load-board.release', post.id), {}, { preserveScroll: true });
 }
 
-function assignBuyer(post, buyerId) {
-    router.patch(route('load-board.buyer.update', post.id), {
-        buyer_id: buyerId === '' ? null : Number(buyerId),
-    }, { preserveScroll: true });
-}
-
 function prepareAti(post) {
     router.post(route('load-board.ati.prepare', post.id), {}, {
         preserveScroll: true,
         preserveState: true,
     });
-}
-
-function selectOffer(post, offer) {
-    router.post(route('load-board.offers.select', { post: post.id, offer: offer.id }), {}, { preserveScroll: true });
-}
-
-function approveOffer(post, offer) {
-    router.post(route('load-board.offers.approve', { post: post.id, offer: offer.id }), {}, { preserveScroll: true });
 }
 
 function setStatus(post, status) {
@@ -1208,32 +1091,6 @@ function atiPreviewForPost(post) {
     return Number(atiPreview.value?.post_id) === Number(post.id) ? atiPreview.value : null;
 }
 
-function atiPayloadJson(preview) {
-    return JSON.stringify(preview?.payload ?? {}, null, 2);
-}
-
-function offerStatusLabel(status) {
-    const labels = {
-        proposed: 'предложен',
-        selected: 'выбран',
-        approved: 'принят',
-        rejected: 'отклонён',
-    };
-
-    return labels[status] ?? status;
-}
-
-function offerStatusClass(status) {
-    const classes = {
-        selected: 'text-violet-700 dark:text-violet-300',
-        approved: 'text-emerald-700 dark:text-emerald-300',
-        rejected: 'text-rose-600 dark:text-rose-300',
-        proposed: 'text-zinc-500',
-    };
-
-    return classes[status] ?? 'text-zinc-500';
-}
-
 function money(value, currency = 'RUB') {
     if (value === null || value === undefined || value === '') {
         return '—';
@@ -1245,6 +1102,22 @@ function money(value, currency = 'RUB') {
     }
 
     return `${numeric.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${currency || 'RUB'}`;
+}
+
+function marginLabel(offer, currency = 'RUB') {
+    if (!offer || offer.margin_abs == null || offer.margin_pct == null) {
+        return '—';
+    }
+
+    return `${money(offer.margin_abs, currency)} · ${offer.margin_pct}%`;
+}
+
+function marginLabelFromSummary(summary, currency = 'RUB') {
+    if (!summary || summary.best_margin_abs == null || summary.best_margin_pct == null) {
+        return '—';
+    }
+
+    return `${money(summary.best_margin_abs, currency)} · ${summary.best_margin_pct}%`;
 }
 
 function formatDate(value) {
@@ -1260,31 +1133,6 @@ function formatDate(value) {
     return `${parts[2]}.${parts[1]}.${parts[0]}`;
 }
 
-function statusClass(status) {
-    const map = {
-        new: 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200',
-        in_work: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200',
-        has_offers: 'border-indigo-200 bg-indigo-50 text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200',
-        seller_review: 'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-200',
-        closed: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200',
-        no_options: 'border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200',
-        cancelled: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200',
-    };
-
-    return map[status] ?? map.new;
-}
-
-function priorityClass(priority) {
-    const map = {
-        low: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300',
-        normal: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200',
-        high: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200',
-        urgent: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200',
-    };
-
-    return map[priority] ?? map.normal;
-}
-
 watch(quickSearch, (value) => {
     if (gridApi.value) {
         gridApi.value.setGridOption('quickFilterText', value);
@@ -1292,10 +1140,12 @@ watch(quickSearch, (value) => {
 });
 
 watch(
-    () => props.posts,
-    (posts) => {
-        if (!posts.some((post) => Number(post.id) === Number(selectedPostId.value))) {
-            selectedPostId.value = posts[0]?.id ?? null;
+    () => [props.posts, props.filter],
+    () => {
+        syncPostsFromProps();
+
+        if (!allPosts.value.some((post) => Number(post.id) === Number(selectedPostId.value))) {
+            selectedPostId.value = allPosts.value[0]?.id ?? null;
         }
 
         nextTick(() => {

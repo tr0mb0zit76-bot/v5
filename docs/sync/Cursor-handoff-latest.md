@@ -3,9 +3,32 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-08 16:21 · **HEAD:** `d63865e` · **Ветка:** `master` · **Контекст:** hotfix 500 на prod (middleware import)
+**Обновлено:** 2026-07-08 18:45 · **HEAD:** `5821d58` · **Ветка:** `master` · **Контекст:** Биржа грузов — infinite scroll, карточка кейса, статистика ставок
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано (2026-07-08) — Биржа грузов: закупка, статистика, грид
+
+- **Infinite scroll:** `LoadBoardPostIndexService` (paginate 50), `GET /load-board/rows`, composable `useAgGridInfiniteScroll.js`; вкладки lifecycle (Активные, Мои продажи, Моя закупка, Есть офферы, Закрытые, Все).
+- **Карточка кейса:** `resources/js/Components/LoadBoard/LoadBoardPostCard.vue` — вкладки **Обзор | Офферы | ATI**; форма оффера с `source`, сравнение маржи, insights коридора (`GET load-board/{post}/insights`).
+- **Статистика ставок:** миграция `2026_07_08_181259_create_load_board_rate_observations_table` (`load_board_rate_observations`, колонка `source` на `load_board_offers`); `LoadBoardRateObservationService`, `LoadBoardCorridorKey`, `LoadBoardOfferSource`.
+- **Presenter:** `LoadBoardPostPresenter` — `offers_summary` (лучшая ставка, маржа, источники) для ag-Grid и rows API.
+- **Грид:** колонки **Лучшая ставка**, **Маржа (лучш.)**, **Источники**, **Маржа (выбр.)**; иконка сайдбара **Gavel** (`CrmLayout.vue`).
+- **Approve → заказ:** `applyAcceptedOfferToOrder` учитывает схему без `orders.carrier_rate` — ставка в `financial_terms.contractors_costs`.
+- **Документация:** `docs/load-board-procurement-architecture.md` (модель, workflow, ATI manual, roadmap `ProcurementCase` / `dispatcher_id`).
+- **Тесты:** `tests/Feature/LoadBoardTest.php` — 5 passed (workflow, pagination, observation, insights, `offers_summary`).
+- **Деплой:** `php artisan migrate` (observations), `npm run build`.
+- **Коммит:** `5821d58` (`feat(load-board): карточка кейса, статистика ставок и колонки маржи в гриде`).
+
+---
+
+## Следующий шаг (Биржа грузов)
+
+1. **Smoke UI:** `/load-board` — вкладки, подгрузка строк, карточка офферов, insights, новые колонки грида.
+2. **Prod:** `git pull` → `php artisan migrate` → `npm run build`.
+3. **Фаза 2:** `dispatcher_id`, split owner/dispatcher, `ProcurementCase`; ATI API после ключа.
 
 ---
 
