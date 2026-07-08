@@ -3,9 +3,28 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-07 20:29 · **HEAD:** `b00a9f6` · **Ветка:** `master` · **Контекст:** Книга продаж 2.0 — backend search в UI
+**Обновлено:** 2026-07-08 16:20 · **HEAD:** `0c3fe47` · **Ветка:** `master` · **Контекст:** hotfix 500 на prod (middleware import)
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано (2026-07-08) — 500 на prod + Книга продаж / Mermaid
+
+- **500 Server Error** на `/sales-assistant/book?article_id=109` (и других маршрутах с `visibility.area`): в `bootstrap/app.php` отсутствовал `use App\Http\Middleware\EnsureVisibilityAreaAccess;` при сохранённом алиасе `'visibility.area' => EnsureVisibilityAreaAccess::class`. Ошибка: `Target class [EnsureVisibilityAreaAccess] does not exist`.
+- **Hotfix на prod:** восстановлен импорт в `bootstrap/app.php`, `php artisan optimize:clear`. Страница Книги с article 109 снова **200**.
+- **Mermaid в статье id=109** («Механизм работы лидов в CRM»): на prod в блок ```mermaid добавлена строка `flowchart LR` (одноразовый patch); в git — `fix(sales-book): убрать задвоение Mermaid в режиме редактирования` (`1c77e2a`): `MermaidCodeBlockView.vue` — диаграмма только в readonly; `Book.vue` — кнопка «Предпросмотр».
+- **Скрипт «Реактивация тёплой базы»:** на prod в БД есть (id=14, published v1); если не виден в UI — алфавитный порядок, не путать с «Возврат уснувшего лида».
+- **Права редактирования Книги:** через роль — область `sales_assistant_book` + `sales_book_write` (Настройки → Роли → Помощник продавца → Книга продаж → «Редактирование»).
+- **Prod deploy этой сессии:** `git pull` → `npm run build` → миграция `2026_07_08_143701_add_subscript_transitions_to_sales_scripts`; затем hotfix bootstrap до push этого коммита.
+- **Логи prod:** `LOG_CHANNEL=nightwatch` — свежие PHP-ошибки не в `storage/logs/laravel.log`; 500 видны в `/var/www/httpd-logs/crm.avtoaliyans.ru.access.log`.
+
+---
+
+## Следующий шаг
+
+1. **Smoke prod:** `/sales-assistant/book?article_id=109`, `/scripts`, `/leads` — без 500.
+2. **Книга продаж:** Mermaid в 109 — визуально в readonly и «Предпросмотр»; при необходимости статьи Traklo (111, 112).
 
 ---
 

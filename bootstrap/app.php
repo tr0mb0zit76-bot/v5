@@ -7,6 +7,7 @@ configure_phpword_temp_dir(dirname(__DIR__));
 use App\Http\Middleware\EnsureCanManageSalesScripts;
 use App\Http\Middleware\EnsureCompanyPlanningAccess;
 use App\Http\Middleware\EnsureSettingsVisibilityAccess;
+use App\Http\Middleware\EnsureVisibilityAreaAccess;
 use App\Http\Middleware\EnsureVisibilityAnyAreaAccess;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ReconnectOnPreparedStatementError;
