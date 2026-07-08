@@ -8,7 +8,7 @@
             <div v-if="editor.isEditable" class="mermaid-block-label">Диаграмма Mermaid</div>
             <pre v-if="editor.isEditable" class="mermaid-source"><node-view-content as="code" /></pre>
             <div
-                v-if="diagramSvg"
+                v-if="!editor.isEditable && diagramSvg"
                 class="mermaid-diagram"
                 :class="{ 'mermaid-diagram-readonly': !editor.isEditable }"
                 v-html="diagramSvg"
@@ -44,7 +44,7 @@ function clearRenderTimer() {
 }
 
 async function renderDiagram() {
-    if (!isMermaid.value) {
+    if (!isMermaid.value || props.editor.isEditable) {
         diagramSvg.value = '';
         renderError.value = '';
 
@@ -87,6 +87,13 @@ function scheduleRender() {
         void renderDiagram();
     }, props.editor.isEditable ? 350 : 0);
 }
+
+watch(
+    () => props.editor.isEditable,
+    () => {
+        scheduleRender();
+    },
+);
 
 watch(isMermaid, () => {
     scheduleRender();
