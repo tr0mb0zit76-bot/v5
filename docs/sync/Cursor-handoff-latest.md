@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-08 18:45 · **HEAD:** `5821d58` · **Ветка:** `master` · **Контекст:** Биржа грузов — infinite scroll, карточка кейса, статистика ставок
+**Обновлено:** 2026-07-08 18:45 · **HEAD:** `c37b13d` · **Ветка:** `master` · **Контекст:** Биржа грузов — infinite scroll, карточка кейса, статистика ставок
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
@@ -20,7 +20,7 @@
 - **Документация:** `docs/load-board-procurement-architecture.md` (модель, workflow, ATI manual, roadmap `ProcurementCase` / `dispatcher_id`).
 - **Тесты:** `tests/Feature/LoadBoardTest.php` — 5 passed (workflow, pagination, observation, insights, `offers_summary`).
 - **Деплой:** `php artisan migrate` (observations), `npm run build`.
-- **Коммит:** `5821d58` (`feat(load-board): карточка кейса, статистика ставок и колонки маржи в гриде`).
+- **Коммит:** `c37b13d` (`feat(load-board): карточка кейса, статистика ставок и колонки маржи в гриде`).
 
 ---
 
