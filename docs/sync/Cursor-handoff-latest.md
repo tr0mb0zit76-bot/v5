@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-08 21:40 (конец сессии) · **HEAD:** `3e5cf5e` · **Ветка:** `master`
+**Обновлено:** 2026-07-08 21:40 (конец сессии) · **HEAD:** `a1fb03f` · **Ветка:** `master`
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
@@ -14,7 +14,7 @@
 | Logismart-ref A/B/C (предрасчёт, Traklo drill-down, плечи) | `e00bb38` | ✅ |
 | Биржа фаза 2 (owner/dispatcher, ProcurementCase) | `5795ac2` | ✅ |
 | Биржа фаза 3 (UI кейса, links, split % UI) | `35a255c` | ✅ |
-| Handoff | `3e5cf5e` | ✅ pushed |
+| Handoff | `a1fb03f` | ✅ pushed |
 
 **На прод (если ещё не выкатывали сегодня):** `git pull` → `php artisan migrate` (210000, 210100 + лиды 202800, 203503) → `npm run build`.
 
