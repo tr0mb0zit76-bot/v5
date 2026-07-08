@@ -18,6 +18,7 @@ class LeadRoutePoint extends Model
     protected $fillable = [
         'lead_id',
         'type',
+        'stage',
         'sequence',
         'address',
         'normalized_data',

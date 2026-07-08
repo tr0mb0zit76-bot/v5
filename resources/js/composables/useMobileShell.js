@@ -25,11 +25,17 @@ export function useMobileShell() {
     const orders = ref([]);
     const recentDocuments = ref([]);
     const attentionDocuments = ref([]);
+    const documentContractors = ref([]);
+    const documentContractorOrders = ref([]);
+    const orderDocumentChecklist = ref(null);
     const trakloLeads = ref([]);
     const overdueTaskCount = ref(0);
     const tasksLoading = ref(false);
     const ordersLoading = ref(false);
     const documentsLoading = ref(false);
+    const documentContractorsLoading = ref(false);
+    const documentContractorOrdersLoading = ref(false);
+    const orderDocumentChecklistLoading = ref(false);
     const trakloLeadsLoading = ref(false);
     const shellError = ref('');
 
@@ -83,6 +89,66 @@ export function useMobileShell() {
             shellError.value = exception.response?.data?.message ?? 'Не удалось загрузить документы.';
         } finally {
             documentsLoading.value = false;
+        }
+    }
+
+    async function loadDocumentContractors(search = '') {
+        documentContractorsLoading.value = true;
+        shellError.value = '';
+
+        try {
+            const { data } = await axios.get(route('mobile.shell.documents.contractors'), {
+                headers: { Accept: 'application/json' },
+                params: search.trim() !== '' ? { q: search.trim() } : {},
+            });
+            documentContractors.value = data.contractors ?? [];
+        } catch (exception) {
+            shellError.value = exception.response?.data?.message ?? 'Не удалось загрузить контрагентов.';
+        } finally {
+            documentContractorsLoading.value = false;
+        }
+    }
+
+    async function loadDocumentContractorOrders(contractorId, search = '') {
+        documentContractorOrdersLoading.value = true;
+        shellError.value = '';
+
+        try {
+            const { data } = await axios.get(route('mobile.shell.documents.contractor-orders', contractorId), {
+                headers: { Accept: 'application/json' },
+                params: search.trim() !== '' ? { q: search.trim() } : {},
+            });
+            documentContractorOrders.value = data.orders ?? [];
+
+            return data;
+        } catch (exception) {
+            shellError.value = exception.response?.data?.message ?? 'Не удалось загрузить заказы контрагента.';
+            documentContractorOrders.value = [];
+
+            return null;
+        } finally {
+            documentContractorOrdersLoading.value = false;
+        }
+    }
+
+    async function loadOrderDocumentChecklist(orderId) {
+        orderDocumentChecklistLoading.value = true;
+        shellError.value = '';
+
+        try {
+            const { data } = await axios.get(route('mobile.shell.documents.order-checklist', orderId), {
+                headers: { Accept: 'application/json' },
+            });
+            orderDocumentChecklist.value = data;
+
+            return data;
+        } catch (exception) {
+            shellError.value = exception.response?.data?.message ?? 'Не удалось загрузить документы заказа.';
+            orderDocumentChecklist.value = null;
+
+            return null;
+        } finally {
+            orderDocumentChecklistLoading.value = false;
         }
     }
 
@@ -179,16 +245,25 @@ export function useMobileShell() {
         orders,
         recentDocuments,
         attentionDocuments,
+        documentContractors,
+        documentContractorOrders,
+        orderDocumentChecklist,
         trakloLeads,
         overdueTaskCount,
         tasksLoading,
         ordersLoading,
         documentsLoading,
+        documentContractorsLoading,
+        documentContractorOrdersLoading,
+        orderDocumentChecklistLoading,
         trakloLeadsLoading,
         shellError,
         loadTasks,
         loadOrders,
         loadDocuments,
+        loadDocumentContractors,
+        loadDocumentContractorOrders,
+        loadOrderDocumentChecklist,
         loadTrakloLeads,
         loadTab,
         loadOrderSummary,

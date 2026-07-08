@@ -6,7 +6,9 @@ use App\Models\Lead;
 use App\Models\LeadOffer;
 use App\Models\Order;
 use App\Models\User;
+use App\Support\LeadPerformerPayloadNormalizer;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class LeadConversionService
 {
@@ -25,6 +27,8 @@ class LeadConversionService
                 return $existingOrder;
             }
 
+            $performers = $this->orderPerformersFromLead($lead);
+
             $payload = [
                 'status' => 'new',
                 'own_company_id' => $ownCompanyId,
@@ -32,9 +36,10 @@ class LeadConversionService
                 'order_date' => optional($lead->planned_shipping_date)->toDateString() ?? now()->toDateString(),
                 'order_number' => null,
                 'special_notes' => $lead->description,
-                'performers' => [],
+                'performers' => $performers,
                 'route_points' => $lead->routePoints->map(fn ($point): array => [
                     'type' => $point->type,
+                    'stage' => (string) ($point->stage ?? 'leg_1'),
                     'sequence' => $point->sequence,
                     'address' => $point->address,
                     'normalized_data' => $point->normalized_data ?? [],
@@ -62,6 +67,7 @@ class LeadConversionService
             $order = $this->orderWizardService->create($payload, $user);
 
             $order->forceFill(['lead_id' => $lead->id])->save();
+            $this->attachLeadPrecalculationSnapshot($order, $lead);
 
             $lead->forceFill([
                 'status' => 'won',
@@ -101,18 +107,62 @@ class LeadConversionService
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    private function orderPerformersFromLead(Lead $lead): array
+    {
+        $performers = LeadPerformerPayloadNormalizer::normalizeList(
+            is_array($lead->performers) ? $lead->performers : null,
+        );
+
+        return collect($performers)
+            ->map(fn (array $performer): array => [
+                'stage' => $performer['stage'],
+                'carrier_mode' => 'single',
+                'contractor_id' => $performer['contractor_id'],
+                'contractor_name' => $performer['contractor_name'],
+                'fleet_vehicle_id' => null,
+                'fleet_driver_id' => null,
+                'execution_mode' => null,
+                'fleet_trip_id' => null,
+                'loading_actual' => '',
+                'unloading_actual' => '',
+                'loading_special_conditions' => '',
+                'unloading_special_conditions' => '',
+                'split_carriers' => [],
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     private function buildFinancialTermFromLead(Lead $lead): ?array
     {
-        if ($lead->target_price === null && $lead->calculated_cost === null) {
-            return null;
-        }
+        $performers = LeadPerformerPayloadNormalizer::normalizeList(
+            is_array($lead->performers) ? $lead->performers : null,
+        );
 
         $currency = $lead->target_currency ?: 'RUB';
         $contractorsCosts = [];
 
-        if ($lead->calculated_cost !== null) {
+        foreach ($performers as $performer) {
+            if ($performer['estimated_cost'] === null) {
+                continue;
+            }
+
+            $contractorsCosts[] = [
+                'stage' => $performer['stage'],
+                'contractor_id' => $performer['contractor_id'],
+                'amount' => $performer['estimated_cost'],
+                'currency' => $currency,
+                'payment_form' => $lead->carrier_payment_form ?: 'no_vat',
+                'payment_schedule' => [],
+            ];
+        }
+
+        if ($contractorsCosts === [] && $lead->calculated_cost !== null) {
             $contractorsCosts[] = [
                 'stage' => 'leg_1',
                 'contractor_id' => null,
@@ -121,6 +171,10 @@ class LeadConversionService
                 'payment_form' => $lead->carrier_payment_form ?: 'no_vat',
                 'payment_schedule' => [],
             ];
+        }
+
+        if ($lead->target_price === null && $contractorsCosts === []) {
+            return null;
         }
 
         return [
@@ -132,5 +186,33 @@ class LeadConversionService
             'additional_costs' => [],
             'kpi_percent' => null,
         ];
+    }
+
+    private function attachLeadPrecalculationSnapshot(Order $order, Lead $lead): void
+    {
+        if (! is_array($lead->precalculation) || $lead->precalculation === []) {
+            return;
+        }
+
+        $snapshot = [
+            'lead_precalculation_snapshot' => $lead->precalculation,
+            'lead_precalculation_snapshot_at' => now()->toIso8601String(),
+        ];
+
+        if (Schema::hasColumn('orders', 'metadata')) {
+            $metadata = is_array($order->metadata) ? $order->metadata : [];
+            $order->forceFill([
+                'metadata' => array_merge($metadata, $snapshot),
+            ])->saveQuietly();
+
+            return;
+        }
+
+        if (Schema::hasColumn('orders', 'wizard_state')) {
+            $wizardState = is_array($order->wizard_state) ? $order->wizard_state : [];
+            $order->forceFill([
+                'wizard_state' => array_merge($wizardState, $snapshot),
+            ])->saveQuietly();
+        }
     }
 }

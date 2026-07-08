@@ -387,48 +387,188 @@
                         <Upload class="h-4 w-4" />
                         Добавить документ с телефона
                     </button>
-                    <div v-if="documentsLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка документов…</div>
-                    <template v-else>
-                        <div v-if="attentionDocuments.length" class="space-y-2">
-                            <div class="text-[11px] font-semibold uppercase tracking-wide text-amber-300">Требуют внимания</div>
-                            <MobileShellEntityCard
-                                v-for="item in attentionDocuments"
-                                :key="`attention-${item.order_id}`"
-                                :element-id="`mobile-attention-order-${item.order_id}`"
-                                card-class="border-amber-500/20 bg-amber-500/10"
-                                :highlight-class="highlightCardClass('attention-order', item.order_id)"
-                                @open="openAttentionDetail(item)"
-                                @share="beginShareToChat({ url: item.url, label: item.order_number })"
-                            >
-                                <div class="text-sm font-semibold text-zinc-50">{{ item.order_number }}</div>
-                                <div class="mt-1 text-xs text-zinc-400">{{ item.customer_name || 'Заказ' }}</div>
-                                <div class="mt-2 text-xs text-amber-100">
-                                    {{ item.pending_count }} незакрытых слотов
-                                    <span v-if="item.pending_labels?.length"> · {{ item.pending_labels.join(', ') }}</span>
-                                </div>
-                            </MobileShellEntityCard>
-                        </div>
 
-                        <div class="space-y-2">
-                            <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Последние документы</div>
-                            <MobileShellEntityCard
-                                v-for="doc in filteredRecentDocuments"
-                                :key="`doc-${doc.id}`"
-                                :element-id="`mobile-document-${doc.id}`"
-                                :highlight-class="highlightCardClass('document', doc.id)"
-                                @open="openDocumentDetail(doc)"
-                                @share="beginShareToChat({ url: doc.url, label: doc.label })"
-                            >
-                                <div class="flex items-center gap-2">
-                                    <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-200">Документ</span>
+                    <template v-if="isExternalUser">
+                        <div v-if="documentsLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка документов…</div>
+                        <template v-else>
+                            <div v-if="attentionDocuments.length" class="space-y-2">
+                                <div class="text-[11px] font-semibold uppercase tracking-wide text-amber-300">Требуют внимания</div>
+                                <MobileShellEntityCard
+                                    v-for="item in attentionDocuments"
+                                    :key="`attention-${item.order_id}`"
+                                    :element-id="`mobile-attention-order-${item.order_id}`"
+                                    card-class="border-amber-500/20 bg-amber-500/10"
+                                    :highlight-class="highlightCardClass('attention-order', item.order_id)"
+                                    @open="openAttentionDetail(item)"
+                                    @share="beginShareToChat({ url: item.url, label: item.order_number })"
+                                >
+                                    <div class="text-sm font-semibold text-zinc-50">{{ item.order_number }}</div>
+                                    <div class="mt-1 text-xs text-zinc-400">{{ item.customer_name || 'Заказ' }}</div>
+                                    <div class="mt-2 text-xs text-amber-100">
+                                        {{ item.pending_count }} незакрытых слотов
+                                        <span v-if="item.pending_labels?.length"> · {{ item.pending_labels.join(', ') }}</span>
+                                    </div>
+                                </MobileShellEntityCard>
+                            </div>
+
+                            <div class="space-y-2">
+                                <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Последние документы</div>
+                                <MobileShellEntityCard
+                                    v-for="doc in filteredRecentDocuments"
+                                    :key="`doc-${doc.id}`"
+                                    :element-id="`mobile-document-${doc.id}`"
+                                    :highlight-class="highlightCardClass('document', doc.id)"
+                                    @open="openDocumentDetail(doc)"
+                                    @share="beginShareToChat({ url: doc.url, label: doc.label })"
+                                >
+                                    <div class="flex items-center gap-2">
+                                        <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-200">Документ</span>
+                                    </div>
+                                    <div class="mt-1 text-sm font-semibold text-zinc-50">{{ doc.label }}</div>
+                                    <div v-if="doc.order_id" class="mt-1 text-xs text-zinc-500">Заказ #{{ doc.order_id }}</div>
+                                </MobileShellEntityCard>
+                                <div v-if="filteredRecentDocuments.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
+                                    {{ search.trim() ? 'Ничего не найдено.' : 'Документов пока нет.' }}
                                 </div>
-                                <div class="mt-1 text-sm font-semibold text-zinc-50">{{ doc.label }}</div>
-                                <div v-if="doc.order_id" class="mt-1 text-xs text-zinc-500">Заказ #{{ doc.order_id }}</div>
-                            </MobileShellEntityCard>
-                            <div v-if="filteredRecentDocuments.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
-                                {{ search.trim() ? 'Ничего не найдено.' : 'Документов пока нет.' }}
+                            </div>
+                        </template>
+                    </template>
+
+                    <template v-else>
+                        <div
+                            v-if="documentsDrillLevel !== 'contractors'"
+                            class="flex items-center gap-2"
+                        >
+                            <button
+                                type="button"
+                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-zinc-200 active:bg-white/10"
+                                aria-label="Назад"
+                                @click="documentsDrillBack"
+                            >
+                                <ArrowLeft class="h-4 w-4" />
+                            </button>
+                            <div class="min-w-0 flex-1">
+                                <div class="truncate text-sm font-semibold text-zinc-50">{{ documentsDrillTitle }}</div>
+                                <div v-if="documentsDrillSubtitle" class="truncate text-xs text-zinc-500">{{ documentsDrillSubtitle }}</div>
                             </div>
                         </div>
+
+                        <div v-if="documentsPanelLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка документов…</div>
+
+                        <template v-else-if="documentsDrillLevel === 'contractors'">
+                            <div v-if="attentionDocuments.length" class="space-y-2">
+                                <div class="text-[11px] font-semibold uppercase tracking-wide text-amber-300">Требуют внимания</div>
+                                <MobileShellEntityCard
+                                    v-for="item in attentionDocuments"
+                                    :key="`attention-${item.order_id}`"
+                                    :element-id="`mobile-attention-order-${item.order_id}`"
+                                    card-class="border-amber-500/20 bg-amber-500/10"
+                                    :highlight-class="highlightCardClass('attention-order', item.order_id)"
+                                    @open="openAttentionOrderDrillDown(item)"
+                                    @share="beginShareToChat({ url: item.url, label: item.order_number })"
+                                >
+                                    <div class="text-sm font-semibold text-zinc-50">{{ item.order_number }}</div>
+                                    <div class="mt-1 text-xs text-zinc-400">{{ item.customer_name || 'Заказ' }}</div>
+                                    <div class="mt-2 text-xs text-amber-100">
+                                        {{ item.pending_count }} незакрытых слотов
+                                        <span v-if="item.pending_labels?.length"> · {{ item.pending_labels.join(', ') }}</span>
+                                    </div>
+                                </MobileShellEntityCard>
+                            </div>
+
+                            <div class="space-y-2">
+                                <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Контрагенты</div>
+                                <MobileShellEntityCard
+                                    v-for="contractor in documentContractors"
+                                    :key="`doc-contractor-${contractor.id}`"
+                                    @open="openDocumentContractor(contractor)"
+                                >
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div class="min-w-0">
+                                            <div class="text-sm font-semibold text-zinc-50">{{ contractor.name }}</div>
+                                            <div v-if="contractor.inn" class="mt-1 text-xs text-zinc-500">ИНН {{ contractor.inn }}</div>
+                                        </div>
+                                        <span class="shrink-0 rounded-full bg-white/10 px-2 py-1 text-[10px] text-zinc-300">
+                                            {{ contractor.orders_count }} зак.
+                                        </span>
+                                    </div>
+                                </MobileShellEntityCard>
+                                <div v-if="documentContractors.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
+                                    {{ search.trim() ? 'Контрагенты не найдены.' : 'Нет заказов с контрагентами.' }}
+                                </div>
+                            </div>
+                        </template>
+
+                        <template v-else-if="documentsDrillLevel === 'orders'">
+                            <MobileShellEntityCard
+                                v-for="order in documentContractorOrders"
+                                :key="`doc-order-${order.id}`"
+                                :element-id="`mobile-doc-order-${order.id}`"
+                                :highlight-class="highlightCardClass('attention-order', order.id)"
+                                @open="openDocumentOrder(order)"
+                                @share="beginShareToChat({ url: order.documents_url, label: order.order_number })"
+                            >
+                                <div class="text-sm font-semibold text-zinc-50">{{ order.order_number }}</div>
+                                <div class="mt-1 text-xs text-zinc-400">{{ order.customer_name || 'Заказчик не указан' }}</div>
+                                <div v-if="order.carrier_name" class="mt-1 text-xs text-zinc-500">Перевозчик: {{ order.carrier_name }}</div>
+                                <div
+                                    v-if="order.documents_total_count > 0"
+                                    class="mt-2 text-xs"
+                                    :class="order.documents_pending_count > 0 ? 'text-amber-200' : 'text-emerald-300'"
+                                >
+                                    Документы: {{ order.documents_total_count - order.documents_pending_count }}/{{ order.documents_total_count }}
+                                    <span v-if="order.documents_pending_labels?.length"> · {{ order.documents_pending_labels.join(', ') }}</span>
+                                </div>
+                            </MobileShellEntityCard>
+                            <div v-if="documentContractorOrders.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
+                                {{ search.trim() ? 'Заказы не найдены.' : 'У контрагента нет активных заказов.' }}
+                            </div>
+                        </template>
+
+                        <template v-else-if="documentsDrillLevel === 'order' && orderDocumentChecklist">
+                            <div class="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-zinc-300">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Чек-лист документов</div>
+                                <div class="mt-1 text-zinc-100">
+                                    {{ orderDocumentChecklist.documents?.completed_count ?? 0 }} / {{ orderDocumentChecklist.documents?.total_count ?? 0 }} закрыто
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <button
+                                    v-for="slot in filteredOrderDocumentSlots"
+                                    :key="`slot-${slot.key}`"
+                                    type="button"
+                                    class="w-full rounded-3xl border px-4 py-3 text-left active:bg-white/5"
+                                    :class="slot.completed ? 'border-emerald-500/20 bg-emerald-500/10' : 'border-amber-500/20 bg-amber-500/10'"
+                                    @click="openDocumentSlot(slot)"
+                                >
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div class="min-w-0">
+                                            <div class="text-sm font-semibold text-zinc-50">{{ slot.label }}</div>
+                                            <div v-if="slot.document?.original_name" class="mt-1 truncate text-xs text-zinc-400">
+                                                {{ slot.document.original_name }}
+                                            </div>
+                                            <div v-else class="mt-1 text-xs text-amber-100">Слот не закрыт</div>
+                                        </div>
+                                        <span
+                                            class="shrink-0 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide"
+                                            :class="slot.completed ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-100'"
+                                        >
+                                            {{ slot.completed ? 'Готово' : 'Ждёт' }}
+                                        </span>
+                                    </div>
+                                </button>
+                            </div>
+
+                            <button
+                                type="button"
+                                class="flex w-full items-center justify-center gap-2 rounded-3xl border border-white/10 px-4 py-3 text-sm font-medium text-zinc-100 active:bg-white/10"
+                                @click="openUploadWizardForOrder(orderDocumentChecklist.order.id)"
+                            >
+                                <Upload class="h-4 w-4" />
+                                Загрузить документ
+                            </button>
+                        </template>
                     </template>
                 </section>
 
@@ -849,15 +989,24 @@ const {
     orders,
     recentDocuments,
     attentionDocuments,
+    documentContractors,
+    documentContractorOrders,
+    orderDocumentChecklist,
     trakloLeads,
     overdueTaskCount,
     tasksLoading,
     ordersLoading,
     documentsLoading,
+    documentContractorsLoading,
+    documentContractorOrdersLoading,
+    orderDocumentChecklistLoading,
     trakloLeadsLoading,
     shellError,
     loadTab,
     loadDocuments,
+    loadDocumentContractors,
+    loadDocumentContractorOrders,
+    loadOrderDocumentChecklist,
     loadOrders,
     loadTrakloLeads,
     loadOrderSummary,
@@ -866,6 +1015,171 @@ const {
     saveLeadDraft,
     searchEntities,
 } = useMobileShell();
+
+const documentsDrillLevel = ref('contractors');
+const selectedDocumentContractor = ref(null);
+const selectedDocumentOrder = ref(null);
+
+function resetDocumentsDrillDown() {
+    documentsDrillLevel.value = 'contractors';
+    selectedDocumentContractor.value = null;
+    selectedDocumentOrder.value = null;
+    orderDocumentChecklist.value = null;
+    documentContractorOrders.value = [];
+}
+
+const documentsDrillTitle = computed(() => {
+    if (documentsDrillLevel.value === 'orders') {
+        return selectedDocumentContractor.value?.name ?? 'Заказы';
+    }
+
+    if (documentsDrillLevel.value === 'order') {
+        return orderDocumentChecklist.value?.order?.order_number
+            ?? selectedDocumentOrder.value?.order_number
+            ?? 'Документы заказа';
+    }
+
+    return '';
+});
+
+const documentsDrillSubtitle = computed(() => {
+    if (documentsDrillLevel.value === 'orders' && selectedDocumentContractor.value?.inn) {
+        return `ИНН ${selectedDocumentContractor.value.inn}`;
+    }
+
+    if (documentsDrillLevel.value === 'order') {
+        return orderDocumentChecklist.value?.order?.customer_name ?? null;
+    }
+
+    return null;
+});
+
+const documentsPanelLoading = computed(() => {
+    if (documentsDrillLevel.value === 'contractors') {
+        return documentsLoading.value || documentContractorsLoading.value;
+    }
+
+    if (documentsDrillLevel.value === 'orders') {
+        return documentContractorOrdersLoading.value;
+    }
+
+    if (documentsDrillLevel.value === 'order') {
+        return orderDocumentChecklistLoading.value;
+    }
+
+    return false;
+});
+
+const filteredOrderDocumentSlots = computed(() => {
+    const slots = orderDocumentChecklist.value?.slots ?? [];
+    const needle = search.value.trim().toLowerCase();
+
+    if (needle === '') {
+        return slots;
+    }
+
+    return slots.filter((slot) =>
+        `${slot.label ?? ''} ${slot.document?.original_name ?? ''}`.toLowerCase().includes(needle),
+    );
+});
+
+async function refreshDocumentsPanel() {
+    await loadDocuments(search.value);
+
+    if (isExternalUser.value) {
+        return;
+    }
+
+    if (documentsDrillLevel.value === 'contractors') {
+        await loadDocumentContractors(search.value);
+
+        return;
+    }
+
+    if (documentsDrillLevel.value === 'orders' && selectedDocumentContractor.value?.id) {
+        await loadDocumentContractorOrders(selectedDocumentContractor.value.id, search.value);
+
+        return;
+    }
+
+    if (documentsDrillLevel.value === 'order' && selectedDocumentOrder.value?.id) {
+        await loadOrderDocumentChecklist(selectedDocumentOrder.value.id);
+    }
+}
+
+function documentsDrillBack() {
+    search.value = '';
+
+    if (documentsDrillLevel.value === 'order') {
+        documentsDrillLevel.value = 'orders';
+        selectedDocumentOrder.value = null;
+        orderDocumentChecklist.value = null;
+        loadDocumentContractorOrders(selectedDocumentContractor.value?.id, '');
+
+        return;
+    }
+
+    if (documentsDrillLevel.value === 'orders') {
+        documentsDrillLevel.value = 'contractors';
+        selectedDocumentContractor.value = null;
+        documentContractorOrders.value = [];
+        loadDocumentContractors('');
+    }
+}
+
+async function openDocumentContractor(contractor) {
+    selectedDocumentContractor.value = contractor;
+    documentsDrillLevel.value = 'orders';
+    search.value = '';
+    await loadDocumentContractorOrders(contractor.id, '');
+}
+
+async function openDocumentOrder(order) {
+    selectedDocumentOrder.value = order;
+    documentsDrillLevel.value = 'order';
+    search.value = '';
+    await loadOrderDocumentChecklist(order.id);
+}
+
+async function openAttentionOrderDrillDown(item) {
+    if (item.customer_id) {
+        selectedDocumentContractor.value = {
+            id: item.customer_id,
+            name: item.customer_name ?? 'Контрагент',
+        };
+        documentsDrillLevel.value = 'order';
+    } else {
+        documentsDrillLevel.value = 'order';
+        selectedDocumentContractor.value = null;
+    }
+
+    selectedDocumentOrder.value = {
+        id: item.order_id,
+        order_number: item.order_number,
+    };
+    search.value = '';
+    await loadOrderDocumentChecklist(item.order_id);
+}
+
+function openDocumentSlot(slot) {
+    const orderId = orderDocumentChecklist.value?.order?.id;
+    const url = orderDocumentChecklist.value?.urls?.documents
+        ?? (orderId ? route('orders.edit', orderId) + '?tab=documents' : null);
+
+    if (!url) {
+        return;
+    }
+
+    if (slot.completed && slot.document?.url) {
+        window.open(slot.document.url, '_blank', 'noopener');
+
+        return;
+    }
+
+    if (orderId) {
+        openUploadWizardForOrder(orderId);
+    }
+}
 
 const leadDraftSaving = ref(false);
 const detailSheetRef = ref(null);
@@ -923,7 +1237,7 @@ async function applyShellHighlight(detail) {
     highlightTarget.value = { type: highlightType, id: orderId };
 
     if (detail.tab === 'documents') {
-        await loadDocuments(search.value);
+        await refreshDocumentsPanel();
     } else if (detail.tab === 'orders') {
         await loadOrders(search.value);
     }
@@ -1336,7 +1650,7 @@ async function handleDocumentUploaded(document) {
     }
 
     if (activeTab.value === 'documents' || screen.value !== 'thread') {
-        await loadDocuments(search.value);
+        await refreshDocumentsPanel();
     }
 
     if (activeTab.value === 'orders') {
@@ -1632,6 +1946,16 @@ function selectTab(tab) {
     search.value = '';
     showGroupComposer.value = false;
 
+    if (tab !== 'documents') {
+        resetDocumentsDrillDown();
+    }
+
+    if (tab === 'documents' && !isExternalUser.value) {
+        refreshDocumentsPanel();
+
+        return;
+    }
+
     loadTab(tab);
 }
 
@@ -1642,6 +1966,12 @@ async function refreshActiveTab() {
         if (!isExternalUser.value) {
             counterpartyContacts.value = await loadCounterpartyContacts();
         }
+
+        return;
+    }
+
+    if (activeTab.value === 'documents') {
+        await refreshDocumentsPanel();
 
         return;
     }
@@ -1801,6 +2131,31 @@ watch([activeTab, search], ([tab, needle]) => {
 
     clearTimeout(shellSearchTimer);
     shellSearchTimer = setTimeout(async () => {
+        if (tab === 'documents') {
+            await refreshDocumentsPanel();
+
+            if (needle.trim() === '') {
+                unifiedSearchResults.value = [];
+                mobileRecents.value = readMobileRecents();
+
+                return;
+            }
+
+            if (documentsDrillLevel.value === 'contractors' || isExternalUser.value) {
+                unifiedSearchLoading.value = true;
+
+                try {
+                    unifiedSearchResults.value = await searchEntities(needle);
+                } finally {
+                    unifiedSearchLoading.value = false;
+                }
+            } else {
+                unifiedSearchResults.value = [];
+            }
+
+            return;
+        }
+
         await loadTab(tab, needle);
 
         if (needle.trim() === '') {

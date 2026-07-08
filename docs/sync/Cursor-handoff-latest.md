@@ -3,9 +3,53 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-08 18:45 · **HEAD:** `dc26cd6` · **Ветка:** `master` · **Контекст:** Биржа грузов — infinite scroll, карточка кейса, статистика ставок
+**Обновлено:** 2026-07-08 20:50 · **HEAD:** _(после push этого коммита)_ · **Ветка:** `master` · **Контекст:** Logismart-ref — предрасчёт на лиде, плечи маршрута, Traklo documents drill-down
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано (2026-07-08) — Перевозки / Logismart-ref (треки A, B, C)
+
+### Трек C — маршрут и плечи на лиде
+- **C.1:** inline **+/−** на точках маршрута в `Orders/Wizard.vue` и `LeadWizardRouteTab.vue` (`leadWizardRoute.js`).
+- **C.2:** `leads.performers`, `lead_route_points.stage`; конвертация → `order_legs`, staged route, `contractors_costs` по плечам.
+- Миграция: `2026_07_08_202800_add_lead_performers_and_route_point_stage.php`.
+
+### Трек A — коммерческий предрасчёт (без ДТ/ТП)
+- Вкладка **«Предрасчёт»** на лиде: многострочные товары (ТН ВЭД), услуги, фрахт, статусы, HTML/PDF.
+- `LeadPrecalculationService`, freight allocator, снимок при конвертации в `orders.metadata` / `wizard_state`.
+- Миграция: `2026_07_08_203503_add_precalculation_to_leads_table.php`.
+- Маршруты: `leads/precalculation/*`, `leads/{lead}/precalculation/document`.
+
+### Трек B — Traklo «Документы» (staff)
+- Drill-down **контрагент → заказы → чек-лист слотов** вместо flat «Последние документы».
+- API: `mobile.shell.documents.contractors`, `.contractor-orders`, `.order-checklist`.
+- UI: `Messenger.vue`, `useMobileShell.js`. Блок «Требуют внимания» сохранён.
+
+### Закрытие цикла предрасчёта на заказе
+- Read-only вкладка **«Предрасчёт»** в мастере заказа (`OrderWizardLeadPrecalculationSnapshot.vue`) — снимок с лида.
+- `GET orders/{order}/lead-precalculation-snapshot/document?format=html|pdf`.
+- `OrderLeadPrecalculationSnapshotResolver`.
+
+### Тесты (прогнаны локально)
+- `LeadManagementTest` — лиды: плечи, предрасчёт, конвертация со снимком.
+- `OrderWizardTest` — +/- маршрут, снимок на edit, HTML документ.
+- `MobileShellFeedTest` — 15 passed (drill-down chain + API).
+- Unit: `LeadPrecalculationServiceTest`, `LeadPrecalculationFreightAllocatorTest`.
+
+### Деплoy
+```powershell
+git pull
+php artisan migrate   # leads.performers, leads.precalculation
+npm run build
+```
+
+### Следующий шаг (после этого пакета)
+1. **Smoke UI:** лид → предрасчёт → конвертация → заказ вкладка «Предрасчёт»; Traklo → Документы drill-down.
+2. **Prod:** migrate + build (см. выше).
+3. **Биржа фаза 2:** `dispatcher_id`, owner/dispatcher в мастере заказа, `ProcurementCase` — см. `docs/load-board-procurement-architecture.md`.
+4. **Backlog:** ЭДО (Астрал, Калуга, …), ДТ/ГТД — не в scope.
 
 ---
 

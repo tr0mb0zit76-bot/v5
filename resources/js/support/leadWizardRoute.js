@@ -5,9 +5,10 @@ import {
     syncRoutePointCityFromAddress,
 } from '@/support/routePointNormalizedData.js';
 
-export function blankLeadRoutePoint(type = 'loading', sequence = 1) {
+export function blankLeadRoutePoint(type = 'loading', sequence = 1, stage = 'leg_1') {
     return {
         type,
+        stage,
         sequence,
         address: '',
         normalized_data: {},
@@ -27,17 +28,19 @@ export function blankLeadRoutePoint(type = 'loading', sequence = 1) {
 
 export function defaultLeadRoutePoints() {
     return [
-        blankLeadRoutePoint('loading', 1),
-        blankLeadRoutePoint('unloading', 2),
+        blankLeadRoutePoint('loading', 1, 'leg_1'),
+        blankLeadRoutePoint('unloading', 2, 'leg_1'),
     ];
 }
 
 export function normalizeLeadRoutePoint(raw = {}, index = 0) {
-    const base = blankLeadRoutePoint(raw.type ?? 'loading', Number(raw.sequence ?? (index + 1)));
+    const stage = String(raw.stage ?? 'leg_1').trim() || 'leg_1';
+    const base = blankLeadRoutePoint(raw.type ?? 'loading', Number(raw.sequence ?? (index + 1)), stage);
 
     return {
         ...base,
         ...raw,
+        stage,
         sequence: Number(raw.sequence ?? (index + 1)),
         normalized_data: raw.normalized_data && typeof raw.normalized_data === 'object' ? raw.normalized_data : {},
         planned_date: raw.planned_date ?? '',
@@ -132,6 +135,35 @@ export function normalizeRoutePointSequences(points) {
     }));
 }
 
+export function countLeadRoutePointsByType(points, type) {
+    return (points ?? []).filter((point) => point.type === type).length;
+}
+
+export function canRemoveLeadRoutePoint(points, index) {
+    if (!Array.isArray(points) || points.length <= 1) {
+        return false;
+    }
+
+    const point = points[index];
+    if (!point) {
+        return false;
+    }
+
+    const sameTypeOnLeg = points.filter(
+        (candidate) => candidate.type === point.type && String(candidate.stage ?? 'leg_1') === String(point.stage ?? 'leg_1'),
+    ).length;
+
+    if (point.type === 'loading' && sameTypeOnLeg <= 1) {
+        return false;
+    }
+
+    if (point.type === 'unloading' && sameTypeOnLeg <= 1) {
+        return false;
+    }
+
+    return true;
+}
+
 export function addLeadRoutePoint(points, type) {
     const next = [...points];
     next.push(blankLeadRoutePoint(type, next.length + 1));
@@ -139,7 +171,23 @@ export function addLeadRoutePoint(points, type) {
     return normalizeRoutePointSequences(next);
 }
 
+export function addLeadRoutePointAfter(points, index) {
+    const point = points[index];
+    if (!point) {
+        return points;
+    }
+
+    const next = [...points];
+    next.splice(index + 1, 0, blankLeadRoutePoint(point.type, index + 2, point.stage ?? 'leg_1'));
+
+    return normalizeRoutePointSequences(next);
+}
+
 export function removeLeadRoutePoint(points, index) {
+    if (!canRemoveLeadRoutePoint(points, index)) {
+        return points;
+    }
+
     const next = [...points];
     next.splice(index, 1);
 

@@ -294,6 +294,7 @@
 
             <LeadWizardRouteTab
                 v-else-if="activeTab === 'route'"
+                v-model:performers="form.performers"
                 v-model:route-points="form.route_points"
             />
 
@@ -306,6 +307,15 @@
                 :truck-body-type-options="truckBodyTypeOptions"
                 :trailer-type-options="trailerTypeOptions"
                 :cargo-title-suggestions="cargoTitleSuggestions"
+            />
+
+            <LeadWizardPrecalculationTab
+                v-else-if="activeTab === 'precalculation'"
+                v-model:precalculation="form.precalculation"
+                :lead-id="selectedLeadId"
+                :performers="form.performers"
+                :import-cost-meta="importCostPrecalculationMeta"
+                @apply-finance="applyPrecalculationFinance"
             />
 
             <LeadWizardFinanceTab
@@ -438,7 +448,7 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowRightLeft, Banknote, ClipboardList, FileText, History, MapPinned, Package, Paperclip, Plus, Save, Trash2, X } from 'lucide-vue-next';
+import { ArrowRightLeft, Banknote, Calculator, ClipboardList, FileText, History, MapPinned, Package, Paperclip, Plus, Save, Trash2, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CardSmartLinksBar from '@/Components/Crm/CardSmartLinksBar.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -451,7 +461,17 @@ import LeadStatusPipeline from '@/Components/Leads/LeadStatusPipeline.vue';
 import LeadWizardDocumentsTab from '@/Components/Leads/LeadWizardDocumentsTab.vue';
 import LeadWizardFinanceTab from '@/Components/Leads/LeadWizardFinanceTab.vue';
 import LeadWizardCommercialTab from '@/Components/Leads/LeadWizardCommercialTab.vue';
+import LeadWizardPrecalculationTab from '@/Components/Leads/LeadWizardPrecalculationTab.vue';
 import LeadWizardRouteTab from '@/Components/Leads/LeadWizardRouteTab.vue';
+import {
+    blankLeadPrecalculation,
+    normalizeLeadPrecalculation,
+} from '@/support/leadWizardPrecalculation.js';
+import {
+    defaultLeadPerformers,
+    normalizeLeadPerformers,
+    syncLeadRoutePointsFromPerformers,
+} from '@/support/leadWizardPerformers.js';
 import {
     ensureContractorPartyAutofill,
     isCompleteContractorInn,
@@ -548,6 +568,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    importCostPrecalculationMeta: {
+        type: Object,
+        default: () => ({}),
+    },
     salesCoachingInsights: {
         type: Object,
         default: null,
@@ -573,6 +597,7 @@ const allWizardTabs = [
     { key: 'main', label: 'Основное', icon: ClipboardList },
     { key: 'route', label: 'Маршрут', icon: MapPinned },
     { key: 'cargo', label: 'Груз', icon: Package },
+    { key: 'precalculation', label: 'Предрасчёт', icon: Calculator },
     { key: 'finance', label: 'Финансы', icon: Banknote },
     { key: 'documents', label: 'Документы', icon: Paperclip },
     { key: 'activities', label: 'Коммуникации', icon: History },
@@ -615,6 +640,8 @@ function blankForm() {
         close_outcome_note: '',
         qualification: { need: '', timeline: '', authority: '', budget: '' },
         route_points: defaultLeadRoutePoints(),
+        performers: defaultLeadPerformers(),
+        precalculation: blankLeadPrecalculation(),
         cargo_items: normalizeLeadCargoItems([], dictionaryProps.value),
         activities: [],
         offers: [],
@@ -643,7 +670,12 @@ function leadToForm(lead) {
         },
         close_outcome_primary_flag: lead.close_outcome_primary_flag ?? '',
         close_outcome_note: lead.lost_reason ?? '',
-        route_points: normalizeLeadRoutePoints(lead.route_points),
+        route_points: syncLeadRoutePointsFromPerformers(
+            normalizeLeadRoutePoints(lead.route_points),
+            normalizeLeadPerformers(lead.performers),
+        ),
+        performers: normalizeLeadPerformers(lead.performers),
+        precalculation: normalizeLeadPrecalculation(lead.precalculation),
         cargo_items: normalizeLeadCargoItems(lead.cargo_items, dictionaryProps.value),
         customer_payment_form: lead.customer_payment_form ?? '',
         carrier_payment_form: lead.carrier_payment_form ?? '',
@@ -1248,6 +1280,18 @@ function submitProcessStage() {
 
 function markStatusTouchedByUser() {
     statusTouchedByUser.value = true;
+}
+
+function applyPrecalculationFinance(payload) {
+    if (payload?.target_price !== undefined && payload?.target_price !== null) {
+        form.target_price = payload.target_price;
+    }
+
+    if (payload?.calculated_cost !== undefined && payload?.calculated_cost !== null) {
+        form.calculated_cost = payload.calculated_cost;
+    }
+
+    activeTab.value = 'finance';
 }
 
 function submit() {

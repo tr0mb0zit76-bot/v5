@@ -251,6 +251,461 @@ class LeadManagementTest extends TestCase
         ]);
     }
 
+    public function test_manager_can_save_lead_with_multiple_loading_points(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Lead Multi Pickup Client',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($manager)->post(route('leads.store'), [
+            ...$this->leadStoreDefaults($manager),
+            'status' => 'new',
+            'source' => 'inbound',
+            'counterparty_id' => $contractorId,
+            'title' => 'Лид с двумя погрузками',
+            'route_points' => [
+                [
+                    'type' => 'loading',
+                    'sequence' => 1,
+                    'address' => 'Самара, Заводская 1',
+                    'normalized_data' => [],
+                ],
+                [
+                    'type' => 'loading',
+                    'sequence' => 2,
+                    'address' => 'Самара, Склад 2',
+                    'normalized_data' => [],
+                ],
+                [
+                    'type' => 'unloading',
+                    'sequence' => 3,
+                    'address' => 'Казань, Терминал',
+                    'normalized_data' => [],
+                ],
+            ],
+            'cargo_items' => [],
+            'activities' => [],
+        ]);
+
+        $leadId = DB::table('leads')->value('id');
+
+        $response->assertRedirect(route('leads.show', $leadId));
+        $this->assertDatabaseHas('lead_route_points', [
+            'lead_id' => $leadId,
+            'type' => 'loading',
+            'address' => 'Самара, Заводская 1',
+        ]);
+        $this->assertDatabaseHas('lead_route_points', [
+            'lead_id' => $leadId,
+            'type' => 'loading',
+            'address' => 'Самара, Склад 2',
+        ]);
+        $this->assertDatabaseHas('lead_route_points', [
+            'lead_id' => $leadId,
+            'type' => 'unloading',
+            'address' => 'Казань, Терминал',
+        ]);
+    }
+
+    public function test_manager_can_save_lead_with_multiple_legs_and_staged_route_points(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Lead Multi Leg Client',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierOneId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Lead Carrier One',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierTwoId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Lead Carrier Two',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($manager)->post(route('leads.store'), [
+            ...$this->leadStoreDefaults($manager),
+            'status' => 'new',
+            'source' => 'inbound',
+            'counterparty_id' => $contractorId,
+            'title' => 'Лид с двумя плечами',
+            'performers' => [
+                [
+                    'stage' => 'leg_1',
+                    'contractor_id' => $carrierOneId,
+                    'contractor_name' => 'Lead Carrier One',
+                    'estimated_cost' => 80000,
+                ],
+                [
+                    'stage' => 'leg_2',
+                    'contractor_id' => $carrierTwoId,
+                    'contractor_name' => 'Lead Carrier Two',
+                    'estimated_cost' => 45000,
+                ],
+            ],
+            'route_points' => [
+                [
+                    'stage' => 'leg_1',
+                    'type' => 'loading',
+                    'sequence' => 1,
+                    'address' => 'Самара, Заводская 1',
+                    'normalized_data' => [],
+                ],
+                [
+                    'stage' => 'leg_1',
+                    'type' => 'unloading',
+                    'sequence' => 2,
+                    'address' => 'Казань, Хаб',
+                    'normalized_data' => [],
+                ],
+                [
+                    'stage' => 'leg_2',
+                    'type' => 'loading',
+                    'sequence' => 3,
+                    'address' => 'Казань, Хаб',
+                    'normalized_data' => [],
+                ],
+                [
+                    'stage' => 'leg_2',
+                    'type' => 'unloading',
+                    'sequence' => 4,
+                    'address' => 'Москва, Склад',
+                    'normalized_data' => [],
+                ],
+            ],
+            'cargo_items' => [],
+            'activities' => [],
+        ]);
+
+        $leadId = DB::table('leads')->value('id');
+
+        $response->assertRedirect(route('leads.show', $leadId));
+
+        $this->assertDatabaseHas('lead_route_points', [
+            'lead_id' => $leadId,
+            'stage' => 'leg_1',
+            'type' => 'loading',
+            'address' => 'Самара, Заводская 1',
+        ]);
+        $this->assertDatabaseHas('lead_route_points', [
+            'lead_id' => $leadId,
+            'stage' => 'leg_2',
+            'type' => 'unloading',
+            'address' => 'Москва, Склад',
+        ]);
+
+        $lead = Lead::query()->findOrFail($leadId);
+        $performers = is_array($lead->performers) ? $lead->performers : [];
+
+        $this->assertCount(2, $performers);
+        $this->assertSame('leg_1', $performers[0]['stage'] ?? null);
+        $this->assertSame($carrierOneId, $performers[0]['contractor_id'] ?? null);
+        $this->assertSame(80000.0, (float) ($performers[0]['estimated_cost'] ?? 0));
+        $this->assertSame('leg_2', $performers[1]['stage'] ?? null);
+        $this->assertSame($carrierTwoId, $performers[1]['contractor_id'] ?? null);
+    }
+
+    public function test_manager_can_convert_multi_leg_lead_into_order_with_legs_and_costs(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $contractorId = $this->createContractor();
+
+        $carrierOneId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Carrier One',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierTwoId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Carrier Two',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $lead = Lead::factory()->create([
+            'counterparty_id' => $contractorId,
+            'responsible_id' => $manager->id,
+            'title' => 'Конвертация мультиплеча',
+            'target_price' => 210000,
+            'target_currency' => 'RUB',
+            'performers' => [
+                [
+                    'stage' => 'leg_1',
+                    'contractor_id' => $carrierOneId,
+                    'contractor_name' => 'Carrier One',
+                    'estimated_cost' => 80000,
+                ],
+                [
+                    'stage' => 'leg_2',
+                    'contractor_id' => $carrierTwoId,
+                    'contractor_name' => 'Carrier Two',
+                    'estimated_cost' => 45000,
+                ],
+            ],
+        ]);
+
+        DB::table('lead_route_points')->insert([
+            [
+                'lead_id' => $lead->id,
+                'stage' => 'leg_1',
+                'type' => 'loading',
+                'sequence' => 1,
+                'address' => 'Samara pickup',
+                'normalized_data' => json_encode([], JSON_THROW_ON_ERROR),
+                'planned_date' => now()->addDays(2)->toDateString(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'lead_id' => $lead->id,
+                'stage' => 'leg_1',
+                'type' => 'unloading',
+                'sequence' => 2,
+                'address' => 'Kazan hub',
+                'normalized_data' => json_encode([], JSON_THROW_ON_ERROR),
+                'planned_date' => now()->addDays(3)->toDateString(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'lead_id' => $lead->id,
+                'stage' => 'leg_2',
+                'type' => 'loading',
+                'sequence' => 3,
+                'address' => 'Kazan hub',
+                'normalized_data' => json_encode([], JSON_THROW_ON_ERROR),
+                'planned_date' => now()->addDays(4)->toDateString(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'lead_id' => $lead->id,
+                'stage' => 'leg_2',
+                'type' => 'unloading',
+                'sequence' => 4,
+                'address' => 'Moscow delivery',
+                'normalized_data' => json_encode([], JSON_THROW_ON_ERROR),
+                'planned_date' => now()->addDays(5)->toDateString(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $response = $this->actingAs($manager)->post(route('leads.convert', $lead));
+
+        $response->assertRedirect();
+
+        $orderId = DB::table('orders')->where('lead_id', $lead->id)->value('id');
+
+        $this->assertNotNull($orderId);
+
+        $legs = DB::table('order_legs')
+            ->where('order_id', $orderId)
+            ->orderBy('sequence')
+            ->get();
+
+        $this->assertCount(2, $legs);
+        $this->assertSame('leg_1', $legs[0]->description);
+        $this->assertSame('leg_2', $legs[1]->description);
+
+        $this->assertDatabaseHas('route_points', [
+            'order_leg_id' => $legs[0]->id,
+            'type' => 'loading',
+            'address' => 'Samara pickup',
+        ]);
+        $this->assertDatabaseHas('route_points', [
+            'order_leg_id' => $legs[1]->id,
+            'type' => 'unloading',
+            'address' => 'Moscow delivery',
+        ]);
+
+        $financialTerm = DB::table('financial_terms')->where('order_id', $orderId)->first();
+        $this->assertNotNull($financialTerm);
+
+        $contractorsCosts = json_decode((string) $financialTerm->contractors_costs, true, 512, JSON_THROW_ON_ERROR);
+        $this->assertCount(2, $contractorsCosts);
+        $this->assertSame('leg_1', $contractorsCosts[0]['stage'] ?? null);
+        $this->assertSame(80000.0, (float) ($contractorsCosts[0]['amount'] ?? 0));
+        $this->assertSame('leg_2', $contractorsCosts[1]['stage'] ?? null);
+        $this->assertSame(45000.0, (float) ($contractorsCosts[1]['amount'] ?? 0));
+    }
+
+    public function test_manager_can_save_lead_with_precalculation_lines(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+
+        $response = $this->actingAs($manager)->post(route('leads.store'), [
+            ...$this->leadStoreDefaults($manager),
+            'status' => 'new',
+            'source' => 'inbound',
+            'title' => 'Лид с предрасчётом',
+            'precalculation' => [
+                'status' => 'draft',
+                'goods_lines' => [
+                    [
+                        'id' => 'goods_1',
+                        'description' => 'Запчасти',
+                        'tn_ved_code' => '',
+                        'invoice_amount' => null,
+                    ],
+                ],
+                'service_lines' => [
+                    [
+                        'id' => 'service_1',
+                        'kind' => 'logistics',
+                        'title' => 'Доставка',
+                        'amount' => 120000,
+                        'currency' => 'RUB',
+                    ],
+                ],
+            ],
+            'route_points' => [],
+            'cargo_items' => [],
+            'activities' => [],
+        ]);
+
+        $leadId = DB::table('leads')->value('id');
+
+        $response->assertRedirect(route('leads.show', $leadId));
+
+        $lead = Lead::query()->findOrFail($leadId);
+        $precalculation = is_array($lead->precalculation) ? $lead->precalculation : [];
+
+        $this->assertCount(1, $precalculation['service_lines'] ?? []);
+        $this->assertSame(120000.0, (float) ($precalculation['computed']['services_total'] ?? 0));
+        $this->assertSame(120000.0, (float) ($precalculation['computed']['grand_total'] ?? 0));
+    }
+
+    public function test_manager_can_calculate_lead_precalculation_via_api(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+
+        $response = $this->actingAs($manager)->postJson(route('leads.precalculation.calculate'), [
+            'service_lines' => [
+                [
+                    'kind' => 'logistics',
+                    'title' => 'Логистика',
+                    'amount' => 90000,
+                    'currency' => 'RUB',
+                ],
+            ],
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('computed.services_total', 90000);
+        $response->assertJsonPath('computed.grand_total', 90000);
+    }
+
+    public function test_manager_can_convert_lead_with_precalculation_snapshot_on_order(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $contractorId = $this->createContractor();
+
+        $lead = Lead::factory()->create([
+            'counterparty_id' => $contractorId,
+            'responsible_id' => $manager->id,
+            'title' => 'Конвертация со снимком предрасчёта',
+            'precalculation' => [
+                'status' => 'ready',
+                'freight' => [
+                    'to_border_total' => 0,
+                    'after_border_total' => 0,
+                    'distribution_basis' => 'invoice_rub',
+                ],
+                'goods_lines' => [],
+                'service_lines' => [
+                    [
+                        'id' => 'service_1',
+                        'kind' => 'other',
+                        'title' => 'Брокер',
+                        'amount' => 25000,
+                        'currency' => 'RUB',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->actingAs($manager)->post(route('leads.convert', $lead));
+
+        $response->assertRedirect();
+
+        $orderId = DB::table('orders')->where('lead_id', $lead->id)->value('id');
+        $this->assertNotNull($orderId);
+
+        $metadata = DB::table('orders')->where('id', $orderId)->value('metadata');
+        if ($metadata !== null) {
+            $decoded = json_decode((string) $metadata, true, 512, JSON_THROW_ON_ERROR);
+            $this->assertArrayHasKey('lead_precalculation_snapshot', $decoded);
+            $this->assertSame('ready', $decoded['lead_precalculation_snapshot']['status'] ?? null);
+
+            return;
+        }
+
+        $wizardState = DB::table('orders')->where('id', $orderId)->value('wizard_state');
+        $this->assertNotNull($wizardState);
+        $decodedWizard = json_decode((string) $wizardState, true, 512, JSON_THROW_ON_ERROR);
+        $this->assertArrayHasKey('lead_precalculation_snapshot', $decodedWizard);
+    }
+
+    public function test_manager_can_open_precalculation_document_html(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+
+        $lead = Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'title' => 'HTML предрасчёт',
+            'precalculation' => [
+                'status' => 'ready',
+                'freight' => [
+                    'to_border_total' => 0,
+                    'after_border_total' => 0,
+                    'distribution_basis' => 'invoice_rub',
+                ],
+                'service_lines' => [
+                    [
+                        'kind' => 'other',
+                        'title' => 'Доставка',
+                        'amount' => 50000,
+                        'currency' => 'RUB',
+                    ],
+                ],
+                'goods_lines' => [],
+            ],
+        ]);
+
+        $response = $this->actingAs($manager)->get(route('leads.precalculation.document', [
+            'lead' => $lead,
+            'format' => 'html',
+            'preview' => 1,
+        ]));
+
+        $response->assertOk();
+        $this->assertStringContainsString('Коммерческий предрасчёт', (string) $response->getContent());
+        $this->assertStringContainsString('50 000', (string) $response->getContent());
+    }
+
     public function test_manager_can_save_lead_finance_fields_with_expected_margin(): void
     {
         $manager = $this->createUserWithRole('manager');

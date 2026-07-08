@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\Order;
 use App\Models\Task;
@@ -263,6 +264,141 @@ class MobileShellFeedTest extends TestCase
         $this->assertNull($lead->responsible_id);
         $this->assertSame('металлопрокат', data_get($lead->metadata, 'public_transport_request.cargo'));
         $this->assertSame('+7 900 111 22 44', data_get($lead->metadata, 'public_transport_request.phone'));
+    }
+
+    public function test_mobile_shell_document_contractors_returns_counterparties_from_manager_orders(): void
+    {
+        $manager = $this->createUserWithAreas(['orders'], ['orders' => 'own']);
+        $other = $this->createUserWithAreas(['orders'], ['orders' => 'own']);
+
+        $customer = Contractor::query()->create([
+            'name' => 'ООО Мобильный клиент',
+            'inn' => '7700000001',
+        ]);
+
+        Order::factory()->create([
+            'manager_id' => $manager->id,
+            'customer_id' => $customer->id,
+            'order_number' => 'MOB-DOC-1',
+            'is_active' => true,
+        ]);
+
+        Order::factory()->create([
+            'manager_id' => $other->id,
+            'customer_id' => $customer->id,
+            'order_number' => 'MOB-DOC-OTHER',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->getJson(route('mobile.shell.documents.contractors'))
+            ->assertOk()
+            ->assertJsonCount(1, 'contractors')
+            ->assertJsonPath('contractors.0.id', $customer->id)
+            ->assertJsonPath('contractors.0.name', 'ООО Мобильный клиент')
+            ->assertJsonPath('contractors.0.orders_count', 1);
+    }
+
+    public function test_mobile_shell_document_contractor_orders_scoped_to_contractor_and_manager(): void
+    {
+        $manager = $this->createUserWithAreas(['orders'], ['orders' => 'own']);
+
+        $customer = Contractor::query()->create([
+            'name' => 'ООО Документы Traklo',
+            'inn' => '7700000002',
+        ]);
+
+        $order = Order::factory()->create([
+            'manager_id' => $manager->id,
+            'customer_id' => $customer->id,
+            'order_number' => 'MOB-DOC-ORD-1',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->getJson(route('mobile.shell.documents.contractor-orders', $customer))
+            ->assertOk()
+            ->assertJsonPath('contractor.id', $customer->id)
+            ->assertJsonCount(1, 'orders')
+            ->assertJsonPath('orders.0.id', $order->id)
+            ->assertJsonPath('orders.0.order_number', 'MOB-DOC-ORD-1')
+            ->assertJsonStructure([
+                'orders' => [[
+                    'documents_pending_count',
+                    'documents_total_count',
+                ]],
+            ]);
+    }
+
+    public function test_mobile_shell_order_document_checklist_forbidden_for_other_manager(): void
+    {
+        $manager = $this->createUserWithAreas(['orders'], ['orders' => 'own']);
+        $other = $this->createUserWithAreas(['orders'], ['orders' => 'own']);
+
+        $order = Order::factory()->create([
+            'manager_id' => $manager->id,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($other)
+            ->getJson(route('mobile.shell.documents.order-checklist', $order))
+            ->assertForbidden();
+    }
+
+    public function test_mobile_shell_order_document_checklist_returns_slots_for_manager(): void
+    {
+        $manager = $this->createUserWithAreas(['orders'], ['orders' => 'own']);
+
+        $order = Order::factory()->create([
+            'manager_id' => $manager->id,
+            'order_number' => 'MOB-DOC-CHK-1',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->getJson(route('mobile.shell.documents.order-checklist', $order))
+            ->assertOk()
+            ->assertJsonPath('order.id', $order->id)
+            ->assertJsonPath('order.order_number', 'MOB-DOC-CHK-1')
+            ->assertJsonStructure([
+                'order',
+                'documents' => ['pending_count', 'completed_count', 'total_count'],
+                'slots',
+                'urls' => ['order', 'documents'],
+            ]);
+    }
+
+    public function test_mobile_shell_documents_drill_down_chain_for_manager_order(): void
+    {
+        $manager = $this->createUserWithAreas(['orders'], ['orders' => 'own']);
+
+        $customer = Contractor::query()->create([
+            'name' => 'ООО Drill Down Chain',
+            'inn' => '7700000099',
+        ]);
+
+        $order = Order::factory()->create([
+            'manager_id' => $manager->id,
+            'customer_id' => $customer->id,
+            'order_number' => 'MOB-DRILL-1',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)
+            ->getJson(route('mobile.shell.documents.contractors'))
+            ->assertOk()
+            ->assertJsonPath('contractors.0.id', $customer->id);
+
+        $this->actingAs($manager)
+            ->getJson(route('mobile.shell.documents.contractor-orders', $customer))
+            ->assertOk()
+            ->assertJsonPath('orders.0.id', $order->id);
+
+        $this->actingAs($manager)
+            ->getJson(route('mobile.shell.documents.order-checklist', $order))
+            ->assertOk()
+            ->assertJsonPath('order.id', $order->id)
+            ->assertJsonStructure(['slots', 'documents', 'urls']);
     }
 
     public function test_mobile_shell_link_preview_returns_order_number(): void

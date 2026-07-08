@@ -5,6 +5,7 @@ namespace App\Services\Mobile;
 use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\Order;
+use App\Models\OrderDocument;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\MessengerService;
@@ -14,6 +15,8 @@ use App\Support\LeadStatus;
 use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 class MobileShellFeedService
@@ -115,23 +118,10 @@ class MobileShellFeedService
             return ['orders' => []];
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
         $needle = trim((string) $search);
 
-        $query = Order::query()
-            ->with(['client:id,name', 'carrier:id,name'])
-            ->when(
-                ! $user->isAdmin() && $scope !== 'all',
-                fn ($builder) => $builder->where('manager_id', $user->id),
-            );
-
-        if (Schema::hasColumn('orders', 'deleted_at')) {
-            $query->whereNull('deleted_at');
-        }
-
-        if (Schema::hasColumn('orders', 'is_active')) {
-            $query->where('is_active', true);
-        }
+        $query = $this->buildVisibleOrdersQuery($user)
+            ->with(['client:id,name', 'carrier:id,name']);
 
         if ($needle !== '') {
             $like = '%'.$needle.'%';
@@ -153,29 +143,175 @@ class MobileShellFeedService
             ->limit(40)
             ->get();
 
-        $items = $orders->map(function (Order $order): array {
-            $status = $order->manual_status ?: $order->status;
-            $checklist = $this->documentRequirementService->checklistForOrder($order);
-            $pending = collect($checklist)->filter(fn (array $item): bool => ! ($item['completed'] ?? false));
-
-            return [
-                'id' => $order->id,
-                'order_number' => $order->order_number ?: '#'.$order->id,
-                'customer_name' => $order->client?->name,
-                'carrier_name' => $order->carrier?->name,
-                'status' => $status,
-                'loading_date' => $order->loading_date,
-                'unloading_date' => $order->unloading_date,
-                'updated_at' => optional($order->updated_at)?->toIso8601String(),
-                'url' => route('orders.edit', $order, absolute: true),
-                'documents_url' => route('orders.edit', $order, absolute: true).'?tab=documents',
-                'documents_pending_count' => $pending->count(),
-                'documents_total_count' => count($checklist),
-                'documents_pending_labels' => $pending->take(3)->pluck('label')->filter()->values()->all(),
-            ];
-        })->values()->all();
+        $items = $orders
+            ->map(fn (Order $order): array => $this->serializeOrderForMobileShell($order))
+            ->values()
+            ->all();
 
         return ['orders' => $items];
+    }
+
+    /**
+     * @return array{contractors: list<array<string, mixed>>}
+     */
+    public function documentContractorsForUser(User $user, ?string $search = null): array
+    {
+        if (! Schema::hasTable('orders') || ! Schema::hasTable('contractors')
+            || ! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'orders')) {
+            return ['contractors' => []];
+        }
+
+        $needle = trim((string) $search);
+        $baseQuery = $this->buildVisibleOrdersQuery($user);
+
+        $customerPairs = (clone $baseQuery)
+            ->selectRaw('customer_id as contractor_id, orders.id as order_id, orders.updated_at as order_updated_at')
+            ->whereNotNull('customer_id');
+
+        $carrierPairs = (clone $baseQuery)
+            ->selectRaw('carrier_id as contractor_id, orders.id as order_id, orders.updated_at as order_updated_at')
+            ->whereNotNull('carrier_id');
+
+        $pairsQuery = $customerPairs->unionAll($carrierPairs);
+
+        $contractors = Contractor::query()
+            ->joinSub($pairsQuery, 'pairs', function ($join): void {
+                $join->on('contractors.id', '=', 'pairs.contractor_id');
+            })
+            ->when($needle !== '', function (Builder $query) use ($needle): void {
+                $like = '%'.$needle.'%';
+                $query->where(function (Builder $builder) use ($like, $needle): void {
+                    $builder->where('contractors.name', 'like', $like)
+                        ->orWhere('contractors.inn', 'like', $like);
+
+                    if (preg_match('/^\d+$/', $needle) === 1) {
+                        $builder->orWhere('contractors.id', (int) $needle);
+                    }
+                });
+            })
+            ->groupBy('contractors.id', 'contractors.name', 'contractors.inn')
+            ->selectRaw('contractors.id, contractors.name, contractors.inn, count(distinct pairs.order_id) as orders_count, max(pairs.order_updated_at) as last_activity_at')
+            ->orderByDesc('last_activity_at')
+            ->limit(50)
+            ->get();
+
+        $items = $contractors->map(fn (Contractor $row): array => [
+            'id' => (int) $row->id,
+            'name' => (string) $row->name,
+            'inn' => filled($row->inn) ? (string) $row->inn : null,
+            'orders_count' => (int) $row->orders_count,
+            'last_activity_at' => filled($row->last_activity_at)
+                ? Carbon::parse((string) $row->last_activity_at)->toIso8601String()
+                : null,
+        ])->all();
+
+        return ['contractors' => $items];
+    }
+
+    /**
+     * @return array{contractor: array<string, mixed>, orders: list<array<string, mixed>>}
+     */
+    public function documentOrdersForContractor(User $user, Contractor $contractor, ?string $search = null): array
+    {
+        abort_unless(
+            Schema::hasTable('orders')
+            && RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'orders'),
+            403,
+        );
+
+        $needle = trim((string) $search);
+
+        $query = $this->buildVisibleOrdersQuery($user)
+            ->with(['client:id,name', 'carrier:id,name'])
+            ->where(function (Builder $builder) use ($contractor): void {
+                $builder->where('customer_id', $contractor->id)
+                    ->orWhere('carrier_id', $contractor->id);
+            });
+
+        if ($needle !== '') {
+            $like = '%'.$needle.'%';
+            $query->where(function (Builder $builder) use ($like, $needle): void {
+                $builder->where('order_number', 'like', $like);
+
+                if (Schema::hasColumn('orders', 'order_customer_number')) {
+                    $builder->orWhere('order_customer_number', 'like', $like);
+                }
+
+                if (preg_match('/^\d+$/', $needle) === 1) {
+                    $builder->orWhere('orders.id', (int) $needle);
+                }
+            });
+        }
+
+        $orders = $query
+            ->orderByDesc('updated_at')
+            ->limit(50)
+            ->get()
+            ->map(fn (Order $order): array => $this->serializeOrderForMobileShell($order))
+            ->values()
+            ->all();
+
+        return [
+            'contractor' => [
+                'id' => (int) $contractor->id,
+                'name' => (string) $contractor->name,
+                'inn' => filled($contractor->inn) ? (string) $contractor->inn : null,
+            ],
+            'orders' => $orders,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function orderDocumentChecklistForUser(User $user, Order $order): array
+    {
+        abort_unless($this->userCanViewOrder($user, $order), 403);
+
+        $order->loadMissing(['client:id,name', 'carrier:id,name', 'documents']);
+        $checklist = $this->documentRequirementService->checklistForOrder($order);
+        $documentsById = $order->documents->keyBy(fn (OrderDocument $document): int => (int) $document->getKey());
+        $pending = collect($checklist)->filter(fn (array $item): bool => ! ($item['completed'] ?? false));
+        $completed = collect($checklist)->filter(fn (array $item): bool => (bool) ($item['completed'] ?? false));
+
+        $slots = array_map(function (array $item) use ($order, $documentsById): array {
+            $matchedId = isset($item['matched_document_id']) ? (int) $item['matched_document_id'] : 0;
+            $document = $matchedId > 0 ? $documentsById->get($matchedId) : null;
+
+            return [
+                'key' => (string) ($item['key'] ?? ''),
+                'label' => (string) ($item['label'] ?? ''),
+                'party' => (string) ($item['party'] ?? 'internal'),
+                'completed' => (bool) ($item['completed'] ?? false),
+                'document' => $document instanceof OrderDocument ? [
+                    'id' => (int) $document->getKey(),
+                    'type' => (string) $document->type,
+                    'original_name' => $document->original_name,
+                    'url' => route('orders.edit', $order, absolute: true).'?tab=documents',
+                ] : null,
+            ];
+        }, $checklist);
+
+        return [
+            'order' => [
+                'id' => (int) $order->id,
+                'order_number' => $order->order_number ?: '#'.$order->id,
+                'customer_id' => $order->customer_id ? (int) $order->customer_id : null,
+                'customer_name' => $order->client?->name,
+                'carrier_name' => $order->carrier?->name,
+                'status' => $order->manual_status ?: $order->status,
+            ],
+            'documents' => [
+                'pending_count' => $pending->count(),
+                'completed_count' => $completed->count(),
+                'total_count' => count($checklist),
+            ],
+            'slots' => $slots,
+            'urls' => [
+                'order' => route('orders.edit', $order, absolute: true),
+                'documents' => route('orders.edit', $order, absolute: true).'?tab=documents',
+            ],
+        ];
     }
 
     /**
@@ -668,22 +804,8 @@ class MobileShellFeedService
             return [];
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
-
-        $query = Order::query()
-            ->with(['client:id,name'])
-            ->when(
-                ! $user->isAdmin() && $scope !== 'all',
-                fn ($builder) => $builder->where('manager_id', $user->id),
-            );
-
-        if (Schema::hasColumn('orders', 'deleted_at')) {
-            $query->whereNull('deleted_at');
-        }
-
-        if (Schema::hasColumn('orders', 'is_active')) {
-            $query->where('is_active', true);
-        }
+        $query = $this->buildVisibleOrdersQuery($user)
+            ->with(['client:id,name']);
 
         $orders = $query
             ->orderByDesc('updated_at')
@@ -703,6 +825,7 @@ class MobileShellFeedService
             $items[] = [
                 'order_id' => $order->id,
                 'order_number' => $order->order_number ?: '#'.$order->id,
+                'customer_id' => $order->customer_id ? (int) $order->customer_id : null,
                 'customer_name' => $order->client?->name,
                 'pending_count' => $pending->count(),
                 'pending_labels' => $pending->take(3)->pluck('label')->filter()->values()->all(),
@@ -715,5 +838,59 @@ class MobileShellFeedService
         }
 
         return $items;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeOrderForMobileShell(Order $order): array
+    {
+        $status = $order->manual_status ?: $order->status;
+        $checklist = $this->documentRequirementService->checklistForOrder($order);
+        $pending = collect($checklist)->filter(fn (array $item): bool => ! ($item['completed'] ?? false));
+
+        return [
+            'id' => $order->id,
+            'order_number' => $order->order_number ?: '#'.$order->id,
+            'customer_id' => $order->customer_id ? (int) $order->customer_id : null,
+            'customer_name' => $order->client?->name,
+            'carrier_name' => $order->carrier?->name,
+            'status' => $status,
+            'loading_date' => $order->loading_date,
+            'unloading_date' => $order->unloading_date,
+            'updated_at' => optional($order->updated_at)?->toIso8601String(),
+            'url' => route('orders.edit', $order, absolute: true),
+            'documents_url' => route('orders.edit', $order, absolute: true).'?tab=documents',
+            'documents_pending_count' => $pending->count(),
+            'documents_total_count' => count($checklist),
+            'documents_pending_labels' => $pending->take(3)->pluck('label')->filter()->values()->all(),
+        ];
+    }
+
+    private function buildVisibleOrdersQuery(User $user): Builder
+    {
+        $query = Order::query();
+
+        if (! Schema::hasTable('orders')
+            || ! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'orders')) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
+
+        $query->when(
+            ! $user->isAdmin() && $scope !== 'all',
+            fn (Builder $builder) => $builder->where('manager_id', $user->id),
+        );
+
+        if (Schema::hasColumn('orders', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        if (Schema::hasColumn('orders', 'is_active')) {
+            $query->where('is_active', true);
+        }
+
+        return $query;
     }
 }

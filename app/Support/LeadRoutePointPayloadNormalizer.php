@@ -45,6 +45,9 @@ final class LeadRoutePointPayloadNormalizer
 
         return [
             'type' => (string) ($routePoint['type'] ?? 'loading'),
+            'stage' => LeadPerformerPayloadNormalizer::normalizeOne([
+                'stage' => $routePoint['stage'] ?? 'leg_1',
+            ])['stage'],
             'sequence' => isset($routePoint['sequence']) ? (int) $routePoint['sequence'] : null,
             'address' => $address !== '' ? $address : null,
             'normalized_data' => $normalizedData,
@@ -67,6 +70,7 @@ final class LeadRoutePointPayloadNormalizer
         return [
             'id' => $point->id,
             'type' => $point->type,
+            'stage' => (string) ($point->stage ?? 'leg_1'),
             'sequence' => $point->sequence,
             'address' => $point->address ?? '',
             'normalized_data' => $normalized,

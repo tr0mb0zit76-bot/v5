@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Enums\LeadCloseOutcomeFlag;
 use App\Http\Requests\AdvanceLeadProcessStageRequest;
+use App\Http\Requests\CalculateLeadPrecalculationRequest;
 use App\Http\Requests\ConvertLeadRequest;
 use App\Http\Requests\MassUpdateLeadsRequest;
 use App\Http\Requests\MergeLeadPortraitRequest;
+use App\Http\Requests\SearchImportCostTnVedRequest;
 use App\Http\Requests\StoreInlineOrderContractorRequest;
 use App\Http\Requests\StoreLeadAttachmentRequest;
 use App\Http\Requests\StoreLeadNextStepRequest;
@@ -27,14 +29,17 @@ use App\Models\Task;
 use App\Services\ActivityLedgerService;
 use App\Services\Commercial\LeadAttentionQueueService;
 use App\Services\Commercial\LeadCloseOutcomeService;
+use App\Services\Commercial\LeadPrecalculationDocumentService;
 use App\Services\Commercial\LeadProposalHtmlRenderer;
 use App\Services\Commercial\LeadProposalPdfService;
 use App\Services\Commercial\ManagerSalesCoachingInsightsService;
 use App\Services\Contractor\ContractorPortraitService;
 use App\Services\DaDataService;
+use App\Services\ImportCostCalculatorService;
 use App\Services\LeadBusinessProcessService;
 use App\Services\LeadConversionService;
 use App\Services\LeadLinkedTaskService;
+use App\Services\LeadPrecalculationService;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\Leads\LeadBasedOnTemplateBuilder;
 use App\Services\Leads\LeadGridMutationService;
@@ -48,8 +53,11 @@ use App\Support\CardSmartLinksResolver;
 use App\Support\ContractorDecisionMakerLabel;
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
+use App\Support\ImportCostTnVedCatalog;
 use App\Support\LeadCargoItemPayloadNormalizer;
 use App\Support\LeadCloseOutcomeFlagCatalog;
+use App\Support\LeadPerformerPayloadNormalizer;
+use App\Support\LeadPrecalculationPayloadNormalizer;
 use App\Support\LeadRoutePointPayloadNormalizer;
 use App\Support\LeadSource;
 use App\Support\LeadStatus;
@@ -86,7 +94,63 @@ class LeadController extends Controller
         private readonly LeadOperationalBriefService $leadOperationalBriefService,
         private readonly LeadRoutePriceBenchmarkService $leadRoutePriceBenchmark,
         private readonly LeadGridMutationService $leadGridMutationService,
+        private readonly LeadPrecalculationService $leadPrecalculationService,
+        private readonly ImportCostCalculatorService $importCostCalculatorService,
     ) {}
+
+    public function searchPrecalculationTnVed(SearchImportCostTnVedRequest $request): JsonResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+
+        $validated = $request->validated();
+
+        return response()->json([
+            'items' => ImportCostTnVedCatalog::search(
+                (string) $validated['q'],
+                (int) ($validated['limit'] ?? 30),
+            ),
+        ]);
+    }
+
+    public function calculatePrecalculation(CalculateLeadPrecalculationRequest $request): JsonResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+
+        return response()->json(
+            $this->leadPrecalculationService->calculate($request->validated()),
+        );
+    }
+
+    public function precalculationDocument(
+        Request $request,
+        Lead $lead,
+        LeadPrecalculationDocumentService $documentService,
+    ): \Symfony\Component\HttpFoundation\Response {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+        abort_if(! is_array($lead->precalculation) || $lead->precalculation === [], 404);
+
+        $format = strtolower((string) $request->query('format', 'html'));
+        $document = $documentService->render($lead);
+
+        if ($format === 'pdf') {
+            $pdf = $documentService->renderPdf($lead);
+            abort_if($pdf === null, 503, 'PDF недоступен: проверьте настройку Gotenberg.');
+
+            $download = $request->boolean('download');
+            $fileName = str_replace('.html', '.pdf', $document['file_name']);
+
+            return response($pdf, 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => ($download ? 'attachment' : 'inline').'; filename="'.$fileName.'"',
+            ]);
+        }
+
+        return response($document['html'], 200, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+            'Content-Disposition' => ($request->boolean('download') ? 'attachment' : 'inline').'; filename="'.$document['file_name'].'"',
+        ]);
+    }
 
     public function index(Request $request): Response
     {
@@ -183,6 +247,8 @@ class LeadController extends Controller
                 'unloading_location' => $request->string('unloading_location')->toString() ?: null,
                 'planned_shipping_date' => $request->input('planned_shipping_date'),
                 ...$this->leadFinanceAttributes($request),
+                ...$this->leadPerformersAttributes($request),
+                ...$this->leadPrecalculationAttributes($request),
                 'next_contact_at' => $request->input('next_contact_at'),
                 'lost_reason' => $request->string('lost_reason')->toString() ?: null,
                 'lead_qualification' => $request->input('qualification', []),
@@ -288,6 +354,8 @@ class LeadController extends Controller
                 'unloading_location' => $request->string('unloading_location')->toString() ?: null,
                 'planned_shipping_date' => $request->input('planned_shipping_date'),
                 ...$this->leadFinanceAttributes($request),
+                ...$this->leadPerformersAttributes($request),
+                ...$this->leadPrecalculationAttributes($request),
                 'next_contact_at' => $request->input('next_contact_at'),
                 'lost_reason' => $request->string('lost_reason')->toString() ?: null,
                 'lead_qualification' => $request->input('qualification', []),
@@ -776,6 +844,7 @@ class LeadController extends Controller
             'loadingTypeOptions' => AtiDictionaryOptionCatalog::options('loading_type', AtiDictionaryOptionCatalog::fallbackLoadingTypeOptions()),
             'truckBodyTypeOptions' => AtiDictionaryOptionCatalog::options('truck_body_type', AtiDictionaryOptionCatalog::fallbackTruckBodyTypeOptions()),
             'trailerTypeOptions' => AtiDictionaryOptionCatalog::options('trailer_type', AtiDictionaryOptionCatalog::fallbackTrailerTypeOptions()),
+            'importCostPrecalculationMeta' => $this->importCostCalculatorService->pagePayload(),
             'cargoTitleSuggestions' => Schema::hasTable('cargos')
                 ? Cargo::query()
                     ->whereNotNull('title')
@@ -947,6 +1016,10 @@ class LeadController extends Controller
             $routeSequence++;
             $payload = LeadRoutePointPayloadNormalizer::toDatabase($routePoint);
             $payload['sequence'] = $payload['sequence'] ?? $routeSequence;
+
+            if (! Schema::hasColumn('lead_route_points', 'stage')) {
+                unset($payload['stage']);
+            }
 
             $lead->routePoints()->create($payload);
         }
@@ -1304,6 +1377,49 @@ class LeadController extends Controller
         return round((float) $targetPrice - (float) $calculatedCost, 2);
     }
 
+    /**
+     * @return array{performers: list<array<string, mixed>>|null}
+     */
+    private function leadPerformersAttributes(StoreLeadRequest $request): array
+    {
+        if (! Schema::hasColumn('leads', 'performers')) {
+            return [];
+        }
+
+        $performers = LeadPerformerPayloadNormalizer::normalizeList(
+            $request->input('performers'),
+        );
+
+        return [
+            'performers' => $performers === [] ? null : $performers,
+        ];
+    }
+
+    /**
+     * @return array{precalculation: array<string, mixed>|null}
+     */
+    private function leadPrecalculationAttributes(StoreLeadRequest $request): array
+    {
+        if (! Schema::hasColumn('leads', 'precalculation') || ! $request->has('precalculation')) {
+            return [];
+        }
+
+        $input = $request->input('precalculation');
+        if (! is_array($input)) {
+            return ['precalculation' => null];
+        }
+
+        $normalized = LeadPrecalculationPayloadNormalizer::normalize($input);
+
+        if ($normalized['goods_lines'] === [] && $normalized['service_lines'] === []) {
+            return ['precalculation' => null];
+        }
+
+        return [
+            'precalculation' => $this->leadPrecalculationService->calculate($normalized),
+        ];
+    }
+
     private function serializeLead(Lead $lead): array
     {
         return [
@@ -1333,6 +1449,12 @@ class LeadController extends Controller
             'close_outcome_primary_label' => LeadCloseOutcomeFlagCatalog::label($lead->close_outcome_primary_flag),
             'counterparty_portrait_coverage_pct' => $this->counterpartyPortraitCoverage($lead),
             'qualification' => $lead->lead_qualification ?? [],
+            'performers' => LeadPerformerPayloadNormalizer::normalizeList(
+                is_array($lead->performers) ? $lead->performers : null,
+            ),
+            'precalculation' => $this->leadPrecalculationService->normalize(
+                is_array($lead->precalculation) ? $lead->precalculation : null,
+            ),
             'route_points' => $lead->routePoints
                 ->map(fn ($point): array => LeadRoutePointPayloadNormalizer::toFrontend($point))
                 ->values()

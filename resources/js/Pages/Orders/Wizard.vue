@@ -850,21 +850,26 @@
                                 <div class="min-w-0 text-base font-semibold text-zinc-900 dark:text-zinc-50">
                                     {{ routePointTitle(item.point, item.globalIndex) }}
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <span
-                                        class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500"
-                                        :class="routePointsDragEnabled() ? 'cursor-grab' : 'cursor-not-allowed opacity-50'"
-                                        :title="routePointsDragEnabled() ? 'Перетащить этап' : 'Порядок этапов фиксирован по плечам — перетаскивание отключено'"
-                                    >
-                                        ⋮⋮
-                                    </span>
-                                    <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeItem(form.route_points, item.globalIndex)">
-                                        Удалить
-                                    </button>
-                                </div>
+                                <span
+                                    class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500"
+                                    :class="routePointsDragEnabled() ? 'cursor-grab' : 'cursor-not-allowed opacity-50'"
+                                    :title="routePointsDragEnabled() ? 'Перетащить этап' : 'Порядок этапов фиксирован по плечам — перетаскивание отключено'"
+                                >
+                                    ⋮⋮
+                                </span>
                             </div>
 
                             <template v-if="item.point.type === 'border_crossing'">
+                                <div class="flex items-start justify-end">
+                                    <button
+                                        type="button"
+                                        :class="routePointInlineBtn"
+                                        title="Удалить прохождение границы"
+                                        @click="removeRoutePointAt(item.globalIndex)"
+                                    >
+                                        <Minus class="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
                                 <div class="w-full space-y-3">
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium">Код поста и наименование СВХ</label>
@@ -901,22 +906,23 @@
                             <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9rem_9.5rem_14rem] lg:items-end">
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Адрес</label>
-                                    <div class="relative">
-                                        <input
-                                            v-model="item.point.address"
-                                            type="text"
-                                            :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('route_point_address_' + item.globalIndex, routePointAddressHighlightValue(item.point))]"
-                                            placeholder="Начни вводить адрес"
-                                            @input="onRoutePointAddressInput(item.globalIndex)"
-                                            @blur="syncRoutePointCityFromAddress(item.point)"
-                                        />
+                                    <div class="flex items-start gap-1.5">
+                                        <div class="relative min-w-0 flex-1">
+                                            <input
+                                                v-model="item.point.address"
+                                                type="text"
+                                                :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('route_point_address_' + item.globalIndex, routePointAddressHighlightValue(item.point))]"
+                                                placeholder="Начни вводить адрес"
+                                                @input="onRoutePointAddressInput(item.globalIndex)"
+                                                @blur="syncRoutePointCityFromAddress(item.point)"
+                                            />
 
-                                        <div
-                                            v-if="addressSuggestions[item.globalIndex]?.length"
-                                            class="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
-                                        >
-                                            <button
-                                                v-for="suggestion in addressSuggestions[item.globalIndex]"
+                                            <div
+                                                v-if="addressSuggestions[item.globalIndex]?.length"
+                                                class="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+                                            >
+                                                <button
+                                                    v-for="suggestion in addressSuggestions[item.globalIndex]"
                                                 :key="suggestion.value"
                                                 type="button"
                                                 class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
@@ -924,6 +930,26 @@
                                             >
                                                 <span class="text-sm font-medium">{{ suggestion.value }}</span>
                                                 <span class="text-xs text-zinc-500">{{ suggestion.data?.region_with_type || suggestion.data?.region || '' }}</span>
+                                            </button>
+                                        </div>
+                                        </div>
+                                        <div class="flex shrink-0 gap-1 pt-0.5">
+                                            <button
+                                                type="button"
+                                                :class="routePointInlineBtn"
+                                                title="Добавить ещё одну точку этого типа"
+                                                @click="addRoutePointAfter(item.globalIndex)"
+                                            >
+                                                <Plus class="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                :class="routePointInlineBtn"
+                                                :disabled="!canRemoveRoutePoint(item.globalIndex)"
+                                                title="Удалить точку"
+                                                @click="removeRoutePointAt(item.globalIndex)"
+                                            >
+                                                <Minus class="h-3.5 w-3.5" />
                                             </button>
                                         </div>
                                     </div>
@@ -1326,6 +1352,13 @@
                         </table>
                     </div>
                 </div>
+            </div>
+
+            <div v-else-if="activeTab === 'lead_precalc' && leadPrecalculationSnapshot" class="space-y-4">
+                <OrderWizardLeadPrecalculationSnapshot
+                    :snapshot="leadPrecalculationSnapshot"
+                    :order-id="order.id"
+                />
             </div>
 
             <div v-else-if="activeTab === 'finance'" class="space-y-6">
@@ -1950,7 +1983,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ClipboardList, FileText, Gavel, History, Mail, MapPinned, OctagonAlert, Package, Paperclip, Save, ScrollText, Wallet, X } from 'lucide-vue-next';
+import { Calculator, ClipboardList, FileText, Gavel, History, Mail, MapPinned, Minus, OctagonAlert, Package, Paperclip, Plus, Save, ScrollText, Wallet, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CardSmartLinksBar from '@/Components/Crm/CardSmartLinksBar.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -1967,6 +2000,7 @@ import { parseLocaleDecimal, sanitizeDecimalInput } from '@/support/wizardDictio
 import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import OrderWizardDocumentsTab from '@/Components/Orders/OrderWizardDocumentsTab.vue';
+import OrderWizardLeadPrecalculationSnapshot from '@/Components/Orders/OrderWizardLeadPrecalculationSnapshot.vue';
 import OrderWizardOrderNormsTab from '@/Components/Orders/OrderWizardOrderNormsTab.vue';
 import { basicTermsPartiesForTemplateSelection } from '@/support/printFormBasicTerms.js';
 import { EMPTY_ORDER_DOCUMENTS } from '@/support/emptyOrderDocuments.js';
@@ -2095,10 +2129,15 @@ const props = defineProps({
     mailComposeDefaults: { type: Object, default: null },
 });
 
+const leadPrecalculationSnapshot = computed(() => props.order?.lead_precalculation_snapshot ?? null);
+
 const tabs = computed(() => [
     { key: 'main', label: 'Основное', icon: ClipboardList },
     { key: 'route', label: 'Маршрут', icon: MapPinned },
     { key: 'cargo', label: 'Груз', icon: Package },
+    ...(leadPrecalculationSnapshot.value
+        ? [{ key: 'lead_precalc', label: 'Предрасчёт', icon: Calculator }]
+        : []),
     { key: 'finance', label: 'Финансы', icon: Wallet },
     { key: 'norms_penalties', label: 'Нормативы / штрафы', icon: Gavel },
     { key: 'documents', label: 'Документы', icon: FileText },
@@ -5546,6 +5585,44 @@ function addRoutePointForLeg(stage, type) {
     }
     form.route_points.splice(insertAt, 0, blankRoutePoint(type, 0, stage));
     normalizeRoutePointSequences();
+}
+
+const routePointInlineBtn =
+    'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800';
+
+function canRemoveRoutePoint(globalIndex) {
+    const point = form.route_points[globalIndex];
+    if (!point) {
+        return false;
+    }
+
+    if (point.type === 'border_crossing') {
+        return true;
+    }
+
+    const sameTypeOnLeg = form.route_points.filter(
+        (candidate) => stageMatches(candidate.stage, point.stage) && candidate.type === point.type,
+    ).length;
+
+    return sameTypeOnLeg > 1;
+}
+
+function addRoutePointAfter(globalIndex) {
+    const point = form.route_points[globalIndex];
+    if (!point || point.type === 'border_crossing') {
+        return;
+    }
+
+    form.route_points.splice(globalIndex + 1, 0, blankRoutePoint(point.type, 0, point.stage));
+    normalizeRoutePointSequences();
+}
+
+function removeRoutePointAt(globalIndex) {
+    if (!canRemoveRoutePoint(globalIndex)) {
+        return;
+    }
+
+    removeItem(form.route_points, globalIndex);
 }
 
 function onBorderCrossingLegPickerChange() {

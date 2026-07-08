@@ -240,6 +240,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/leads/contractors', 'storeInlineContractor')->name('leads.contractors.store');
         Route::get('/leads/counterparty-authority-hint', 'counterpartyAuthorityHint')->name('leads.counterparty-authority-hint');
         Route::post('/leads/mass-update', 'massUpdate')->name('leads.mass-update');
+        Route::get('/leads/precalculation/tn-ved/search', 'searchPrecalculationTnVed')->name('leads.precalculation.tn-ved.search');
+        Route::post('/leads/precalculation/calculate', 'calculatePrecalculation')->name('leads.precalculation.calculate');
+        Route::get('/leads/{lead}/precalculation/document', 'precalculationDocument')->name('leads.precalculation.document');
         Route::get('/leads/{lead}', 'show')->name('leads.show');
         Route::patch('/leads/{lead}', 'update')->name('leads.update');
         Route::delete('/leads/{lead}', 'destroy')->name('leads.destroy');
@@ -436,6 +439,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::whereNumber('order')->group(function () {
             Route::get('/orders/{order}/edit', 'edit')->name('orders.edit');
+            Route::get('/orders/{order}/lead-precalculation-snapshot/document', 'leadPrecalculationSnapshotDocument')
+                ->name('orders.lead-precalculation-snapshot.document');
             Route::post('/orders/{order}/save', 'update')->name('orders.save');
             Route::match(['patch', 'post'], '/orders/{order}', 'update')->name('orders.update');
             Route::post('/orders/{order}/portal-invites/carrier', [OrderPortalInviteController::class, 'storeCarrier'])
@@ -836,6 +841,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/tasks', [MobileShellController::class, 'tasks'])->name('tasks');
         Route::get('/orders', [MobileShellController::class, 'orders'])->name('orders');
         Route::get('/documents', [MobileShellController::class, 'documents'])->name('documents');
+        Route::get('/documents/contractors', [MobileShellController::class, 'documentContractors'])->name('documents.contractors');
+        Route::get('/documents/contractors/{contractor}/orders', [MobileShellController::class, 'documentContractorOrders'])->name('documents.contractor-orders');
+        Route::get('/documents/orders/{order}/checklist', [MobileShellController::class, 'orderDocumentChecklist'])->name('documents.order-checklist');
         Route::get('/traklo-leads', [MobileShellController::class, 'trakloLeads'])->name('traklo-leads');
         Route::post('/leads/from-text', [MobileShellController::class, 'createLeadFromText'])->name('leads.from-text');
         Route::patch('/leads/{lead}', [MobileShellController::class, 'updateLeadDraft'])->name('leads.update');

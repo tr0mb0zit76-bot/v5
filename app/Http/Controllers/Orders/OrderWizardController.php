@@ -17,6 +17,7 @@ use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormBasicTerm;
 use App\Models\PrintFormTemplate;
+use App\Services\Commercial\LeadPrecalculationDocumentService;
 use App\Services\Commercial\OrderMailContextService;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
@@ -53,6 +54,7 @@ use App\Support\OrderDeleteAuthorization;
 use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderFinancialEditAuthorization;
+use App\Support\OrderLeadPrecalculationSnapshotResolver;
 use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\OrderPrintFormContext;
 use App\Support\OrderPrintWorkflowLock;
@@ -317,6 +319,35 @@ class OrderWizardController extends Controller
         );
 
         return $draftResponseBuilder->fromGeneratedFile($request, $generatedFile);
+    }
+
+    public function leadPrecalculationSnapshotDocument(
+        Request $request,
+        Order $order,
+        LeadPrecalculationDocumentService $documentService,
+    ): \Symfony\Component\HttpFoundation\Response {
+        abort_unless(OrderDocumentAccessAuthorization::userMayViewDocuments($request->user(), $order), 403);
+        abort_if(OrderLeadPrecalculationSnapshotResolver::rawSnapshot($order) === null, 404);
+
+        $format = strtolower((string) $request->query('format', 'html'));
+        $document = $documentService->renderForOrderSnapshot($order);
+
+        if ($format === 'pdf') {
+            $pdf = $documentService->renderPdfForOrderSnapshot($order);
+            abort_if($pdf === null, 503, 'PDF недоступен: проверьте настройку Gotenberg.');
+
+            $download = $request->boolean('download');
+            $fileName = str_replace('.html', '.pdf', $document['file_name']);
+
+            return response($pdf, 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => ($download ? 'attachment' : 'inline').'; filename="'.$fileName.'"',
+            ]);
+        }
+
+        return response($document['html'], 200, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+        ]);
     }
 
     /**
@@ -859,6 +890,7 @@ class OrderWizardController extends Controller
                 'created_at' => optional($log->created_at)?->toIso8601String(),
             ])->values()->all(),
             'smart_links' => app(CardSmartLinksResolver::class)->forOrder($order, $request->user()),
+            'lead_precalculation_snapshot' => OrderLeadPrecalculationSnapshotResolver::forWizard($order),
         ];
     }
 

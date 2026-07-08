@@ -66,6 +66,44 @@ class MobileShellController extends Controller
         );
     }
 
+    public function documentContractors(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        $validated = $request->validate([
+            'q' => ['sometimes', 'nullable', 'string', 'max:100'],
+        ]);
+
+        return response()->json(
+            $this->mobileShellFeedService->documentContractorsForUser($user, $validated['q'] ?? null),
+        );
+    }
+
+    public function documentContractorOrders(Request $request, Contractor $contractor): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        $validated = $request->validate([
+            'q' => ['sometimes', 'nullable', 'string', 'max:100'],
+        ]);
+
+        return response()->json(
+            $this->mobileShellFeedService->documentOrdersForContractor($user, $contractor, $validated['q'] ?? null),
+        );
+    }
+
+    public function orderDocumentChecklist(Request $request, Order $order): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        return response()->json(
+            $this->mobileShellFeedService->orderDocumentChecklistForUser($user, $order),
+        );
+    }
+
     public function trakloLeads(Request $request): JsonResponse
     {
         $user = $request->user();

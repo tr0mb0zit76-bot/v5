@@ -3,6 +3,7 @@
 namespace Tests\Feature\Orders;
 
 use App\Http\Requests\StoreOrderRequest;
+use App\Models\Order;
 use App\Models\User;
 use App\Support\OrderDocumentWorkflowStatus;
 use Illuminate\Http\UploadedFile;
@@ -1245,6 +1246,83 @@ class OrderWizardTest extends TestCase
                 ->where('order.route_points.3.stage', 'leg_2')
                 ->where('order.route_points.3.address', 'Moscow delivery')
             );
+    }
+
+    public function test_order_with_multiple_loading_points_on_single_leg_persists(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Multi Pickup Client',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Carrier Multi Pickup',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->post(route('orders.store'), [
+            'status' => 'new',
+            'client_id' => $clientId,
+            'order_date' => '2026-04-05',
+            'order_number' => '',
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => $carrierId],
+            ],
+            'route_points' => [
+                ['stage' => 'leg_1', 'type' => 'loading', 'sequence' => 1, 'address' => 'Samara pickup A', 'normalized_data' => []],
+                ['stage' => 'leg_1', 'type' => 'loading', 'sequence' => 2, 'address' => 'Samara pickup B', 'normalized_data' => []],
+                ['stage' => 'leg_1', 'type' => 'unloading', 'sequence' => 3, 'address' => 'Kazan delivery', 'normalized_data' => []],
+            ],
+            'cargo_items' => [],
+            'financial_term' => [
+                'client_price' => 120000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat_22',
+                'client_payment_schedule' => [
+                    'has_prepayment' => false,
+                    'postpayment_days' => 7,
+                    'postpayment_mode' => 'ottn',
+                ],
+                'kpi_percent' => 0,
+                'contractors_costs' => [
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => $carrierId,
+                        'amount' => 80000,
+                        'currency' => 'RUB',
+                        'payment_form' => 'vat_22',
+                        'payment_schedule' => [
+                            'has_prepayment' => false,
+                            'postpayment_days' => 5,
+                            'postpayment_mode' => 'ottn',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect();
+
+        $this->assertDatabaseHas('route_points', [
+            'type' => 'loading',
+            'address' => 'Samara pickup A',
+        ]);
+        $this->assertDatabaseHas('route_points', [
+            'type' => 'loading',
+            'address' => 'Samara pickup B',
+        ]);
+        $this->assertDatabaseHas('route_points', [
+            'type' => 'unloading',
+            'address' => 'Kazan delivery',
+        ]);
     }
 
     public function test_second_order_in_same_period_recalculates_existing_orders(): void
@@ -3306,6 +3384,115 @@ class OrderWizardTest extends TestCase
         );
 
         $this->assertFalse($validator->fails(), (string) $validator->errors());
+    }
+
+    public function test_order_edit_exposes_lead_precalculation_snapshot(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $order = Order::factory()->create([
+            'manager_id' => $admin->id,
+            'order_number' => 'ORD-PREC-SNAP-1',
+            'is_active' => true,
+        ]);
+
+        $snapshot = [
+            'status' => 'ready',
+            'freight' => [
+                'to_border_total' => 0,
+                'after_border_total' => 0,
+                'distribution_basis' => 'invoice_rub',
+            ],
+            'goods_lines' => [],
+            'service_lines' => [
+                [
+                    'id' => 'service_1',
+                    'kind' => 'other',
+                    'title' => 'Доставка',
+                    'amount' => 40000,
+                    'currency' => 'RUB',
+                ],
+            ],
+            'computed' => [
+                'goods_total' => 0,
+                'services_total' => 40000,
+                'grand_total' => 40000,
+                'goods_lines' => [],
+            ],
+        ];
+
+        if (Schema::hasColumn('orders', 'metadata')) {
+            $order->forceFill([
+                'metadata' => [
+                    'lead_precalculation_snapshot' => $snapshot,
+                    'lead_precalculation_snapshot_at' => now()->toIso8601String(),
+                ],
+            ])->saveQuietly();
+        } elseif (Schema::hasColumn('orders', 'wizard_state')) {
+            $order->forceFill([
+                'wizard_state' => [
+                    'lead_precalculation_snapshot' => $snapshot,
+                    'lead_precalculation_snapshot_at' => now()->toIso8601String(),
+                ],
+            ])->saveQuietly();
+        } else {
+            $this->markTestSkipped('orders.metadata / wizard_state column missing');
+        }
+
+        $this->actingAs($admin)
+            ->get(route('orders.edit', $order))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Orders/Wizard')
+                ->has('order.lead_precalculation_snapshot.precalculation')
+                ->where('order.lead_precalculation_snapshot.precalculation.status', 'ready')
+            );
+    }
+
+    public function test_order_lead_precalculation_snapshot_document_returns_html(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $order = Order::factory()->create([
+            'manager_id' => $admin->id,
+            'order_number' => 'ORD-PREC-DOC-1',
+            'is_active' => true,
+        ]);
+
+        $snapshot = [
+            'status' => 'ready',
+            'freight' => [
+                'to_border_total' => 0,
+                'after_border_total' => 0,
+                'distribution_basis' => 'invoice_rub',
+            ],
+            'goods_lines' => [],
+            'service_lines' => [
+                [
+                    'id' => 'service_1',
+                    'kind' => 'other',
+                    'title' => 'Брокер',
+                    'amount' => 15000,
+                    'currency' => 'RUB',
+                ],
+            ],
+        ];
+
+        if (Schema::hasColumn('orders', 'metadata')) {
+            $order->forceFill(['metadata' => ['lead_precalculation_snapshot' => $snapshot]])->saveQuietly();
+        } elseif (Schema::hasColumn('orders', 'wizard_state')) {
+            $order->forceFill(['wizard_state' => ['lead_precalculation_snapshot' => $snapshot]])->saveQuietly();
+        } else {
+            $this->markTestSkipped('orders.metadata / wizard_state column missing');
+        }
+
+        $this->actingAs($admin)
+            ->get(route('orders.lead-precalculation-snapshot.document', $order))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/html; charset=UTF-8')
+            ->assertSee('Коммерческий предрасчёт', false)
+            ->assertSee('ORD-PREC-DOC-1', false)
+            ->assertSee('Брокер', false);
     }
 
     private function makeDocxPath(array $entries): string
