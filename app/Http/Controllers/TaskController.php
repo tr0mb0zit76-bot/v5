@@ -20,6 +20,7 @@ use App\Models\TaskEvent;
 use App\Models\User;
 use App\Services\ActivityLedgerService;
 use App\Services\CabinetNotifier;
+use App\Services\CompanyPlanning\CompanyPlanningTaskSyncService;
 use App\Services\TaskSlaService;
 use App\Support\ActivityEventType;
 use App\Support\LeadStatus;
@@ -42,6 +43,7 @@ class TaskController extends Controller
         private readonly CabinetNotifier $cabinetNotifier,
         private readonly TaskSlaService $taskSlaService,
         private readonly ActivityLedgerService $activityLedger,
+        private readonly CompanyPlanningTaskSyncService $companyPlanningTaskSync,
     ) {}
 
     public function index(Request $request): Response
@@ -169,6 +171,7 @@ class TaskController extends Controller
 
         $this->logTaskEvent($task, $request->user()?->id, 'updated', 'Обновлены поля задачи', $task->title);
         $this->syncLinkedLeadStatus($task, $request->user()?->id);
+        $this->companyPlanningTaskSync->syncFromTaskIfTerminal($task->fresh());
 
         return to_route('tasks.index');
     }
@@ -193,6 +196,7 @@ class TaskController extends Controller
             TaskStatus::label($task->status)
         );
         $this->syncLinkedLeadStatus($task, $request->user()?->id);
+        $this->companyPlanningTaskSync->syncFromTaskIfTerminal($task->fresh());
 
         if ($request->header('X-Inertia')) {
             return back();
@@ -498,6 +502,7 @@ class TaskController extends Controller
                 ]);
                 $this->logTaskEvent($task->fresh(), $request->user()?->id, 'bulk_closed', 'Массовое закрытие', $task->title);
                 $this->syncLinkedLeadStatus($task->fresh(), $request->user()?->id);
+                $this->companyPlanningTaskSync->syncFromTaskIfTerminal($task->fresh());
                 if (Schema::hasColumn('tasks', 'sla_escalated_at')) {
                     $this->taskSlaService->clearEscalationIfResolved($task->fresh());
                 }
@@ -542,6 +547,7 @@ class TaskController extends Controller
                     TaskStatus::label($status),
                 );
                 $this->syncLinkedLeadStatus($task->fresh(), $request->user()?->id);
+                $this->companyPlanningTaskSync->syncFromTaskIfTerminal($task->fresh());
 
                 continue;
             }

@@ -5,9 +5,9 @@ require_once __DIR__.'/temp-dir.php';
 configure_phpword_temp_dir(dirname(__DIR__));
 
 use App\Http\Middleware\EnsureCanManageSalesScripts;
+use App\Http\Middleware\EnsureCompanyPlanningAccess;
 use App\Http\Middleware\EnsureSettingsVisibilityAccess;
 use App\Http\Middleware\EnsureVisibilityAnyAreaAccess;
-use App\Http\Middleware\EnsureVisibilityAreaAccess;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ReconnectOnPreparedStatementError;
 use App\Http\Middleware\RejectExternalFromInternalRoutes;
@@ -36,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'visibility.area' => EnsureVisibilityAreaAccess::class,
             'visibility.area.any' => EnsureVisibilityAnyAreaAccess::class,
+            'company.planning' => EnsureCompanyPlanningAccess::class,
             'visibility.settings' => EnsureSettingsVisibilityAccess::class,
             'can.manage.sales.scripts' => EnsureCanManageSalesScripts::class,
             'verify.astral.epd.signature' => VerifyAstralEpdWebhookSignature::class,

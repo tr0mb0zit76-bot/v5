@@ -75,7 +75,7 @@ class SalesScriptPlaySessionService
     public function outgoingTransitions(SalesScriptNode $node): array
     {
         return $node->outgoingTransitions()
-            ->with(['reactionClass', 'toNode'])
+            ->with(['reactionClass', 'toNode', 'targetVersion.script'])
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get()
@@ -128,15 +128,28 @@ class SalesScriptPlaySessionService
                 $current->id,
                 $reactionClassId,
                 null,
-                ['to_node_id' => $transition->to_node_id],
+                [
+                    'to_node_id' => $transition->to_node_id,
+                    'target_type' => $transition->target_type ?? 'node',
+                    'target_sales_script_version_id' => $transition->target_sales_script_version_id,
+                ],
                 $session,
             );
 
+            $targetType = (string) ($transition->target_type ?? 'node');
+            if ($targetType === 'script') {
+                return $this->advanceToSubscript($session, $transition, $current);
+            }
+
+            if ($targetType === 'return') {
+                return $this->advanceToReturnPoint($session, $transition);
+            }
+
+            $next = $transition->toNode;
             $session->update([
                 'current_node_id' => $transition->to_node_id,
             ]);
 
-            $next = $transition->toNode;
             if ($next !== null) {
                 $this->logEvent($session, SalesPlayEventType::EnteredNode, $next->id, null, null, [
                     'client_key' => $next->client_key,
@@ -145,6 +158,100 @@ class SalesScriptPlaySessionService
 
             return $session->fresh(['currentNode', 'version.script']);
         });
+    }
+
+    private function advanceToSubscript(
+        SalesScriptPlaySession $session,
+        SalesScriptTransition $transition,
+        SalesScriptNode $current,
+    ): SalesScriptPlaySession {
+        $targetVersion = $transition->targetVersion;
+        if ($targetVersion === null || ! $targetVersion->isPublished()) {
+            throw new InvalidArgumentException('Целевой сценарий не опубликован или не найден.');
+        }
+
+        $entryKey = $targetVersion->entry_node_key;
+        if ($entryKey === null || $entryKey === '') {
+            throw new InvalidArgumentException('У целевого сценария не задан стартовый шаг.');
+        }
+
+        /** @var SalesScriptNode|null $entry */
+        $entry = $targetVersion->nodes()->where('client_key', $entryKey)->first();
+        if ($entry === null) {
+            throw new InvalidArgumentException('Стартовый шаг целевого сценария не найден.');
+        }
+
+        $stack = $this->normalizedReturnStack($session);
+        $stack[] = [
+            'return_sales_script_version_id' => (int) $session->sales_script_version_id,
+            'return_node_id' => (int) $transition->to_node_id,
+            'source_node_id' => (int) $current->id,
+            'transition_id' => (int) $transition->id,
+        ];
+
+        $session->update([
+            'sales_script_version_id' => $targetVersion->id,
+            'current_node_id' => $entry->id,
+            'return_stack' => $stack,
+        ]);
+
+        $this->logEvent($session, SalesPlayEventType::EnteredNode, $entry->id, null, null, [
+            'client_key' => $entry->client_key,
+            'subscript' => true,
+            'from_sales_script_version_id' => $stack[array_key_last($stack)]['return_sales_script_version_id'],
+            'return_node_id' => $transition->to_node_id,
+        ], $session);
+
+        return $session->fresh(['currentNode', 'version.script']);
+    }
+
+    private function advanceToReturnPoint(
+        SalesScriptPlaySession $session,
+        SalesScriptTransition $transition,
+    ): SalesScriptPlaySession {
+        $stack = $this->normalizedReturnStack($session);
+        $frame = array_pop($stack);
+
+        if (! is_array($frame)) {
+            $next = $transition->toNode;
+            $session->update([
+                'current_node_id' => $transition->to_node_id,
+                'return_stack' => null,
+            ]);
+
+            if ($next !== null) {
+                $this->logEvent($session, SalesPlayEventType::EnteredNode, $next->id, null, null, [
+                    'client_key' => $next->client_key,
+                    'return_fallback' => true,
+                ], $session);
+            }
+
+            return $session->fresh(['currentNode', 'version.script']);
+        }
+
+        $returnVersionId = (int) ($frame['return_sales_script_version_id'] ?? 0);
+        $returnNodeId = (int) ($frame['return_node_id'] ?? 0);
+        $returnNode = SalesScriptNode::query()
+            ->whereKey($returnNodeId)
+            ->where('sales_script_version_id', $returnVersionId)
+            ->first();
+
+        if ($returnVersionId <= 0 || $returnNode === null) {
+            throw new InvalidArgumentException('Точка возврата в исходный сценарий не найдена.');
+        }
+
+        $session->update([
+            'sales_script_version_id' => $returnVersionId,
+            'current_node_id' => $returnNode->id,
+            'return_stack' => $stack === [] ? null : $stack,
+        ]);
+
+        $this->logEvent($session, SalesPlayEventType::EnteredNode, $returnNode->id, null, null, [
+            'client_key' => $returnNode->client_key,
+            'returned_from_subscript' => true,
+        ], $session);
+
+        return $session->fresh(['currentNode', 'version.script']);
     }
 
     /**
@@ -261,6 +368,16 @@ class SalesScriptPlaySessionService
         }
 
         return $t;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function normalizedReturnStack(SalesScriptPlaySession $session): array
+    {
+        $stack = $session->return_stack;
+
+        return is_array($stack) ? array_values(array_filter($stack, 'is_array')) : [];
     }
 
     private function leadIdFromOrder(?int $orderId): ?int

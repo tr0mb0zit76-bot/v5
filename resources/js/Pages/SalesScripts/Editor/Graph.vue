@@ -218,7 +218,12 @@
                     </div>
                     <div>
                         <label :class="crmLabelCompact">Реплика / текст оператора</label>
-                        <textarea v-model="selectedNode.body" rows="5" :class="`${crmFieldFluid} mt-1`" />
+                        <textarea
+                            ref="bodyTextareaRef"
+                            v-model="selectedNode.body"
+                            rows="5"
+                            :class="`${crmFieldFluid} mt-1`"
+                        />
                         <div v-if="captureFields.length" class="mt-2 flex flex-wrap gap-1.5">
                             <button
                                 v-for="field in captureFields"
@@ -335,6 +340,37 @@
                             <select v-model="selectedTransition.to_client_key" :class="crmFieldFluid">
                                 <option v-for="node in graphNodes" :key="`sel-to-${node.client_key}`" :value="node.client_key">{{ node.client_key }}</option>
                             </select>
+                            <select v-model="selectedTransition.target_type" :class="crmFieldFluid" @change="onTransitionTargetTypeChange">
+                                <option value="node">Обычный переход к шагу</option>
+                                <option value="script">Перейти в другой сценарий, потом вернуться</option>
+                                <option value="return">Вернуться в исходный сценарий</option>
+                            </select>
+                            <select
+                                v-if="selectedTransition.target_type === 'script'"
+                                v-model="selectedTransition.target_sales_script_version_id"
+                                :class="crmFieldFluid"
+                            >
+                                <option :value="null">Выберите целевой сценарий</option>
+                                <option
+                                    v-for="version in targetVersions"
+                                    :key="`target-version-${version.id}`"
+                                    :value="version.id"
+                                >
+                                    {{ version.title }} · v{{ version.version_number }}
+                                </option>
+                            </select>
+                            <p
+                                v-if="selectedTransition.target_type === 'script'"
+                                class="text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400"
+                            >
+                                Поле «куда» выше становится точкой возврата после успешной отработки подключённого сценария.
+                            </p>
+                            <p
+                                v-else-if="selectedTransition.target_type === 'return'"
+                                class="text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400"
+                            >
+                                Если сессия запущена как подключённый сценарий, переход вернёт оператора назад. Шаг «куда» используется как запасной вариант.
+                            </p>
                             <input
                                 v-model="selectedTransition.customer_label"
                                 type="text"
@@ -374,6 +410,12 @@
                             </div>
                             <div :class="`${crmPageLead} mt-1`">
                                 {{ transition.customer_label || transitionLabel(transition.sales_script_reaction_class_id) }}
+                                <span v-if="transition.target_type === 'script'">
+                                    · сценарий: {{ targetVersionLabel(transition.target_sales_script_version_id) }}
+                                </span>
+                                <span v-else-if="transition.target_type === 'return'">
+                                    · возврат
+                                </span>
                             </div>
                         </li>
                     </ul>
@@ -386,7 +428,7 @@
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import ScriptGraphCanvas from '@/Components/SalesScripts/ScriptGraphCanvas.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import {
@@ -413,6 +455,7 @@ const props = defineProps({
     nodeKinds: { type: Array, default: () => [] },
     captureFields: { type: Array, default: () => [] },
     nodeTemplates: { type: Array, default: () => [] },
+    targetVersions: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -429,6 +472,7 @@ const tagDraft = ref('');
 const newFieldCode = ref('');
 const newFieldLabel = ref('');
 const entryNodeKey = ref(props.payload.version.entry_node_key ?? props.payload.nodes[0]?.client_key ?? '');
+const bodyTextareaRef = ref(null);
 
 const graphNodes = reactive(
     props.payload.nodes.map((node, index) => ({
@@ -452,6 +496,8 @@ const graphTransitions = reactive(
         local_id: `t-${transition.id ?? index}-${index}`,
         from_client_key: resolveClientKeyByNodeId(transition.from_node_id),
         to_client_key: resolveClientKeyByNodeId(transition.to_node_id),
+        target_type: transition.target_type ?? 'node',
+        target_sales_script_version_id: transition.target_sales_script_version_id ?? null,
         sales_script_reaction_class_id: transition.sales_script_reaction_class_id ?? null,
         customer_label: transition.customer_label ?? '',
         sort_order: transition.sort_order ?? index,
@@ -514,6 +560,22 @@ function transitionLabel(reactionId) {
     return props.reactionClasses.find((item) => item.id === reactionId)?.label ?? 'Реакция';
 }
 
+function targetVersionLabel(versionId) {
+    const version = props.targetVersions.find((item) => Number(item.id) === Number(versionId));
+
+    return version ? `${version.title} · v${version.version_number}` : 'другой сценарий';
+}
+
+function onTransitionTargetTypeChange() {
+    if (!selectedTransition.value) {
+        return;
+    }
+
+    if (selectedTransition.value.target_type !== 'script') {
+        selectedTransition.value.target_sales_script_version_id = null;
+    }
+}
+
 function uniqueClientKey(base) {
     let candidate = base;
     let suffix = 1;
@@ -544,14 +606,27 @@ function insertFieldPlaceholder(code) {
     }
 
     const token = `{${code}}`;
-    if (!selectedNode.value.body.includes(token)) {
-        const spacer = selectedNode.value.body.endsWith(' ') || selectedNode.value.body === '' ? '' : ' ';
-        selectedNode.value.body = `${selectedNode.value.body}${spacer}${token}`;
-    }
+    const textarea = bodyTextareaRef.value;
+    const body = String(selectedNode.value.body ?? '');
+    const start = typeof textarea?.selectionStart === 'number' ? textarea.selectionStart : body.length;
+    const end = typeof textarea?.selectionEnd === 'number' ? textarea.selectionEnd : start;
+    const before = body.slice(0, start);
+    const after = body.slice(end);
+    const needsSpaceBefore = before !== '' && !/\s$/u.test(before);
+    const needsSpaceAfter = after !== '' && !/^\s|[.,;:!?)]/u.test(after);
+    const insert = `${needsSpaceBefore ? ' ' : ''}${token}${needsSpaceAfter ? ' ' : ''}`;
+
+    selectedNode.value.body = `${before}${insert}${after}`;
 
     if (!selectedNode.value.capture_field_codes.includes(code)) {
         selectedNode.value.capture_field_codes.push(code);
     }
+
+    void nextTick(() => {
+        const cursor = before.length + insert.length;
+        bodyTextareaRef.value?.focus();
+        bodyTextareaRef.value?.setSelectionRange(cursor, cursor);
+    });
 }
 
 function toggleCaptureField(code) {
@@ -704,6 +779,8 @@ function onAddAnswer(fromClientKey) {
         local_id: localId,
         from_client_key: fromClientKey,
         to_client_key: targetKey,
+        target_type: 'node',
+        target_sales_script_version_id: null,
         sales_script_reaction_class_id: props.reactionClasses[0]?.id ?? null,
         customer_label: '',
         sort_order: graphTransitions.length,
@@ -730,6 +807,8 @@ function onCreateTransition({ from_client_key, to_client_key }) {
         local_id: localId,
         from_client_key,
         to_client_key,
+        target_type: 'node',
+        target_sales_script_version_id: null,
         sales_script_reaction_class_id: null,
         customer_label: '',
         sort_order: graphTransitions.length,
@@ -838,6 +917,10 @@ function buildGraphPayload() {
     const transitions = graphTransitions.map((transition, index) => ({
         from_client_key: transition.from_client_key,
         to_client_key: transition.to_client_key,
+        target_type: transition.target_type ?? 'node',
+        target_sales_script_version_id: transition.target_type === 'script'
+            ? transition.target_sales_script_version_id
+            : null,
         sales_script_reaction_class_id: transition.sales_script_reaction_class_id,
         customer_label: transition.customer_label?.trim() || null,
         sort_order: index,

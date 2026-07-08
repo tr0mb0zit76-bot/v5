@@ -13,6 +13,8 @@ class SalesScriptTransition extends Model
         'sales_script_version_id',
         'from_node_id',
         'to_node_id',
+        'target_type',
+        'target_sales_script_version_id',
         'sales_script_reaction_class_id',
         'customer_label',
         'sort_order',
@@ -40,6 +42,14 @@ class SalesScriptTransition extends Model
     public function toNode(): BelongsTo
     {
         return $this->belongsTo(SalesScriptNode::class, 'to_node_id');
+    }
+
+    /**
+     * @return BelongsTo<SalesScriptVersion, $this>
+     */
+    public function targetVersion(): BelongsTo
+    {
+        return $this->belongsTo(SalesScriptVersion::class, 'target_sales_script_version_id');
     }
 
     /**

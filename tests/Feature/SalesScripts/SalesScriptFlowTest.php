@@ -157,10 +157,11 @@ class SalesScriptFlowTest extends TestCase
         $scriptTitles = SalesScript::query()->pluck('title')->all();
 
         $this->assertGreaterThanOrEqual(90, $nodes->count());
-        $this->assertSame(14, SalesScriptVersion::query()->where('is_active', true)->whereNotNull('published_at')->count());
+        $this->assertSame(15, SalesScriptVersion::query()->where('is_active', true)->whereNotNull('published_at')->count());
         $this->assertContains('Дожим КП после отправки', $scriptTitles);
         $this->assertContains('Тендер / закупщик', $scriptTitles);
         $this->assertContains('Возврат уснувшего лида', $scriptTitles);
+        $this->assertContains('Преодоление возражений', $scriptTitles);
         $this->assertContains('Реактивация тёплой базы', $scriptTitles);
         $this->assertContains('Переговоры по цене и марже', $scriptTitles);
         $this->assertContains('Проблемный рейс / удержание клиента', $scriptTitles);
@@ -221,6 +222,103 @@ class SalesScriptFlowTest extends TestCase
             ->count();
 
         $this->assertSame(0, $transitionsWithoutClientReply, 'Every seeded transition must have a client-facing reply label.');
+    }
+
+    public function test_warm_base_reactivation_uses_plain_current_prod_wording(): void
+    {
+        $this->seed(SalesScriptsDemoSeeder::class);
+
+        $script = SalesScript::query()
+            ->where('title', 'Реактивация тёплой базы')
+            ->firstOrFail();
+        $version = $script->versions()
+            ->where('is_active', true)
+            ->whereNotNull('published_at')
+            ->firstOrFail();
+
+        $nodes = $version->nodes()
+            ->whereIn('client_key', ['intro', 'context_classify', 'lpr_route', 'refresh_need', 'soft_objection'])
+            ->get()
+            ->keyBy('client_key');
+
+        $this->assertStringContainsString('Сотрудник, который общался, уволился не оставил после себя информацию. Звоню восстановить контакт.', (string) $nodes->get('intro')?->body);
+        $this->assertStringContainsString('Поскольку информации у нас не осталось, мне необходимо задать вам несколько вопросов.', (string) $nodes->get('context_classify')?->body);
+        $this->assertStringContainsString('Подскажите, а кто сейчас принимает решения по перевозкам и выбору подрядчиков?', (string) $nodes->get('lpr_route')?->body);
+        $this->assertStringContainsString('Чтобы я не гадал, расскажите мне, а я зафиксирую актуальные маршруты', (string) $nodes->get('refresh_need')?->body);
+        $this->assertStringContainsString('Вряд ли вы ждали моего звонка полгода.', (string) $nodes->get('soft_objection')?->body);
+    }
+
+    public function test_warm_base_can_enter_objection_script_and_return(): void
+    {
+        $this->seed(SalesScriptsDemoSeeder::class);
+
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'manager_scripts_subscript',
+            'display_name' => 'Manager scripts subscript',
+            'visibility_areas' => json_encode(['dashboard', 'scripts'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $warmScript = SalesScript::query()->where('title', 'Реактивация тёплой базы')->firstOrFail();
+        $warmVersion = $warmScript->versions()->where('is_active', true)->whereNotNull('published_at')->firstOrFail();
+        $noNeedId = (int) SalesScriptReactionClass::query()->where('key', 'no_need_objection')->value('id');
+        $positiveId = (int) SalesScriptReactionClass::query()->where('key', 'positive_signal')->value('id');
+
+        $this->actingAs($user)
+            ->post(route('scripts.sessions.store'), [
+                'sales_script_version_id' => $warmVersion->id,
+            ])
+            ->assertRedirect();
+
+        $session = SalesScriptPlaySession::query()->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('scripts.sessions.advance', $session), [
+                'sales_script_reaction_class_id' => null,
+            ])
+            ->assertRedirect(route('scripts.sessions.show', $session));
+
+        $this->actingAs($user)
+            ->post(route('scripts.sessions.advance', $session), [
+                'sales_script_reaction_class_id' => $noNeedId,
+            ])
+            ->assertRedirect(route('scripts.sessions.show', $session));
+
+        $session->refresh();
+        $session->load('version.script', 'currentNode');
+        $this->assertSame('Преодоление возражений', $session->version?->script?->title);
+        $this->assertSame('classify_objection', $session->currentNode?->client_key);
+        $this->assertCount(1, $session->return_stack ?? []);
+
+        $this->actingAs($user)
+            ->post(route('scripts.sessions.advance', $session), [
+                'sales_script_reaction_class_id' => $noNeedId,
+            ])
+            ->assertRedirect(route('scripts.sessions.show', $session));
+
+        $this->actingAs($user)
+            ->post(route('scripts.sessions.advance', $session), [
+                'sales_script_reaction_class_id' => $positiveId,
+            ])
+            ->assertRedirect(route('scripts.sessions.show', $session));
+
+        $this->actingAs($user)
+            ->post(route('scripts.sessions.advance', $session), [
+                'sales_script_reaction_class_id' => null,
+            ])
+            ->assertRedirect(route('scripts.sessions.show', $session));
+
+        $session->refresh();
+        $session->load('version.script', 'currentNode');
+        $this->assertSame('Реактивация тёплой базы', $session->version?->script?->title);
+        $this->assertSame('soft_objection', $session->currentNode?->client_key);
+        $this->assertNull($session->return_stack);
     }
 
     public function test_completion_creates_crm_next_step_from_captured_date(): void

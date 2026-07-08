@@ -6,6 +6,7 @@ use App\Models\CompanyInitiative;
 use App\Models\CompanyInitiativeDependency;
 use App\Models\CompanyInitiativeMilestone;
 use App\Models\Role;
+use App\Models\Task;
 use App\Models\User;
 use App\Services\CompanyPlanning\CompanyInitiativeBudgetFactService;
 use Illuminate\Support\Facades\Schema;
@@ -91,7 +92,121 @@ class CompanyPlanningTest extends TestCase
                 ->component('CompanyPlanning/Index')
                 ->has('initiatives', 1)
                 ->where('initiatives.0.title', 'Снизить дебиторку')
+                ->has('summary')
+                ->where('view_filter', 'list')
             );
+    }
+
+    public function test_index_supports_risk_view_filter(): void
+    {
+        if (! Schema::hasTable('company_initiatives')) {
+            $this->markTestSkipped('Company planning tables are not migrated.');
+        }
+
+        $user = $this->makePlanningUser(['company_planning'], belongsToManagement: true);
+
+        CompanyInitiative::query()->create([
+            'title' => 'Обычная инициатива',
+            'status' => 'active',
+            'priority' => 'normal',
+            'risk_level' => 'normal',
+            'owner_id' => $user->id,
+            'created_by' => $user->id,
+        ]);
+
+        CompanyInitiative::query()->create([
+            'title' => 'Рискованная инициатива',
+            'status' => 'active',
+            'priority' => 'high',
+            'risk_level' => 'high',
+            'ends_on' => now()->addMonth()->toDateString(),
+            'owner_id' => $user->id,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('company-planning.index', ['view' => 'risk']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('CompanyPlanning/Index')
+                ->where('view_filter', 'risk')
+                ->has('initiatives', 1)
+                ->where('initiatives.0.title', 'Рискованная инициатива')
+            );
+    }
+
+    public function test_milestone_dependency_guard_blocks_in_progress_without_predecessor(): void
+    {
+        if (! Schema::hasTable('company_initiative_dependencies')) {
+            $this->markTestSkipped('Company planning dependency tables are not migrated.');
+        }
+
+        $user = $this->makePlanningUser(['company_planning'], belongsToManagement: true);
+        $initiative = $this->makeInitiativeWithMilestones($user, ['Этап A', 'Этап B']);
+        $milestones = $initiative->milestones()->orderBy('id')->get();
+
+        CompanyInitiativeDependency::query()->create([
+            'company_initiative_id' => $initiative->id,
+            'blocked_milestone_id' => $milestones[1]->id,
+            'depends_on_milestone_id' => $milestones[0]->id,
+            'type' => 'finish_to_start',
+        ]);
+
+        $this->actingAs($user)
+            ->patch(route('company-planning.milestones.update', $milestones[1]), [
+                'status' => 'in_progress',
+            ])
+            ->assertSessionHasErrors('status');
+    }
+
+    public function test_task_done_syncs_linked_milestone(): void
+    {
+        if (! Schema::hasTable('company_initiatives') || ! Schema::hasColumn('tasks', 'company_initiative_milestone_id')) {
+            $this->markTestSkipped('Company planning task sync columns are not migrated.');
+        }
+
+        $user = $this->makePlanningUser(['company_planning', 'tasks'], belongsToManagement: true);
+        $initiative = CompanyInitiative::query()->create([
+            'title' => 'С задачей',
+            'status' => 'active',
+            'priority' => 'normal',
+            'owner_id' => $user->id,
+            'created_by' => $user->id,
+            'progress_percent' => 0,
+        ]);
+
+        $milestone = CompanyInitiativeMilestone::query()->create([
+            'company_initiative_id' => $initiative->id,
+            'title' => 'Этап с задачей',
+            'status' => 'in_progress',
+            'progress_percent' => 40,
+            'sort_order' => 10,
+        ]);
+
+        $task = Task::query()->create([
+            'number' => 'TSK-TEST-001',
+            'title' => 'Этап с задачей',
+            'status' => 'in_progress',
+            'responsible_id' => $user->id,
+            'created_by' => $user->id,
+            'company_initiative_id' => $initiative->id,
+            'company_initiative_milestone_id' => $milestone->id,
+        ]);
+
+        $milestone->update(['task_id' => $task->id]);
+
+        $this->actingAs($user)
+            ->patchJson(route('tasks.status.update', $task), [
+                'status' => 'done',
+            ])
+            ->assertOk();
+
+        $milestone->refresh();
+        $initiative->refresh();
+
+        $this->assertSame('completed', $milestone->status);
+        $this->assertSame(100, (int) $milestone->progress_percent);
+        $this->assertSame(100, (int) $initiative->progress_percent);
     }
 
     public function test_management_user_can_manage_milestone_dependencies(): void

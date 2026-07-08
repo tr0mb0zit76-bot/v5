@@ -31,6 +31,8 @@ final class SalesScriptPlayPresentationService
      *         label: string,
      *         subtitle: string|null,
      *         reaction_type_label: string|null,
+     *         target_type: string,
+     *         target_script_title: string|null,
      *         has_customer_phrase: bool,
      *         compound: bool
      *     }>,
@@ -193,6 +195,8 @@ final class SalesScriptPlayPresentationService
                 'label' => $this->choiceLabel($transition),
                 'subtitle' => $this->choiceSubtitle($transition),
                 'reaction_type_label' => $transition->reactionClass?->label,
+                'target_type' => (string) ($transition->target_type ?? 'node'),
+                'target_script_title' => $transition->targetVersion?->script?->title,
                 'has_customer_phrase' => $hasCustomerPhrase,
                 'compound' => $compound,
             ];
@@ -213,6 +217,8 @@ final class SalesScriptPlayPresentationService
             'label' => $preview ?? 'Продолжить',
             'subtitle' => $preview !== null ? 'Следующий шаг сценария' : null,
             'reaction_type_label' => null,
+            'target_type' => (string) ($transition->target_type ?? 'node'),
+            'target_script_title' => $transition->targetVersion?->script?->title,
             'has_customer_phrase' => false,
             'compound' => false,
         ];
@@ -233,6 +239,18 @@ final class SalesScriptPlayPresentationService
 
     private function choiceSubtitle(SalesScriptTransition $transition): ?string
     {
+        if (($transition->target_type ?? 'node') === 'script') {
+            $title = $transition->targetVersion?->script?->title;
+
+            return $title !== null && $title !== ''
+                ? 'Переход в сценарий: '.$title
+                : 'Переход в другой сценарий';
+        }
+
+        if (($transition->target_type ?? 'node') === 'return') {
+            return 'Вернуться в исходный сценарий';
+        }
+
         if ($transition->reactionClass === null) {
             return null;
         }

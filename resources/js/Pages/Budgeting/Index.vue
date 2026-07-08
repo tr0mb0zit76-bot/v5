@@ -105,6 +105,44 @@
                     </div>
                 </section>
 
+                <section
+                    v-if="companyPlanningInitiatives.length > 0"
+                    :class="`${crmPanel} p-4`"
+                >
+                    <div class="flex items-center justify-between gap-2">
+                        <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Инициативы компании</h2>
+                        <Link
+                            v-if="companyPlanningIndexUrl"
+                            :href="companyPlanningIndexUrl"
+                            class="text-xs font-medium text-sky-700 hover:underline dark:text-sky-300"
+                        >
+                            План компании →
+                        </Link>
+                    </div>
+                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        Инициативы, привязанные к статьям управленческого учёта — факт по ним виден в карточке инициативы.
+                    </p>
+                    <div class="mt-3 space-y-2">
+                        <Link
+                            v-for="initiative in companyPlanningInitiatives"
+                            :key="initiative.id"
+                            :href="initiative.show_url"
+                            class="block rounded-xl border border-zinc-200 px-3 py-2 transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:bg-zinc-900/60"
+                        >
+                            <div class="truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                                {{ initiative.title }}
+                            </div>
+                            <div class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                {{ initiative.expense_category_name || 'Статья не указана' }}
+                                · {{ initiative.status_label }}
+                                <span v-if="initiative.planned_budget_amount !== null">
+                                    · план {{ formatInitiativeBudget(initiative) }}
+                                </span>
+                            </div>
+                        </Link>
+                    </div>
+                </section>
+
                 <section v-if="can_freeze_plan" :class="`${crmPanel} p-4`">
                     <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Зафиксировать план</h2>
                     <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
@@ -702,11 +740,23 @@ const props = defineProps({
     scenario: { type: Object, default: () => ({}) },
     plan_snapshots: { type: Array, default: () => [] },
     can_freeze_plan: { type: Boolean, default: false },
+    company_planning_initiatives: { type: Array, default: () => [] },
+    company_planning_index_url: { type: String, default: null },
 });
 
 const summaryPanelOpen = ref(false);
 const dualChartOpen = ref(false);
 const companyChartOpen = ref(false);
+
+const companyPlanningInitiatives = computed(() => props.company_planning_initiatives ?? []);
+const companyPlanningIndexUrl = computed(() => props.company_planning_index_url);
+
+function formatInitiativeBudget(initiative) {
+    const amount = Number(initiative?.planned_budget_amount ?? 0);
+    const currency = initiative?.budget_currency || 'RUB';
+
+    return `${amount.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ${currency}`;
+}
 
 const localInputs = reactive(normalizeBudgetInputs(props.inputs));
 const localOpexArticles = reactive(props.opex_articles.map((a) => ({

@@ -177,6 +177,8 @@ class SalesScriptController extends Controller
                 $outgoing[] = [
                     'transition_id' => $t->id,
                     'sales_script_reaction_class_id' => $t->sales_script_reaction_class_id,
+                    'target_type' => $t->target_type ?? 'node',
+                    'target_script_title' => $t->targetVersion?->script?->title,
                     'customer_label' => $t->customer_label,
                     'label' => filled($t->customer_label)
                         ? (string) $t->customer_label
@@ -270,6 +272,8 @@ class SalesScriptController extends Controller
                 'order_id' => $session->order_id,
                 'script_title' => $session->version?->script?->title,
                 'version_number' => $session->version?->version_number,
+                'return_stack_depth' => count((array) ($session->return_stack ?? [])),
+                'return_to_script_title' => $this->returnToScriptTitle($session),
                 'trainer_assistant_instructions' => $session->trainer_assistant_instructions,
                 'trainer_dialog_quality' => $session->trainer_dialog_quality?->value,
             ],
@@ -603,6 +607,8 @@ class SalesScriptController extends Controller
                 $outgoing[] = [
                     'transition_id' => $t->id,
                     'sales_script_reaction_class_id' => $t->sales_script_reaction_class_id,
+                    'target_type' => $t->target_type ?? 'node',
+                    'target_script_title' => $t->targetVersion?->script?->title,
                     'customer_label' => $t->customer_label,
                     'label' => filled($t->customer_label)
                         ? (string) $t->customer_label
@@ -865,6 +871,30 @@ class SalesScriptController extends Controller
             ])
             ->values()
             ->all();
+    }
+
+    private function returnToScriptTitle(SalesScriptPlaySession $session): ?string
+    {
+        $stack = $session->return_stack;
+        if (! is_array($stack) || $stack === []) {
+            return null;
+        }
+
+        $frame = $stack[array_key_last($stack)];
+        if (! is_array($frame)) {
+            return null;
+        }
+
+        $versionId = (int) ($frame['return_sales_script_version_id'] ?? 0);
+        if ($versionId <= 0) {
+            return null;
+        }
+
+        return SalesScriptVersion::query()
+            ->with('script')
+            ->find($versionId)
+            ?->script
+            ?->title;
     }
 
     /**

@@ -200,7 +200,9 @@
                             >
                                 <span class="min-w-0 flex-1 truncate font-medium">{{ transitionLabel(transition) }}</span>
                                 <span class="shrink-0 text-zinc-400">→</span>
-                                <span class="shrink-0 truncate text-zinc-500">{{ transition.to_client_key }}</span>
+                                <span class="shrink-0 truncate text-zinc-500">
+                                    {{ transition.target_type === 'script' ? 'сценарий' : transition.target_type === 'return' ? 'возврат' : transition.to_client_key }}
+                                </span>
                             </button>
                         </div>
 
@@ -517,7 +519,17 @@ function kindBadgeClass(kind) {
 
 function transitionLabel(transition) {
     if (transition.customer_label) {
-        return transition.customer_label;
+        return transition.target_type === 'script'
+            ? `${transition.customer_label} ↪`
+            : transition.customer_label;
+    }
+
+    if (transition.target_type === 'script') {
+        return 'Перейти в сценарий ↪';
+    }
+
+    if (transition.target_type === 'return') {
+        return 'Вернуться назад';
     }
 
     if (transition.sales_script_reaction_class_id === null || transition.sales_script_reaction_class_id === undefined) {

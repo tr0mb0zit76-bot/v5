@@ -528,6 +528,14 @@
         <div v-else-if="currentNode && playPresentation" class="space-y-6">
             <h1 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{{ session.script_title }}</h1>
 
+            <div
+                v-if="session.return_stack_depth > 0"
+                class="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 dark:border-violet-900/60 dark:bg-violet-950/30 dark:text-violet-100"
+            >
+                Подключённый сценарий. После успешной отработки вернёмся в
+                <span class="font-semibold">{{ session.return_to_script_title || 'исходный сценарий' }}</span>.
+            </div>
+
             <article v-if="playPresentation.operator_line || playPresentation.operator_segments?.length" class="space-y-4">
                 <p
                     v-if="playPresentation.operator_segments?.length"
@@ -575,6 +583,12 @@
                 >
                     <span v-if="choice.has_customer_phrase">{{ choice.label }}</span>
                     <span v-else class="italic opacity-90">{{ choice.label }}</span>
+                    <span
+                        v-if="choice.subtitle"
+                        class="mt-1 block text-xs font-normal text-zinc-500 dark:text-zinc-400"
+                    >
+                        {{ choice.subtitle }}
+                    </span>
                     <span
                         v-if="statsHintForChoice(choice)"
                         class="mt-1 block text-xs font-normal text-emerald-700 dark:text-emerald-300"

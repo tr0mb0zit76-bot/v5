@@ -39,6 +39,8 @@ class SaveGraphRequest extends FormRequest
             'transitions' => ['nullable', 'array'],
             'transitions.*.from_client_key' => ['required', 'string', 'max:255'],
             'transitions.*.to_client_key' => ['required', 'string', 'max:255'],
+            'transitions.*.target_type' => ['nullable', 'string', Rule::in(['node', 'script', 'return'])],
+            'transitions.*.target_sales_script_version_id' => ['nullable', 'integer', 'exists:sales_script_versions,id'],
             'transitions.*.sales_script_reaction_class_id' => ['nullable', 'integer', 'exists:sales_script_reaction_classes,id'],
             'transitions.*.customer_label' => ['nullable', 'string', 'max:500'],
             'transitions.*.sort_order' => ['nullable', 'integer', 'min:0', 'max:65535'],

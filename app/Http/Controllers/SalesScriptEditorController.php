@@ -135,6 +135,8 @@ class SalesScriptEditorController extends Controller
                     $newVersion->transitions()->create([
                         'from_node_id' => $idMap[$transition->from_node_id],
                         'to_node_id' => $idMap[$transition->to_node_id],
+                        'target_type' => $transition->target_type ?? 'node',
+                        'target_sales_script_version_id' => $transition->target_sales_script_version_id,
                         'sales_script_reaction_class_id' => $transition->sales_script_reaction_class_id,
                         'customer_label' => $transition->customer_label,
                         'sort_order' => $transition->sort_order,
@@ -232,6 +234,38 @@ class SalesScriptEditorController extends Controller
             ]);
         }
 
+        $invalidScriptTransition = $transitionsPayload->first(function (array $transition): bool {
+            $targetType = (string) ($transition['target_type'] ?? 'node');
+
+            return $targetType === 'script' && empty($transition['target_sales_script_version_id']);
+        });
+        if ($invalidScriptTransition !== null) {
+            throw ValidationException::withMessages([
+                'transitions' => 'Для перехода в другой сценарий выберите опубликованную версию сценария.',
+            ]);
+        }
+
+        $targetVersionIds = $transitionsPayload
+            ->filter(fn (array $transition): bool => (string) ($transition['target_type'] ?? 'node') === 'script')
+            ->pluck('target_sales_script_version_id')
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+        if ($targetVersionIds->isNotEmpty()) {
+            $publishedTargetCount = SalesScriptVersion::query()
+                ->whereIn('id', $targetVersionIds)
+                ->where('is_active', true)
+                ->whereNotNull('published_at')
+                ->count();
+
+            if ($publishedTargetCount !== $targetVersionIds->count()) {
+                throw ValidationException::withMessages([
+                    'transitions' => 'Переходить можно только в опубликованные сценарии.',
+                ]);
+            }
+        }
+
         DB::transaction(function () use ($version, $nodesPayload, $transitionsPayload, $entryNodeKey): void {
             $existingByKey = $version->nodes()->get()->keyBy('client_key');
             $seenKeys = [];
@@ -276,9 +310,14 @@ class SalesScriptEditorController extends Controller
             $version->transitions()->delete();
 
             foreach ($transitionsPayload as $index => $transitionData) {
+                $targetType = (string) ($transitionData['target_type'] ?? 'node');
                 $version->transitions()->create([
                     'from_node_id' => $nodesByKey[$transitionData['from_client_key']]->id,
                     'to_node_id' => $nodesByKey[$transitionData['to_client_key']]->id,
+                    'target_type' => $targetType,
+                    'target_sales_script_version_id' => $targetType === 'script'
+                        ? ($transitionData['target_sales_script_version_id'] ?? null)
+                        : null,
                     'sales_script_reaction_class_id' => $transitionData['sales_script_reaction_class_id'] ?? null,
                     'customer_label' => $transitionData['customer_label'] ?? null,
                     'sort_order' => $transitionData['sort_order'] ?? $index,
@@ -413,6 +452,7 @@ class SalesScriptEditorController extends Controller
 
         $data = $request->validated();
         $this->assertTransitionNodesBelongToVersion($version, (int) $data['from_node_id'], (int) $data['to_node_id']);
+        $data = $this->normalizeTransitionPayload($data);
 
         $version->transitions()->create($data);
 
@@ -432,6 +472,7 @@ class SalesScriptEditorController extends Controller
         $data = $request->validated();
         $version = $transition->version;
         $this->assertTransitionNodesBelongToVersion($version, (int) $data['from_node_id'], (int) $data['to_node_id']);
+        $data = $this->normalizeTransitionPayload($data);
 
         $transition->update($data);
 
@@ -623,6 +664,8 @@ class SalesScriptEditorController extends Controller
                 'id' => $t->id,
                 'from_node_id' => $t->from_node_id,
                 'to_node_id' => $t->to_node_id,
+                'target_type' => $t->target_type ?? 'node',
+                'target_sales_script_version_id' => $t->target_sales_script_version_id,
                 'sales_script_reaction_class_id' => $t->sales_script_reaction_class_id,
                 'customer_label' => $t->customer_label,
                 'sort_order' => $t->sort_order,
@@ -651,6 +694,20 @@ class SalesScriptEditorController extends Controller
             'nodeTemplates' => SalesScriptNodeTemplate::query()
                 ->orderByDesc('id')
                 ->get(['id', 'title', 'kind', 'body', 'hint', 'tags', 'capture_field_codes', 'default_transitions']),
+            'targetVersions' => SalesScriptVersion::query()
+                ->with('script')
+                ->where('is_active', true)
+                ->whereNotNull('published_at')
+                ->orderByDesc('version_number')
+                ->get()
+                ->sortBy(fn (SalesScriptVersion $version): string => mb_strtolower((string) ($version->script?->title ?? ''), 'UTF-8'))
+                ->map(fn (SalesScriptVersion $version): array => [
+                    'id' => $version->id,
+                    'script_id' => $version->sales_script_id,
+                    'title' => $version->script?->title ?? 'Сценарий #'.$version->sales_script_id,
+                    'version_number' => $version->version_number,
+                ])
+                ->values(),
         ]);
     }
 
@@ -730,6 +787,36 @@ class SalesScriptEditorController extends Controller
                 'from_node_id' => 'Оба шага должны принадлежать этой версии сценария.',
             ]);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function normalizeTransitionPayload(array $data): array
+    {
+        $data['target_type'] = (string) ($data['target_type'] ?? 'node');
+        if ($data['target_type'] !== 'script') {
+            $data['target_sales_script_version_id'] = null;
+
+            return $data;
+        }
+
+        $targetVersionId = (int) ($data['target_sales_script_version_id'] ?? 0);
+        $targetVersionExists = $targetVersionId > 0
+            && SalesScriptVersion::query()
+                ->whereKey($targetVersionId)
+                ->where('is_active', true)
+                ->whereNotNull('published_at')
+                ->exists();
+
+        if (! $targetVersionExists) {
+            throw ValidationException::withMessages([
+                'target_sales_script_version_id' => 'Выберите опубликованную версию целевого сценария.',
+            ]);
+        }
+
+        return $data;
     }
 
     private function canViewAnalytics(Request $request): bool

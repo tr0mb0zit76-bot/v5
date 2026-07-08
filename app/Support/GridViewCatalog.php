@@ -55,6 +55,11 @@ final class GridViewCatalog
                 'route' => 'load-board.index',
                 'visibility_area' => 'load_board',
             ],
+            'company_planning' => [
+                'label' => 'План компании',
+                'route' => 'company-planning.index',
+                'visibility_area' => 'company_planning',
+            ],
         ];
     }
 
@@ -102,6 +107,10 @@ final class GridViewCatalog
 
         if (RoleAccess::isAdminUser($user)) {
             return true;
+        }
+
+        if ($gridKey === 'company_planning') {
+            return RoleAccess::canAccessCompanyPlanning($user);
         }
 
         $area = self::definitions()[$gridKey]['visibility_area'] ?? null;

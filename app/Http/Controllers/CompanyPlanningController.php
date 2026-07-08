@@ -15,6 +15,8 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\CompanyPlanning\CompanyInitiativeBudgetFactService;
 use App\Services\CompanyPlanning\CompanyPlanningDependencyCycleGuard;
+use App\Services\CompanyPlanning\CompanyPlanningIndexSummaryService;
+use App\Services\CompanyPlanning\CompanyPlanningMilestoneDependencyGuard;
 use App\Services\CompanyPlanning\CompanyPlanningProgressService;
 use App\Support\CompanyPlanningCatalog;
 use App\Support\RoleAccess;
@@ -31,6 +33,8 @@ class CompanyPlanningController extends Controller
         private readonly CompanyPlanningProgressService $progressService,
         private readonly CompanyInitiativeBudgetFactService $budgetFactService,
         private readonly CompanyPlanningDependencyCycleGuard $dependencyCycleGuard,
+        private readonly CompanyPlanningIndexSummaryService $indexSummaryService,
+        private readonly CompanyPlanningMilestoneDependencyGuard $milestoneDependencyGuard,
     ) {}
 
     public function index(Request $request): Response
@@ -42,18 +46,51 @@ class CompanyPlanningController extends Controller
             $statusFilter = '';
         }
 
+        $viewFilter = $request->string('view')->toString();
+        if (! in_array($viewFilter, ['list', 'budget', 'risk', 'timeline'], true)) {
+            $viewFilter = 'list';
+        }
+
+        $today = now()->toDateString();
+
         $initiatives = CompanyInitiative::query()
             ->with(['owner:id,name', 'managementExpenseCategory:id,name,code'])
-            ->withCount('milestones')
+            ->withCount([
+                'milestones',
+                'milestones as overdue_milestones_count' => fn ($query) => $query
+                    ->whereNotIn('status', ['completed', 'cancelled'])
+                    ->whereNotNull('ends_on')
+                    ->whereDate('ends_on', '<', $today),
+            ])
             ->when($statusFilter !== '', fn ($query) => $query->where('status', $statusFilter))
+            ->when($viewFilter === 'budget', fn ($query) => $query->where(function ($inner) {
+                $inner->whereNotNull('planned_budget_amount')
+                    ->orWhereNotNull('management_expense_category_id');
+            }))
+            ->when($viewFilter === 'risk', fn ($query) => $query
+                ->whereIn('status', ['draft', 'active', 'on_hold'])
+                ->where(function ($inner) use ($today) {
+                    $inner->whereIn('risk_level', ['high', 'critical'])
+                        ->orWhere(function ($overdue) use ($today) {
+                            $overdue->whereNotNull('ends_on')
+                                ->whereDate('ends_on', '<', $today);
+                        });
+                }))
             ->orderByRaw("FIELD(status, 'active', 'on_hold', 'draft', 'completed', 'cancelled')")
             ->orderByDesc('id')
             ->get()
             ->map(fn (CompanyInitiative $initiative): array => $this->serializeInitiativeSummary($initiative, includeBudget: true));
 
+        $timelineRows = $viewFilter === 'timeline'
+            ? $this->buildPortfolioTimelineRows()
+            : [];
+
         return Inertia::render('CompanyPlanning/Index', [
             'initiatives' => $initiatives,
+            'summary' => $this->indexSummaryService->summarize(),
             'status_filter' => $statusFilter,
+            'view_filter' => $viewFilter,
+            'timeline_rows' => $timelineRows,
             'status_labels' => CompanyPlanningCatalog::initiativeStatusLabels(),
             'priority_labels' => CompanyPlanningCatalog::priorityLabels(),
             'direction_labels' => CompanyPlanningCatalog::directionLabels(),
@@ -160,6 +197,14 @@ class CompanyPlanningController extends Controller
         CompanyInitiativeMilestone $milestone,
     ): RedirectResponse {
         $payload = $request->validated();
+
+        if (array_key_exists('status', $payload)) {
+            $this->milestoneDependencyGuard->assertCanAdvance(
+                $milestone,
+                [(string) $payload['status']],
+            );
+        }
+
         $milestone->update($payload);
         $this->progressService->syncMilestoneCompletion($milestone->fresh());
 
@@ -305,6 +350,9 @@ class CompanyPlanningController extends Controller
      */
     private function serializeInitiativeSummary(CompanyInitiative $initiative, bool $includeBudget = false): array
     {
+        $today = now()->toDateString();
+        $endsOn = optional($initiative->ends_on)?->toDateString();
+
         $payload = [
             'id' => (int) $initiative->id,
             'title' => $initiative->title,
@@ -316,7 +364,7 @@ class CompanyPlanningController extends Controller
                 ? (CompanyPlanningCatalog::directionLabels()[$initiative->direction] ?? $initiative->direction)
                 : null,
             'starts_on' => optional($initiative->starts_on)?->toDateString(),
-            'ends_on' => optional($initiative->ends_on)?->toDateString(),
+            'ends_on' => $endsOn,
             'owner_id' => $initiative->owner_id,
             'owner_name' => $initiative->owner?->name,
             'progress_percent' => (int) $initiative->progress_percent,
@@ -325,7 +373,13 @@ class CompanyPlanningController extends Controller
             'management_expense_category_id' => $initiative->management_expense_category_id,
             'expense_category_name' => $initiative->managementExpenseCategory?->name,
             'risk_level' => $initiative->risk_level,
+            'risk_label' => CompanyPlanningCatalog::riskLevelLabels()[$initiative->risk_level] ?? $initiative->risk_level,
             'milestones_count' => (int) ($initiative->milestones_count ?? 0),
+            'overdue_milestones_count' => (int) ($initiative->overdue_milestones_count ?? 0),
+            'is_overdue' => $endsOn !== null
+                && $endsOn < $today
+                && ! in_array($initiative->status, ['completed', 'cancelled'], true),
+            'is_high_risk' => in_array($initiative->risk_level, ['high', 'critical'], true),
             'show_url' => route('company-planning.show', $initiative),
         ];
 
@@ -408,5 +462,53 @@ class CompanyPlanningController extends Controller
         $next = (int) $matches[1] + 1;
 
         return preg_replace('/\d+$/', str_pad((string) $next, strlen($matches[1]), '0', STR_PAD_LEFT), $latest) ?? ('TSK-'.$next);
+    }
+
+    /**
+     * @return list<array{
+     *     key: string,
+     *     label: string,
+     *     starts_on: string|null,
+     *     ends_on: string|null,
+     *     tone: string,
+     *     initiative_id: int,
+     *     show_url: string
+     * }>
+     */
+    private function buildPortfolioTimelineRows(): array
+    {
+        $today = now()->toDateString();
+
+        return CompanyInitiative::query()
+            ->with(['milestones' => fn ($query) => $query->orderBy('sort_order')->orderBy('id')])
+            ->whereIn('status', ['active', 'on_hold', 'draft'])
+            ->orderByDesc('id')
+            ->get()
+            ->flatMap(function (CompanyInitiative $initiative) use ($today): array {
+                $showUrl = route('company-planning.show', $initiative);
+
+                return $initiative->milestones
+                    ->filter(fn (CompanyInitiativeMilestone $milestone): bool => $milestone->starts_on !== null || $milestone->ends_on !== null)
+                    ->map(function (CompanyInitiativeMilestone $milestone) use ($initiative, $showUrl, $today): array {
+                        $isOverdue = $milestone->ends_on !== null
+                            && $milestone->ends_on->toDateString() < $today
+                            && ! in_array($milestone->status, ['completed', 'cancelled'], true);
+
+                        return [
+                            'key' => 'milestone-'.$milestone->id,
+                            'label' => $initiative->title.': '.$milestone->title,
+                            'starts_on' => optional($milestone->starts_on)?->toDateString(),
+                            'ends_on' => optional($milestone->ends_on)?->toDateString(),
+                            'tone' => $isOverdue
+                                ? 'bg-rose-500'
+                                : ($milestone->status === 'completed' ? 'bg-sky-500' : 'bg-emerald-500'),
+                            'initiative_id' => (int) $initiative->id,
+                            'show_url' => $showUrl,
+                        ];
+                    })
+                    ->all();
+            })
+            ->values()
+            ->all();
     }
 }

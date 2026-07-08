@@ -3,6 +3,7 @@
 namespace App\Http\Requests\SalesScripts;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreTransitionRequest extends FormRequest
 {
@@ -19,7 +20,10 @@ class StoreTransitionRequest extends FormRequest
         return [
             'from_node_id' => ['required', 'integer', 'exists:sales_script_nodes,id'],
             'to_node_id' => ['required', 'integer', 'exists:sales_script_nodes,id'],
+            'target_type' => ['nullable', 'string', Rule::in(['node', 'script', 'return'])],
+            'target_sales_script_version_id' => ['nullable', 'integer', 'exists:sales_script_versions,id'],
             'sales_script_reaction_class_id' => ['nullable', 'integer', 'exists:sales_script_reaction_classes,id'],
+            'customer_label' => ['nullable', 'string', 'max:500'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:65535'],
         ];
     }

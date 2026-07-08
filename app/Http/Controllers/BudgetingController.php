@@ -11,6 +11,7 @@ use App\Models\BudgetScenario;
 use App\Services\Budgeting\BudgetMarginBenchmarkService;
 use App\Services\Budgeting\BudgetPlannerService;
 use App\Services\Budgeting\BudgetPlanSnapshotService;
+use App\Services\CompanyPlanning\CompanyPlanningBudgetLinkService;
 use App\Support\RoleAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
@@ -24,6 +25,7 @@ class BudgetingController extends Controller
         private readonly BudgetPlannerService $planner,
         private readonly BudgetMarginBenchmarkService $benchmarks,
         private readonly BudgetPlanSnapshotService $snapshotService,
+        private readonly CompanyPlanningBudgetLinkService $companyPlanningBudgetLinks,
     ) {}
 
     public function index(Request $request): Response
@@ -49,6 +51,12 @@ class BudgetingController extends Controller
             ],
             'plan_snapshots' => $this->snapshotService->recentSnapshots(),
             'can_freeze_plan' => RoleAccess::canAccessBudgeting($request->user()),
+            'company_planning_initiatives' => RoleAccess::canAccessCompanyPlanning($request->user())
+                ? $this->companyPlanningBudgetLinks->initiativesLinkedToCategories()
+                : [],
+            'company_planning_index_url' => RoleAccess::canAccessCompanyPlanning($request->user())
+                ? route('company-planning.index')
+                : null,
         ]);
     }
 

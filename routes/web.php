@@ -389,7 +389,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/disposition', [DispositionController::class, 'index'])->middleware('visibility.area:orders')->name('disposition.index');
     Route::post('/disposition/entries', [DispositionController::class, 'upsert'])->middleware('visibility.area:orders')->name('disposition.entries.upsert');
 
-    Route::prefix('company-planning')->name('company-planning.')->group(function () {
+    Route::prefix('company-planning')->name('company-planning.')->middleware('company.planning')->group(function () {
         Route::get('/', [CompanyPlanningController::class, 'index'])->name('index');
         Route::post('/', [CompanyPlanningController::class, 'store'])->name('store');
         Route::get('/{initiative}', [CompanyPlanningController::class, 'show'])->name('show');
