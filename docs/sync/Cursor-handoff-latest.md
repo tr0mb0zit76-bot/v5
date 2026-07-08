@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-08 16:20 · **HEAD:** `de8bc89` · **Ветка:** `master` · **Контекст:** hotfix 500 на prod (middleware import)
+**Обновлено:** 2026-07-08 16:21 · **HEAD:** `d63865e` · **Ветка:** `master` · **Контекст:** hotfix 500 на prod (middleware import)
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
