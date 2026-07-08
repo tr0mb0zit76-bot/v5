@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-08 21:10 · **HEAD:** _(после push этого коммита)_ · **Ветка:** `master`
+**Обновлено:** 2026-07-08 21:10 · **HEAD:** `5795ac2` · **Ветка:** `master`
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
@@ -18,6 +18,7 @@
 - **Биржа:** `seller_id` при публикации с заказом = `order.order_owner_id ?? manager_id` (не текущий пользователь).
 - **Миграции:** `2026_07_08_210000_add_order_owner_and_dispatcher_to_orders_table.php`, `2026_07_08_210100_create_procurement_cases_table.php`.
 - **Тесты:** `LoadBoardTest` (6 passed, + owner→seller + case), `OrderWizardTest` (+ owner/dispatcher/compensation_split).
+- **Коммит:** `5795ac2` (`feat(load-board): order owner/dispatcher roles and ProcurementCase sync`).
 
 ### Деплой
 ```powershell
