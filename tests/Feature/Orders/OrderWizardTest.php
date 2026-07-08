@@ -3595,6 +3595,20 @@ class OrderWizardTest extends TestCase
         $this->assertSame($dispatcher->id, $metadata['compensation_split']['dispatcher_id'] ?? null);
 
         $this->actingAs($admin)
+            ->patch(route('orders.update', $order->id), [
+                ...$minimalPayload,
+                'order_number' => $order->order_number,
+                'compensation_owner_percent' => 70,
+                'compensation_dispatcher_percent' => 30,
+            ])
+            ->assertRedirect();
+
+        $order->refresh();
+        $metadata = is_array($order->metadata) ? $order->metadata : [];
+        $this->assertSame(70.0, (float) ($metadata['compensation_split']['order_owner_percent'] ?? 0));
+        $this->assertSame(30.0, (float) ($metadata['compensation_split']['dispatcher_percent'] ?? 0));
+
+        $this->actingAs($admin)
             ->get(route('orders.edit', $order))
             ->assertOk()
             ->assertInertia(fn ($page) => $page

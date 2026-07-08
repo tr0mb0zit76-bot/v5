@@ -169,7 +169,8 @@ new → in_work → has_offers → seller_review → closed
 | --- | --- |
 | **Сделано (2026-07)** | Грид + вкладки, infinite scroll, карточка с офферами/ATI, rate observations, insights API |
 | **Сделано (2026-07-08)** | `order_owner_id`, `dispatcher_id` в заказе; split мастера owner/dispatcher; `metadata.compensation_split`; `ProcurementCase` + sync с постом; seller с заказа = владелец |
-| **Средний срок** | UI `ProcurementCase`, split % в compensation, связь с несколькими заказами/лидами |
+| **Сделано (2026-07-08, фаза 3)** | UI кейса в карточке биржи; split % в мастере заказа; `linked_orders` / `linked_leads` + API привязки |
+| **Средний срок** | split % в `OrderCompensationService`; ATI API; UI управления кейсом отдельной страницей |
 | **ATI API** | Автопубликация после ключа |
 | **Пул перевозчиков** | Internal CRM → внешние источники, единый реестр кандидатов |
 

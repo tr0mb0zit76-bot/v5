@@ -243,7 +243,7 @@ class OrderWizardService
             $metadata['loading_types'] = array_values(array_unique($loadingTypes));
         }
 
-        $metadata = $this->syncCompensationSplitMetadata($metadata, $orderOwnerId, $dispatcherId);
+        $metadata = $this->syncCompensationSplitMetadata($metadata, $orderOwnerId, $dispatcherId, $validated);
 
         $attributes['metadata'] = $metadata;
 
@@ -2044,15 +2044,33 @@ class OrderWizardService
      * @param  array<string, mixed>  $metadata
      * @return array<string, mixed>
      */
-    private function syncCompensationSplitMetadata(array $metadata, int $orderOwnerId, ?int $dispatcherId): array
+    private function syncCompensationSplitMetadata(array $metadata, int $orderOwnerId, ?int $dispatcherId, array $validated = []): array
     {
         $existing = is_array($metadata['compensation_split'] ?? null) ? $metadata['compensation_split'] : [];
+
+        if ($dispatcherId === null) {
+            $metadata['compensation_split'] = [
+                'order_owner_id' => $orderOwnerId,
+                'dispatcher_id' => null,
+                'order_owner_percent' => 100.0,
+                'dispatcher_percent' => 0.0,
+            ];
+
+            return $metadata;
+        }
+
+        $ownerPercent = array_key_exists('compensation_owner_percent', $validated)
+            ? (float) $validated['compensation_owner_percent']
+            : (float) ($existing['order_owner_percent'] ?? 100);
+        $dispatcherPercent = array_key_exists('compensation_dispatcher_percent', $validated)
+            ? (float) $validated['compensation_dispatcher_percent']
+            : (float) ($existing['dispatcher_percent'] ?? 0);
 
         $metadata['compensation_split'] = [
             'order_owner_id' => $orderOwnerId,
             'dispatcher_id' => $dispatcherId,
-            'order_owner_percent' => (float) ($existing['order_owner_percent'] ?? 100),
-            'dispatcher_percent' => (float) ($existing['dispatcher_percent'] ?? 0),
+            'order_owner_percent' => round($ownerPercent, 2),
+            'dispatcher_percent' => round($dispatcherPercent, 2),
         ];
 
         return $metadata;

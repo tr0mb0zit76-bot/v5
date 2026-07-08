@@ -11,6 +11,7 @@ use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\LoadBoard\LoadBoardCorridorKey;
+use App\Services\LoadBoard\ProcurementCaseSyncService;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -392,5 +393,109 @@ class LoadBoardTest extends TestCase
             'dispatcher_id' => $publisher->id,
             'status' => 'new',
         ]);
+
+        $this->assertIsArray($post->fresh()->procurementCase?->metadata['linked_orders'] ?? null);
+    }
+
+    public function test_procurement_case_link_attach_adds_secondary_order(): void
+    {
+        if (! Schema::hasTable('procurement_cases')) {
+            $this->markTestSkipped('procurement_cases missing');
+        }
+
+        $role = Role::query()->create([
+            'name' => 'load_board_role_links',
+            'display_name' => 'Load board links',
+            'visibility_areas' => ['load_board'],
+        ]);
+
+        $user = User::factory()->create(['role_id' => $role->id]);
+
+        $customer = Contractor::query()->create([
+            'type' => 'customer',
+            'name' => 'ООО Клиент links',
+            'is_active' => true,
+        ]);
+
+        $primaryOrder = Order::query()->create([
+            'order_number' => 'LB-LINK-1',
+            'manager_id' => $user->id,
+            'order_owner_id' => $user->id,
+            'customer_id' => $customer->id,
+            'status' => 'draft',
+            'is_active' => true,
+        ]);
+
+        $secondaryOrder = Order::query()->create([
+            'order_number' => 'LB-LINK-2',
+            'manager_id' => $user->id,
+            'order_owner_id' => $user->id,
+            'customer_id' => $customer->id,
+            'status' => 'draft',
+            'is_active' => true,
+        ]);
+
+        $post = LoadBoardPost::query()->create([
+            'seller_id' => $user->id,
+            'customer_id' => $customer->id,
+            'order_id' => $primaryOrder->id,
+            'status' => 'new',
+            'priority' => 'normal',
+            'title' => 'Links test',
+            'loading_location' => 'Москва',
+            'unloading_location' => 'Тула',
+            'published_at' => now(),
+        ]);
+
+        app(ProcurementCaseSyncService::class)->ensureForPost($post->fresh());
+
+        $this->actingAs($user)
+            ->patch(route('load-board.procurement-case.links.attach', $post), [
+                'type' => 'order',
+                'id' => $secondaryOrder->id,
+            ])
+            ->assertRedirect();
+
+        $metadata = $post->fresh()->procurementCase?->metadata;
+        $this->assertIsArray($metadata);
+        $linkedIds = collect($metadata['linked_orders'] ?? [])->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $this->assertContains($primaryOrder->id, $linkedIds);
+        $this->assertContains($secondaryOrder->id, $linkedIds);
+    }
+
+    public function test_rows_payload_includes_procurement_case(): void
+    {
+        if (! Schema::hasTable('procurement_cases')) {
+            $this->markTestSkipped('procurement_cases missing');
+        }
+
+        $role = Role::query()->create([
+            'name' => 'load_board_role_present',
+            'display_name' => 'Load board present',
+            'visibility_areas' => ['load_board'],
+        ]);
+
+        $user = User::factory()->create(['role_id' => $role->id, 'name' => 'Seller Present']);
+
+        $post = LoadBoardPost::query()->create([
+            'seller_id' => $user->id,
+            'status' => 'new',
+            'priority' => 'normal',
+            'title' => 'Present case',
+            'loading_location' => 'A',
+            'unloading_location' => 'B',
+            'published_at' => now(),
+        ]);
+
+        app(ProcurementCaseSyncService::class)->ensureForPost($post->fresh());
+
+        $row = $this->actingAs($user)
+            ->getJson(route('load-board.rows', ['filter' => 'all']))
+            ->assertOk()
+            ->json('data.0');
+
+        $this->assertSame($post->id, $row['id']);
+        $this->assertIsArray($row['procurement_case']);
+        $this->assertSame($post->fresh()->procurementCase?->id, $row['procurement_case']['id']);
     }
 }

@@ -17,6 +17,7 @@ use App\Services\LoadBoard\LoadBoardBuyerTaskService;
 use App\Services\LoadBoard\LoadBoardPostIndexService;
 use App\Services\LoadBoard\LoadBoardPostPresenter;
 use App\Services\LoadBoard\LoadBoardRateObservationService;
+use App\Services\LoadBoard\ProcurementCaseLinkService;
 use App\Services\LoadBoard\ProcurementCaseSyncService;
 use App\Support\AtiDictionaryOptionCatalog;
 use App\Support\LoadBoardOfferSource;
@@ -38,6 +39,7 @@ class LoadBoardController extends Controller
         private readonly LoadBoardPostPresenter $postPresenter,
         private readonly LoadBoardRateObservationService $rateObservations,
         private readonly ProcurementCaseSyncService $procurementCases,
+        private readonly ProcurementCaseLinkService $procurementCaseLinks,
     ) {}
 
     /**
@@ -288,6 +290,29 @@ class LoadBoardController extends Controller
         });
 
         return back()->with('message', 'Вариант перевозчика принят. Груз закрыт, данные зафиксированы для заказа.');
+    }
+
+    public function attachProcurementCaseLink(Request $request, LoadBoardPost $post): RedirectResponse
+    {
+        abort_if($request->user() === null, 403);
+
+        $validated = $request->validate([
+            'type' => ['required', 'string', Rule::in(['order', 'lead'])],
+            'id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $case = $this->procurementCases->caseForPost($post) ?? $this->procurementCases->ensureForPost($post);
+        if ($case === null) {
+            return back()->with('message', 'Кейс закупки недоступен.');
+        }
+
+        if ($validated['type'] === 'order') {
+            $this->procurementCaseLinks->attachOrder($case, (int) $validated['id']);
+        } else {
+            $this->procurementCaseLinks->attachLead($case, (int) $validated['id']);
+        }
+
+        return back()->with('message', 'Связь добавлена в кейс закупки.');
     }
 
     public function updateStatus(Request $request, LoadBoardPost $post): RedirectResponse

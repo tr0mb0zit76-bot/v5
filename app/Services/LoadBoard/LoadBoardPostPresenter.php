@@ -10,6 +10,7 @@ class LoadBoardPostPresenter
 {
     public function __construct(
         private readonly LoadBoardRateObservationService $rateObservations,
+        private readonly ProcurementCasePresenter $procurementCases,
     ) {}
 
     /**
@@ -89,6 +90,7 @@ class LoadBoardPostPresenter
             'customer' => $post->customer?->only(['id', 'name']),
             'lead' => $post->lead?->only(['id', 'number', 'title']),
             'order' => $post->order?->only(['id', 'order_number']),
+            'procurement_case' => $this->procurementCases->present($post->procurementCase),
             'offers_count' => $post->offers_count,
             'offers_summary' => $this->offersSummary($post, $post->offers),
             'offers' => $post->offers

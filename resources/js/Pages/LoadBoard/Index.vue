@@ -371,6 +371,8 @@
                 :offer-source-options="offerSourceOptions"
                 :current-user-id="currentUserId"
                 :ati-preview="atiPreview"
+                :order-options="orderOptions"
+                :lead-options="leadOptions"
             />
         </section>
     </div>

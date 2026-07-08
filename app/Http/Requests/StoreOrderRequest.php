@@ -166,6 +166,29 @@ class StoreOrderRequest extends FormRequest
                 OrderDisruptionGuard::validateMarkDisrupted($user, $order, $validator, 'status');
             },
             function (Validator $validator): void {
+                $dispatcherId = $this->input('dispatcher_id');
+                if ($dispatcherId === null || $dispatcherId === '') {
+                    return;
+                }
+
+                $ownerPercent = $this->input('compensation_owner_percent');
+                $dispatcherPercent = $this->input('compensation_dispatcher_percent');
+
+                if ($ownerPercent === null && $dispatcherPercent === null) {
+                    return;
+                }
+
+                $owner = (float) ($ownerPercent ?? 0);
+                $dispatcher = (float) ($dispatcherPercent ?? 0);
+
+                if (abs(($owner + $dispatcher) - 100) > 0.01) {
+                    $validator->errors()->add(
+                        'compensation_owner_percent',
+                        'Доли владельца и диспетчера должны в сумме давать 100%.',
+                    );
+                }
+            },
+            function (Validator $validator): void {
                 if (! $this->routeIs('orders.store')) {
                     return;
                 }
@@ -464,6 +487,8 @@ class StoreOrderRequest extends FormRequest
             'order_owner_id' => ['nullable', 'integer', 'exists:users,id'],
             'responsible_id' => ['nullable', 'integer', 'exists:users,id'],
             'dispatcher_id' => ['nullable', 'integer', 'exists:users,id'],
+            'compensation_owner_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'compensation_dispatcher_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'order_number' => ['nullable', 'string', 'max:255'],
             'special_notes' => ['nullable', 'string'],
             'customer_basic_terms' => ['nullable', 'array'],

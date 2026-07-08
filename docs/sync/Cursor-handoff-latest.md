@@ -3,9 +3,24 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-08 21:10 · **HEAD:** `5795ac2` · **Ветка:** `master`
+**Обновлено:** 2026-07-08 21:35 · **HEAD:** _(после push)_ · **Ветка:** `master`
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано (2026-07-08) — Биржа фаза 3: UI кейса + split % + связи
+
+- **Карточка биржи:** блок **«Кейс закупки»** в обзоре поста — владелец, диспетчер, закупщик, юрлицо, списки связанных заказов/лидов.
+- **Presenter:** `ProcurementCasePresenter` → `procurement_case` в `LoadBoardPostPresenter` / `rows` API.
+- **Multi-link:** `metadata.linked_orders` / `linked_leads` на кейсе; `PATCH load-board/{post}/procurement-case/links` (`ProcurementCaseLinkService`).
+- **Мастер заказа:** UI **доли KPI** (владелец % / диспетчер %), сумма = 100%; валидация в `StoreOrderRequest`.
+- **Тесты:** `LoadBoardTest` (+ present case, attach link), `OrderWizardTest` (+ update split 70/30).
+
+### Следующий шаг
+1. **Smoke UI:** карточка биржи → кейс закупки → привязка второго заказа; заказ с диспетчером → доли 70/30.
+2. **Prod:** `git pull` + `npm run build` (миграций нет).
+3. **Фаза 4:** split % в `OrderCompensationService` (фактическое деление KPI); ATI API.
 
 ---
 
@@ -31,7 +46,7 @@ php artisan test --compact tests/Feature/LoadBoardTest.php
 ### Следующий шаг
 1. **Smoke UI:** мастер заказа — смена владельца/диспетчера; биржа — публикация с заказа (seller = владелец).
 2. **Prod:** migrate + build (см. выше).
-3. **Биржа фаза 3:** UI `ProcurementCase`, split % в compensation, ATI API; multi order/lead на кейс — см. `docs/load-board-procurement-architecture.md`.
+3. ~~**Биржа фаза 3:** UI `ProcurementCase`, split % в compensation, multi order/lead~~ — **сделано**, см. секцию выше.
 4. **Backlog:** ЭДО, ДТ/ГТД — не в scope.
 
 ---

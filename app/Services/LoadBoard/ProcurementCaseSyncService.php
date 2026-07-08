@@ -9,13 +9,17 @@ use Illuminate\Support\Facades\Schema;
 
 class ProcurementCaseSyncService
 {
+    public function __construct(
+        private readonly ProcurementCaseLinkService $links,
+    ) {}
+
     public function ensureForPost(LoadBoardPost $post): ?ProcurementCase
     {
         if (! Schema::hasTable('procurement_cases')) {
             return null;
         }
 
-        $post->loadMissing(['order:id,order_owner_id,manager_id,dispatcher_id,own_company_id']);
+        $post->loadMissing(['order:id,order_owner_id,manager_id,dispatcher_id,own_company_id,order_number', 'lead:id,number,title']);
 
         $existing = ProcurementCase::query()
             ->where('load_board_post_id', $post->id)
@@ -26,6 +30,7 @@ class ProcurementCaseSyncService
         }
 
         $order = $post->order;
+        $linkMetadata = $this->links->bootstrapLinksMetadata($post);
 
         return ProcurementCase::query()->create([
             'load_board_post_id' => $post->id,
@@ -39,6 +44,7 @@ class ProcurementCaseSyncService
             'metadata' => [
                 'source' => 'load_board_post',
                 'post_id' => $post->id,
+                ...$linkMetadata,
             ],
         ]);
     }
@@ -55,6 +61,17 @@ class ProcurementCaseSyncService
                 'status' => $post->status,
                 'buyer_id' => $post->buyer_id,
             ]);
+    }
+
+    public function caseForPost(LoadBoardPost $post): ?ProcurementCase
+    {
+        if (! Schema::hasTable('procurement_cases')) {
+            return null;
+        }
+
+        return ProcurementCase::query()
+            ->where('load_board_post_id', $post->id)
+            ->first();
     }
 
     private function syncExistingCase(ProcurementCase $case, LoadBoardPost $post): ProcurementCase

@@ -57,6 +57,84 @@
                     </div>
                 </dl>
 
+                <div
+                    v-if="post.procurement_case"
+                    class="space-y-3 border border-indigo-200 bg-indigo-50/50 p-4 text-sm dark:border-indigo-900/50 dark:bg-indigo-950/20"
+                >
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+                            Кейс закупки #{{ post.procurement_case.id }}
+                        </div>
+                        <span class="text-xs text-indigo-600 dark:text-indigo-200">{{ statusLabels[post.procurement_case.status] ?? post.procurement_case.status }}</span>
+                    </div>
+                    <dl class="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        <div>
+                            <dt class="text-xs uppercase tracking-wide text-zinc-500">Владелец сделки</dt>
+                            <dd class="mt-1">{{ post.procurement_case.order_owner?.name ?? '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs uppercase tracking-wide text-zinc-500">Диспетчер</dt>
+                            <dd class="mt-1">{{ post.procurement_case.dispatcher?.name ?? '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs uppercase tracking-wide text-zinc-500">Закупщик</dt>
+                            <dd class="mt-1">{{ post.procurement_case.buyer?.name ?? '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs uppercase tracking-wide text-zinc-500">Юрлицо закупки</dt>
+                            <dd class="mt-1">{{ post.procurement_case.buying_own_company?.name ?? '—' }}</dd>
+                        </div>
+                    </dl>
+                    <div v-if="procurementLinkedOrders.length || procurementLinkedLeads.length" class="space-y-2">
+                        <div v-if="procurementLinkedOrders.length" class="space-y-1">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Заказы</div>
+                            <ul class="space-y-1">
+                                <li v-for="order in procurementLinkedOrders" :key="`pc-order-${order.id}`">
+                                    <Link :href="route('orders.edit', order.id)" class="text-indigo-700 hover:underline dark:text-indigo-300">
+                                        {{ order.order_number || `#${order.id}` }}
+                                    </Link>
+                                </li>
+                            </ul>
+                        </div>
+                        <div v-if="procurementLinkedLeads.length" class="space-y-1">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Лиды</div>
+                            <ul class="space-y-1">
+                                <li v-for="lead in procurementLinkedLeads" :key="`pc-lead-${lead.id}`">
+                                    <Link :href="route('leads.show', lead.id)" class="text-indigo-700 hover:underline dark:text-indigo-300">
+                                        {{ lead.number || lead.title || `#${lead.id}` }}
+                                    </Link>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div v-if="!isClosed(post)" class="flex flex-wrap items-end gap-2">
+                        <label class="flex flex-col gap-1 text-xs font-medium text-zinc-500">
+                            <span>Привязать заказ</span>
+                            <select v-model="linkOrderId" class="border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                <option value="">Выберите</option>
+                                <option v-for="order in orderOptions" :key="`link-order-${order.id}`" :value="order.id">
+                                    {{ order.order_number || `#${order.id}` }}
+                                </option>
+                            </select>
+                        </label>
+                        <button type="button" :class="crmBtnNeutral" :disabled="!linkOrderId" @click="attachProcurementLink('order', linkOrderId)">
+                            Добавить заказ
+                        </button>
+                        <label class="flex flex-col gap-1 text-xs font-medium text-zinc-500">
+                            <span>Привязать лид</span>
+                            <select v-model="linkLeadId" class="border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                <option value="">Выберите</option>
+                                <option v-for="lead in leadOptions" :key="`link-lead-${lead.id}`" :value="lead.id">
+                                    {{ lead.number || lead.title || `#${lead.id}` }}
+                                </option>
+                            </select>
+                        </label>
+                        <button type="button" :class="crmBtnNeutral" :disabled="!linkLeadId" @click="attachProcurementLink('lead', linkLeadId)">
+                            Добавить лид
+                        </button>
+                    </div>
+                </div>
+
                 <div class="grid gap-3 text-sm md:grid-cols-2">
                     <div v-if="post.requirements" class="border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
                         <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Требования</div>
@@ -278,7 +356,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { router, useForm } from '@inertiajs/vue3';
+import { Link, router, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
 import InputError from '@/Components/InputError.vue';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
@@ -300,6 +378,23 @@ const props = defineProps({
     offerSourceOptions: { type: Object, default: () => ({}) },
     currentUserId: { type: [Number, String], default: null },
     atiPreview: { type: Object, default: null },
+    orderOptions: { type: Array, default: () => [] },
+    leadOptions: { type: Array, default: () => [] },
+});
+
+const linkOrderId = ref('');
+const linkLeadId = ref('');
+
+const procurementLinkedOrders = computed(() => {
+    const rows = props.post.procurement_case?.linked_orders;
+
+    return Array.isArray(rows) ? rows : [];
+});
+
+const procurementLinkedLeads = computed(() => {
+    const rows = props.post.procurement_case?.linked_leads;
+
+    return Array.isArray(rows) ? rows : [];
 });
 
 const activeTab = ref('overview');
@@ -402,6 +497,28 @@ function assignBuyer(buyerId) {
     router.patch(route('load-board.buyer.update', props.post.id), {
         buyer_id: buyerId === '' ? null : Number(buyerId),
     }, { preserveScroll: true });
+}
+
+function attachProcurementLink(type, rawId) {
+    const id = Number(rawId);
+
+    if (!id) {
+        return;
+    }
+
+    router.patch(route('load-board.procurement-case.links.attach', props.post.id), {
+        type,
+        id,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            if (type === 'order') {
+                linkOrderId.value = '';
+            } else {
+                linkLeadId.value = '';
+            }
+        },
+    });
 }
 
 function prepareAti() {

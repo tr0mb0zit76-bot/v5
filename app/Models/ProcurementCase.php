@@ -79,4 +79,12 @@ class ProcurementCase extends Model
     {
         return $this->belongsTo(User::class, 'dispatcher_id');
     }
+
+    /**
+     * @return BelongsTo<Contractor, $this>
+     */
+    public function buyingOwnCompany(): BelongsTo
+    {
+        return $this->belongsTo(Contractor::class, 'buying_own_company_id');
+    }
 }

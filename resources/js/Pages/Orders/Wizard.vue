@@ -428,6 +428,40 @@
                         </div>
                     </div>
 
+                    <div v-if="form.dispatcher_id" class="space-y-2 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                        <label class="text-sm font-medium">Доля KPI / компенсации</label>
+                        <p class="text-xs text-zinc-500">Сумма долей владельца и диспетчера должна быть 100%.</p>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div class="space-y-1">
+                                <label class="text-xs text-zinc-500">Владелец, %</label>
+                                <input
+                                    v-model.number="form.compensation_owner_percent"
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="1"
+                                    :class="crmFieldFluid"
+                                    :disabled="!canAssignResponsible || !isOrderFormEditable"
+                                    @input="onCompensationOwnerPercentInput"
+                                />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs text-zinc-500">Диспетчер, %</label>
+                                <input
+                                    v-model.number="form.compensation_dispatcher_percent"
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="1"
+                                    :class="crmFieldFluid"
+                                    :disabled="!canAssignResponsible || !isOrderFormEditable"
+                                    @input="onCompensationDispatcherPercentInput"
+                                />
+                            </div>
+                        </div>
+                        <p v-if="form.errors.compensation_owner_percent" class="text-xs text-rose-500">{{ form.errors.compensation_owner_percent }}</p>
+                    </div>
+
                     <div v-if="form.performers.length > 1" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                         <div>
                             <h2 class="text-base font-semibold">Клиентская заявка</h2>
@@ -2691,6 +2725,8 @@ function blankOrder() {
         client_id: null,
         order_owner_id: null,
         dispatcher_id: null,
+        compensation_owner_percent: 100,
+        compensation_dispatcher_percent: 0,
         order_date: new Date().toISOString().slice(0, 10),
         order_number: '',
         payment_terms: '',
@@ -3218,6 +3254,28 @@ function onSplitActualDateInput(slot, field) {
     slot[field] = clampActualDateToToday(slot[field]);
 }
 
+function clampCompensationPercent(value) {
+    const numeric = Number(value);
+
+    if (Number.isNaN(numeric)) {
+        return 0;
+    }
+
+    return Math.min(100, Math.max(0, numeric));
+}
+
+function onCompensationOwnerPercentInput() {
+    const owner = clampCompensationPercent(form.compensation_owner_percent);
+    form.compensation_owner_percent = owner;
+    form.compensation_dispatcher_percent = Math.round((100 - owner) * 100) / 100;
+}
+
+function onCompensationDispatcherPercentInput() {
+    const dispatcher = clampCompensationPercent(form.compensation_dispatcher_percent);
+    form.compensation_dispatcher_percent = dispatcher;
+    form.compensation_owner_percent = Math.round((100 - dispatcher) * 100) / 100;
+}
+
 function defaultOrderOwnerId() {
     const fromOrder = normalizeNullableNumber(
         initialOrderPayload.value?.order_owner_id ?? initialOrderPayload.value?.responsible_id,
@@ -3236,6 +3294,21 @@ function defaultOrderOwnerId() {
     return normalizeNullableNumber(props.currentUser?.id);
 }
 
+function defaultCompensationPercents() {
+    const split = initialOrderPayload.value?.compensation_split;
+
+    if (split && typeof split === 'object') {
+        return {
+            owner: Number(split.order_owner_percent ?? 100),
+            dispatcher: Number(split.dispatcher_percent ?? 0),
+        };
+    }
+
+    return { owner: 100, dispatcher: 0 };
+}
+
+const compensationDefaults = defaultCompensationPercents();
+
 const form = useForm({
     ...blankOrder(),
     ...(initialOrderPayload.value ?? {}),
@@ -3246,6 +3319,8 @@ const form = useForm({
     client_id: normalizeNullableNumber(initialOrderPayload.value?.client_id),
     order_owner_id: defaultOrderOwnerId(),
     dispatcher_id: normalizeNullableNumber(initialOrderPayload.value?.dispatcher_id),
+    compensation_owner_percent: compensationDefaults.owner,
+    compensation_dispatcher_percent: compensationDefaults.dispatcher,
     manual_status: initialOrderPayload.value?.manual_status ?? null,
     additional_expenses: initialOrderPayload.value?.additional_expenses ?? null,
     additional_expenses_payment_date: initialOrderPayload.value?.additional_expenses_payment_date ?? initialOrderPayload.value?.order_date ?? null,
@@ -3300,6 +3375,13 @@ const form = useForm({
 });
 
 const documentsTabRef = ref(null);
+
+watch(() => form.dispatcher_id, (dispatcherId) => {
+    if (!dispatcherId) {
+        form.compensation_owner_percent = 100;
+        form.compensation_dispatcher_percent = 0;
+    }
+});
 
 const orderBasicTermsDraft = reactive({
     dirty: false,
@@ -6753,6 +6835,8 @@ function buildSubmitPayload() {
         order_owner_id: form.order_owner_id,
         responsible_id: form.order_owner_id,
         dispatcher_id: form.dispatcher_id,
+        compensation_owner_percent: form.dispatcher_id ? form.compensation_owner_percent : 100,
+        compensation_dispatcher_percent: form.dispatcher_id ? form.compensation_dispatcher_percent : 0,
         order_date: form.order_date,
         order_number: form.order_number,
         payment_terms: form.payment_terms,

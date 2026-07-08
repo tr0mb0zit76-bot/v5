@@ -779,6 +779,7 @@ class OrderWizardController extends Controller
             'order_owner_name' => $this->resolveSerializedOrderOwnerName($order),
             'dispatcher_id' => Schema::hasColumn('orders', 'dispatcher_id') ? $order->dispatcher_id : null,
             'dispatcher_name' => $order->relationLoaded('dispatcher') ? $order->dispatcher?->name : null,
+            'compensation_split' => is_array($order->metadata) ? ($order->metadata['compensation_split'] ?? null) : null,
             'payment_terms' => $order->payment_terms,
             'special_notes' => $order->special_notes,
             'basic_terms' => $this->serializeBasicTermsForWizard($order),
