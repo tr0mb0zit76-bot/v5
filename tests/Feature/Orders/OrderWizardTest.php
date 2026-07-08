@@ -3495,6 +3495,115 @@ class OrderWizardTest extends TestCase
             ->assertSee('Брокер', false);
     }
 
+    public function test_order_wizard_persists_owner_dispatcher_and_compensation_split(): void
+    {
+        if (! Schema::hasColumn('orders', 'order_owner_id') || ! Schema::hasColumn('orders', 'dispatcher_id')) {
+            $this->markTestSkipped('order_owner_id / dispatcher_id columns missing');
+        }
+
+        $admin = $this->createAdminUser();
+        $owner = User::factory()->create(['role_id' => $admin->role_id]);
+        $dispatcher = User::factory()->create(['role_id' => $admin->role_id]);
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент роли',
+            'inn' => '7700000001',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик роли',
+            'inn' => '7700000002',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $minimalPayload = [
+            'status' => 'new',
+            'own_company_id' => null,
+            'client_id' => $clientId,
+            'order_date' => '2026-07-08',
+            'order_number' => '',
+            'order_owner_id' => $owner->id,
+            'dispatcher_id' => $dispatcher->id,
+            'special_notes' => '',
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => $carrierId],
+            ],
+            'route_points' => [
+                [
+                    'type' => 'loading',
+                    'sequence' => 1,
+                    'address' => 'Москва',
+                    'normalized_data' => [],
+                    'planned_date' => '2026-07-09',
+                ],
+                [
+                    'type' => 'unloading',
+                    'sequence' => 2,
+                    'address' => 'Тула',
+                    'normalized_data' => [],
+                    'planned_date' => '2026-07-10',
+                ],
+            ],
+            'cargo_items' => [],
+            'financial_term' => [
+                'client_price' => 100000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat_22',
+                'client_payment_schedule' => [
+                    'has_prepayment' => false,
+                    'postpayment_days' => 5,
+                    'postpayment_mode' => 'ottn',
+                ],
+                'kpi_percent' => 5,
+                'contractors_costs' => [
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => $carrierId,
+                        'amount' => 80000,
+                        'currency' => 'RUB',
+                        'payment_form' => 'no_vat',
+                        'payment_schedule' => [
+                            'has_prepayment' => false,
+                            'postpayment_days' => 3,
+                            'postpayment_mode' => 'ottn',
+                        ],
+                    ],
+                ],
+                'additional_costs' => [],
+            ],
+        ];
+
+        $this->actingAs($admin)
+            ->post(route('orders.store'), $minimalPayload)
+            ->assertRedirect();
+
+        $order = Order::query()->latest('id')->first();
+        $this->assertNotNull($order);
+        $this->assertSame($owner->id, (int) $order->order_owner_id);
+        $this->assertSame($owner->id, (int) $order->manager_id);
+        $this->assertSame($dispatcher->id, (int) $order->dispatcher_id);
+
+        $metadata = is_array($order->metadata) ? $order->metadata : [];
+        $this->assertSame($owner->id, $metadata['compensation_split']['order_owner_id'] ?? null);
+        $this->assertSame($dispatcher->id, $metadata['compensation_split']['dispatcher_id'] ?? null);
+
+        $this->actingAs($admin)
+            ->get(route('orders.edit', $order))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Orders/Wizard')
+                ->where('order.order_owner_id', $owner->id)
+                ->where('order.dispatcher_id', $dispatcher->id)
+            );
+    }
+
     private function makeDocxPath(array $entries): string
     {
         $directory = storage_path('framework/testing/disks/local');

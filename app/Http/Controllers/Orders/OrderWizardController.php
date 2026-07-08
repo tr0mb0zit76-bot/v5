@@ -68,6 +68,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
@@ -452,6 +453,8 @@ class OrderWizardController extends Controller
                 'name' => $request->user()?->name,
                 'role_name' => $request->user()?->loadMissing('role')->role?->name,
             ],
+            'responsibleUsers' => $this->responsibleUsers($request)->values(),
+            'canAssignResponsible' => $this->canAssignResponsible($request),
             'recentIntakeDrafts' => [],
             'cargoTitleSuggestions' => Cargo::query()
                 ->whereNotNull('title')
@@ -770,8 +773,12 @@ class OrderWizardController extends Controller
             'own_company_bank_account_id' => Schema::hasColumn('orders', 'own_company_bank_account_id')
                 ? $order->own_company_bank_account_id
                 : null,
-            'responsible_id' => $order->manager_id,
-            'responsible_name' => $order->relationLoaded('manager') ? $order->manager?->name : null,
+            'responsible_id' => $this->resolveSerializedOrderOwnerId($order),
+            'responsible_name' => $this->resolveSerializedOrderOwnerName($order),
+            'order_owner_id' => $this->resolveSerializedOrderOwnerId($order),
+            'order_owner_name' => $this->resolveSerializedOrderOwnerName($order),
+            'dispatcher_id' => Schema::hasColumn('orders', 'dispatcher_id') ? $order->dispatcher_id : null,
+            'dispatcher_name' => $order->relationLoaded('dispatcher') ? $order->dispatcher?->name : null,
             'payment_terms' => $order->payment_terms,
             'special_notes' => $order->special_notes,
             'basic_terms' => $this->serializeBasicTermsForWizard($order),
@@ -2034,6 +2041,14 @@ class OrderWizardController extends Controller
     {
         $relations = ['client', 'ownCompany', 'manager', 'legs.routePoints'];
 
+        if (Schema::hasColumn('orders', 'order_owner_id')) {
+            $relations[] = 'orderOwner';
+        }
+
+        if (Schema::hasColumn('orders', 'dispatcher_id')) {
+            $relations[] = 'dispatcher';
+        }
+
         if (Schema::hasTable('leg_contractor_assignments')) {
             $relations[] = 'legs.contractorAssignments';
             $relations[] = 'legs.contractorAssignment';
@@ -3180,5 +3195,92 @@ class OrderWizardController extends Controller
         $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
 
         return $scope === 'all' || (int) $order->manager_id === (int) $user->id;
+    }
+
+    private function canAssignResponsible(Request $request): bool
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'orders');
+    }
+
+    /**
+     * @return Collection<int, array{id:int,name:string}>
+     */
+    private function responsibleUsers(Request $request): Collection
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            return collect();
+        }
+
+        if (! $this->canAssignResponsible($request)) {
+            return collect([[
+                'id' => $user->id,
+                'name' => $user->name,
+            ]]);
+        }
+
+        $usersQuery = DB::table('users')
+            ->join('roles', 'roles.id', '=', 'users.role_id')
+            ->where('roles.name', 'manager')
+            ->orderBy('users.name');
+
+        if (Schema::hasColumn('users', 'is_active')) {
+            $usersQuery->where('users.is_active', true);
+        }
+
+        $users = $usersQuery
+            ->get(['users.id', 'users.name'])
+            ->map(fn ($userRow): array => ['id' => $userRow->id, 'name' => $userRow->name])
+            ->values();
+
+        $currentUserId = (int) $user->id;
+        if (! $users->contains(fn (array $row): bool => (int) $row['id'] === $currentUserId)) {
+            $users->prepend([
+                'id' => $user->id,
+                'name' => $user->name,
+            ]);
+        }
+
+        if ($users->isNotEmpty()) {
+            return $users;
+        }
+
+        return collect([[
+            'id' => $user->id,
+            'name' => $user->name,
+        ]]);
+    }
+
+    private function resolveSerializedOrderOwnerId(Order $order): ?int
+    {
+        if (Schema::hasColumn('orders', 'order_owner_id') && $order->order_owner_id !== null) {
+            return (int) $order->order_owner_id;
+        }
+
+        return $order->manager_id !== null ? (int) $order->manager_id : null;
+    }
+
+    private function resolveSerializedOrderOwnerName(Order $order): ?string
+    {
+        if (
+            Schema::hasColumn('orders', 'order_owner_id')
+            && $order->order_owner_id !== null
+            && $order->relationLoaded('orderOwner')
+        ) {
+            return $order->orderOwner?->name;
+        }
+
+        return $order->relationLoaded('manager') ? $order->manager?->name : null;
     }
 }

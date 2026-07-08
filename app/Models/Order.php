@@ -24,6 +24,8 @@ class Order extends Model
         'order_number',
         'company_code',
         'manager_id',
+        'order_owner_id',
+        'dispatcher_id',
         'order_date',
         'loading_date',
         'unloading_date',
@@ -232,6 +234,22 @@ class Order extends Model
     public function manager(): BelongsTo
     {
         return $this->belongsTo(User::class, 'manager_id');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function orderOwner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'order_owner_id');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function dispatcher(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'dispatcher_id');
     }
 
     /**

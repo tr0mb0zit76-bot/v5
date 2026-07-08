@@ -66,11 +66,13 @@ class OrderWizardService
         return DB::transaction(function () use ($validated, $user): Order {
             $validated = $this->normalizeValidatedPaymentForms($validated);
             $ownCompany = $this->resolveOwnCompany($validated);
+            $orderOwnerId = $this->resolveOrderOwnerIdFromValidated($validated, $user, true, null);
+            $ownerUser = User::query()->find($orderOwnerId) ?? $user;
             $generatedNumber = blank($validated['order_number'] ?? null)
-                ? $this->orderNumberGenerator->generate($ownCompany, $user)
-                : ['company_code' => $this->orderNumberGenerator->generate($ownCompany, $user)['company_code'], 'order_number' => $validated['order_number']];
+                ? $this->orderNumberGenerator->generate($ownCompany, $ownerUser)
+                : ['company_code' => $this->orderNumberGenerator->generate($ownCompany, $ownerUser)['company_code'], 'order_number' => $validated['order_number']];
 
-            $order = Order::query()->create($this->extractOrderAttributes($validated, $user, $generatedNumber, true, null, null));
+            $order = Order::query()->create($this->extractOrderAttributes($validated, $user, $generatedNumber, true, null));
 
             $this->syncNestedData($order, $validated, $user);
             $freshOrder = OrderRouteMilestoneDateResolver::syncToOrder($order->fresh() ?? $order);
@@ -97,17 +99,19 @@ class OrderWizardService
             }
             $previousStatus = $order->status;
             $previousOrderDate = optional($order->order_date)?->toDateString();
-            $previousManagerId = $order->manager_id;
+            $previousManagerId = $this->hasOrdersColumn('order_owner_id') && $order->order_owner_id !== null
+                ? (int) $order->order_owner_id
+                : (int) $order->manager_id;
 
             $ownCompany = $this->resolveOwnCompany($validated);
-            $manager = User::query()->find($order->manager_id) ?? $user;
+            $orderOwnerId = $this->resolveOrderOwnerIdFromValidated($validated, $user, false, $order);
+            $ownerUser = User::query()->find($orderOwnerId) ?? $user;
             $generatedNumber = blank($validated['order_number'] ?? null)
-                ? $this->orderNumberGenerator->generate($ownCompany, $manager)
-                : ['company_code' => $this->orderNumberGenerator->generate($ownCompany, $manager)['company_code'], 'order_number' => $validated['order_number']];
+                ? $this->orderNumberGenerator->generate($ownCompany, $ownerUser)
+                : ['company_code' => $this->orderNumberGenerator->generate($ownCompany, $ownerUser)['company_code'], 'order_number' => $validated['order_number']];
 
-            $existingMetadata = is_array($order->metadata) ? $order->metadata : null;
             $validated = $this->normalizeBasicTermsInValidated($validated, $order);
-            $order->update($this->extractOrderAttributes($validated, $user, $generatedNumber, false, $order->manager_id, $existingMetadata));
+            $order->update($this->extractOrderAttributes($validated, $user, $generatedNumber, false, $order));
 
             $this->syncNestedData($order, $validated, $user);
 
@@ -136,9 +140,11 @@ class OrderWizardService
         User $user,
         array $numberData,
         bool $isCreating,
-        ?int $existingManagerId = null,
-        ?array $existingMetadata = null,
+        ?Order $existingOrder = null,
     ): array {
+        $existingMetadata = is_array($existingOrder?->metadata) ? $existingOrder->metadata : null;
+        $orderOwnerId = $this->resolveOrderOwnerIdFromValidated($validated, $user, $isCreating, $existingOrder);
+        $dispatcherId = $this->resolveDispatcherIdFromValidated($validated, $isCreating, $existingOrder);
         $financialTerm = Arr::get($validated, 'financial_term', []);
         $contractorCosts = Arr::get($financialTerm, 'contractors_costs', []);
         $performers = $this->resolvedPerformers($validated);
@@ -183,7 +189,7 @@ class OrderWizardService
         $attributes = [
             'order_number' => $numberData['order_number'],
             'company_code' => $numberData['company_code'],
-            'manager_id' => $isCreating ? $user->id : $existingManagerId,
+            'manager_id' => $orderOwnerId,
             'order_date' => $validated['order_date'],
             'loading_date' => $firstLoadingDate,
             'unloading_date' => $lastUnloadingDate,
@@ -215,6 +221,14 @@ class OrderWizardService
             ...($isCreating ? ['created_by' => $user->id] : []),
         ];
 
+        if ($this->hasOrdersColumn('order_owner_id')) {
+            $attributes['order_owner_id'] = $orderOwnerId;
+        }
+
+        if ($this->hasOrdersColumn('dispatcher_id')) {
+            $attributes['dispatcher_id'] = $dispatcherId;
+        }
+
         $metadata = is_array($existingMetadata) ? $existingMetadata : [];
         $loadingTypes = array_values(array_filter(
             array_map(
@@ -228,6 +242,8 @@ class OrderWizardService
         } else {
             $metadata['loading_types'] = array_values(array_unique($loadingTypes));
         }
+
+        $metadata = $this->syncCompensationSplitMetadata($metadata, $orderOwnerId, $dispatcherId);
 
         $attributes['metadata'] = $metadata;
 
@@ -1983,5 +1999,62 @@ class OrderWizardService
         }
 
         return $validated;
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function resolveOrderOwnerIdFromValidated(array $validated, User $user, bool $isCreating, ?Order $existingOrder): int
+    {
+        $fromPayload = $validated['order_owner_id'] ?? $validated['responsible_id'] ?? null;
+        if ($fromPayload !== null && (int) $fromPayload > 0) {
+            return (int) $fromPayload;
+        }
+
+        if (! $isCreating && $existingOrder !== null) {
+            if ($this->hasOrdersColumn('order_owner_id') && $existingOrder->order_owner_id !== null) {
+                return (int) $existingOrder->order_owner_id;
+            }
+
+            return (int) $existingOrder->manager_id;
+        }
+
+        return (int) $user->id;
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function resolveDispatcherIdFromValidated(array $validated, bool $isCreating, ?Order $existingOrder): ?int
+    {
+        if (array_key_exists('dispatcher_id', $validated)) {
+            $dispatcherId = $validated['dispatcher_id'];
+
+            return $dispatcherId === null || $dispatcherId === '' ? null : (int) $dispatcherId;
+        }
+
+        if (! $isCreating && $existingOrder !== null && $this->hasOrdersColumn('dispatcher_id')) {
+            return $existingOrder->dispatcher_id !== null ? (int) $existingOrder->dispatcher_id : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>
+     */
+    private function syncCompensationSplitMetadata(array $metadata, int $orderOwnerId, ?int $dispatcherId): array
+    {
+        $existing = is_array($metadata['compensation_split'] ?? null) ? $metadata['compensation_split'] : [];
+
+        $metadata['compensation_split'] = [
+            'order_owner_id' => $orderOwnerId,
+            'dispatcher_id' => $dispatcherId,
+            'order_owner_percent' => (float) ($existing['order_owner_percent'] ?? 100),
+            'dispatcher_percent' => (float) ($existing['dispatcher_percent'] ?? 0),
+        ];
+
+        return $metadata;
     }
 }

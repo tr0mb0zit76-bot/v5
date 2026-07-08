@@ -11,6 +11,7 @@ use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\LoadBoard\LoadBoardCorridorKey;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class LoadBoardTest extends TestCase
@@ -330,5 +331,66 @@ class LoadBoardTest extends TestCase
             ->assertJsonPath('insights.available', true)
             ->assertJsonPath('insights.sample_size', 1)
             ->assertJsonPath('insights.carrier_rate.min', 150000);
+    }
+
+    public function test_load_board_post_uses_order_owner_as_seller_and_creates_procurement_case(): void
+    {
+        if (! Schema::hasColumn('orders', 'order_owner_id') || ! Schema::hasTable('procurement_cases')) {
+            $this->markTestSkipped('order_owner_id or procurement_cases missing');
+        }
+
+        $role = Role::query()->create([
+            'name' => 'load_board_role_owner',
+            'display_name' => 'Load board owner',
+            'visibility_areas' => ['load_board'],
+        ]);
+
+        $publisher = User::factory()->create(['role_id' => $role->id]);
+        $owner = User::factory()->create(['role_id' => $role->id]);
+
+        $customer = Contractor::query()->create([
+            'type' => 'customer',
+            'name' => 'ООО Клиент владелец',
+            'is_active' => true,
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'LB-OWNER-1',
+            'manager_id' => $owner->id,
+            'order_owner_id' => $owner->id,
+            'dispatcher_id' => $publisher->id,
+            'customer_id' => $customer->id,
+            'status' => 'draft',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($publisher)
+            ->post(route('load-board.store'), [
+                'customer_id' => $customer->id,
+                'order_id' => $order->id,
+                'priority' => 'normal',
+                'title' => 'Москва → СПб',
+                'loading_location' => 'Москва',
+                'unloading_location' => 'Санкт-Петербург',
+                'loading_date' => '2026-07-10',
+                'cargo_name' => 'ТНП',
+                'ati_cargo_name' => 'ТНП',
+                'cargo_weight' => 10,
+                'customer_rate' => 120000,
+                'customer_rate_currency' => 'RUB',
+            ])
+            ->assertRedirect(route('load-board.index'));
+
+        $post = LoadBoardPost::query()->where('order_id', $order->id)->first();
+        $this->assertNotNull($post);
+        $this->assertSame($owner->id, $post->seller_id);
+
+        $this->assertDatabaseHas('procurement_cases', [
+            'load_board_post_id' => $post->id,
+            'order_id' => $order->id,
+            'order_owner_id' => $owner->id,
+            'dispatcher_id' => $publisher->id,
+            'status' => 'new',
+        ]);
     }
 }

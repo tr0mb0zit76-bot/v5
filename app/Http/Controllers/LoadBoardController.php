@@ -17,6 +17,7 @@ use App\Services\LoadBoard\LoadBoardBuyerTaskService;
 use App\Services\LoadBoard\LoadBoardPostIndexService;
 use App\Services\LoadBoard\LoadBoardPostPresenter;
 use App\Services\LoadBoard\LoadBoardRateObservationService;
+use App\Services\LoadBoard\ProcurementCaseSyncService;
 use App\Support\AtiDictionaryOptionCatalog;
 use App\Support\LoadBoardOfferSource;
 use App\Support\RoleAccess;
@@ -36,6 +37,7 @@ class LoadBoardController extends Controller
         private readonly LoadBoardPostIndexService $postIndex,
         private readonly LoadBoardPostPresenter $postPresenter,
         private readonly LoadBoardRateObservationService $rateObservations,
+        private readonly ProcurementCaseSyncService $procurementCases,
     ) {}
 
     /**
@@ -120,16 +122,18 @@ class LoadBoardController extends Controller
     public function store(StoreLoadBoardPostRequest $request, LoadBoardBuyerTaskService $buyerTasks): RedirectResponse
     {
         $validated = $request->validated();
+        $sellerId = $this->resolveSellerIdForPost($validated, $request->user());
 
         $post = LoadBoardPost::query()->create([
             ...$validated,
-            'seller_id' => $request->user()?->id,
+            'seller_id' => $sellerId,
             'status' => 'new',
             'customer_rate_currency' => strtoupper((string) ($validated['customer_rate_currency'] ?? 'RUB')),
             'ati_cargo_payload' => $this->atiCargoPayloadFromPostData($validated),
             'published_at' => now(),
         ]);
 
+        $this->procurementCases->ensureForPost($post->fresh());
         $buyerTasks->ensureForPost($post, $request->user());
 
         return to_route('load-board.index')->with('message', 'Груз опубликован на внутренней бирже.');
@@ -151,6 +155,8 @@ class LoadBoardController extends Controller
         ]);
 
         $buyerTasks->ensureForPost($post->fresh(), $user);
+
+        $this->procurementCases->syncPostStatus($post->fresh());
 
         return back()->with('message', 'Груз взят в работу.');
     }
@@ -194,6 +200,8 @@ class LoadBoardController extends Controller
         if ($buyerId !== null) {
             $buyerTasks->ensureForPost($post->fresh(), $request->user());
         }
+
+        $this->procurementCases->syncPostStatus($post->fresh());
 
         return back()->with('message', $buyerId === null ? 'Закупщик снят.' : 'Закупщик назначен.');
     }
@@ -276,6 +284,7 @@ class LoadBoardController extends Controller
 
             $this->applyAcceptedOfferToOrder($post->fresh(), $offer);
             $this->closeBuyerTask($post);
+            $this->procurementCases->syncPostStatus($post->fresh());
         });
 
         return back()->with('message', 'Вариант перевозчика принят. Груз закрыт, данные зафиксированы для заказа.');
@@ -784,5 +793,30 @@ class LoadBoardController extends Controller
         }
 
         return $last ? $points->last() : $points->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function resolveSellerIdForPost(array $validated, ?User $user): ?int
+    {
+        $orderId = $validated['order_id'] ?? null;
+        if ($orderId !== null) {
+            $order = Order::query()
+                ->select(['id', 'order_owner_id', 'manager_id'])
+                ->find($orderId);
+
+            if ($order instanceof Order) {
+                if (Schema::hasColumn('orders', 'order_owner_id') && $order->order_owner_id !== null) {
+                    return (int) $order->order_owner_id;
+                }
+
+                if ($order->manager_id !== null) {
+                    return (int) $order->manager_id;
+                }
+            }
+        }
+
+        return $user?->id;
     }
 }

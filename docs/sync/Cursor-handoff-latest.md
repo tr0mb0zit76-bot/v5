@@ -3,9 +3,35 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-08 20:52 · **HEAD:** `f7440a0` · **Ветка:** `master`
+**Обновлено:** 2026-07-08 21:10 · **HEAD:** _(после push этого коммита)_ · **Ветка:** `master`
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+---
+
+## Что сделано (2026-07-08) — Биржа фаза 2: owner/dispatcher + ProcurementCase
+
+- **Заказ:** колонки `orders.order_owner_id`, `orders.dispatcher_id` (backfill `order_owner_id = manager_id`); при сохранении `manager_id` = владелец (KPI без смены логики).
+- **Мастер заказа:** вкладка «Основное» — **Владелец сделки** и **Диспетчер**; `responsibleUsers` / `canAssignResponsible` как на лиде.
+- **`metadata.compensation_split`:** снимок ролей (owner/dispatcher, 100%/0% по умолчанию) при сохранении заказа.
+- **`procurement_cases`:** обёртка над `load_board_posts`; `ProcurementCaseSyncService` — create при публикации, sync при take/assign/approve.
+- **Биржа:** `seller_id` при публикации с заказом = `order.order_owner_id ?? manager_id` (не текущий пользователь).
+- **Миграции:** `2026_07_08_210000_add_order_owner_and_dispatcher_to_orders_table.php`, `2026_07_08_210100_create_procurement_cases_table.php`.
+- **Тесты:** `LoadBoardTest` (6 passed, + owner→seller + case), `OrderWizardTest` (+ owner/dispatcher/compensation_split).
+
+### Деплой
+```powershell
+git pull
+php artisan migrate   # order_owner_id, dispatcher_id, procurement_cases
+npm run build
+php artisan test --compact tests/Feature/LoadBoardTest.php
+```
+
+### Следующий шаг
+1. **Smoke UI:** мастер заказа — смена владельца/диспетчера; биржа — публикация с заказа (seller = владелец).
+2. **Prod:** migrate + build (см. выше).
+3. **Биржа фаза 3:** UI `ProcurementCase`, split % в compensation, ATI API; multi order/lead на кейс — см. `docs/load-board-procurement-architecture.md`.
+4. **Backlog:** ЭДО, ДТ/ГТД — не в scope.
 
 ---
 
@@ -49,7 +75,7 @@ npm run build
 ### Следующий шаг (после этого пакета)
 1. **Smoke UI:** лид → предрасчёт → конвертация → заказ вкладка «Предрасчёт»; Traklo → Документы drill-down.
 2. **Prod:** migrate + build (см. выше).
-3. **Биржа фаза 2:** `dispatcher_id`, owner/dispatcher в мастере заказа, `ProcurementCase` — см. `docs/load-board-procurement-architecture.md`.
+3. ~~**Биржа фаза 2:** `dispatcher_id`, owner/dispatcher в мастере заказа, `ProcurementCase`~~ — **сделано**, см. секцию выше.
 4. **Backlog:** ЭДО (Астрал, Калуга, …), ДТ/ГТД — не в scope.
 
 ---
@@ -71,9 +97,9 @@ npm run build
 
 ## Следующий шаг (Биржа грузов)
 
-1. **Smoke UI:** `/load-board` — вкладки, подгрузка строк, карточка офферов, insights, новые колонки грида.
-2. **Prod:** `git pull` → `php artisan migrate` → `npm run build`.
-3. **Фаза 2:** `dispatcher_id`, split owner/dispatcher, `ProcurementCase`; ATI API после ключа.
+1. **Smoke UI:** мастер заказа (владелец/диспетчер); `/load-board` — seller с заказа = владелец, `procurement_cases` в БД.
+2. **Prod:** `git pull` → `php artisan migrate` (210000, 210100) → `npm run build`.
+3. **Фаза 3:** UI кейса закупки, split % compensation, multi order/lead; ATI API после ключа.
 
 ---
 

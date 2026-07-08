@@ -79,6 +79,10 @@ class StoreOrderRequest extends FormRequest
         $validated = $this->validated();
         $validated['cargo_items'] = OrderCargoItemsPayloadNormalizer::normalizeValidatedCargoItems($validated, $this);
 
+        if (! array_key_exists('order_owner_id', $validated) && isset($validated['responsible_id'])) {
+            $validated['order_owner_id'] = $validated['responsible_id'];
+        }
+
         return $validated;
     }
 
@@ -457,6 +461,9 @@ class StoreOrderRequest extends FormRequest
             'own_company_bank_account_id' => ['nullable', 'string', 'max:100'],
             'client_id' => ['required', 'integer', 'exists:contractors,id'],
             'order_date' => ['required', 'date'],
+            'order_owner_id' => ['nullable', 'integer', 'exists:users,id'],
+            'responsible_id' => ['nullable', 'integer', 'exists:users,id'],
+            'dispatcher_id' => ['nullable', 'integer', 'exists:users,id'],
             'order_number' => ['nullable', 'string', 'max:255'],
             'special_notes' => ['nullable', 'string'],
             'customer_basic_terms' => ['nullable', 'array'],

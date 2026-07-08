@@ -398,6 +398,36 @@
                         </div>
                     </div>
 
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium">Владелец сделки</label>
+                            <select
+                                v-model.number="form.order_owner_id"
+                                :class="crmFieldFluid"
+                                :disabled="!canAssignResponsible || !isOrderFormEditable"
+                            >
+                                <option v-for="user in responsibleUsers" :key="`order-owner-${user.id}`" :value="user.id">
+                                    {{ user.name }}
+                                </option>
+                            </select>
+                            <p v-if="form.errors.order_owner_id" class="text-xs text-rose-500">{{ form.errors.order_owner_id }}</p>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium">Диспетчер</label>
+                            <select
+                                v-model="form.dispatcher_id"
+                                :class="crmFieldFluid"
+                                :disabled="!canAssignResponsible || !isOrderFormEditable"
+                            >
+                                <option :value="null">Не назначен</option>
+                                <option v-for="user in responsibleUsers" :key="`order-dispatcher-${user.id}`" :value="user.id">
+                                    {{ user.name }}
+                                </option>
+                            </select>
+                            <p v-if="form.errors.dispatcher_id" class="text-xs text-rose-500">{{ form.errors.dispatcher_id }}</p>
+                        </div>
+                    </div>
+
                     <div v-if="form.performers.length > 1" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                         <div>
                             <h2 class="text-base font-semibold">Клиентская заявка</h2>
@@ -2121,6 +2151,8 @@ const props = defineProps({
     requiredDocumentRules: { type: Array, default: () => [] },
     requiredDocumentChecklist: { type: Array, default: () => [] },
     currentUser: { type: Object, default: () => ({}) },
+    responsibleUsers: { type: Array, default: () => [] },
+    canAssignResponsible: { type: Boolean, default: false },
     bonusMultiplier: { type: Number, default: 0 },
     cargoTitleSuggestions: { type: Array, default: () => [] },
     canAccessMail: { type: Boolean, default: false },
@@ -2657,6 +2689,8 @@ function blankOrder() {
         own_company_id: null,
         own_company_bank_account_id: null,
         client_id: null,
+        order_owner_id: null,
+        dispatcher_id: null,
         order_date: new Date().toISOString().slice(0, 10),
         order_number: '',
         payment_terms: '',
@@ -3184,6 +3218,24 @@ function onSplitActualDateInput(slot, field) {
     slot[field] = clampActualDateToToday(slot[field]);
 }
 
+function defaultOrderOwnerId() {
+    const fromOrder = normalizeNullableNumber(
+        initialOrderPayload.value?.order_owner_id ?? initialOrderPayload.value?.responsible_id,
+    );
+
+    if (fromOrder) {
+        return fromOrder;
+    }
+
+    const fallbackUserId = normalizeNullableNumber(props.responsibleUsers?.[0]?.id);
+
+    if (fallbackUserId) {
+        return fallbackUserId;
+    }
+
+    return normalizeNullableNumber(props.currentUser?.id);
+}
+
 const form = useForm({
     ...blankOrder(),
     ...(initialOrderPayload.value ?? {}),
@@ -3192,6 +3244,8 @@ const form = useForm({
         ? String(initialOrderPayload.value.own_company_bank_account_id)
         : null,
     client_id: normalizeNullableNumber(initialOrderPayload.value?.client_id),
+    order_owner_id: defaultOrderOwnerId(),
+    dispatcher_id: normalizeNullableNumber(initialOrderPayload.value?.dispatcher_id),
     manual_status: initialOrderPayload.value?.manual_status ?? null,
     additional_expenses: initialOrderPayload.value?.additional_expenses ?? null,
     additional_expenses_payment_date: initialOrderPayload.value?.additional_expenses_payment_date ?? initialOrderPayload.value?.order_date ?? null,
@@ -3450,7 +3504,7 @@ async function calculateCompensation() {
                 additional_expenses: sumAdditionalCostsAmount(form.financial_term.additional_costs),
                 insurance: Number(form.insurance || 0),
                 bonus: Number(form.bonus || 0),
-                manager_id: props.order?.responsible_id ?? props.currentUser?.id,
+                manager_id: form.order_owner_id ?? props.currentUser?.id,
                 order_date: form.order_date,
                 customer_payment_form: normalizePaymentFormCode(form.financial_term.client_payment_form, defaultClientPaymentForm()),
                 contractors_costs: legContractorCosts.value,
@@ -6696,6 +6750,9 @@ function buildSubmitPayload() {
             ? String(form.own_company_bank_account_id).trim()
             : null,
         client_id: form.client_id,
+        order_owner_id: form.order_owner_id,
+        responsible_id: form.order_owner_id,
+        dispatcher_id: form.dispatcher_id,
         order_date: form.order_date,
         order_number: form.order_number,
         payment_terms: form.payment_terms,

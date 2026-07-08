@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class LoadBoardPost extends Model
 {
@@ -178,5 +179,13 @@ class LoadBoardPost extends Model
     public function offers(): HasMany
     {
         return $this->hasMany(LoadBoardOffer::class);
+    }
+
+    /**
+     * @return HasOne<ProcurementCase, $this>
+     */
+    public function procurementCase(): HasOne
+    {
+        return $this->hasOne(ProcurementCase::class);
     }
 }
