@@ -69,6 +69,8 @@ function buildClosingTypeRow(baseRow, closingType, signedDocuments, edoAcknowled
         : closingType.label;
 
     if (matchedDocument) {
+        const hasScan = Boolean(matchedDocument.uploaded_file_preview_url);
+
         return {
             ...matchedDocument,
             requirement_key: baseRow.requirement_key,
@@ -82,6 +84,7 @@ function buildClosingTypeRow(baseRow, closingType, signedDocuments, edoAcknowled
             checklist_completed: true,
             is_placeholder: false,
             is_closing_edo_row: false,
+            closing_edo_controls: !hasScan,
             edo_acknowledgement: edoAcknowledgement,
             closing_package_key: baseRow.requirement_key,
         };
@@ -105,6 +108,7 @@ function buildClosingTypeRow(baseRow, closingType, signedDocuments, edoAcknowled
         checklist_completed: edoActive,
         is_placeholder: true,
         is_closing_edo_row: true,
+        closing_edo_controls: true,
         edo_acknowledgement: edoAcknowledgement,
         closing_package_key: baseRow.requirement_key,
     };
@@ -134,4 +138,21 @@ export function expandClosingRowsForEdo(rows, signedDocuments = [], edoAcknowled
 
 export function isClosingEdoRow(row) {
     return Boolean(row?.is_closing_edo_row);
+}
+
+export function rowHasClosingEdoControls(row) {
+    return Boolean(row?.closing_edo_controls ?? row?.is_closing_edo_row);
+}
+
+/** Подпись чекбокса/статуса ЭДО: заказчику отправляем, от перевозчика получаем. */
+export function edoAcknowledgementToggleLabel(party) {
+    if (party === 'customer') {
+        return 'Отправлен';
+    }
+
+    if (party === 'carrier' || party === 'contractor') {
+        return 'Получен';
+    }
+
+    return 'ЭДО';
 }

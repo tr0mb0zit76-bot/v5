@@ -3,7 +3,7 @@ import { computed, reactive, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { ExternalLink, Trash2 } from 'lucide-vue-next';
 import axios from 'axios';
-import { expandClosingRowsForEdo } from '@/support/orderDocumentClosingEdoRows.js';
+import { expandClosingRowsForEdo, edoAcknowledgementToggleLabel, rowHasClosingEdoControls } from '@/support/orderDocumentClosingEdoRows.js';
 import { buildRegistryTableRows } from '@/support/orderDocumentRegistryRows.js';
 import { attachTrackReceivedToRegistryRows } from '@/support/orderTrackingDates.js';
 import {
@@ -62,7 +62,7 @@ const rows = computed(() => {
 });
 
 const showReceivedDateColumn = computed(() => rows.value.some((row) => row.track_field));
-const showEdoColumn = computed(() => rows.value.some((row) => row.is_closing_edo_row || row.slot_kind?.endsWith('_closing')));
+const showEdoColumn = computed(() => rows.value.some((row) => rowHasClosingEdoControls(row) || row.slot_kind?.endsWith('_closing')));
 
 const localReceivedDates = reactive({});
 const savingTrackFields = reactive({});
@@ -93,7 +93,7 @@ watch(
                 delete trackSaveErrors[row.track_field];
             }
 
-            if (row.is_closing_edo_row) {
+            if (rowHasClosingEdoControls(row)) {
                 const key = edoRowKey(row);
                 activeEdoKeys.add(key);
                 localEdoState[key] = {
@@ -220,8 +220,12 @@ function onReceivedDateBlur(row) {
 function canEditEdoForRow(row) {
     return props.canEditEdo
         && resolvedOrderId.value
-        && row.is_closing_edo_row
+        && rowHasClosingEdoControls(row)
         && !row.uploaded_file_preview_url;
+}
+
+function edoToggleLabel(row) {
+    return edoAcknowledgementToggleLabel(row.party);
 }
 
 async function saveEdoRow(row) {
@@ -391,7 +395,7 @@ function onEdoFieldBlur(row) {
                         <span v-else>—</span>
                     </td>
                     <td v-if="showEdoColumn" class="px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
-                        <template v-if="row.is_closing_edo_row">
+                        <template v-if="rowHasClosingEdoControls(row)">
                             <label v-if="canEditEdoForRow(row)" class="inline-flex items-center gap-2">
                                 <input
                                     type="checkbox"
@@ -400,7 +404,7 @@ function onEdoFieldBlur(row) {
                                     :disabled="savingEdoKeys[edoRowKey(row)]"
                                     @change="onEdoToggle(row, $event)"
                                 >
-                                <span class="text-xs">Получено</span>
+                                <span class="text-xs">{{ edoToggleLabel(row) }}</span>
                             </label>
                             <span
                                 v-else-if="row.uploaded_file_preview_url"
@@ -413,7 +417,7 @@ function onEdoFieldBlur(row) {
                                 v-else-if="localEdoState[edoRowKey(row)]?.received_via_edo || row.edo_acknowledgement?.received_via_edo"
                                 class="text-xs font-medium text-emerald-700 dark:text-emerald-300"
                             >
-                                ЭДО
+                                {{ edoToggleLabel(row) }}
                             </span>
                             <span v-else class="text-xs text-zinc-400">—</span>
                             <p v-if="edoSaveErrors[edoRowKey(row)]" class="mt-1 text-xs text-rose-600">
