@@ -73,7 +73,7 @@
 | M5.1 | Маппинг opex → `management_expense_categories` | ✅ sync + `management_expense_category_id` |
 | M5.2 | `BudgetPlanSnapshotService::freeze()` + миграции снапшотов | ✅ |
 | M5.3 | Дочерний сценарий «План продавцов» (ФОТ по user_id) | backlog (v1: агрегат ФОТ в variance ✅) |
-| M5.3b | План по продажам по user_id (выручка, маржа, лиды, заказы) | backlog — см. `management-accounting-budgeting-integration.md` |
+| M5.3b | План по продажам по user_id (выручка, маржа, лиды, заказы) | ✅ `budget_sales_targets`, `Budgeting/Index` |
 | M5.4 | `BudgetVarianceService` + интеграция в `ManagementAccountingAnalyticsService` | ✅ |
 | M5.5 | UI отклонений (`ManagementAccountingVarianceTable`) + freeze на `Budgeting/Index` | ✅ |
 | M5.6 | Тесты: `BudgetPlanSnapshotServiceTest`, `BudgetVarianceServiceTest`, analytics snapshot | ✅ |

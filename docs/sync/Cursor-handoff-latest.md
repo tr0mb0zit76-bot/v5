@@ -3,7 +3,22 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-09 21:10 (пул кандидатов) · **HEAD:** `756c858` · **Ветка:** `master`
+**Обновлено:** 2026-07-09 22:30 (M5.3b план продавцов) · **HEAD:** `756c858` · **Ветка:** `master`
+
+### Итог сессии 2026-07-09 (поздний вечер) — M5.3b план продавцов
+
+| Блок | Статус |
+| --- | --- |
+| `budget_sales_targets` + дочерний сценарий `sales_payroll` | ✅ |
+| `BudgetSalesTargetService` / `BudgetSalesPerformanceService` | ✅ |
+| UI «План продавцов» на `Budgeting/Index` | ✅ |
+| `PATCH budgeting/sales-targets` | ✅ |
+| Logismart ДТ/ГТД/ТП — снято с backlog | ✅ docs |
+| Тесты `BudgetSalesTargetServiceTest` | ✅ |
+
+**На прод:** `git pull` → `php artisan migrate` → `npm run build`.
+
+---
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
@@ -45,8 +60,9 @@
 | Решение | Документ |
 | --- | --- |
 | **Microsoft Graph** — снят с backlog (почта reg.ru, IMAP) | `commercial-intelligence-roadmap.md` 2a.9 |
-| **План продавцов** — оставить + **план по продажам** (выручка/маржа/лиды/заказы по user_id) | `management-accounting-budgeting-integration.md` M5.3b |
+| **План продавцов** — оставить + **план по продажам** (выручка/маржа/лиды/заказы по user_id) | ✅ M5.3b `budget_sales_targets`, UI на `Budgeting/Index` |
 | **NLP Play 6.4** — на паузе | `tz-step-05-scripts-analytics.md`, `scripts-module-implementation-plan.md` |
+| **Logismart: полная таможня ДТ/ГТД/ТП** — снято с backlog (не в scope; предрасчёт без ДТ/ТП) | handoff 2026-07-08, `e00bb38` |
 | **Биржа 🔴 следующий пакет:** AI-советник, страница кейса, пул перевозчиков | `load-board-procurement-architecture.md` |
 
 **Следующая разработка (биржа):** фаза 4 split KPI (локально) → AI-советник → `/load-board/cases/{id}` → единый пул.
@@ -128,7 +144,7 @@ php artisan test --compact tests/Feature/LoadBoardTest.php
 1. **Smoke UI:** мастер заказа — смена владельца/диспетчера; биржа — публикация с заказа (seller = владелец).
 2. **Prod:** migrate + build (см. выше).
 3. ~~**Биржа фаза 3:** UI `ProcurementCase`, split % в compensation, multi order/lead~~ — **сделано**, см. секцию выше.
-4. **Backlog:** ЭДО, ДТ/ГТД — не в scope.
+4. **ЭДО** — в работе; **ДТ/ГТД/ТП (полная таможня Logismart)** — снято с backlog, не в scope.
 
 ---
 
@@ -173,7 +189,7 @@ npm run build
 1. **Smoke UI:** лид → предрасчёт → конвертация → заказ вкладка «Предрасчёт»; Traklo → Документы drill-down.
 2. **Prod:** migrate + build (см. выше).
 3. ~~**Биржа фаза 2:** `dispatcher_id`, owner/dispatcher в мастере заказа, `ProcurementCase`~~ — **сделано**, см. секцию выше.
-4. **Backlog:** ЭДО (Астрал, Калуга, …), ДТ/ГТД — не в scope.
+4. **ЭДО** (Астрал, Калуга, …) — в работе; **ДТ/ГТД/ТП (полная таможня Logismart)** — снято с backlog, не в scope.
 
 ---
 

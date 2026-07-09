@@ -36,7 +36,7 @@ BudgetScenario (родитель, plan_type = company)
     └── **план по продажам** по user_id (см. ниже)
 ```
 
-**Реализовано:** снапшот родительского сценария. Дочерний сценарий, `budget_sales_half_users` и план по продажам — в backlog.
+**Реализовано:** снапшот родительского сценария; **M5.3b** — `budget_sales_targets`, дочерний сценарий `sales_payroll`, UI «План продавцов» на `Budgeting/Index`. Дочерний сценарий и `budget_sales_half_users` (ФОТ по user_id) — backlog M5.3.
 
 ### План по продажам (расширение M5.3, зафиксировано 2026-07-09)
 
@@ -109,7 +109,7 @@ ManagementAccountingAnalyticsService
 
 | Экран | Компонент / действие |
 | --- | --- |
-| `Budgeting/Index.vue` | Секция «Зафиксировать план», список последних снапшотов |
+| `Budgeting/Index.vue` | Секция «Зафиксировать план», **«План продавцов»** (M5.3b), список последних снапшотов |
 | `ManagementAccounting/Index.vue` | `ManagementAccountingVarianceTable`, предупреждение при `plan_source: live` |
 | `ManagementAccounting/ManualEntryModal` | Ручные операции (наличные) |
 | `Reconcile.vue` | Split: чекбокс «Несколько заявок», `allocations[]` |
@@ -117,6 +117,7 @@ ManagementAccountingAnalyticsService
 **Маршруты:**
 
 - `POST budgeting/plan-snapshots` — freeze (`FreezeBudgetPlanSnapshotRequest`)
+- `PATCH budgeting/sales-targets` — план продавцов (`UpdateBudgetSalesTargetsRequest`)
 - `POST finance/management-accounting/manual-entries` — ручная операция
 - `POST finance/management-accounting/lines/{line}/allocate` — в т.ч. `allocations: [{ payment_schedule_id, amount }]`
 
@@ -130,6 +131,7 @@ ManagementAccountingAnalyticsService
 | `budget_plan_snapshot_lines` | `snapshot_id`, `month`, `opex_article_id`, `category_id`, `planned_amount` |
 | `budget_scenarios.parent_scenario_id` | Родитель для «План продавцов» (backlog) |
 | `budget_scenarios.plan_type` | `company` \| `sales_payroll` |
+| `budget_sales_targets` | `scenario_id`, `user_id`, `period_month`, `metric`, `planned_value` |
 | `management_statement_line_splits` | Split разнесения: несколько `payment_schedule_id` на одну строку выписки |
 | `budget_opex_articles.management_expense_category_id` | FK на справочник управленки |
 
@@ -161,7 +163,7 @@ ManagementAccountingAnalyticsService
 | # | Задача |
 |---|--------|
 | M5.3 | Дочерний сценарий «План продавцов» + `budget_sales_half_users` (ФОТ по user_id) |
-| M5.3b | **План по продажам** по user_id: `budget_sales_targets`, план/факт выручка·маржа·лиды·заказы |
+| M5.3b | ✅ **План по продажам** по user_id: `budget_sales_targets`, план/факт выручка·маржа·лиды·заказы |
 | — | % от маржи в снапшоте и variance |
 | — | Авто-freeze 1-го числа месяца |
 
@@ -174,4 +176,4 @@ ManagementAccountingAnalyticsService
 | `BudgetPlanSnapshotServiceTest` | freeze, resolve snapshot |
 | `BudgetVarianceServiceTest` | compare по категориям |
 | `ManagementAccountingAnalyticsServiceTest` | `plan_source: snapshot` |
-| `ManagementAccountingAllocationSplitTest` | split на одну заявку |
+| `BudgetSalesTargetServiceTest` | upsert, payload, actuals |

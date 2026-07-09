@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Http\Requests\FreezeBudgetPlanSnapshotRequest;
 use App\Http\Requests\StoreBudgetOpexArticleRequest;
 use App\Http\Requests\UpdateBudgetOpexArticleRequest;
+use App\Http\Requests\UpdateBudgetSalesTargetsRequest;
 use App\Http\Requests\UpdateBudgetScenarioRequest;
 use App\Models\BudgetOpexArticle;
 use App\Models\BudgetScenario;
 use App\Services\Budgeting\BudgetMarginBenchmarkService;
 use App\Services\Budgeting\BudgetPlannerService;
 use App\Services\Budgeting\BudgetPlanSnapshotService;
+use App\Services\Budgeting\BudgetSalesTargetService;
 use App\Services\CompanyPlanning\CompanyPlanningBudgetLinkService;
 use App\Support\RoleAccess;
 use Carbon\CarbonImmutable;
@@ -26,6 +28,7 @@ class BudgetingController extends Controller
         private readonly BudgetMarginBenchmarkService $benchmarks,
         private readonly BudgetPlanSnapshotService $snapshotService,
         private readonly CompanyPlanningBudgetLinkService $companyPlanningBudgetLinks,
+        private readonly BudgetSalesTargetService $salesTargetService,
     ) {}
 
     public function index(Request $request): Response
@@ -49,6 +52,11 @@ class BudgetingController extends Controller
                 'name' => $scenario->name,
                 'updated_at' => optional($scenario->updated_at)?->toIso8601String(),
             ],
+            'sales_plan' => $this->salesTargetService->buildPayload(
+                $scenario,
+                $request->query('sales_month'),
+                (int) $inputs['horizon_months'],
+            ),
             'plan_snapshots' => $this->snapshotService->recentSnapshots(),
             'can_freeze_plan' => RoleAccess::canAccessBudgeting($request->user()),
             'company_planning_initiatives' => RoleAccess::canAccessCompanyPlanning($request->user())
@@ -58,6 +66,21 @@ class BudgetingController extends Controller
                 ? route('company-planning.index')
                 : null,
         ]);
+    }
+
+    public function updateSalesTargets(UpdateBudgetSalesTargetsRequest $request): RedirectResponse
+    {
+        $scenario = $this->resolveScenario();
+
+        $this->salesTargetService->upsert(
+            $scenario,
+            CarbonImmutable::parse($request->validated('period_month'))->startOfMonth(),
+            $request->validated('targets'),
+        );
+
+        return to_route('budgeting.index', [
+            'sales_month' => CarbonImmutable::parse($request->validated('period_month'))->format('Y-m-01'),
+        ])->with('flash', ['type' => 'success', 'message' => 'План продавцов сохранён.']);
     }
 
     public function freezePlan(FreezeBudgetPlanSnapshotRequest $request): RedirectResponse

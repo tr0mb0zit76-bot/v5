@@ -696,6 +696,92 @@
                     </div>
                     </div>
                 </section>
+
+                <section v-if="salesPlan.sellers.length > 0" :class="`${crmPanel} overflow-hidden`">
+                    <div class="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+                        <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">План продавцов</h2>
+                        <p class="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+                            Коммерческие цели по продавцам: план vs факт из CRM (закрытые заказы, лиды won).
+                        </p>
+                        <div class="mt-3 flex flex-wrap items-end gap-3">
+                            <label class="block space-y-1">
+                                <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Месяц</span>
+                                <select
+                                    v-model="selectedSalesMonth"
+                                    class="min-w-[180px] rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                                    @change="changeSalesMonth"
+                                >
+                                    <option
+                                        v-for="option in salesPlan.period_options"
+                                        :key="option.value"
+                                        :value="option.value"
+                                    >
+                                        {{ option.label }}
+                                    </option>
+                                </select>
+                            </label>
+                            <button
+                                type="button"
+                                class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50 dark:bg-sky-500"
+                                :disabled="salesTargetsForm.processing"
+                                @click="saveSalesTargets"
+                            >
+                                {{ salesTargetsForm.processing ? 'Сохранение…' : 'Сохранить план продавцов' }}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-900/60 dark:text-zinc-400">
+                                <tr>
+                                    <th class="px-4 py-3 font-semibold" rowspan="2">Продавец</th>
+                                    <th
+                                        v-for="metric in salesPlan.metrics"
+                                        :key="metric.key"
+                                        class="px-3 py-2 text-center font-semibold"
+                                        colspan="3"
+                                    >
+                                        {{ metric.label }}
+                                    </th>
+                                </tr>
+                                <tr>
+                                    <template v-for="metric in salesPlan.metrics" :key="`${metric.key}-sub`">
+                                        <th class="px-2 py-2 text-center font-medium">План</th>
+                                        <th class="px-2 py-2 text-center font-medium">Факт</th>
+                                        <th class="px-2 py-2 text-center font-medium">Δ</th>
+                                    </template>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800">
+                                <tr v-for="seller in salesPlan.sellers" :key="seller.id">
+                                    <td class="whitespace-nowrap px-4 py-3 font-medium text-zinc-800 dark:text-zinc-100">
+                                        {{ seller.name }}
+                                    </td>
+                                    <template v-for="metric in salesPlan.metrics" :key="`${seller.id}-${metric.key}`">
+                                        <td class="px-2 py-2">
+                                            <input
+                                                v-model.number="salesPlanDraft[salesPlanDraftKey(seller.id, metric.key)]"
+                                                type="number"
+                                                min="0"
+                                                :step="metric.unit === '₽' ? 10000 : 1"
+                                                class="w-28 rounded-lg border border-zinc-300 px-2 py-1.5 text-right text-sm tabular-nums dark:border-zinc-600 dark:bg-zinc-950"
+                                            >
+                                        </td>
+                                        <td class="px-2 py-2 text-right tabular-nums text-zinc-700 dark:text-zinc-200">
+                                            {{ formatSalesMetricValue(seller.metrics[metric.key]?.actual, metric.unit) }}
+                                        </td>
+                                        <td
+                                            class="px-2 py-2 text-right tabular-nums"
+                                            :class="varianceClass(seller.metrics[metric.key]?.variance)"
+                                        >
+                                            {{ formatSalesMetricValue(seller.metrics[metric.key]?.variance, metric.unit, true) }}
+                                        </td>
+                                    </template>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
         </div>
     </div>
@@ -742,6 +828,16 @@ const props = defineProps({
     can_freeze_plan: { type: Boolean, default: false },
     company_planning_initiatives: { type: Array, default: () => [] },
     company_planning_index_url: { type: String, default: null },
+    sales_plan: {
+        type: Object,
+        default: () => ({
+            scenario_id: null,
+            period_month: '',
+            period_options: [],
+            metrics: [],
+            sellers: [],
+        }),
+    },
 });
 
 const summaryPanelOpen = ref(false);
@@ -750,6 +846,118 @@ const companyChartOpen = ref(false);
 
 const companyPlanningInitiatives = computed(() => props.company_planning_initiatives ?? []);
 const companyPlanningIndexUrl = computed(() => props.company_planning_index_url);
+
+const salesPlan = computed(() => props.sales_plan ?? {
+    scenario_id: null,
+    period_month: '',
+    period_options: [],
+    metrics: [],
+    sellers: [],
+});
+
+const selectedSalesMonth = ref(salesPlan.value.period_month || '');
+const salesPlanDraft = reactive({});
+
+watch(
+    () => salesPlan.value.period_month,
+    (value) => {
+        if (value) {
+            selectedSalesMonth.value = value;
+        }
+    },
+);
+
+watch(
+    () => salesPlan.value,
+    () => {
+        for (const seller of salesPlan.value.sellers) {
+            for (const metric of salesPlan.value.metrics) {
+                const key = salesPlanDraftKey(seller.id, metric.key);
+                salesPlanDraft[key] = Number(seller.metrics?.[metric.key]?.planned ?? 0);
+            }
+        }
+    },
+    { immediate: true, deep: true },
+);
+
+const salesTargetsForm = useForm({
+    period_month: '',
+    targets: [],
+});
+
+function salesPlanDraftKey(userId, metricKey) {
+    return `${userId}:${metricKey}`;
+}
+
+function changeSalesMonth() {
+    router.get(route('budgeting.index'), { sales_month: selectedSalesMonth.value }, {
+        preserveState: true,
+        preserveScroll: true,
+        only: ['sales_plan'],
+    });
+}
+
+function saveSalesTargets() {
+    const targets = [];
+
+    for (const seller of salesPlan.value.sellers) {
+        for (const metric of salesPlan.value.metrics) {
+            targets.push({
+                user_id: seller.id,
+                metric: metric.key,
+                planned_value: Number(salesPlanDraft[salesPlanDraftKey(seller.id, metric.key)]) || 0,
+            });
+        }
+    }
+
+    salesTargetsForm.period_month = selectedSalesMonth.value;
+    salesTargetsForm.targets = targets;
+    salesTargetsForm.patch(route('budgeting.sales-targets.update'), { preserveScroll: true });
+}
+
+function formatSalesMetricValue(value, unit, showSign = false) {
+    const numeric = Number(value) || 0;
+
+    if (unit === '₽') {
+        const formatted = formatMoney(Math.abs(numeric));
+
+        if (showSign && numeric > 0) {
+            return `+${formatted}`;
+        }
+
+        if (showSign && numeric < 0) {
+            return `−${formatted}`;
+        }
+
+        return formatted;
+    }
+
+    const count = Math.round(numeric).toLocaleString('ru-RU');
+
+    if (showSign && numeric > 0) {
+        return `+${count}`;
+    }
+
+    if (showSign && numeric < 0) {
+        return `−${Math.abs(numeric).toLocaleString('ru-RU')}`;
+    }
+
+    return count;
+}
+
+function varianceClass(variance) {
+    const value = Number(variance) || 0;
+
+    if (value > 0) {
+        return 'text-emerald-700 dark:text-emerald-300';
+    }
+
+    if (value < 0) {
+        return 'text-rose-700 dark:text-rose-300';
+    }
+
+    return 'text-zinc-500';
+}
 
 function formatInitiativeBudget(initiative) {
     const amount = Number(initiative?.planned_budget_amount ?? 0);

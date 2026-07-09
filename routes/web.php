@@ -690,6 +690,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('finance.management-accounting.categories.destroy');
     Route::get('/budgeting', [BudgetingController::class, 'index'])->name('budgeting.index');
     Route::patch('/budgeting/scenario', [BudgetingController::class, 'updateScenario'])->name('budgeting.scenario.update');
+    Route::patch('/budgeting/sales-targets', [BudgetingController::class, 'updateSalesTargets'])->name('budgeting.sales-targets.update');
     Route::post('/budgeting/opex-articles', [BudgetingController::class, 'storeOpexArticle'])->name('budgeting.opex-articles.store');
     Route::patch('/budgeting/opex-articles/{opexArticle}', [BudgetingController::class, 'updateOpexArticle'])->name('budgeting.opex-articles.update');
     Route::delete('/budgeting/opex-articles/{opexArticle}', [BudgetingController::class, 'destroyOpexArticle'])->name('budgeting.opex-articles.destroy');
