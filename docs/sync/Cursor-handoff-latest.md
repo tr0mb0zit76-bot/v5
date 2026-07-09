@@ -3,23 +3,26 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-09 15:00 (ЭДО документы) · **HEAD:** `5d871e9` · **Ветка:** `master`
+**Обновлено:** 2026-07-09 16:05 (конец сессии) · **HEAD:** `297b3ac` · **Ветка:** `master`
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
 
 ### Итог сессии 2026-07-09 — ЭДО closing + красный номер в реестре
 
-| Блок | Статус |
-| --- | --- |
-| `order_document_edo_acknowledgements` + API `PATCH …/edo-acknowledgement` | ✅ |
-| Closing: УПД **или** СФ+акт (`OrderDocumentClosingFulfillment`) | ✅ |
-| UI: колонка ЭДО в `OrderSignedDocumentsTable`, модалка 7xl, зелёный tint closing-колонок | ✅ |
-| Красный `order_number` при выгрузке без закрытых документов | ✅ |
-| Fix `PaymentSchedulePaymentEventRelinker` (fallback counterparty из заказа) | ✅ |
+| Блок | Коммиты | Статус |
+| --- | --- | --- |
+| `order_document_edo_acknowledgements` + API `PATCH …/edo-acknowledgement` | `5d871e9` | ✅ |
+| Closing: УПД **или** СФ+акт; UI колонка ЭДО, модалка 7xl, зелёный tint closing-колонок | `5d871e9` | ✅ |
+| Красный `order_number` при выгрузке без закрытых документов | `5d871e9` | ✅ |
+| Fix `PaymentSchedulePaymentEventRelinker` (fallback counterparty из заказа) | `5d871e9` | ✅ |
+| ЭДО UI: заказчик **«Отправлен»**, перевозчик **«Получен»**; чекбокс на closing без скана | _(этот push)_ | ✅ |
+| Другие правки пользователя (company-planning) | `4d2ce6e` | ✅ на origin |
 
-**На прод после pull:** `php artisan migrate` (таблица EDO) → `npm run build`.
+**На прод после pull:** `php artisan migrate` (таблица EDO, если ещё не) → `npm run build`.
 
-**Следующая сессия:** smoke ЭДО в реестре/мастере; при необходимости 3D-грид для multi-carrier.
+**Следующая сессия:** smoke ЭДО в реестре/мастере (заказчик отправлен / перевозчик получен); при необходимости 3D-грид для multi-carrier.
+
+**Не в git:** `scripts/fix-order-5-*.php` (локальные probe для заказа #5).
 
 ---
 
