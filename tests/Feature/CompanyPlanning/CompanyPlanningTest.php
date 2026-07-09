@@ -135,6 +135,76 @@ class CompanyPlanningTest extends TestCase
             );
     }
 
+    public function test_index_supports_upcoming_view_filter(): void
+    {
+        if (! Schema::hasTable('company_initiatives')) {
+            $this->markTestSkipped('Company planning tables are not migrated.');
+        }
+
+        $user = $this->makePlanningUser(['company_planning'], belongsToManagement: true);
+
+        $initiative = CompanyInitiative::query()->create([
+            'title' => 'С дедлайном этапа',
+            'status' => 'active',
+            'priority' => 'normal',
+            'owner_id' => $user->id,
+            'created_by' => $user->id,
+        ]);
+
+        CompanyInitiativeMilestone::query()->create([
+            'company_initiative_id' => $initiative->id,
+            'title' => 'Скоро',
+            'status' => 'planned',
+            'ends_on' => now()->addDays(3)->toDateString(),
+            'sort_order' => 10,
+        ]);
+
+        CompanyInitiative::query()->create([
+            'title' => 'Без срочных этапов',
+            'status' => 'active',
+            'priority' => 'normal',
+            'owner_id' => $user->id,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('company-planning.index', ['view' => 'upcoming']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('CompanyPlanning/Index')
+                ->where('view_filter', 'upcoming')
+                ->has('initiatives', 1)
+                ->where('initiatives.0.title', 'С дедлайном этапа')
+            );
+    }
+
+    public function test_management_user_can_reorder_milestones(): void
+    {
+        if (! Schema::hasTable('company_initiatives')) {
+            $this->markTestSkipped('Company planning tables are not migrated.');
+        }
+
+        $user = $this->makePlanningUser(['company_planning'], belongsToManagement: true);
+        $initiative = $this->makeInitiativeWithMilestones($user, ['Первый', 'Второй', 'Третий']);
+        $milestones = $initiative->milestones()->orderBy('sort_order')->get();
+        $reorderedIds = [
+            (int) $milestones[2]->id,
+            (int) $milestones[0]->id,
+            (int) $milestones[1]->id,
+        ];
+
+        $this->actingAs($user)
+            ->post(route('company-planning.milestones.reorder', $initiative), [
+                'milestone_ids' => $reorderedIds,
+            ])
+            ->assertRedirect(route('company-planning.show', $initiative));
+
+        $this->assertSame(
+            $reorderedIds,
+            $initiative->milestones()->orderBy('sort_order')->pluck('id')->map(fn ($id): int => (int) $id)->all(),
+        );
+    }
+
     public function test_milestone_dependency_guard_blocks_in_progress_without_predecessor(): void
     {
         if (! Schema::hasTable('company_initiative_dependencies')) {

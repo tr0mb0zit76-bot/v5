@@ -116,8 +116,8 @@
                             </p>
                         </div>
                         <Link
-                            v-if="canOpenManagementAccounting"
-                            :href="route('finance.management-accounting.index')"
+                            v-if="canOpenManagementAccounting && initiative.budget_snapshot?.category_id"
+                            :href="managementAccountingUrl"
                             :class="crmBtnNeutral"
                         >
                             Управленка
@@ -206,12 +206,12 @@
 
                 <div v-else class="space-y-3">
                     <article
-                        v-for="milestone in initiative.milestones"
+                        v-for="(milestone, milestoneIndex) in initiative.milestones"
                         :key="milestone.id"
                         class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
                     >
                         <div class="flex flex-wrap items-start justify-between gap-3">
-                            <div>
+                            <div class="min-w-0 flex-1">
                                 <div class="font-medium text-zinc-900 dark:text-zinc-50">{{ milestone.title }}</div>
                                 <div class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                                     {{ milestone.responsible_name || 'Ответственный не назначен' }}
@@ -219,6 +219,26 @@
                                 </div>
                             </div>
                             <div class="flex flex-wrap items-center gap-2">
+                                <div v-if="initiative.milestones.length > 1" class="flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        class="rounded-lg border border-zinc-200 p-1 text-zinc-500 transition hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                                        :disabled="milestoneIndex === 0 || reorderForm.processing"
+                                        title="Выше"
+                                        @click="moveMilestone(milestoneIndex, -1)"
+                                    >
+                                        <ChevronUp class="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-lg border border-zinc-200 p-1 text-zinc-500 transition hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                                        :disabled="milestoneIndex === initiative.milestones.length - 1 || reorderForm.processing"
+                                        title="Ниже"
+                                        @click="moveMilestone(milestoneIndex, 1)"
+                                    >
+                                        <ChevronDown class="h-4 w-4" />
+                                    </button>
+                                </div>
                                 <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                                     {{ milestone.status_label }}
                                 </span>
@@ -253,7 +273,17 @@
                             >
                                 Поставить задачу
                             </button>
-                            <span v-if="milestone.task_id" class="inline-flex items-center rounded-xl border border-zinc-200 px-3 py-1.5 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
+                            <Link
+                                v-if="milestone.task_id && canOpenTasks"
+                                :href="route('tasks.show', milestone.task_id)"
+                                :class="crmBtnNeutral"
+                            >
+                                Задача {{ milestone.task_number || `#${milestone.task_id}` }}
+                            </Link>
+                            <span
+                                v-else-if="milestone.task_id"
+                                class="inline-flex items-center rounded-xl border border-zinc-200 px-3 py-1.5 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                            >
                                 Задача {{ milestone.task_number || `#${milestone.task_id}` }}
                             </span>
                             <button type="button" :class="crmBtnDangerMuted" @click="deleteMilestone(milestone)">Удалить</button>
@@ -404,6 +434,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { Link, router, useForm } from '@inertiajs/vue3';
+import { ChevronDown, ChevronUp } from 'lucide-vue-next';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import InputError from '@/Components/InputError.vue';
 import Modal from '@/Components/Modal.vue';
@@ -432,6 +463,7 @@ const props = defineProps({
     users: { type: Array, default: () => [] },
     expense_categories: { type: Array, default: () => [] },
     can_spawn_tasks: { type: Boolean, default: false },
+    can_open_tasks: { type: Boolean, default: false },
     can_open_management_accounting: { type: Boolean, default: false },
 });
 
@@ -443,7 +475,24 @@ const riskLabels = computed(() => props.risk_labels);
 const users = computed(() => props.users);
 const expenseCategories = computed(() => props.expense_categories);
 const canSpawnTasks = computed(() => props.can_spawn_tasks);
+const canOpenTasks = computed(() => props.can_open_tasks);
 const canOpenManagementAccounting = computed(() => props.can_open_management_accounting);
+
+const managementAccountingUrl = computed(() => {
+    const snapshot = props.initiative.budget_snapshot;
+    if (!snapshot?.period_start) {
+        return route('finance.management-accounting.index');
+    }
+
+    return route('finance.management-accounting.index', {
+        period_type: 'month',
+        period_anchor: `${String(snapshot.period_start).slice(0, 7)}-01`,
+    });
+});
+
+const reorderForm = useForm({
+    milestone_ids: [],
+});
 
 const milestoneOpen = ref(false);
 const dependencyOpen = ref(false);
@@ -640,6 +689,23 @@ function deleteMilestone(milestone) {
 
 function spawnTask(milestone) {
     router.post(route('company-planning.milestones.spawn-task', milestone.id), {}, {
+        preserveScroll: true,
+    });
+}
+
+function moveMilestone(index, direction) {
+    const milestones = [...(props.initiative.milestones ?? [])];
+    const targetIndex = index + direction;
+
+    if (targetIndex < 0 || targetIndex >= milestones.length) {
+        return;
+    }
+
+    const [moved] = milestones.splice(index, 1);
+    milestones.splice(targetIndex, 0, moved);
+
+    reorderForm.milestone_ids = milestones.map((milestone) => milestone.id);
+    reorderForm.post(route('company-planning.milestones.reorder', props.initiative.id), {
         preserveScroll: true,
     });
 }

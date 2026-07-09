@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ReorderCompanyInitiativeMilestonesRequest;
 use App\Http\Requests\StoreCompanyInitiativeDependencyRequest;
 use App\Http\Requests\StoreCompanyInitiativeMilestoneRequest;
 use App\Http\Requests\StoreCompanyInitiativeRequest;
@@ -17,6 +18,7 @@ use App\Services\CompanyPlanning\CompanyInitiativeBudgetFactService;
 use App\Services\CompanyPlanning\CompanyPlanningDependencyCycleGuard;
 use App\Services\CompanyPlanning\CompanyPlanningIndexSummaryService;
 use App\Services\CompanyPlanning\CompanyPlanningMilestoneDependencyGuard;
+use App\Services\CompanyPlanning\CompanyPlanningMilestoneReorderService;
 use App\Services\CompanyPlanning\CompanyPlanningProgressService;
 use App\Support\CompanyPlanningCatalog;
 use App\Support\RoleAccess;
@@ -35,6 +37,7 @@ class CompanyPlanningController extends Controller
         private readonly CompanyPlanningDependencyCycleGuard $dependencyCycleGuard,
         private readonly CompanyPlanningIndexSummaryService $indexSummaryService,
         private readonly CompanyPlanningMilestoneDependencyGuard $milestoneDependencyGuard,
+        private readonly CompanyPlanningMilestoneReorderService $milestoneReorderService,
     ) {}
 
     public function index(Request $request): Response
@@ -47,11 +50,12 @@ class CompanyPlanningController extends Controller
         }
 
         $viewFilter = $request->string('view')->toString();
-        if (! in_array($viewFilter, ['list', 'budget', 'risk', 'timeline'], true)) {
+        if (! in_array($viewFilter, ['list', 'budget', 'risk', 'timeline', 'upcoming'], true)) {
             $viewFilter = 'list';
         }
 
         $today = now()->toDateString();
+        $upcomingUntil = now()->addDays(7)->toDateString();
 
         $initiatives = CompanyInitiative::query()
             ->with(['owner:id,name', 'managementExpenseCategory:id,name,code'])
@@ -74,8 +78,19 @@ class CompanyPlanningController extends Controller
                         ->orWhere(function ($overdue) use ($today) {
                             $overdue->whereNotNull('ends_on')
                                 ->whereDate('ends_on', '<', $today);
-                        });
+                        })
+                        ->orWhereHas('milestones', fn ($milestones) => $milestones
+                            ->whereNotIn('status', ['completed', 'cancelled'])
+                            ->whereNotNull('ends_on')
+                            ->whereDate('ends_on', '<', $today));
                 }))
+            ->when($viewFilter === 'upcoming', fn ($query) => $query
+                ->whereIn('status', ['draft', 'active', 'on_hold'])
+                ->whereHas('milestones', fn ($milestones) => $milestones
+                    ->whereNotIn('status', ['completed', 'cancelled'])
+                    ->whereNotNull('ends_on')
+                    ->whereDate('ends_on', '>=', $today)
+                    ->whereDate('ends_on', '<=', $upcomingUntil)))
             ->orderByRaw("FIELD(status, 'active', 'on_hold', 'draft', 'completed', 'cancelled')")
             ->orderByDesc('id')
             ->get()
@@ -125,6 +140,8 @@ class CompanyPlanningController extends Controller
             'users' => $this->managementUsers(),
             'expense_categories' => $this->expenseCategoryOptions(),
             'can_spawn_tasks' => Schema::hasTable('tasks')
+                && RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($request->user()), 'tasks'),
+            'can_open_tasks' => Schema::hasTable('tasks')
                 && RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($request->user()), 'tasks'),
             'can_open_management_accounting' => RoleAccess::canAccessManagementAccounting($request->user()),
         ]);
@@ -210,6 +227,21 @@ class CompanyPlanningController extends Controller
 
         return to_route('company-planning.show', $milestone->company_initiative_id)
             ->with('flash', ['type' => 'success', 'message' => 'Этап сохранён.']);
+    }
+
+    public function reorderMilestones(
+        ReorderCompanyInitiativeMilestonesRequest $request,
+        CompanyInitiative $initiative,
+    ): RedirectResponse {
+        $milestoneIds = collect($request->validated('milestone_ids'))
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+
+        $this->milestoneReorderService->reorder($initiative, $milestoneIds);
+
+        return to_route('company-planning.show', $initiative)
+            ->with('flash', ['type' => 'success', 'message' => 'Порядок этапов сохранён.']);
     }
 
     public function destroyMilestone(Request $request, CompanyInitiativeMilestone $milestone): RedirectResponse

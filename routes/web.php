@@ -402,6 +402,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/{initiative}', [CompanyPlanningController::class, 'update'])->name('update');
         Route::delete('/{initiative}', [CompanyPlanningController::class, 'destroy'])->name('destroy');
         Route::post('/{initiative}/milestones', [CompanyPlanningController::class, 'storeMilestone'])->name('milestones.store');
+        Route::post('/{initiative}/milestones/reorder', [CompanyPlanningController::class, 'reorderMilestones'])->name('milestones.reorder');
         Route::patch('/milestones/{milestone}', [CompanyPlanningController::class, 'updateMilestone'])->name('milestones.update');
         Route::delete('/milestones/{milestone}', [CompanyPlanningController::class, 'destroyMilestone'])->name('milestones.destroy');
         Route::post('/milestones/{milestone}/spawn-task', [CompanyPlanningController::class, 'spawnTask'])->name('milestones.spawn-task');

@@ -53,10 +53,12 @@
         </section>
 
         <section class="grid shrink-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <article
+            <button
                 v-for="card in summaryCards"
                 :key="card.key"
-                :class="`${crmPanel} px-4 py-3`"
+                type="button"
+                :class="`${crmPanel} px-4 py-3 text-left transition hover:border-zinc-300 hover:bg-zinc-50 dark:hover:border-zinc-600 dark:hover:bg-zinc-900/60`"
+                @click="applySummaryFilter(card)"
             >
                 <div class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                     {{ card.label }}
@@ -64,7 +66,7 @@
                 <div class="mt-1 text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
                     {{ card.value }}
                 </div>
-            </article>
+            </button>
         </section>
 
         <section :class="`${crmPanel} shrink-0 space-y-3 p-4`">
@@ -153,6 +155,7 @@
                 :user-id="userId"
                 :status-labels="statusLabels"
                 :risk-labels="riskLabels"
+                @row-click="openInitiative"
                 @row-dblclick="openInitiative"
             />
         </div>
@@ -225,21 +228,33 @@ const viewFilterOptions = [
     { value: 'list', label: 'Список' },
     { value: 'budget', label: 'Бюджет' },
     { value: 'risk', label: 'Риски' },
+    { value: 'upcoming', label: 'На 7 дней' },
     { value: 'timeline', label: 'Дорожная карта' },
 ];
+
+const summaryCards = computed(() => [
+    { key: 'active', label: 'Активные', value: props.summary.active_count ?? 0, query: { status: 'active' } },
+    { key: 'overdue_initiatives', label: 'Просроч. инициативы', value: props.summary.overdue_initiatives_count ?? 0, query: { view: 'risk' } },
+    { key: 'overdue_milestones', label: 'Проср. этапы', value: props.summary.overdue_milestones_count ?? 0, query: { view: 'risk' } },
+    { key: 'high_risk', label: 'Высокий риск', value: props.summary.high_risk_count ?? 0, query: { view: 'risk' } },
+    { key: 'upcoming', label: 'Этапы на 7 дней', value: props.summary.upcoming_milestones_count ?? 0, query: { view: 'upcoming' } },
+]);
 
 const statusFilterOptions = computed(() => [
     { value: '', label: 'Все' },
     ...Object.entries(props.status_labels).map(([value, label]) => ({ value, label })),
 ]);
 
-const summaryCards = computed(() => [
-    { key: 'active', label: 'Активные', value: props.summary.active_count ?? 0 },
-    { key: 'overdue_initiatives', label: 'Просроч. инициативы', value: props.summary.overdue_initiatives_count ?? 0 },
-    { key: 'overdue_milestones', label: 'Проср. этапы', value: props.summary.overdue_milestones_count ?? 0 },
-    { key: 'high_risk', label: 'Высокий риск', value: props.summary.high_risk_count ?? 0 },
-    { key: 'upcoming', label: 'Этапы на 7 дней', value: props.summary.upcoming_milestones_count ?? 0 },
-]);
+function applySummaryFilter(card) {
+    if (!card?.query) {
+        return;
+    }
+
+    router.get(route('company-planning.index'), card.query, {
+        preserveScroll: true,
+        preserveState: true,
+    });
+}
 
 const timelineRows = computed(() => props.timeline_rows ?? []);
 

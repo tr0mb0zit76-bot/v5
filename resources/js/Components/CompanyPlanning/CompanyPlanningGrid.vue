@@ -39,6 +39,7 @@
           style="height: 100%; width: 100%;"
           @grid-ready="onGridReady"
           @first-data-rendered="onFirstDataRendered"
+          @cell-clicked="onCellClicked"
           @cell-double-clicked="onCellDoubleClicked"
           @column-visible="saveColumnState"
           @column-resized="saveColumnState"
@@ -88,7 +89,7 @@ const props = defineProps({
   riskLabels: { type: Object, default: () => ({}) },
 });
 
-const emit = defineEmits(['row-dblclick']);
+const emit = defineEmits(['row-click', 'row-dblclick']);
 
 const agGrid = ref(null);
 const gridApi = ref(null);
@@ -311,6 +312,12 @@ function onFirstDataRendered() {
 
 function onFilterChanged() {
   persistFilterModel(gridApi.value, filterModelStorageKey.value);
+}
+
+function onCellClicked(event) {
+  if (event?.data?.id) {
+    emit('row-click', event.data);
+  }
 }
 
 function onCellDoubleClicked(event) {
