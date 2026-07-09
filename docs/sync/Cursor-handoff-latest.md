@@ -3,9 +3,24 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-09 20:45 (биржа advisor + case page) · **HEAD:** `65d13ea` · **Ветка:** `master`
+**Обновлено:** 2026-07-09 21:10 (пул кандидатов) · **HEAD:** `756c858` · **Ветка:** `master`
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+### Итог сессии 2026-07-09 (поздний вечер) — пул: UI кандидатов
+
+| Блок | Статус |
+| --- | --- |
+| `LoadBoardCarrierPoolCandidateService` + FormRequest | ✅ `756c858` |
+| `POST/DELETE …/carrier-pool/candidates` | ✅ |
+| UI: «+ Кандидат», удаление, «В оффер» | ✅ |
+| Тесты add/remove/dup | ✅ `LoadBoardTest` +2 |
+
+**На прод:** `git pull` → `npm run build`.
+
+**Следующая сессия:** smoke пула; ATI API (после ключа).
+
+---
 
 ### Итог сессии 2026-07-09 (вечер) — роадмап + биржа advisor
 
@@ -21,7 +36,7 @@
 
 **На прод:** `git pull` → `npm run build` (новая страница Vue).
 
-**Следующая сессия:** smoke биржи (советник, пул, страница кейса); UI для `metadata.carrier_pool_candidates`; ATI API.
+**Следующая сессия:** ~~UI для `metadata.carrier_pool_candidates`~~ ✅ см. секцию выше; smoke; ATI API.
 
 ---
 
