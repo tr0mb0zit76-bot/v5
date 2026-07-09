@@ -3,9 +3,25 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-08 21:40 (конец сессии) · **HEAD:** `a1fb03f` · **Ветка:** `master`
+**Обновлено:** 2026-07-09 15:00 (ЭДО документы) · **HEAD:** _(после push)_ · **Ветка:** `master`
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+### Итог сессии 2026-07-09 — ЭДО closing + красный номер в реестре
+
+| Блок | Статус |
+| --- | --- |
+| `order_document_edo_acknowledgements` + API `PATCH …/edo-acknowledgement` | ✅ |
+| Closing: УПД **или** СФ+акт (`OrderDocumentClosingFulfillment`) | ✅ |
+| UI: колонка ЭДО в `OrderSignedDocumentsTable`, модалка 7xl, зелёный tint closing-колонок | ✅ |
+| Красный `order_number` при выгрузке без закрытых документов | ✅ |
+| Fix `PaymentSchedulePaymentEventRelinker` (fallback counterparty из заказа) | ✅ |
+
+**На прод после pull:** `php artisan migrate` (таблица EDO) → `npm run build`.
+
+**Следующая сессия:** smoke ЭДО в реестре/мастере; при необходимости 3D-грид для multi-carrier.
+
+---
 
 ### Итог сессии 2026-07-08
 
@@ -19,6 +35,8 @@
 **На прод (если ещё не выкатывали сегодня):** `git pull` → `php artisan migrate` (210000, 210100 + лиды 202800, 203503) → `npm run build`.
 
 **Следующая сессия:** smoke UI биржи/заказа → фаза 4 (`OrderCompensationService` + split % KPI).
+
+**Backlog (не в работе):** SaaS / аренда CRM — черновик [`docs/saas-roadmap.md`](../saas-roadmap.md) (2026-07-09).
 
 ---
 

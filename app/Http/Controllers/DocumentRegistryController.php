@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreDocumentRegistryRequest;
 use App\Http\Requests\UpdateDocumentRegistryRequest;
+use App\Http\Requests\UpdateOrderDocumentEdoAcknowledgementRequest;
 use App\Http\Requests\UpdateOrderEnteredIn1CRequest;
 use App\Http\Requests\UpdateOrderTrackReceivedRequest;
 use App\Models\Order;
@@ -12,9 +13,12 @@ use App\Services\DocumentStorageService;
 use App\Services\Mobile\MobileEntityChipService;
 use App\Services\OrderClosingDocumentsNotificationService;
 use App\Services\OrderCompensationService;
+use App\Services\OrderDocumentEdoAcknowledgementService;
+use App\Services\OrderDocumentRequirementService;
 use App\Services\Orders\OrderInlineFieldUpdateService;
 use App\Support\DocumentRegistryDocumentLabel;
 use App\Support\DocumentRegistryGridColumnApplicabilityResolver;
+use App\Support\DocumentRegistryOrderAttentionResolver;
 use App\Support\OrderClipboardSummaryResolver;
 use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\OrderTrackReceivedRequirementResolver;
@@ -34,6 +38,7 @@ class DocumentRegistryController extends Controller
         private readonly OrderCompensationService $orderCompensationService,
         private readonly DocumentStorageService $documentStorage,
         private readonly OrderClosingDocumentsNotificationService $closingDocumentsNotificationService,
+        private readonly OrderDocumentRequirementService $documentRequirementService,
     ) {}
 
     public function index(Request $request): Response
@@ -45,7 +50,13 @@ class DocumentRegistryController extends Controller
         $search = trim((string) $request->query('q', ''));
 
         $query = Order::query()
-            ->with(['documents', 'client:id,name', 'carrier:id,name', 'financialTerms'])
+            ->with([
+                'documents',
+                'client:id,name',
+                'carrier:id,name',
+                'financialTerms',
+                'legs.routePoints',
+            ])
             ->orderByDesc('id');
 
         if (! RoleAccess::isAdminUser($user) && $scope !== 'all') {
@@ -70,6 +81,7 @@ class DocumentRegistryController extends Controller
         $clipboardSummaries = app(OrderClipboardSummaryResolver::class)->mapForOrders($orders);
         $trackReceivedFlags = OrderTrackReceivedRequirementResolver::mapFlagsForOrders($orders);
         $columnApplicability = app(DocumentRegistryGridColumnApplicabilityResolver::class)->mapForOrders($orders);
+        $attentionFlags = app(DocumentRegistryOrderAttentionResolver::class)->mapForOrders($orders);
 
         return Inertia::render('Documents/Index', [
             'search' => $search,
@@ -83,6 +95,10 @@ class DocumentRegistryController extends Controller
                         'needs_track_received_date_carrier' => false,
                     ],
                     $columnApplicability[(int) $order->id] ?? [],
+                    $attentionFlags[(int) $order->id] ?? [
+                        'missing_documents_after_unloading' => false,
+                        'missing_document_labels' => [],
+                    ],
                 ))
                 ->values(),
             'orders' => $orders->map(fn (Order $order): array => [
@@ -306,6 +322,37 @@ class DocumentRegistryController extends Controller
         ]);
     }
 
+    public function updateEdoAcknowledgement(
+        UpdateOrderDocumentEdoAcknowledgementRequest $request,
+        Order $order,
+        OrderDocumentEdoAcknowledgementService $edoAcknowledgementService,
+    ): JsonResponse {
+        abort_unless(RoleAccess::canEditDocumentEdoAcknowledgements($request->user()), 403);
+        $this->ensureCanManageOrder($request, $order);
+
+        $acknowledgement = $edoAcknowledgementService->upsertForOrder(
+            $order,
+            $request->validated(),
+            $request->user(),
+        );
+
+        return response()->json([
+            'acknowledgement' => [
+                'id' => $acknowledgement->id,
+                'party' => $acknowledgement->party,
+                'document_type' => $acknowledgement->document_type,
+                'slot_key' => $acknowledgement->slot_key,
+                'contractor_id' => $acknowledgement->contractor_id > 0 ? $acknowledgement->contractor_id : null,
+                'received_via_edo' => (bool) $acknowledgement->received_via_edo,
+                'document_number' => $acknowledgement->document_number,
+                'document_date' => optional($acknowledgement->document_date)?->toDateString(),
+            ],
+            'required_document_checklist' => $this->documentRequirementService
+                ->checklistForOrder($order->fresh(['documents', 'edoAcknowledgements'])),
+            'column_edo_fulfilment' => $edoAcknowledgementService->closingColumnEdoFlags($order->fresh(['documents', 'edoAcknowledgements'])),
+        ]);
+    }
+
     public function destroy(Request $request, OrderDocument $document): RedirectResponse|JsonResponse
     {
         $order = Order::query()->findOrFail((int) $document->order_id);
@@ -358,6 +405,10 @@ class DocumentRegistryController extends Controller
      *     needs_track_received_date_carrier: bool,
      * }  $trackReceivedFlags
      * @param  array<string, bool>  $columnApplicability
+     * @param  array{
+     *     missing_documents_after_unloading: bool,
+     *     missing_document_labels: list<string>,
+     * }  $attentionFlags
      * @return array<string, mixed>
      */
     private function serializeRow(
@@ -365,15 +416,20 @@ class DocumentRegistryController extends Controller
         string $clipboardSummary = '',
         array $trackReceivedFlags = [],
         array $columnApplicability = [],
+        array $attentionFlags = [],
     ): array {
         $documents = $order->documents ?? collect();
         $etrn = $this->serializeEtrnSummary($documents);
         $contractorNamesById = DocumentRegistryDocumentLabel::contractorNamesByIdFromDocuments($documents);
+        $columnEdoFulfilment = app(OrderDocumentEdoAcknowledgementService::class)
+            ->closingColumnEdoFlags($order);
 
         return [
             'order_id' => $order->id,
             'order_number' => $order->order_number ?: '#'.$order->id,
             'order_edit_url' => route('orders.edit', $order).'?tab=documents',
+            'missing_documents_after_unloading' => (bool) ($attentionFlags['missing_documents_after_unloading'] ?? false),
+            'missing_document_labels' => array_values($attentionFlags['missing_document_labels'] ?? []),
             'entered_in_1c' => $this->serializeEnteredIn1C($order),
             'track_received_date_customer' => Schema::hasColumn('orders', 'track_received_date_customer')
                 ? optional($order->track_received_date_customer)?->toDateString()
@@ -384,6 +440,7 @@ class DocumentRegistryController extends Controller
             'needs_track_received_date_customer' => (bool) ($trackReceivedFlags['needs_track_received_date_customer'] ?? false),
             'needs_track_received_date_carrier' => (bool) ($trackReceivedFlags['needs_track_received_date_carrier'] ?? false),
             'column_applicable' => $columnApplicability,
+            'column_edo_fulfilment' => $columnEdoFulfilment,
             'clipboard_summary' => $clipboardSummary,
             'customer_invoice' => $this->serializeColumnDocs($order, $documents, 'invoice', 'customer', $contractorNamesById),
             'customer_upd' => $this->serializeColumnDocs($order, $documents, 'upd', 'customer', $contractorNamesById),

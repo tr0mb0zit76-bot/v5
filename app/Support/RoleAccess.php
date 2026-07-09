@@ -970,6 +970,11 @@ class RoleAccess
         return static::userHasRoleName($user, 'clerk');
     }
 
+    public static function canEditDocumentEdoAcknowledgements(?User $user): bool
+    {
+        return static::canEditTrackReceivedDates($user);
+    }
+
     /**
      * @return list<string>
      */

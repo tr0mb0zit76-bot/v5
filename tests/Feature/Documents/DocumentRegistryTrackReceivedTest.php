@@ -4,8 +4,10 @@ namespace Tests\Feature\Documents;
 
 use App\Models\FinancialTerm;
 use App\Models\Order;
+use App\Models\OrderLeg;
 use App\Models\PaymentSchedule;
 use App\Models\Role;
+use App\Models\RoutePoint;
 use App\Models\User;
 use App\Services\OrderCompensationService;
 use Illuminate\Support\Facades\Schema;
@@ -67,6 +69,39 @@ class DocumentRegistryTrackReceivedTest extends TestCase
                 ->where('rows.0.order_id', $order->id)
                 ->where('rows.0.needs_track_received_date_customer', true)
                 ->where('rows.0.track_received_date_customer', null),
+            );
+    }
+
+    public function test_documents_index_flags_order_with_unloading_and_missing_documents(): void
+    {
+        $clerk = $this->makeClerkUser();
+
+        $order = Order::factory()->create([
+            'manager_id' => $clerk->id,
+            'customer_payment_form' => 'bank_transfer',
+        ]);
+
+        $leg = OrderLeg::query()->create([
+            'order_id' => $order->id,
+            'sequence' => 0,
+            'type' => 'transport',
+        ]);
+
+        RoutePoint::factory()->create([
+            'order_leg_id' => $leg->id,
+            'type' => 'unloading',
+            'sequence' => 1,
+            'actual_date' => '2026-06-10',
+        ]);
+
+        $this->actingAs($clerk)
+            ->get(route('documents.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('rows', 1)
+                ->where('rows.0.order_id', $order->id)
+                ->where('rows.0.missing_documents_after_unloading', true)
+                ->where('rows.0.missing_document_labels', fn ($labels) => is_array($labels) && count($labels) > 0),
             );
     }
 

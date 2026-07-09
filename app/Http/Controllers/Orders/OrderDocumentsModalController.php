@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Orders;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderDocument;
+use App\Services\OrderDocumentEdoAcknowledgementService;
 use App\Services\OrderDocumentRequirementService;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\RoleAccess;
@@ -16,6 +17,7 @@ class OrderDocumentsModalController extends Controller
 {
     public function __construct(
         private readonly OrderDocumentRequirementService $documentRequirementService,
+        private readonly OrderDocumentEdoAcknowledgementService $edoAcknowledgementService,
     ) {}
 
     public function index(Request $request, Order $order): JsonResponse
@@ -38,6 +40,8 @@ class OrderDocumentsModalController extends Controller
             'document_type_options' => $this->documentRequirementService->documentTypeOptions(),
             'requiredDocumentRules' => $this->documentRequirementService->requirementRulesForOrder($order),
             'requiredDocumentChecklist' => $this->documentRequirementService->checklistForOrder($order),
+            'edo_acknowledgements' => $this->edoAcknowledgementService->serializeForOrder($order),
+            'can_edit_edo_acknowledgements' => RoleAccess::canEditDocumentEdoAcknowledgements($request->user()),
         ]);
     }
 

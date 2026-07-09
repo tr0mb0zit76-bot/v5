@@ -331,6 +331,14 @@ class Order extends Model
     }
 
     /**
+     * @return HasMany<OrderDocumentEdoAcknowledgement, $this>
+     */
+    public function edoAcknowledgements(): HasMany
+    {
+        return $this->hasMany(OrderDocumentEdoAcknowledgement::class);
+    }
+
+    /**
      * @return HasMany<FinancialTerm, $this>
      */
     public function financialTerms(): HasMany

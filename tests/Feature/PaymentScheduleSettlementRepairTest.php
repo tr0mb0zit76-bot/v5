@@ -136,4 +136,88 @@ class PaymentScheduleSettlementRepairTest extends TestCase
         $this->assertEqualsWithDelta(40000.0, (float) $schedule->paid_amount, 0.01);
         $this->assertEqualsWithDelta(0.0, (float) $schedule->remaining_amount, 0.01);
     }
+
+    public function test_relinker_matches_customer_events_when_schedule_counterparty_id_is_null(): void
+    {
+        if (! Schema::hasTable('payment_schedules') || ! Schema::hasTable('payment_schedule_payment_events')) {
+            $this->markTestSkipped('Таблицы графика оплат недоступны.');
+        }
+
+        $manager = User::factory()->create();
+        $order = Order::factory()->create([
+            'manager_id' => $manager->id,
+            'customer_rate' => 120000,
+        ]);
+
+        $prepaymentId = DB::table('payment_schedules')->insertGetId([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'prepayment',
+            'amount' => 60000,
+            'planned_date' => '2026-06-05',
+            'paid_amount' => 60000,
+            'remaining_amount' => 0,
+            'status' => 'paid',
+            'installment_sequence' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $finalId = DB::table('payment_schedules')->insertGetId([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 60000,
+            'planned_date' => '2026-06-15',
+            'paid_amount' => 10000,
+            'remaining_amount' => 50000,
+            'status' => 'overdue',
+            'installment_sequence' => 2,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedule_payment_events')->insert([
+            [
+                'order_id' => $order->id,
+                'contractor_id' => $order->customer_id,
+                'payment_schedule_id' => null,
+                'party' => 'customer',
+                'amount' => 60000,
+                'payment_date' => '2026-06-03',
+                'transaction_reference' => 'mgmt:100',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'order_id' => $order->id,
+                'contractor_id' => $order->customer_id,
+                'payment_schedule_id' => null,
+                'party' => 'customer',
+                'amount' => 50000,
+                'payment_date' => '2026-06-10',
+                'transaction_reference' => 'mgmt:101',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'order_id' => $order->id,
+                'contractor_id' => $order->customer_id,
+                'payment_schedule_id' => null,
+                'party' => 'customer',
+                'amount' => 10000,
+                'payment_date' => '2026-06-12',
+                'transaction_reference' => 'mgmt:102',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $relinked = app(PaymentSchedulePaymentEventRelinker::class)->relinkOrphanedEventsForOrder((int) $order->id);
+        $this->assertSame(3, $relinked);
+
+        $this->assertSame($prepaymentId, (int) DB::table('payment_schedule_payment_events')->where('transaction_reference', 'mgmt:100')->value('payment_schedule_id'));
+        $this->assertSame($finalId, (int) DB::table('payment_schedule_payment_events')->where('transaction_reference', 'mgmt:101')->value('payment_schedule_id'));
+        $this->assertSame($finalId, (int) DB::table('payment_schedule_payment_events')->where('transaction_reference', 'mgmt:102')->value('payment_schedule_id'));
+    }
 }

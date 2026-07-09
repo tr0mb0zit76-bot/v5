@@ -33,11 +33,13 @@ final class PaymentSchedulePaymentEventRelinker
             return 0;
         }
 
+        $orderPartyContractorIds = $this->orderPartyContractorIds($orderId);
+
         $rootsByGroup = [];
         foreach ($roots as $root) {
             $groupKey = $this->rootGroupKey(
                 (string) $root->party,
-                isset($root->counterparty_id) ? (int) $root->counterparty_id : null,
+                $this->resolveContractorIdForRoot($root, $orderPartyContractorIds),
             );
             $rootsByGroup[$groupKey][] = $root;
         }
@@ -283,6 +285,40 @@ final class PaymentSchedulePaymentEventRelinker
     }
 
     /**
+     * @return array{customer?: int|null, carrier?: int|null}
+     */
+    private function orderPartyContractorIds(int $orderId): array
+    {
+        if (! Schema::hasTable('orders')) {
+            return [];
+        }
+
+        $row = DB::table('orders')->where('id', $orderId)->first(['customer_id', 'carrier_id']);
+        if ($row === null) {
+            return [];
+        }
+
+        return [
+            'customer' => $row->customer_id ? (int) $row->customer_id : null,
+            'carrier' => $row->carrier_id ? (int) $row->carrier_id : null,
+        ];
+    }
+
+    /**
+     * @param  array{customer?: int|null, carrier?: int|null}  $orderPartyContractorIds
+     */
+    private function resolveContractorIdForRoot(object $root, array $orderPartyContractorIds): ?int
+    {
+        if (isset($root->counterparty_id) && (int) $root->counterparty_id > 0) {
+            return (int) $root->counterparty_id;
+        }
+
+        $party = strtolower((string) $root->party);
+
+        return $orderPartyContractorIds[$party] ?? null;
+    }
+
+    /**
      * @param  list<object{id: int, amount: mixed, paid_amount?: mixed, remaining_amount?: mixed}>  $roots
      */
     private function pickRootForEvent(array $roots, float $eventAmount): ?object
@@ -303,13 +339,13 @@ final class PaymentSchedulePaymentEventRelinker
                 ? round((float) $root->remaining_amount, 2)
                 : max(0, $rootAmount - $paidAmount);
 
-            if ($remaining <= 0.009 && $paidAmount + 0.009 >= $rootAmount && $rootAmount > 0) {
-                continue;
-            }
-
             if (abs($rootAmount - $eventAmount) <= 0.02) {
                 $bestExact = $root;
                 break;
+            }
+
+            if ($remaining <= 0.009 && $paidAmount + 0.009 >= $rootAmount && $rootAmount > 0) {
+                continue;
             }
 
             if ($remaining > $maxCapacity) {

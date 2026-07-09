@@ -146,6 +146,14 @@
   background-color: rgb(120 53 15 / 0.28);
 }
 
+.orders-grid-theme .documents-grid-edo-fulfilment {
+  background-color: rgb(209 250 229 / 0.65);
+}
+
+.dark .orders-grid-theme .documents-grid-edo-fulfilment {
+  background-color: rgb(6 78 59 / 0.35);
+}
+
 .orders-grid-theme .ag-pinned-left-cols-container .ag-cell,
 .orders-grid-theme .ag-pinned-left-header .ag-header-cell {
   box-shadow: 2px 0 0 var(--orders-grid-cell-grid);

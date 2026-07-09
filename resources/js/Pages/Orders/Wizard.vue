@@ -1921,6 +1921,8 @@
                 :document-tab-validation-messages="documentTabValidationMessages"
                 :document-storage="documentStorage"
                 :saved-print-form-template-selection="order?.print_form_template_selection ?? {}"
+                :document-edo-acknowledgements="documentEdoAcknowledgements"
+                :can-edit-document-edo-acknowledgements="canEditDocumentEdoAcknowledgements"
             />
 
             <OrderWizardOrderNormsTab
@@ -2184,6 +2186,8 @@ const props = defineProps({
     },
     requiredDocumentRules: { type: Array, default: () => [] },
     requiredDocumentChecklist: { type: Array, default: () => [] },
+    documentEdoAcknowledgements: { type: Array, default: () => [] },
+    canEditDocumentEdoAcknowledgements: { type: Boolean, default: false },
     currentUser: { type: Object, default: () => ({}) },
     responsibleUsers: { type: Array, default: () => [] },
     canAssignResponsible: { type: Boolean, default: false },

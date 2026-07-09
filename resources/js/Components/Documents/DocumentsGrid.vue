@@ -213,6 +213,15 @@ const page = usePage();
 
 const emit = defineEmits(['open-create', 'row-dblclick', 'open-order-documents']);
 
+const CLOSING_EDO_COLUMNS = new Set([
+    'customer_upd',
+    'customer_act',
+    'customer_invoice_factura',
+    'carrier_upd',
+    'carrier_act',
+    'carrier_invoice_factura',
+]);
+
 const fallbackColumns = [
     { field: 'order_number', headerName: 'Номер заказа', width: 160, minWidth: 140 },
     { field: 'entered_in_1c', headerName: 'Внесено в 1С', width: 140, minWidth: 120, kind: 'entered-in-1c' },
@@ -560,6 +569,14 @@ const columnDefs = computed(() => {
 
         colDef.cellRenderer = (params) => documentsCellRenderer(params.data, column.field);
 
+        if (CLOSING_EDO_COLUMNS.has(column.field)) {
+            colDef.cellClass = (params) => (
+                params.data?.column_edo_fulfilment?.[column.field]
+                    ? 'documents-grid-edo-fulfilment'
+                    : ''
+            );
+        }
+
         return colDef;
     });
 
@@ -708,7 +725,22 @@ function orderCellRenderer(params) {
     link.href = params.data?.order_edit_url ?? '#';
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
-    link.className = 'font-medium text-sky-700 underline dark:text-sky-300';
+
+    const needsAttention = params.data?.missing_documents_after_unloading === true;
+    const missingLabels = Array.isArray(params.data?.missing_document_labels)
+        ? params.data.missing_document_labels.filter(Boolean)
+        : [];
+
+    link.className = needsAttention
+        ? 'font-semibold text-rose-700 underline decoration-rose-400/70 dark:text-rose-300 dark:decoration-rose-500/60'
+        : 'font-medium text-sky-700 underline dark:text-sky-300';
+
+    if (needsAttention) {
+        link.title = missingLabels.length > 0
+            ? `Не хватает документов: ${missingLabels.join(', ')}`
+            : 'Не хватает документов';
+    }
+
     link.textContent = params.data?.order_number ?? '—';
     wrapper.appendChild(link);
 

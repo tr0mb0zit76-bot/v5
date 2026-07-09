@@ -24,6 +24,7 @@ use App\Services\DaDataService;
 use App\Services\DocumentStorageService;
 use App\Services\KpiConfigurationService;
 use App\Services\OrderCompensationService;
+use App\Services\OrderDocumentEdoAcknowledgementService;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderIntakeGoldenLibraryService;
 use App\Services\OrderNumberingService;
@@ -420,6 +421,10 @@ class OrderWizardController extends Controller
                 ? $documentRequirementService->requirementRules()
                 : $documentRequirementService->requirementRulesForOrder($order),
             'requiredDocumentChecklist' => $documentRequirementService->checklistForOrder($order),
+            'documentEdoAcknowledgements' => $order === null
+                ? []
+                : app(OrderDocumentEdoAcknowledgementService::class)->serializeForOrder($order),
+            'canEditDocumentEdoAcknowledgements' => RoleAccess::canEditDocumentEdoAcknowledgements($user),
             'bonusMultiplier' => $kpiConfigurationService->getBonusMultiplier(),
             'orderStatusOptions' => [
                 ['value' => 'new', 'label' => 'Новый заказ'],

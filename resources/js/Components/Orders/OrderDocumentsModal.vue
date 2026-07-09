@@ -47,6 +47,8 @@ const documents = ref([]);
 const documentTypeOptions = ref([]);
 const requiredDocumentRules = ref([]);
 const requiredDocumentChecklist = ref([]);
+const edoAcknowledgements = ref([]);
+const canEditEdoAcknowledgements = ref(false);
 const deletingDocId = ref(null);
 
 const signedDocuments = computed(() => documents.value
@@ -112,6 +114,10 @@ async function loadDocuments() {
         requiredDocumentChecklist.value = Array.isArray(payload.requiredDocumentChecklist)
             ? payload.requiredDocumentChecklist
             : [];
+        edoAcknowledgements.value = Array.isArray(payload.edo_acknowledgements)
+            ? payload.edo_acknowledgements
+            : [];
+        canEditEdoAcknowledgements.value = Boolean(payload.can_edit_edo_acknowledgements);
     } catch (error) {
         loadError.value = error?.message ?? 'Ошибка загрузки документов';
         documents.value = [];
@@ -305,6 +311,14 @@ async function deleteDocument(doc) {
     }
 }
 
+function onEdoUpdated(payload) {
+    if (Array.isArray(payload?.required_document_checklist)) {
+        requiredDocumentChecklist.value = payload.required_document_checklist;
+    }
+
+    void loadDocuments();
+}
+
 function openWizardDocuments() {
     if (!props.orderId) {
         return;
@@ -315,7 +329,7 @@ function openWizardDocuments() {
 </script>
 
 <template>
-    <Modal :show="show" max-width="2xl" @close="closeModal">
+    <Modal :show="show" max-width="7xl" @close="closeModal">
         <section :class="crmModalFormShell">
             <CrmModalHeader :title="modalTitle" @close="closeModal">
                 Добавление файлов и список документов по заказу. Печатные формы по шаблону можно открыть в мастере заказа.
@@ -426,9 +440,13 @@ function openWizardDocuments() {
                         :document-type-options="documentTypeOptions"
                         :required-document-rules="requiredDocumentRules"
                         :required-document-checklist="requiredDocumentChecklist"
+                        :edo-acknowledgements="edoAcknowledgements"
+                        :can-edit-edo="canEditEdoAcknowledgements"
+                        :order-id="orderId"
                         :can-edit="true"
                         :deleting-id="deletingDocId"
                         @delete="deleteDocument"
+                        @edo-updated="onEdoUpdated"
                     />
 
                     <ul v-if="printWorkflowDocuments.length > 0" class="divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">

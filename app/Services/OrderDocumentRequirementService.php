@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\OrderDocument;
+use App\Models\OrderDocumentEdoAcknowledgement;
 use App\Models\PrintFormTemplate;
 use App\Support\OrderAdditionalCostNormalizer;
+use App\Support\OrderDocumentClosingFulfillment;
 use App\Support\OrderDocumentRequirementSlotBuilder;
 use App\Support\OrderDocumentTransportTypes;
 use App\Support\OrderDocumentWorkflowStatus;
@@ -112,7 +114,21 @@ class OrderDocumentRequirementService
             ? $order->documents
             : $order->documents()->get();
 
-        return $this->checklistForDocuments($documents, $this->requirementRulesForOrder($order));
+        $edoAcknowledgements = $this->edoAcknowledgementsForOrder($order);
+
+        return $this->checklistForDocuments($documents, $this->requirementRulesForOrder($order), $edoAcknowledgements);
+    }
+
+    /**
+     * @return Collection<int, OrderDocumentEdoAcknowledgement>
+     */
+    private function edoAcknowledgementsForOrder(Order $order): Collection
+    {
+        if ($order->relationLoaded('edoAcknowledgements')) {
+            return $order->edoAcknowledgements;
+        }
+
+        return app(OrderDocumentEdoAcknowledgementService::class)->acknowledgementsForOrder($order);
     }
 
     public function paymentPackageAttachedAt(Order $order, string $party): ?CarbonInterface
@@ -159,6 +175,11 @@ class OrderDocumentRequirementService
             $candidateDates->push($transportAt->greaterThan($closingAt) ? $transportAt : $closingAt);
         }
 
+        $edoClosingAt = $this->latestEdoClosingDate($order, $party);
+        if ($edoClosingAt !== null) {
+            $candidateDates->push($transportAt->greaterThan($edoClosingAt) ? $transportAt : $edoClosingAt);
+        }
+
         return $candidateDates
             ->sortBy(fn (CarbonInterface $date): int => $date->getTimestamp())
             ->first();
@@ -178,14 +199,30 @@ class OrderDocumentRequirementService
      */
     /**
      * @param  list<array<string, mixed>>|null  $rules
+     * @param  iterable<OrderDocumentEdoAcknowledgement>|null  $edoAcknowledgements
      */
-    public function checklistForDocuments(iterable $documents, ?array $rules = null): array
+    public function checklistForDocuments(iterable $documents, ?array $rules = null, ?iterable $edoAcknowledgements = null): array
     {
         $documentCollection = collect($documents);
+        $edoCollection = collect($edoAcknowledgements ?? []);
         $ruleList = $rules ?? $this->requirementRules();
         $usedDocumentIds = [];
 
-        return array_map(function (array $rule) use ($documentCollection, &$usedDocumentIds): array {
+        return array_map(function (array $rule) use ($documentCollection, $edoCollection, &$usedDocumentIds): array {
+            if (OrderDocumentClosingFulfillment::isClosingSlotKind((string) ($rule['slot_kind'] ?? ''))) {
+                $completed = OrderDocumentClosingFulfillment::isRuleFulfilled(
+                    $rule,
+                    $documentCollection,
+                    $edoCollection,
+                );
+
+                return [
+                    ...$rule,
+                    'completed' => $completed,
+                    'matched_document_id' => null,
+                ];
+            }
+
             $matchedDocument = $documentCollection->first(
                 function (OrderDocument|array $document) use ($rule, &$usedDocumentIds): bool {
                     $documentId = $document instanceof OrderDocument
@@ -717,6 +754,96 @@ class OrderDocumentRequirementService
         }
 
         return $timestamps->sortByDesc(fn (CarbonInterface $date): int => $date->getTimestamp())->first();
+    }
+
+    private function latestEdoClosingDate(Order $order, string $party): ?CarbonInterface
+    {
+        $rules = collect($this->requirementRulesForOrder($order))
+            ->filter(fn (array $rule): bool => ($rule['party'] ?? '') === $party
+                && OrderDocumentClosingFulfillment::isClosingSlotKind((string) ($rule['slot_kind'] ?? '')));
+
+        if ($rules->isEmpty()) {
+            return null;
+        }
+
+        $documents = $order->relationLoaded('documents') ? $order->documents : $order->documents()->get();
+        $edoAcknowledgements = $this->edoAcknowledgementsForOrder($order);
+
+        $best = null;
+
+        foreach ($rules as $rule) {
+            $candidate = $this->closingPackageDateForRule($rule, $documents, $edoAcknowledgements);
+
+            if ($candidate === null) {
+                continue;
+            }
+
+            if ($best === null || $candidate->lessThan($best)) {
+                $best = $candidate;
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * @param  array<string, mixed>  $rule
+     * @param  Collection<int, OrderDocument>  $documents
+     * @param  Collection<int, OrderDocumentEdoAcknowledgement>  $edoAcknowledgements
+     */
+    private function closingPackageDateForRule(array $rule, Collection $documents, Collection $edoAcknowledgements): ?CarbonInterface
+    {
+        if (OrderDocumentClosingFulfillment::hasTypeFulfilled('upd', $rule, $documents, $edoAcknowledgements)) {
+            return $this->bestClosingTypeDate('upd', $rule, $documents, $edoAcknowledgements);
+        }
+
+        if (
+            OrderDocumentClosingFulfillment::hasTypeFulfilled('act', $rule, $documents, $edoAcknowledgements)
+            && OrderDocumentClosingFulfillment::hasTypeFulfilled('invoice_factura', $rule, $documents, $edoAcknowledgements)
+        ) {
+            $actDate = $this->bestClosingTypeDate('act', $rule, $documents, $edoAcknowledgements);
+            $invoiceDate = $this->bestClosingTypeDate('invoice_factura', $rule, $documents, $edoAcknowledgements);
+
+            if ($actDate === null || $invoiceDate === null) {
+                return null;
+            }
+
+            return $actDate->greaterThan($invoiceDate) ? $actDate : $invoiceDate;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $rule
+     * @param  Collection<int, OrderDocument>  $documents
+     * @param  Collection<int, OrderDocumentEdoAcknowledgement>  $edoAcknowledgements
+     */
+    private function bestClosingTypeDate(
+        string $documentType,
+        array $rule,
+        Collection $documents,
+        Collection $edoAcknowledgements,
+    ): ?CarbonInterface {
+        $fileDate = $documents
+            ->filter(fn (OrderDocument $document): bool => OrderDocumentClosingFulfillment::documentMatchesClosingType($document, $documentType, $rule)
+                && OrderDocumentClosingFulfillment::documentFileFulfilled($document))
+            ->map(fn (OrderDocument $document): ?CarbonInterface => $document->document_date ?? $document->created_at)
+            ->filter()
+            ->sortByDesc(fn (CarbonInterface $date): int => $date->getTimestamp())
+            ->first();
+
+        if ($fileDate instanceof CarbonInterface) {
+            return $fileDate;
+        }
+
+        return $edoAcknowledgements
+            ->filter(fn (OrderDocumentEdoAcknowledgement $row): bool => OrderDocumentClosingFulfillment::acknowledgementMatchesClosingType($row, $documentType, $rule)
+                && OrderDocumentClosingFulfillment::acknowledgementFulfilled($row))
+            ->map(fn (OrderDocumentEdoAcknowledgement $row): ?CarbonInterface => $row->document_date ?? $row->confirmed_at)
+            ->filter()
+            ->sortByDesc(fn (CarbonInterface $date): int => $date->getTimestamp())
+            ->first();
     }
 
     /**

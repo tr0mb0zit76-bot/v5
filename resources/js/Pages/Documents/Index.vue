@@ -161,7 +161,7 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue';
-import { useForm, usePage } from '@inertiajs/vue3';
+import { router, useForm, usePage } from '@inertiajs/vue3';
 import { mergeDocumentUploadLimits } from '@/support/documentUploadClientCheck.js';
 import { useDocumentUploadGate } from '@/support/documentUploadGate.js';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
@@ -326,6 +326,7 @@ function closeOrderDocumentsModal() {
     orderDocumentsModal.show = false;
     orderDocumentsModal.orderId = null;
     orderDocumentsModal.orderNumber = '';
+    router.reload({ only: ['rows'], preserveScroll: true });
 }
 
 function submitDocument() {

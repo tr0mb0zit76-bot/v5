@@ -57,6 +57,8 @@ const props = defineProps({
     contractorsCosts: { type: Array, default: () => [] },
     requiredDocumentRules: { type: Array, default: () => [] },
     requiredDocumentChecklist: { type: Array, default: () => [] },
+    documentEdoAcknowledgements: { type: Array, default: () => [] },
+    canEditDocumentEdoAcknowledgements: { type: Boolean, default: false },
     documentTabValidationMessages: { type: Array, default: () => [] },
     documentStorage: { type: Object, default: () => ({}) },
     savedPrintFormTemplateSelection: { type: Object, default: () => ({}) },
@@ -694,6 +696,13 @@ async function submitAttach() {
     }
 }
 
+function onEdoUpdated() {
+    router.reload({
+        only: ['requiredDocumentChecklist', 'documentEdoAcknowledgements'],
+        preserveScroll: true,
+    });
+}
+
 async function deleteSignedDocument(doc) {
     if (!doc?.id) {
         return;
@@ -963,6 +972,8 @@ async function onGlobalDrop(event) {
                 :document-type-options="documentTypeOptions"
                 :required-document-rules="effectiveRequiredDocumentRules"
                 :required-document-checklist="effectiveDocumentChecklist"
+                :edo-acknowledgements="documentEdoAcknowledgements"
+                :can-edit-edo="canEditDocumentEdoAcknowledgements"
                 :can-edit="isOrderFormEditable"
                 :deleting-id="deletingDocId"
                 :order="order"
@@ -971,6 +982,7 @@ async function onGlobalDrop(event) {
                 :performers="performers"
                 @delete="deleteSignedDocument"
                 @update:field="updateSignedField"
+                @edo-updated="onEdoUpdated"
             />
         </section>
 

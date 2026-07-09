@@ -2,6 +2,8 @@
 import { computed, reactive, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { ExternalLink, Trash2 } from 'lucide-vue-next';
+import axios from 'axios';
+import { expandClosingRowsForEdo } from '@/support/orderDocumentClosingEdoRows.js';
 import { buildRegistryTableRows } from '@/support/orderDocumentRegistryRows.js';
 import { attachTrackReceivedToRegistryRows } from '@/support/orderTrackingDates.js';
 import {
@@ -16,15 +18,20 @@ const props = defineProps({
     requiredDocumentRules: { type: Array, default: () => [] },
     requiredDocumentChecklist: { type: Array, default: () => [] },
     documentTypeOptions: { type: Array, default: () => [] },
+    edoAcknowledgements: { type: Array, default: () => [] },
     canEdit: { type: Boolean, default: true },
+    canEditEdo: { type: Boolean, default: false },
     deletingId: { type: [Number, null], default: null },
     order: { type: Object, default: null },
+    orderId: { type: [Number, null], default: null },
     clientPaymentSchedule: { type: Object, default: () => ({}) },
     contractorsCosts: { type: Array, default: () => [] },
     performers: { type: Array, default: () => [] },
 });
 
-const emit = defineEmits(['delete', 'update:field']);
+const emit = defineEmits(['delete', 'update:field', 'edo-updated']);
+
+const resolvedOrderId = computed(() => props.order?.id ?? props.orderId ?? null);
 
 const trackingContext = computed(() => ({
     clientPaymentSchedule: props.clientPaymentSchedule,
@@ -41,32 +48,61 @@ const rows = computed(() => {
         props.documentTypeOptions,
     );
 
-    return attachTrackReceivedToRegistryRows(
+    const expandedRows = expandClosingRowsForEdo(
         registryRows,
+        props.signedDocuments,
+        props.edoAcknowledgements,
+    );
+
+    return attachTrackReceivedToRegistryRows(
+        expandedRows,
         trackingContext.value,
         props.requiredDocumentRules,
     );
 });
 
 const showReceivedDateColumn = computed(() => rows.value.some((row) => row.track_field));
+const showEdoColumn = computed(() => rows.value.some((row) => row.is_closing_edo_row || row.slot_kind?.endsWith('_closing')));
 
 const localReceivedDates = reactive({});
 const savingTrackFields = reactive({});
 const trackSaveErrors = reactive({});
+const localEdoState = reactive({});
+const savingEdoKeys = reactive({});
+const edoSaveErrors = reactive({});
+
+function edoRowKey(row) {
+    return [
+        row.party,
+        row.type,
+        row.slot_key ?? '',
+        row.contractor_id ?? 0,
+    ].join('|');
+}
 
 watch(
     rows,
     (nextRows) => {
         const activeFields = new Set();
+        const activeEdoKeys = new Set();
 
         for (const row of nextRows) {
-            if (!row.track_field) {
-                continue;
+            if (row.track_field) {
+                activeFields.add(row.track_field);
+                localReceivedDates[row.track_field] = row.received_date ?? '';
+                delete trackSaveErrors[row.track_field];
             }
 
-            activeFields.add(row.track_field);
-            localReceivedDates[row.track_field] = row.received_date ?? '';
-            delete trackSaveErrors[row.track_field];
+            if (row.is_closing_edo_row) {
+                const key = edoRowKey(row);
+                activeEdoKeys.add(key);
+                localEdoState[key] = {
+                    received_via_edo: Boolean(row.edo_acknowledgement?.received_via_edo),
+                    document_number: row.edo_acknowledgement?.document_number ?? row.number ?? '',
+                    document_date: row.edo_acknowledgement?.document_date ?? row.document_date ?? '',
+                };
+                delete edoSaveErrors[key];
+            }
         }
 
         for (const field of Object.keys(localReceivedDates)) {
@@ -74,6 +110,14 @@ watch(
                 delete localReceivedDates[field];
                 delete savingTrackFields[field];
                 delete trackSaveErrors[field];
+            }
+        }
+
+        for (const key of Object.keys(localEdoState)) {
+            if (!activeEdoKeys.has(key)) {
+                delete localEdoState[key];
+                delete savingEdoKeys[key];
+                delete edoSaveErrors[key];
             }
         }
     },
@@ -137,7 +181,7 @@ function onReceivedDateInput(row, event) {
 }
 
 function onReceivedDateBlur(row) {
-    if (!props.canEdit || !props.order?.id || !row.track_field) {
+    if (!props.canEdit || !resolvedOrderId.value || !row.track_field) {
         return;
     }
 
@@ -155,7 +199,7 @@ function onReceivedDateBlur(row) {
     savingTrackFields[row.track_field] = true;
     delete trackSaveErrors[row.track_field];
 
-    router.patch(route('orders.inline-update', props.order.id), {
+    router.patch(route('orders.inline-update', resolvedOrderId.value), {
         field: row.track_field,
         value: nextValue,
         wizard_context: true,
@@ -172,6 +216,72 @@ function onReceivedDateBlur(row) {
         },
     });
 }
+
+function canEditEdoForRow(row) {
+    return props.canEditEdo
+        && resolvedOrderId.value
+        && row.is_closing_edo_row
+        && !row.uploaded_file_preview_url;
+}
+
+async function saveEdoRow(row) {
+    const key = edoRowKey(row);
+    const state = localEdoState[key];
+
+    if (!canEditEdoForRow(row) || !state) {
+        return;
+    }
+
+    savingEdoKeys[key] = true;
+    delete edoSaveErrors[key];
+
+    try {
+        const response = await axios.patch(
+            route('documents.orders.edo-acknowledgement', resolvedOrderId.value),
+            {
+                party: row.party,
+                document_type: row.type,
+                slot_key: row.slot_key ?? '',
+                contractor_id: row.contractor_id ?? null,
+                received_via_edo: Boolean(state.received_via_edo),
+                document_number: state.received_via_edo ? String(state.document_number ?? '').trim() : null,
+                document_date: state.received_via_edo && state.document_date ? state.document_date : null,
+            },
+        );
+
+        emit('edo-updated', response.data ?? {});
+    } catch (error) {
+        edoSaveErrors[key] = error?.response?.data?.message
+            ?? error?.response?.data?.errors?.document_number?.[0]
+            ?? 'Не удалось сохранить отметку ЭДО.';
+    } finally {
+        savingEdoKeys[key] = false;
+    }
+}
+
+function onEdoToggle(row, event) {
+    const key = edoRowKey(row);
+    if (!localEdoState[key]) {
+        return;
+    }
+
+    localEdoState[key].received_via_edo = event.target.checked;
+
+    if (!event.target.checked) {
+        saveEdoRow(row);
+    }
+}
+
+function onEdoFieldBlur(row) {
+    const key = edoRowKey(row);
+    const state = localEdoState[key];
+
+    if (!state?.received_via_edo) {
+        return;
+    }
+
+    saveEdoRow(row);
+}
 </script>
 
 <template>
@@ -182,12 +292,13 @@ function onReceivedDateBlur(row) {
                     <th class="w-10 px-3 py-2.5 text-center" title="Обязательный документ для этапов «Оплата» и «Завершено»">
                         ✓
                     </th>
-                    <th class="px-3 py-2.5">Сторона</th>
-                    <th class="px-3 py-2.5">Тип</th>
-                    <th class="px-3 py-2.5">Номер</th>
-                    <th class="px-3 py-2.5">Дата документа</th>
-                    <th v-if="showReceivedDateColumn" class="px-3 py-2.5">Дата получения</th>
-                    <th class="px-3 py-2.5">Файл</th>
+                    <th class="min-w-[110px] px-3 py-2.5">Сторона</th>
+                    <th class="min-w-[160px] px-3 py-2.5">Тип</th>
+                    <th class="min-w-[120px] px-3 py-2.5">Номер</th>
+                    <th class="min-w-[130px] px-3 py-2.5">Дата документа</th>
+                    <th v-if="showReceivedDateColumn" class="min-w-[130px] px-3 py-2.5">Дата получения</th>
+                    <th v-if="showEdoColumn" class="min-w-[180px] px-3 py-2.5">ЭДО</th>
+                    <th class="min-w-[140px] px-3 py-2.5">Файл</th>
                     <th v-if="canEdit" class="px-3 py-2.5 text-right"> </th>
                 </tr>
             </thead>
@@ -211,7 +322,7 @@ function onReceivedDateBlur(row) {
                     </td>
                     <td class="px-3 py-2.5 text-zinc-700 dark:text-zinc-300">
                         <select
-                            v-if="canEdit && row.id && !row.is_placeholder"
+                            v-if="canEdit && row.id && !row.is_placeholder && !row.is_closing_edo_row"
                             :value="row.type"
                             class="w-full min-w-[140px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                             @change="onFieldChange(row, 'type', $event.target.value)"
@@ -221,29 +332,48 @@ function onReceivedDateBlur(row) {
                         <span v-else>{{ displayTypeLabel(row) }}</span>
                     </td>
                     <td class="px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
+                        <template v-if="canEditEdoForRow(row) && localEdoState[edoRowKey(row)]?.received_via_edo">
+                            <input
+                                v-model="localEdoState[edoRowKey(row)].document_number"
+                                type="text"
+                                class="w-full min-w-[100px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                placeholder="№ документа"
+                                :disabled="savingEdoKeys[edoRowKey(row)]"
+                                @blur="onEdoFieldBlur(row)"
+                            >
+                        </template>
                         <input
-                            v-if="canEdit && row.id && !row.is_placeholder"
+                            v-else-if="canEdit && row.id && !row.is_placeholder && !row.is_closing_edo_row"
                             :value="row.number ?? ''"
                             type="text"
                             class="w-full min-w-[100px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                             @change="onFieldChange(row, 'number', $event.target.value)"
                         >
-                        <span v-else>{{ row.is_placeholder ? '—' : (row.number || '—') }}</span>
+                        <span v-else>{{ row.is_placeholder && !localEdoState[edoRowKey(row)]?.received_via_edo ? '—' : (row.number || localEdoState[edoRowKey(row)]?.document_number || '—') }}</span>
                     </td>
                     <td class="px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
+                        <template v-if="canEditEdoForRow(row) && localEdoState[edoRowKey(row)]?.received_via_edo">
+                            <input
+                                v-model="localEdoState[edoRowKey(row)].document_date"
+                                type="date"
+                                class="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="savingEdoKeys[edoRowKey(row)]"
+                                @blur="onEdoFieldBlur(row)"
+                            >
+                        </template>
                         <input
-                            v-if="canEdit && row.id && !row.is_placeholder"
+                            v-else-if="canEdit && row.id && !row.is_placeholder && !row.is_closing_edo_row"
                             :value="row.document_date ?? ''"
                             type="date"
                             class="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                             @change="onFieldChange(row, 'document_date', $event.target.value)"
                         >
-                        <span v-else>{{ row.is_placeholder ? '—' : (row.document_date || '—') }}</span>
+                        <span v-else>{{ row.is_placeholder && !localEdoState[edoRowKey(row)]?.received_via_edo ? '—' : (row.document_date || localEdoState[edoRowKey(row)]?.document_date || '—') }}</span>
                     </td>
                     <td v-if="showReceivedDateColumn" class="px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
                         <template v-if="row.track_field">
                             <input
-                                v-if="canEdit && order?.id"
+                                v-if="canEdit && resolvedOrderId"
                                 :value="localReceivedDates[row.track_field] ?? ''"
                                 type="date"
                                 class="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
@@ -252,13 +382,45 @@ function onReceivedDateBlur(row) {
                                 @input="onReceivedDateInput(row, $event)"
                                 @blur="onReceivedDateBlur(row)"
                             >
-                            <span v-else-if="!order?.id" class="text-xs text-zinc-500">Сохраните заказ</span>
+                            <span v-else-if="!resolvedOrderId" class="text-xs text-zinc-500">Сохраните заказ</span>
                             <span v-else>{{ localReceivedDates[row.track_field] || '—' }}</span>
                             <p v-if="trackSaveErrors[row.track_field]" class="mt-1 text-xs text-rose-600">
                                 {{ trackSaveErrors[row.track_field] }}
                             </p>
                         </template>
                         <span v-else>—</span>
+                    </td>
+                    <td v-if="showEdoColumn" class="px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
+                        <template v-if="row.is_closing_edo_row">
+                            <label v-if="canEditEdoForRow(row)" class="inline-flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    class="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600"
+                                    :checked="localEdoState[edoRowKey(row)]?.received_via_edo"
+                                    :disabled="savingEdoKeys[edoRowKey(row)]"
+                                    @change="onEdoToggle(row, $event)"
+                                >
+                                <span class="text-xs">Получено</span>
+                            </label>
+                            <span
+                                v-else-if="row.uploaded_file_preview_url"
+                                class="text-xs text-zinc-400"
+                                title="Для прикреплённого скана ЭДО не требуется"
+                            >
+                                скан
+                            </span>
+                            <span
+                                v-else-if="localEdoState[edoRowKey(row)]?.received_via_edo || row.edo_acknowledgement?.received_via_edo"
+                                class="text-xs font-medium text-emerald-700 dark:text-emerald-300"
+                            >
+                                ЭДО
+                            </span>
+                            <span v-else class="text-xs text-zinc-400">—</span>
+                            <p v-if="edoSaveErrors[edoRowKey(row)]" class="mt-1 text-xs text-rose-600">
+                                {{ edoSaveErrors[edoRowKey(row)] }}
+                            </p>
+                        </template>
+                        <span v-else class="text-xs text-zinc-400">—</span>
                     </td>
                     <td class="max-w-[200px] px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
                         <a
