@@ -3591,6 +3591,9 @@ async function calculateCompensation() {
                 insurance: Number(form.insurance || 0),
                 bonus: Number(form.bonus || 0),
                 manager_id: form.order_owner_id ?? props.currentUser?.id,
+                dispatcher_id: form.dispatcher_id,
+                compensation_owner_percent: form.dispatcher_id ? form.compensation_owner_percent : 100,
+                compensation_dispatcher_percent: form.dispatcher_id ? form.compensation_dispatcher_percent : 0,
                 order_date: form.order_date,
                 customer_payment_form: normalizePaymentFormCode(form.financial_term.client_payment_form, defaultClientPaymentForm()),
                 contractors_costs: legContractorCosts.value,
@@ -3637,6 +3640,10 @@ watch(
         () => form.order_date,
         () => form.client_id,
         () => form.performers,
+        () => form.order_owner_id,
+        () => form.dispatcher_id,
+        () => form.compensation_owner_percent,
+        () => form.compensation_dispatcher_percent,
     ],
     () => {
         if (compensationDebounceTimer !== null) {

@@ -3,9 +3,22 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-09 16:05 (конец сессии) · **HEAD:** `297b3ac` · **Ветка:** `master`
+**Обновлено:** 2026-07-09 20:30 (роадмап) · **HEAD:** `297b3ac` · **Ветка:** `master`
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+### Роадмап — решения 2026-07-09 (вечер)
+
+| Решение | Документ |
+| --- | --- |
+| **Microsoft Graph** — снят с backlog (почта reg.ru, IMAP) | `commercial-intelligence-roadmap.md` 2a.9 |
+| **План продавцов** — оставить + **план по продажам** (выручка/маржа/лиды/заказы по user_id) | `management-accounting-budgeting-integration.md` M5.3b |
+| **NLP Play 6.4** — на паузе | `tz-step-05-scripts-analytics.md`, `scripts-module-implementation-plan.md` |
+| **Биржа 🔴 следующий пакет:** AI-советник, страница кейса, пул перевозчиков | `load-board-procurement-architecture.md` |
+
+**Следующая разработка (биржа):** фаза 4 split KPI (локально) → AI-советник → `/load-board/cases/{id}` → единый пул.
+
+---
 
 ### Итог сессии 2026-07-09 — ЭДО closing + красный номер в реестре
 

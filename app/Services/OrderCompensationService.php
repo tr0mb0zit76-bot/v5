@@ -12,6 +12,7 @@ use App\Support\CalendarBankDayShifter;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\ContractorCostRowClassification;
 use App\Support\OrderAdditionalCostNormalizer;
+use App\Support\OrderCompensationSplitResolver;
 use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\OrderPersistedId;
 use App\Support\OrderRouteMilestoneDateResolver;
@@ -131,11 +132,21 @@ class OrderCompensationService
 
         $calculation = $this->calculateOrder($order);
 
-        $order->forceFill([
+        $payload = [
             'kpi_percent' => $calculation['kpi_percent'],
             'delta' => $calculation['delta'],
             'salary_accrued' => $calculation['salary_accrued'],
-        ])->saveQuietly();
+        ];
+
+        if (Schema::hasColumn('orders', 'metadata') && isset($calculation['compensation_split_salary'])) {
+            $metadata = is_array($order->metadata) ? $order->metadata : [];
+            $payload['metadata'] = OrderCompensationSplitResolver::mergeSalaryIntoMetadata(
+                $metadata,
+                $calculation['compensation_split_salary'],
+            );
+        }
+
+        $order->forceFill($payload)->saveQuietly();
 
         $this->syncFinancialTerms($order);
     }
@@ -181,12 +192,15 @@ class OrderCompensationService
             $order->order_date->toDateString(),
         );
 
-        $salaryAccrued = $this->resolveSalaryAccrued($delta, $salaryCoefficient);
+        $totalSalary = $this->resolveSalaryAccrued($delta, $salaryCoefficient);
+        $split = OrderCompensationSplitResolver::fromOrder($order);
+        $salarySplit = OrderCompensationSplitResolver::applyToSalary($totalSalary, $split);
 
         return [
             'kpi_percent' => round($kpiPercent, 2),
             'delta' => round($delta, 2),
-            'salary_accrued' => round($salaryAccrued, 2),
+            'salary_accrued' => round($salarySplit['owner'], 2),
+            'compensation_split_salary' => $salarySplit,
             'deal_type' => $dealType,
         ];
     }
@@ -234,12 +248,15 @@ class OrderCompensationService
         $delta = $customerRate - $kpiDeduction - $expense + $vatMarginSupplement;
 
         $salaryCoefficient = SalaryCoefficient::getForManagerOnDate($managerId, $orderDate);
-        $salaryAccrued = $this->resolveSalaryAccrued($delta, $salaryCoefficient);
+        $totalSalary = $this->resolveSalaryAccrued($delta, $salaryCoefficient);
+        $split = OrderCompensationSplitResolver::fromPayload($data);
+        $salarySplit = OrderCompensationSplitResolver::applyToSalary($totalSalary, $split);
 
         return [
             'kpi_percent' => round($kpiPercent, 2),
             'delta' => round($delta, 2),
-            'salary_accrued' => round($salaryAccrued, 2),
+            'salary_accrued' => round($salarySplit['owner'], 2),
+            'compensation_split_salary' => $salarySplit,
             'deal_type' => $dealType,
         ];
     }

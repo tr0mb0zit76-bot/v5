@@ -105,7 +105,7 @@ php artisan test --compact tests/Feature/SalesScripts/SalesScriptAnalyticsPageTe
 ## Что дальше (backlog)
 
 - Merge PR `feature/commercial-roadmap-steps-1-5` → `master`, deploy + migrate на прод
-- Фаза 6.4 NLP по комментариям Play — не делали
+- Фаза 6.4 NLP по комментариям Play — **на паузе** (долгий горизонт)
 - Публикация пользовательских инструкций в Книгу (если появятся)
 - Накопление Play-сессий на проде для осмысленной аналитики (N ≥ 10)
 
