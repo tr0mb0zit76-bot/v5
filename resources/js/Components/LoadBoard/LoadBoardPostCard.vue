@@ -338,7 +338,53 @@
                     <h3 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                         Пул перевозчиков ({{ carrierPoolState.total ?? 0 }})
                     </h3>
+                    <button
+                        v-if="!isClosed(post)"
+                        type="button"
+                        :class="crmBtnCreate"
+                        @click="openCandidateForm"
+                    >
+                        + Кандидат
+                    </button>
                 </div>
+                <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                    Кандидат — ориентир из звонка, ATI или переписки без полного оффера. Офферы из вкладки «Офферы» попадают в пул автоматически.
+                </p>
+
+                <form
+                    v-if="showCandidateForm"
+                    class="space-y-3 border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-900/50 dark:bg-amber-950/20"
+                    @submit.prevent="submitCandidate"
+                >
+                    <div class="grid gap-2 md:grid-cols-2">
+                        <select v-model="candidateForm.carrier_id" :class="crmFieldFluid">
+                            <option :value="null">Перевозчик из справочника</option>
+                            <option v-for="contractor in contractors" :key="`pool-${contractor.id}`" :value="contractor.id">{{ contractor.name }}</option>
+                        </select>
+                        <select v-model="candidateForm.source" :class="crmFieldFluid">
+                            <option v-for="(label, value) in offerSourceOptions" :key="`pool-source-${value}`" :value="value">{{ label }}</option>
+                        </select>
+                    </div>
+                    <input
+                        v-model="candidateForm.carrier_name"
+                        type="text"
+                        :class="crmFieldFluid"
+                        placeholder="Название перевозчика (если нет в справочнике)"
+                    >
+                    <div class="grid gap-2 sm:grid-cols-2">
+                        <input v-model="candidateForm.carrier_rate" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="Ориентир ставки (необязательно)" />
+                        <input v-model="candidateForm.carrier_rate_currency" maxlength="3" :class="crmFieldFluid" placeholder="RUB" />
+                    </div>
+                    <input v-model="candidateForm.carrier_contact" :class="crmFieldFluid" placeholder="Контакт" />
+                    <textarea v-model="candidateForm.conditions" rows="2" :class="crmFieldFluid" placeholder="Условия" />
+                    <textarea v-model="candidateForm.comment" rows="2" :class="crmFieldFluid" placeholder="Комментарий" />
+                    <InputError :message="candidateForm.errors.carrier_id" />
+                    <InputError :message="candidateForm.errors.source" />
+                    <div class="flex justify-end gap-2">
+                        <button type="button" :class="crmBtnNeutral" @click="showCandidateForm = false">Отмена</button>
+                        <button type="submit" :class="crmBtnCreate" :disabled="candidateForm.processing">Добавить в пул</button>
+                    </div>
+                </form>
                 <div v-if="carrierPoolState.sources_summary?.length" class="flex flex-wrap gap-2 text-xs">
                     <span
                         v-for="row in carrierPoolState.sources_summary"
@@ -359,6 +405,7 @@
                                 <th class="px-2 py-2">Ставка</th>
                                 <th class="px-2 py-2">Источник</th>
                                 <th class="px-2 py-2">Статус</th>
+                                <th class="px-2 py-2">Действия</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -378,7 +425,28 @@
                                     <span v-else class="text-zinc-400">—</span>
                                 </td>
                                 <td class="px-2 py-3 text-xs">{{ entry.source_label }}</td>
-                                <td class="px-2 py-3 text-xs uppercase">{{ entry.status }}</td>
+                                <td class="px-2 py-3 text-xs uppercase">{{ poolStatusLabel(entry) }}</td>
+                                <td class="px-2 py-3">
+                                    <div class="flex flex-col gap-1">
+                                        <button
+                                            v-if="entry.kind === 'candidate' && !isClosed(post)"
+                                            type="button"
+                                            class="text-left text-sm font-medium text-sky-700 hover:underline dark:text-sky-300"
+                                            @click="promoteCandidateToOffer(entry)"
+                                        >
+                                            В оффер
+                                        </button>
+                                        <button
+                                            v-if="entry.kind === 'candidate' && entry.candidate_id && !isClosed(post)"
+                                            type="button"
+                                            class="text-left text-sm font-medium text-rose-700 hover:underline dark:text-rose-300"
+                                            @click="removeCandidate(entry.candidate_id)"
+                                        >
+                                            Удалить
+                                        </button>
+                                        <span v-else-if="entry.kind === 'offer'" class="text-xs text-zinc-400">оффер</span>
+                                    </div>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -485,6 +553,7 @@ const procurementLinkedLeads = computed(() => {
 
 const activeTab = ref(props.fullPage ? 'offers' : 'overview');
 const showOfferForm = ref(false);
+const showCandidateForm = ref(false);
 const rateInsights = ref(null);
 const advisorPayload = ref(null);
 const advisorLoading = ref(false);
@@ -512,6 +581,17 @@ const offerForm = useForm({
     carrier_rate_currency: 'RUB',
     payment_form: '',
     available_date: '',
+    carrier_contact: '',
+    conditions: '',
+    comment: '',
+});
+
+const candidateForm = useForm({
+    carrier_id: null,
+    carrier_name: '',
+    source: 'phone',
+    carrier_rate: '',
+    carrier_rate_currency: 'RUB',
     carrier_contact: '',
     conditions: '',
     comment: '',
@@ -564,6 +644,7 @@ watch(
     () => {
         activeTab.value = props.fullPage ? 'offers' : 'overview';
         showOfferForm.value = false;
+        showCandidateForm.value = false;
         rateInsights.value = null;
         advisorPayload.value = null;
     },
@@ -630,6 +711,59 @@ function isClosed(post) {
 function openOfferForm() {
     activeTab.value = 'offers';
     showOfferForm.value = true;
+    showCandidateForm.value = false;
+}
+
+function openCandidateForm() {
+    activeTab.value = 'pool';
+    showCandidateForm.value = true;
+    showOfferForm.value = false;
+}
+
+function submitCandidate() {
+    candidateForm.post(route('load-board.carrier-pool.candidates.store', props.post.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            showCandidateForm.value = false;
+            candidateForm.reset();
+            candidateForm.source = 'phone';
+            candidateForm.carrier_rate_currency = 'RUB';
+            advisorPayload.value = null;
+        },
+    });
+}
+
+function removeCandidate(candidateId) {
+    router.delete(route('load-board.carrier-pool.candidates.destroy', {
+        post: props.post.id,
+        candidate: candidateId,
+    }), {
+        preserveScroll: true,
+        onSuccess: () => {
+            advisorPayload.value = null;
+        },
+    });
+}
+
+function promoteCandidateToOffer(entry) {
+    activeTab.value = 'offers';
+    showOfferForm.value = true;
+    showCandidateForm.value = false;
+    offerForm.carrier_id = entry.carrier_id ?? null;
+    offerForm.source = entry.source ?? 'phone';
+    offerForm.carrier_rate = entry.carrier_rate ?? '';
+    offerForm.carrier_rate_currency = entry.carrier_rate_currency ?? 'RUB';
+    offerForm.carrier_contact = entry.carrier_contact ?? '';
+    offerForm.conditions = entry.conditions ?? '';
+    offerForm.comment = entry.comment ?? '';
+}
+
+function poolStatusLabel(entry) {
+    if (entry.kind === 'candidate') {
+        return 'кандидат';
+    }
+
+    return offerStatusLabel(entry.status);
 }
 
 function submitOffer() {

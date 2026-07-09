@@ -388,6 +388,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/{post}/release', [LoadBoardController::class, 'release'])->name('release');
         Route::patch('/{post}/buyer', [LoadBoardController::class, 'assignBuyer'])->name('buyer.update');
         Route::patch('/{post}/procurement-case/links', [LoadBoardController::class, 'attachProcurementCaseLink'])->name('procurement-case.links.attach');
+        Route::post('/{post}/carrier-pool/candidates', [LoadBoardController::class, 'storeCarrierPoolCandidate'])->name('carrier-pool.candidates.store');
+        Route::delete('/{post}/carrier-pool/candidates/{candidate}', [LoadBoardController::class, 'destroyCarrierPoolCandidate'])->name('carrier-pool.candidates.destroy');
         Route::post('/{post}/offers', [LoadBoardController::class, 'storeOffer'])->name('offers.store');
         Route::post('/{post}/offers/{offer}/select', [LoadBoardController::class, 'selectOffer'])->name('offers.select');
         Route::post('/{post}/offers/{offer}/approve', [LoadBoardController::class, 'approveOffer'])->name('offers.approve');

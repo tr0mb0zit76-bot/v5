@@ -67,6 +67,35 @@ final class LoadBoardCarrierPoolService
     }
 
     /**
+     * @param  array<string, mixed>  $candidate
+     */
+    public function hasEntryForCandidate(LoadBoardPost $post, array $candidate): bool
+    {
+        $key = $this->dedupKeyFromCandidate($candidate);
+
+        $post->loadMissing(['offers.carrier']);
+
+        foreach ($post->offers as $offer) {
+            if ($this->dedupKey($offer) === $key) {
+                return true;
+            }
+        }
+
+        $metadata = is_array($post->metadata) ? $post->metadata : [];
+        foreach ($metadata['carrier_pool_candidates'] ?? [] as $existing) {
+            if (! is_array($existing)) {
+                continue;
+            }
+
+            if ($this->dedupKeyFromCandidate($existing) === $key) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function entryFromOffer(LoadBoardOffer $offer): array
@@ -101,6 +130,7 @@ final class LoadBoardCarrierPoolService
 
         return [
             'pool_key' => $this->dedupKeyFromCandidate($candidate),
+            'candidate_id' => $candidate['id'] ?? null,
             'offer_id' => null,
             'carrier_id' => $carrierId,
             'carrier_name' => $candidate['carrier_name'] ?? null,

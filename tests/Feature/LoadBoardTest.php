@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\LoadBoard\LoadBoardCarrierPoolService;
 use App\Services\LoadBoard\LoadBoardCorridorKey;
 use App\Services\LoadBoard\ProcurementCaseSyncService;
 use Illuminate\Support\Facades\Schema;
@@ -574,5 +575,101 @@ class LoadBoardTest extends TestCase
         $this->assertIsArray($payload['ranked_offers']);
         $this->assertNotEmpty($payload['ranked_offers']);
         $this->assertSame(1, $payload['carrier_pool']['total']);
+    }
+
+    public function test_user_can_add_and_remove_carrier_pool_candidate(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'load_board_role_pool_ui',
+            'display_name' => 'Load board pool ui',
+            'visibility_areas' => ['load_board'],
+        ]);
+
+        $user = User::factory()->create(['role_id' => $role->id]);
+
+        $post = LoadBoardPost::query()->create([
+            'seller_id' => $user->id,
+            'status' => 'in_work',
+            'priority' => 'normal',
+            'title' => 'Pool candidate',
+            'loading_location' => 'Москва',
+            'unloading_location' => 'Тула',
+            'published_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('load-board.carrier-pool.candidates.store', $post), [
+                'carrier_name' => 'ИП Звонок',
+                'source' => 'phone',
+                'carrier_rate' => 90000,
+                'carrier_contact' => '+7 900 000-00-00',
+                'comment' => 'Перезвонить',
+            ])
+            ->assertRedirect();
+
+        $metadata = $post->fresh()->metadata;
+        $this->assertIsArray($metadata);
+        $this->assertCount(1, $metadata['carrier_pool_candidates'] ?? []);
+        $candidateId = (string) ($metadata['carrier_pool_candidates'][0]['id'] ?? '');
+        $this->assertNotSame('', $candidateId);
+
+        $pool = app(LoadBoardCarrierPoolService::class)->forPost($post->fresh());
+        $this->assertSame(1, $pool['total']);
+        $this->assertSame('candidate', $pool['entries'][0]['kind']);
+
+        $this->actingAs($user)
+            ->delete(route('load-board.carrier-pool.candidates.destroy', [
+                'post' => $post,
+                'candidate' => $candidateId,
+            ]))
+            ->assertRedirect();
+
+        $this->assertSame([], $post->fresh()->metadata['carrier_pool_candidates'] ?? []);
+    }
+
+    public function test_duplicate_carrier_pool_candidate_is_rejected(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'load_board_role_pool_dup',
+            'display_name' => 'Load board pool dup',
+            'visibility_areas' => ['load_board'],
+        ]);
+
+        $user = User::factory()->create(['role_id' => $role->id]);
+        $carrier = Contractor::query()->create([
+            'type' => 'carrier',
+            'name' => 'Dup Carrier',
+            'is_active' => true,
+        ]);
+
+        $post = LoadBoardPost::query()->create([
+            'seller_id' => $user->id,
+            'status' => 'in_work',
+            'priority' => 'normal',
+            'title' => 'Dup pool',
+            'loading_location' => 'СПб',
+            'unloading_location' => 'Москва',
+            'published_at' => now(),
+            'metadata' => [
+                'carrier_pool_candidates' => [[
+                    'id' => 'cand-1',
+                    'carrier_id' => $carrier->id,
+                    'carrier_name' => 'Dup Carrier',
+                    'source' => 'phone',
+                    'carrier_rate' => 80000,
+                    'carrier_rate_currency' => 'RUB',
+                ]],
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('load-board.cases.show', $post))
+            ->post(route('load-board.carrier-pool.candidates.store', $post), [
+                'carrier_id' => $carrier->id,
+                'source' => 'phone',
+                'carrier_rate' => 79000,
+            ])
+            ->assertRedirect(route('load-board.cases.show', $post))
+            ->assertSessionHasErrors('carrier_id');
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreLoadBoardCarrierPoolCandidateRequest;
 use App\Http\Requests\StoreLoadBoardOfferRequest;
 use App\Http\Requests\StoreLoadBoardPostRequest;
 use App\Models\Contractor;
@@ -15,6 +16,7 @@ use App\Models\User;
 use App\Services\LoadBoard\LoadBoardAdvisorService;
 use App\Services\LoadBoard\LoadBoardAtiReadinessService;
 use App\Services\LoadBoard\LoadBoardBuyerTaskService;
+use App\Services\LoadBoard\LoadBoardCarrierPoolCandidateService;
 use App\Services\LoadBoard\LoadBoardCarrierPoolService;
 use App\Services\LoadBoard\LoadBoardPostIndexService;
 use App\Services\LoadBoard\LoadBoardPostPresenter;
@@ -42,6 +44,7 @@ class LoadBoardController extends Controller
         private readonly LoadBoardRateObservationService $rateObservations,
         private readonly LoadBoardAdvisorService $advisor,
         private readonly LoadBoardCarrierPoolService $carrierPool,
+        private readonly LoadBoardCarrierPoolCandidateService $carrierPoolCandidates,
         private readonly ProcurementCaseSyncService $procurementCases,
         private readonly ProcurementCaseLinkService $procurementCaseLinks,
     ) {}
@@ -318,6 +321,29 @@ class LoadBoardController extends Controller
         });
 
         return back()->with('message', 'Вариант перевозчика принят. Груз закрыт, данные зафиксированы для заказа.');
+    }
+
+    public function storeCarrierPoolCandidate(
+        StoreLoadBoardCarrierPoolCandidateRequest $request,
+        LoadBoardPost $post,
+    ): RedirectResponse {
+        abort_if($request->user() === null, 403);
+
+        $this->carrierPoolCandidates->add($post, $request->validated(), $request->user());
+
+        return back()->with('message', 'Кандидат добавлен в пул перевозчиков.');
+    }
+
+    public function destroyCarrierPoolCandidate(
+        Request $request,
+        LoadBoardPost $post,
+        string $candidate,
+    ): RedirectResponse {
+        abort_if($request->user() === null, 403);
+
+        $this->carrierPoolCandidates->remove($post, $candidate);
+
+        return back()->with('message', 'Кандидат удалён из пула.');
     }
 
     public function attachProcurementCaseLink(Request $request, LoadBoardPost $post): RedirectResponse
