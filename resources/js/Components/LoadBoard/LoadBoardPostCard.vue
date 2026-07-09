@@ -14,6 +14,13 @@
                     </div>
                     <h2 class="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">{{ post.title }}</h2>
                     <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ routeSummary(post) }}</p>
+                    <Link
+                        v-if="!fullPage"
+                        :href="route('load-board.cases.show', post.id)"
+                        class="mt-2 inline-flex text-sm font-medium text-indigo-700 hover:underline dark:text-indigo-300"
+                    >
+                        Открыть страницу кейса
+                    </Link>
                 </div>
                 <div class="text-right text-xs text-zinc-500 dark:text-zinc-400">
                     <div>Продавец: {{ post.seller?.name ?? '—' }}</div>
@@ -38,6 +45,18 @@
 
         <div class="p-5">
             <div v-if="activeTab === 'overview'" class="space-y-4">
+                <div
+                    v-if="advisorState?.risk_factors?.length"
+                    class="border p-3 text-sm"
+                    :class="riskBannerClass(advisorState.risk_level)"
+                >
+                    <div class="text-xs font-semibold uppercase tracking-wide">Риск срыва · {{ riskLevelLabel(advisorState.risk_level) }}</div>
+                    <p class="mt-1">{{ advisorState.summary }}</p>
+                    <ul v-if="advisorState.risk_factors.length > 1" class="mt-2 list-disc space-y-0.5 pl-5 text-xs opacity-90">
+                        <li v-for="factor in advisorState.risk_factors" :key="factor.code">{{ factor.label }}</li>
+                    </ul>
+                </div>
+
                 <dl class="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
                     <div>
                         <dt class="text-xs uppercase tracking-wide text-zinc-500">Даты</dt>
@@ -168,7 +187,16 @@
             </div>
 
             <div v-else-if="activeTab === 'offers'" class="space-y-4">
-                <div v-if="insightsLoading" class="text-sm text-zinc-500 dark:text-zinc-400">Считаем коридор ставок по похожим грузам…</div>
+                <div v-if="advisorLoading" class="text-sm text-zinc-500 dark:text-zinc-400">Советник анализирует офферы и коридор…</div>
+                <div
+                    v-else-if="advisorState"
+                    class="space-y-3 border border-violet-200 bg-violet-50/70 p-3 text-sm text-violet-950 dark:border-violet-900/50 dark:bg-violet-950/20 dark:text-violet-100"
+                >
+                    <div class="text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">AI-советник</div>
+                    <p>{{ advisorState.summary }}</p>
+                </div>
+
+                <div v-if="advisorLoading && !rateInsights" class="text-sm text-zinc-500 dark:text-zinc-400">Считаем коридор ставок по похожим грузам…</div>
                 <div
                     v-else-if="rateInsights?.available"
                     class="border border-emerald-200 bg-emerald-50/70 p-3 text-sm text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-100"
@@ -256,6 +284,9 @@
                             >
                                 <td class="px-2 py-3">
                                     <div class="font-medium text-zinc-900 dark:text-zinc-50">{{ offer.carrier?.name ?? '—' }}</div>
+                                    <div v-if="offerRank(offer.id)" class="mt-0.5 text-xs font-medium text-violet-700 dark:text-violet-300">
+                                        Оценка {{ offerRank(offer.id).score }}/100 · {{ offerRank(offer.id).reasons?.[0] }}
+                                    </div>
                                     <div v-if="offer.carrier_contact" class="mt-0.5 text-xs text-zinc-500">{{ offer.carrier_contact }}</div>
                                     <div v-if="offer.conditions" class="mt-1 text-xs text-zinc-600 dark:text-zinc-300">{{ offer.conditions }}</div>
                                 </td>
@@ -296,6 +327,58 @@
                                         </button>
                                     </div>
                                 </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div v-else-if="activeTab === 'pool'" class="space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h3 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                        Пул перевозчиков ({{ carrierPoolState.total ?? 0 }})
+                    </h3>
+                </div>
+                <div v-if="carrierPoolState.sources_summary?.length" class="flex flex-wrap gap-2 text-xs">
+                    <span
+                        v-for="row in carrierPoolState.sources_summary"
+                        :key="row.source"
+                        class="border border-zinc-200 px-2 py-1 dark:border-zinc-700"
+                    >
+                        {{ row.label }}: {{ row.count }}
+                    </span>
+                </div>
+                <div v-if="!carrierPoolState.entries?.length" class="border border-dashed border-zinc-200 p-4 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                    Пул пуст. Добавьте офферы из CRM, ATI, звонков или переписки — они появятся здесь с дедупом по перевозчику и источнику.
+                </div>
+                <div v-else class="overflow-x-auto">
+                    <table class="min-w-full border-collapse text-sm">
+                        <thead>
+                            <tr class="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-700">
+                                <th class="px-2 py-2">Перевозчик</th>
+                                <th class="px-2 py-2">Ставка</th>
+                                <th class="px-2 py-2">Источник</th>
+                                <th class="px-2 py-2">Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="entry in carrierPoolState.entries"
+                                :key="entry.pool_key"
+                                class="border-b border-zinc-100 dark:border-zinc-800"
+                            >
+                                <td class="px-2 py-3">
+                                    <div class="font-medium">{{ entry.carrier_name ?? '—' }}</div>
+                                    <div v-if="entry.carrier_contact" class="text-xs text-zinc-500">{{ entry.carrier_contact }}</div>
+                                </td>
+                                <td class="px-2 py-3 whitespace-nowrap">
+                                    <template v-if="entry.carrier_rate !== null && entry.carrier_rate !== undefined">
+                                        {{ money(entry.carrier_rate, entry.carrier_rate_currency) }}
+                                    </template>
+                                    <span v-else class="text-zinc-400">—</span>
+                                </td>
+                                <td class="px-2 py-3 text-xs">{{ entry.source_label }}</td>
+                                <td class="px-2 py-3 text-xs uppercase">{{ entry.status }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -380,6 +463,9 @@ const props = defineProps({
     atiPreview: { type: Object, default: null },
     orderOptions: { type: Array, default: () => [] },
     leadOptions: { type: Array, default: () => [] },
+    advisor: { type: Object, default: null },
+    carrierPool: { type: Object, default: null },
+    fullPage: { type: Boolean, default: false },
 });
 
 const linkOrderId = ref('');
@@ -397,14 +483,25 @@ const procurementLinkedLeads = computed(() => {
     return Array.isArray(rows) ? rows : [];
 });
 
-const activeTab = ref('overview');
+const activeTab = ref(props.fullPage ? 'offers' : 'overview');
 const showOfferForm = ref(false);
 const rateInsights = ref(null);
-const insightsLoading = ref(false);
+const advisorPayload = ref(null);
+const advisorLoading = ref(false);
+
+const advisorState = computed(() => props.advisor ?? advisorPayload.value);
+const carrierPoolState = computed(() => {
+    if (props.carrierPool && Object.keys(props.carrierPool).length > 0) {
+        return props.carrierPool;
+    }
+
+    return advisorState.value?.carrier_pool ?? { total: 0, entries: [], sources_summary: [] };
+});
 
 const detailTabs = [
     { key: 'overview', label: 'Обзор' },
     { key: 'offers', label: 'Офферы' },
+    { key: 'pool', label: 'Пул' },
     { key: 'ati', label: 'ATI' },
 ];
 
@@ -422,6 +519,22 @@ const offerForm = useForm({
 
 const sortedOffers = computed(() => {
     const offers = Array.isArray(props.post.offers) ? [...props.post.offers] : [];
+    const ranked = advisorState.value?.ranked_offers;
+
+    if (Array.isArray(ranked) && ranked.length > 0) {
+        const order = new Map(ranked.map((row, index) => [Number(row.offer_id), index]));
+
+        return offers.sort((left, right) => {
+            const leftIndex = order.get(Number(left.id)) ?? Number.MAX_SAFE_INTEGER;
+            const rightIndex = order.get(Number(right.id)) ?? Number.MAX_SAFE_INTEGER;
+
+            if (leftIndex !== rightIndex) {
+                return leftIndex - rightIndex;
+            }
+
+            return Number(left.carrier_rate ?? Number.MAX_SAFE_INTEGER) - Number(right.carrier_rate ?? Number.MAX_SAFE_INTEGER);
+        });
+    }
 
     return offers.sort((left, right) => {
         const leftRate = Number(left.carrier_rate ?? Number.MAX_SAFE_INTEGER);
@@ -431,6 +544,17 @@ const sortedOffers = computed(() => {
     });
 });
 
+const offerRankMap = computed(() => {
+    const map = new Map();
+    const ranked = advisorState.value?.ranked_offers ?? [];
+
+    ranked.forEach((row) => {
+        map.set(Number(row.offer_id), row);
+    });
+
+    return map;
+});
+
 const atiPreviewForPost = computed(() => (
     Number(props.atiPreview?.post_id) === Number(props.post.id) ? props.atiPreview : null
 ));
@@ -438,32 +562,66 @@ const atiPreviewForPost = computed(() => (
 watch(
     () => props.post.id,
     () => {
-        activeTab.value = 'overview';
+        activeTab.value = props.fullPage ? 'offers' : 'overview';
         showOfferForm.value = false;
         rateInsights.value = null;
+        advisorPayload.value = null;
     },
 );
 
 watch(
-    () => [props.post.id, activeTab.value],
+    () => [props.post.id, activeTab.value, props.advisor],
     async ([postId, tab]) => {
-        if (tab !== 'offers' || !postId) {
+        if (props.advisor) {
+            rateInsights.value = props.advisor.corridor_insights ?? null;
+            advisorPayload.value = props.advisor;
+
             return;
         }
 
-        insightsLoading.value = true;
+        if (!['offers', 'overview', 'pool'].includes(tab) || !postId) {
+            return;
+        }
+
+        advisorLoading.value = true;
 
         try {
-            const response = await axios.get(route('load-board.insights', postId));
-            rateInsights.value = response.data?.insights ?? null;
+            const response = await axios.get(route('load-board.advisor', postId));
+            advisorPayload.value = response.data?.advisor ?? null;
+            rateInsights.value = response.data?.advisor?.corridor_insights ?? null;
         } catch {
+            advisorPayload.value = null;
             rateInsights.value = null;
         } finally {
-            insightsLoading.value = false;
+            advisorLoading.value = false;
         }
     },
     { immediate: true },
 );
+
+function offerRank(offerId) {
+    return offerRankMap.value.get(Number(offerId)) ?? null;
+}
+
+function riskLevelLabel(level) {
+    return {
+        low: 'низкий',
+        medium: 'средний',
+        high: 'высокий',
+    }[level] ?? level;
+}
+
+function riskBannerClass(level) {
+    if (level === 'high') {
+        return 'border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-100';
+    }
+
+    if (level === 'medium') {
+        return 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100';
+    }
+
+    return 'border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-100';
+}
 
 function isClosed(post) {
     return ['closed', 'cancelled', 'no_options'].includes(post.status);

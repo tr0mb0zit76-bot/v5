@@ -34,6 +34,38 @@ class LoadBoardPostIndexService
             ->count();
     }
 
+    public function findForPresentation(int $postId): LoadBoardPost
+    {
+        return LoadBoardPost::query()
+            ->with($this->presentationRelations())
+            ->withCount('offers')
+            ->findOrFail($postId);
+    }
+
+    /**
+     * @return list<string|callable>
+     */
+    public function presentationRelations(): array
+    {
+        return [
+            'seller:id,name',
+            'buyer:id,name',
+            'customer:id,name',
+            'lead:id,number,title',
+            'order:id,order_number',
+            'procurementCase.orderOwner:id,name',
+            'procurementCase.buyer:id,name',
+            'procurementCase.dispatcher:id,name',
+            'procurementCase.order:id,order_number',
+            'procurementCase.lead:id,number,title',
+            'procurementCase.buyingOwnCompany:id,name',
+            'acceptedOffer.carrier:id,name',
+            'accepter:id,name',
+            'offers.carrier:id,name',
+            'offers.creator:id,name',
+        ];
+    }
+
     /**
      * @return array{data: list<array<string, mixed>>, meta: array<string, int|bool>}
      */
@@ -60,23 +92,7 @@ class LoadBoardPostIndexService
     public function filteredQuery(string $filter, User $user): Builder
     {
         return LoadBoardPost::query()
-            ->with([
-                'seller:id,name',
-                'buyer:id,name',
-                'customer:id,name',
-                'lead:id,number,title',
-                'order:id,order_number',
-                'procurementCase.orderOwner:id,name',
-                'procurementCase.buyer:id,name',
-                'procurementCase.dispatcher:id,name',
-                'procurementCase.order:id,order_number',
-                'procurementCase.lead:id,number,title',
-                'procurementCase.buyingOwnCompany:id,name',
-                'acceptedOffer.carrier:id,name',
-                'accepter:id,name',
-                'offers.carrier:id,name',
-                'offers.creator:id,name',
-            ])
+            ->with($this->presentationRelations())
             ->withCount('offers')
             ->when($filter === 'active', fn (Builder $query) => $query->whereNotIn('status', ['closed', 'cancelled', 'no_options']))
             ->when($filter === 'my', fn (Builder $query) => $query

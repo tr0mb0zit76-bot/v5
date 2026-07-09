@@ -12,8 +12,10 @@ use App\Models\LoadBoardPost;
 use App\Models\Order;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\LoadBoard\LoadBoardAdvisorService;
 use App\Services\LoadBoard\LoadBoardAtiReadinessService;
 use App\Services\LoadBoard\LoadBoardBuyerTaskService;
+use App\Services\LoadBoard\LoadBoardCarrierPoolService;
 use App\Services\LoadBoard\LoadBoardPostIndexService;
 use App\Services\LoadBoard\LoadBoardPostPresenter;
 use App\Services\LoadBoard\LoadBoardRateObservationService;
@@ -38,6 +40,8 @@ class LoadBoardController extends Controller
         private readonly LoadBoardPostIndexService $postIndex,
         private readonly LoadBoardPostPresenter $postPresenter,
         private readonly LoadBoardRateObservationService $rateObservations,
+        private readonly LoadBoardAdvisorService $advisor,
+        private readonly LoadBoardCarrierPoolService $carrierPool,
         private readonly ProcurementCaseSyncService $procurementCases,
         private readonly ProcurementCaseLinkService $procurementCaseLinks,
     ) {}
@@ -111,6 +115,29 @@ class LoadBoardController extends Controller
         return response()->json($this->postIndex->pagePayload($filter, $user, $page));
     }
 
+    public function show(Request $request, LoadBoardPost $post): Response
+    {
+        abort_if($request->user() === null, 403);
+
+        $post = $this->postIndex->findForPresentation($post->id);
+        $presented = $this->postPresenter->present($post);
+        $advisor = $this->advisor->advise($post, $this->carrierPool);
+
+        return Inertia::render('LoadBoard/Show', $this->casePageProps($request, $presented, $advisor));
+    }
+
+    public function advisor(Request $request, LoadBoardPost $post): JsonResponse
+    {
+        abort_if($request->user() === null, 403);
+
+        $post = $this->postIndex->findForPresentation($post->id);
+
+        return response()->json([
+            'post_id' => $post->id,
+            'advisor' => $this->advisor->advise($post, $this->carrierPool),
+        ]);
+    }
+
     public function insights(Request $request, LoadBoardPost $post): JsonResponse
     {
         abort_if($request->user() === null, 403);
@@ -118,6 +145,7 @@ class LoadBoardController extends Controller
         return response()->json([
             'post_id' => $post->id,
             'insights' => $this->rateObservations->corridorInsightsForPost($post),
+            'advisor' => $this->advisor->advise($post, $this->carrierPool),
         ]);
     }
 
@@ -818,6 +846,29 @@ class LoadBoardController extends Controller
         }
 
         return $last ? $points->last() : $points->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $post
+     * @param  array<string, mixed>  $advisor
+     * @return array<string, mixed>
+     */
+    private function casePageProps(Request $request, array $post, array $advisor): array
+    {
+        return [
+            'post' => $post,
+            'advisor' => $advisor,
+            'carrierPool' => $advisor['carrier_pool'] ?? [],
+            'statusLabels' => self::statusLabels(),
+            'priorityLabels' => self::priorityLabels(),
+            'users' => User::query()->select(['id', 'name'])->orderBy('name')->get(),
+            'contractors' => Contractor::query()->select(['id', 'name'])->orderBy('name')->limit(500)->get(),
+            'leadOptions' => Lead::query()->select(['id', 'number', 'title'])->latest('id')->limit(100)->get(),
+            'orderOptions' => Order::query()->select(['id', 'order_number'])->latest('id')->limit(100)->get(),
+            'atiDictionaries' => $this->atiDictionaries(),
+            'offerSourceOptions' => LoadBoardOfferSource::labels(),
+            'atiPreview' => $request->session()->get('flash.load_board_ati_preview'),
+        ];
     }
 
     /**

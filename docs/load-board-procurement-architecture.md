@@ -170,14 +170,14 @@ new → in_work → has_offers → seller_review → closed
 | **Сделано (2026-07)** | Грид + вкладки, infinite scroll, карточка с офферами/ATI, rate observations, insights API |
 | **Сделано (2026-07-08)** | `order_owner_id`, `dispatcher_id` в заказе; split мастера owner/dispatcher; `metadata.compensation_split`; `ProcurementCase` + sync с постом; seller с заказа = владелец |
 | **Сделано (2026-07-08, фаза 3)** | UI кейса в карточке биржи; split % в мастере заказа; `linked_orders` / `linked_leads` + API привязки |
-| **В работе / следующий пакет** | split % в `OrderCompensationService` (фаза 4, код локально); **🔴 AI-советник** (ранжирование офферов, риск срыва); **🔴 отдельная страница кейса**; **🔴 единый пул перевозчиков** (internal + внешние источники) |
+| **В работе / следующий пакет** | split % в `OrderCompensationService` (фаза 4 ✅ `5b9da11`); **✅ AI-советник**; **✅ страница кейса** `/load-board/cases/{post}`; **✅ пул перевозчиков** |
 | **ATI API** | Автопубликация после ключа (после появления ключа) |
 
 ### Приоритеты закупки (зафиксировано 2026-07-09)
 
-1. **AI-советник** — поверх `load_board_rate_observations` и `corridorInsights`: ранжирование офферов, подсветка риска срыва (срок, маржа, история коридора). Не заменяет решение закупщика.
-2. **Страница кейса** — `/load-board/cases/{id}` или аналог: полный workflow вне карточки в сайдбаре грида (офферы, ATI, связи order/lead, split, лента).
-3. **Пул перевозчиков** — единый реестр кандидатов: CRM internal + `ati_manual` / phone / email / messenger → одна очередь на кейс, дедуп по `carrier_id` + источнику.
+1. **AI-советник** — `LoadBoardAdvisorService`: ранжирование офферов, риск срыва, коридор; API `load-board.advisor`, UI во вкладках карточки.
+2. **Страница кейса** — `LoadBoard/Show.vue`, маршрут `load-board.cases.show`.
+3. **Пул перевозчиков** — `LoadBoardCarrierPoolService`, вкладка «Пул», дедуп `carrier_id` + `source`; кандидаты без оффера — `metadata.carrier_pool_candidates` (backlog UI).
 
 ---
 

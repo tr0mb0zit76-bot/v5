@@ -498,4 +498,81 @@ class LoadBoardTest extends TestCase
         $this->assertIsArray($row['procurement_case']);
         $this->assertSame($post->fresh()->procurementCase?->id, $row['procurement_case']['id']);
     }
+
+    public function test_case_show_page_includes_advisor_and_carrier_pool(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'load_board_role_show',
+            'display_name' => 'Load board show',
+            'visibility_areas' => ['load_board'],
+        ]);
+
+        $user = User::factory()->create(['role_id' => $role->id]);
+
+        $post = LoadBoardPost::query()->create([
+            'seller_id' => $user->id,
+            'status' => 'new',
+            'priority' => 'normal',
+            'title' => 'Show case',
+            'loading_location' => 'Москва',
+            'unloading_location' => 'Казань',
+            'published_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('load-board.cases.show', $post))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('LoadBoard/Show')
+                ->has('post')
+                ->has('advisor.ranked_offers')
+                ->has('advisor.risk_level')
+                ->has('carrierPool.entries'));
+    }
+
+    public function test_advisor_endpoint_returns_ranking_and_pool(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'load_board_role_advisor',
+            'display_name' => 'Load board advisor api',
+            'visibility_areas' => ['load_board'],
+        ]);
+
+        $user = User::factory()->create(['role_id' => $role->id]);
+        $carrier = Contractor::query()->create([
+            'type' => 'carrier',
+            'name' => 'API Carrier',
+            'is_active' => true,
+        ]);
+
+        $post = LoadBoardPost::query()->create([
+            'seller_id' => $user->id,
+            'status' => 'has_offers',
+            'priority' => 'normal',
+            'title' => 'Advisor API',
+            'loading_location' => 'СПб',
+            'unloading_location' => 'Москва',
+            'customer_rate' => 100000,
+            'published_at' => now(),
+        ]);
+
+        LoadBoardOffer::query()->create([
+            'load_board_post_id' => $post->id,
+            'carrier_id' => $carrier->id,
+            'created_by' => $user->id,
+            'status' => 'proposed',
+            'source' => 'email',
+            'carrier_rate' => 85000,
+            'carrier_rate_currency' => 'RUB',
+        ]);
+
+        $payload = $this->actingAs($user)
+            ->getJson(route('load-board.advisor', $post))
+            ->assertOk()
+            ->json('advisor');
+
+        $this->assertIsArray($payload['ranked_offers']);
+        $this->assertNotEmpty($payload['ranked_offers']);
+        $this->assertSame(1, $payload['carrier_pool']['total']);
+    }
 }

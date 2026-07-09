@@ -3,9 +3,27 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-09 20:30 (роадмап) · **HEAD:** `297b3ac` · **Ветка:** `master`
+**Обновлено:** 2026-07-09 20:45 (биржа advisor + case page) · **HEAD:** _(после push)_ · **Ветка:** `master`
 
 **Между ПК:** напиши агенту **ОТДАТЬ** (конец сессии) или **ЗАБРАТЬ** (старт на другом ПК) — см. `docs/sync/cursor-agent-startup.md`.
+
+### Итог сессии 2026-07-09 (вечер) — роадмап + биржа advisor
+
+| Блок | Статус |
+| --- | --- |
+| Роадмап: Graph снят, M5.3b план продаж, NLP 6.4 на паузе | ✅ docs |
+| Фаза 4 split KPI owner/dispatcher | ✅ `5b9da11` pushed |
+| `LoadBoardAdvisorService` — ранжирование, риск, коридор | ✅ |
+| `LoadBoardCarrierPoolService` — пул, дедуп carrier+source | ✅ |
+| Страница кейса `GET /load-board/cases/{post}` | ✅ `LoadBoard/Show.vue` |
+| UI: вкладки «Пул», баннер риска, ссылка на страницу кейса | ✅ `LoadBoardPostCard.vue` |
+| Тесты: `LoadBoardAdvisorServiceTest`, `LoadBoardTest` +2 | ✅ |
+
+**На прод:** `git pull` → `npm run build` (новая страница Vue).
+
+**Следующая сессия:** smoke биржи (советник, пул, страница кейса); UI для `metadata.carrier_pool_candidates`; ATI API.
+
+---
 
 ### Роадмап — решения 2026-07-09 (вечер)
 
