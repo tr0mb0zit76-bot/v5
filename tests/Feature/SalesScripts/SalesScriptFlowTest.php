@@ -134,7 +134,7 @@ class SalesScriptFlowTest extends TestCase
                 'primary_reaction_class_id' => null,
                 'notes' => 'Тестовая сессия',
             ])
-            ->assertRedirect(route('scripts.index'));
+            ->assertRedirect(route('scripts.sessions.show', $session));
 
         $session->refresh();
         $this->assertNotNull($session->completed_at);
@@ -370,7 +370,7 @@ class SalesScriptFlowTest extends TestCase
                 'notes' => 'Клиент просит вернуться позже',
                 'lead_id' => $lead->id,
             ])
-            ->assertRedirect(route('scripts.index'));
+            ->assertRedirect(route('scripts.sessions.show', $session));
 
         $session->refresh();
         $lead->refresh();

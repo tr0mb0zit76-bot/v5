@@ -4,6 +4,7 @@ namespace Tests\Feature\SalesScripts;
 
 use App\Models\SalesScript;
 use App\Models\SalesScriptNode;
+use App\Models\SalesScriptTransition;
 use App\Models\SalesScriptVersion;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -92,7 +93,7 @@ class SalesScriptEditorTest extends TestCase
         $this->assertSame(1, SalesScriptNode::query()->where('sales_script_version_id', $version->id)->count());
     }
 
-    public function test_graph_save_persists_node_tags(): void
+    public function test_graph_save_persists_node_tags_and_transition_guidance(): void
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'editor_tags',
@@ -136,14 +137,63 @@ class SalesScriptEditorTest extends TestCase
                         'canvas_x' => 40,
                         'canvas_y' => 40,
                     ],
+                    [
+                        'client_key' => 'next',
+                        'kind' => 'say',
+                        'body' => 'Следующий ход',
+                        'hint' => null,
+                        'tags' => ['цена'],
+                        'sort_order' => 1,
+                        'canvas_x' => 300,
+                        'canvas_y' => 40,
+                    ],
                 ],
-                'transitions' => [],
+                'transitions' => [
+                    [
+                        'from_client_key' => 'start',
+                        'to_client_key' => 'next',
+                        'target_type' => 'node',
+                        'sales_script_reaction_class_id' => null,
+                        'customer_label' => 'Дорого',
+                        'conversation_effect' => 'risk',
+                        'momentum_delta' => -1,
+                        'next_move_preview' => 'Сравним одинаковые условия',
+                        'sort_order' => 0,
+                    ],
+                ],
             ])
             ->assertRedirect(route('scripts.editor.versions.show', $version));
 
-        $node = SalesScriptNode::query()->where('sales_script_version_id', $version->id)->first();
+        $node = SalesScriptNode::query()
+            ->where('sales_script_version_id', $version->id)
+            ->where('client_key', 'start')
+            ->first();
         $this->assertNotNull($node);
         $this->assertSame(['квалификация', 'знакомство'], $node->tags);
+
+        $transition = SalesScriptTransition::query()
+            ->where('sales_script_version_id', $version->id)
+            ->firstOrFail();
+        $this->assertSame('risk', $transition->conversation_effect);
+        $this->assertSame(-1, $transition->momentum_delta);
+        $this->assertSame('Сравним одинаковые условия', $transition->next_move_preview);
+
+        $this->actingAs($user)
+            ->post(route('scripts.editor.scripts.versions.store', $script), [
+                'duplicate_from_version_id' => $version->id,
+            ])
+            ->assertRedirect();
+
+        $copy = SalesScriptVersion::query()
+            ->where('sales_script_id', $script->id)
+            ->whereKeyNot($version->id)
+            ->firstOrFail();
+        $copiedTransition = SalesScriptTransition::query()
+            ->where('sales_script_version_id', $copy->id)
+            ->firstOrFail();
+        $this->assertSame('risk', $copiedTransition->conversation_effect);
+        $this->assertSame(-1, $copiedTransition->momentum_delta);
+        $this->assertSame('Сравним одинаковые условия', $copiedTransition->next_move_preview);
     }
 
     public function test_graph_autosave_returns_json_without_redirect(): void

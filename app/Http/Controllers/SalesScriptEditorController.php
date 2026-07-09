@@ -139,6 +139,9 @@ class SalesScriptEditorController extends Controller
                         'target_sales_script_version_id' => $transition->target_sales_script_version_id,
                         'sales_script_reaction_class_id' => $transition->sales_script_reaction_class_id,
                         'customer_label' => $transition->customer_label,
+                        'conversation_effect' => $transition->conversation_effect,
+                        'momentum_delta' => $transition->momentum_delta,
+                        'next_move_preview' => $transition->next_move_preview,
                         'sort_order' => $transition->sort_order,
                     ]);
                 }
@@ -320,6 +323,9 @@ class SalesScriptEditorController extends Controller
                         : null,
                     'sales_script_reaction_class_id' => $transitionData['sales_script_reaction_class_id'] ?? null,
                     'customer_label' => $transitionData['customer_label'] ?? null,
+                    'conversation_effect' => $transitionData['conversation_effect'] ?? null,
+                    'momentum_delta' => $transitionData['momentum_delta'] ?? null,
+                    'next_move_preview' => $transitionData['next_move_preview'] ?? null,
                     'sort_order' => $transitionData['sort_order'] ?? $index,
                 ]);
             }
@@ -668,6 +674,9 @@ class SalesScriptEditorController extends Controller
                 'target_sales_script_version_id' => $t->target_sales_script_version_id,
                 'sales_script_reaction_class_id' => $t->sales_script_reaction_class_id,
                 'customer_label' => $t->customer_label,
+                'conversation_effect' => $t->conversation_effect,
+                'momentum_delta' => $t->momentum_delta,
+                'next_move_preview' => $t->next_move_preview,
                 'sort_order' => $t->sort_order,
             ]),
         ];

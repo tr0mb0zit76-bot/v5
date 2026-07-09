@@ -7,6 +7,7 @@ use App\Models\SalesScriptNode;
 use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptTransition;
 use App\Services\SalesScripts\SalesScriptBodyPlaceholderService;
+use App\Services\SalesScripts\SalesScriptConversationGuidanceService;
 use App\Services\SalesScripts\SalesScriptPlayPresentationService;
 use App\Services\SalesScripts\SalesScriptPlaySessionService;
 use Tests\TestCase;
@@ -63,7 +64,11 @@ class SalesScriptPlayPresentationServiceTest extends TestCase
                 return [];
             });
 
-        $service = new SalesScriptPlayPresentationService($playSession, new SalesScriptBodyPlaceholderService);
+        $service = new SalesScriptPlayPresentationService(
+            $playSession,
+            new SalesScriptBodyPlaceholderService,
+            new SalesScriptConversationGuidanceService,
+        );
         $presentation = $service->build($say);
 
         $this->assertSame('Спасибо, что нашли время.', $presentation['operator_line']);
@@ -96,7 +101,11 @@ class SalesScriptPlayPresentationServiceTest extends TestCase
         $playSession = $this->createMock(SalesScriptPlaySessionService::class);
         $playSession->method('outgoingTransitions')->willReturn([$transition]);
 
-        $service = new SalesScriptPlayPresentationService($playSession, new SalesScriptBodyPlaceholderService);
+        $service = new SalesScriptPlayPresentationService(
+            $playSession,
+            new SalesScriptBodyPlaceholderService,
+            new SalesScriptConversationGuidanceService,
+        );
         $presentation = $service->build($branch);
 
         $this->assertNull($presentation['operator_line']);
@@ -129,11 +138,57 @@ class SalesScriptPlayPresentationServiceTest extends TestCase
         $playSession = $this->createMock(SalesScriptPlaySessionService::class);
         $playSession->method('outgoingTransitions')->willReturn([$transition]);
 
-        $service = new SalesScriptPlayPresentationService($playSession, new SalesScriptBodyPlaceholderService);
+        $service = new SalesScriptPlayPresentationService(
+            $playSession,
+            new SalesScriptBodyPlaceholderService,
+            new SalesScriptConversationGuidanceService,
+        );
         $presentation = $service->build($say);
 
         $this->assertFalse($presentation['choices'][0]['has_customer_phrase']);
         $this->assertSame('Фраза клиента не задана в редакторе', $presentation['choices'][0]['label']);
         $this->assertStringContainsString('Сравнивает с другим перевозчиком', (string) $presentation['choices'][0]['subtitle']);
+    }
+
+    public function test_choice_contains_effect_and_next_move_preview(): void
+    {
+        $current = new SalesScriptNode([
+            'client_key' => 'price',
+            'kind' => SalesScriptNodeKind::Branch,
+            'body' => 'Клиент спрашивает цену.',
+        ]);
+        $next = new SalesScriptNode([
+            'client_key' => 'reframe',
+            'kind' => SalesScriptNodeKind::Say,
+            'body' => 'Скажите: «Давайте сравним одинаковые условия и риски срыва».',
+            'tags' => ['цена'],
+        ]);
+        $reaction = new SalesScriptReactionClass([
+            'id' => 9,
+            'key' => 'price_objection',
+            'label' => 'Возражение по цене',
+        ]);
+        $transition = new SalesScriptTransition([
+            'id' => 40,
+            'sales_script_reaction_class_id' => 9,
+            'customer_label' => 'У вас слишком дорого',
+        ]);
+        $transition->setRelation('reactionClass', $reaction);
+        $transition->setRelation('toNode', $next);
+
+        $playSession = $this->createMock(SalesScriptPlaySessionService::class);
+        $playSession->method('outgoingTransitions')->willReturn([$transition]);
+
+        $presentation = (new SalesScriptPlayPresentationService(
+            $playSession,
+            new SalesScriptBodyPlaceholderService,
+            new SalesScriptConversationGuidanceService,
+        ))->build($current);
+
+        $choice = $presentation['choices'][0];
+        $this->assertSame('risk', $choice['effect']);
+        $this->assertSame(-1, $choice['momentum_delta']);
+        $this->assertSame('«Давайте сравним одинаковые условия и риски срыва»', $choice['next_move_preview']);
+        $this->assertSame('Переговоры о цене', $choice['next_phase']);
     }
 }

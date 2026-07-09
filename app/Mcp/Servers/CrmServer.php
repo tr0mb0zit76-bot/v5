@@ -29,6 +29,7 @@ use App\Mcp\Tools\GetSalesBookArticleTool;
 use App\Mcp\Tools\GetSalesBookQualityInsightsTool;
 use App\Mcp\Tools\GetSalesBookQuizInsightsTool;
 use App\Mcp\Tools\GetSalesScriptCoachingInsightsTool;
+use App\Mcp\Tools\GetSalesScriptGraphTool;
 use App\Mcp\Tools\GetTaskTool;
 use App\Mcp\Tools\GetTrainerCoachingInsightsTool;
 use App\Mcp\Tools\GetUserContextTool;
@@ -38,6 +39,7 @@ use App\Mcp\Tools\ListManagementStatementImportsTool;
 use App\Mcp\Tools\ListManagementStatementLinesTool;
 use App\Mcp\Tools\ListOrderDocumentsTool;
 use App\Mcp\Tools\ListOrderIntakeDraftsTool;
+use App\Mcp\Tools\ListSalesScriptsTool;
 use App\Mcp\Tools\RememberManagementReconcileRuleTool;
 use App\Mcp\Tools\RememberOrderIntakePhraseTool;
 use App\Mcp\Tools\ReplyMailThreadTool;
@@ -55,6 +57,7 @@ use App\Mcp\Tools\UpdateOrderRouteActualTool;
 use App\Mcp\Tools\UpsertDispositionEntryTool;
 use App\Mcp\Tools\UpsertPrintFormBasicTermsTool;
 use App\Mcp\Tools\UpsertSalesBookArticleTool;
+use App\Mcp\Tools\ValidateSalesScriptGraphTool;
 use Laravel\Mcp\Server;
 use Laravel\Mcp\Server\Attributes\Instructions;
 use Laravel\Mcp\Server\Attributes\Name;
@@ -63,7 +66,7 @@ use Laravel\Mcp\Server\Prompt;
 use Laravel\Mcp\Server\Tool;
 
 #[Name('Avtoalyans CRM')]
-#[Version('0.1.0')]
+#[Version('0.2.0')]
 #[Instructions(<<<'MARKDOWN'
         MCP-сервер CRM «Автоальянс»: чтение сущностей, запись задач и диспозиции, Книга продаж.
 
@@ -81,6 +84,7 @@ use Laravel\Mcp\Server\Tool;
         - get_ai_usage_insights — аналитика обращений к AI (admin / settings_system)
         - get_trainer_coaching_insights — зацикливание и коучинг в тренажёре (аналитика тренажёра / settings_system)
         - get_sales_script_coaching_insights — живые прохождения скриптов: исходы, возражения, слабые менеджеры, рекомендации (аналитика тренажёра / settings_system)
+        - list_sales_scripts / get_sales_script_graph / validate_sales_script_graph — структура, тексты и диагностика графов скриптов
         - get_manager_sales_coaching_insights — Outcome Intelligence по лидам (область leads / settings_system)
         - get_head_of_sales_insights — сводка для руководителя продаж: команда, воронка, скрипты (supervisor / reports)
         - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text / extract_order_draft_from_document / apply_order_wizard_draft / remember_order_intake_phrase — черновики заявок
@@ -132,6 +136,9 @@ class CrmServer extends Server
         GetAiUsageInsightsTool::class,
         GetTrainerCoachingInsightsTool::class,
         GetSalesScriptCoachingInsightsTool::class,
+        ListSalesScriptsTool::class,
+        GetSalesScriptGraphTool::class,
+        ValidateSalesScriptGraphTool::class,
         GetManagerSalesCoachingInsightsTool::class,
         GetHeadOfSalesInsightsTool::class,
         GetPrintFormBasicTermsTool::class,

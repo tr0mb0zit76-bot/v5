@@ -14,6 +14,7 @@ final class SalesScriptPlayPresentationService
     public function __construct(
         private readonly SalesScriptPlaySessionService $playSessionService,
         private readonly SalesScriptBodyPlaceholderService $placeholderService,
+        private readonly SalesScriptConversationGuidanceService $conversationGuidance,
     ) {}
 
     /**
@@ -188,6 +189,7 @@ final class SalesScriptPlayPresentationService
     {
         return array_map(function (SalesScriptTransition $transition) use ($compound): array {
             $hasCustomerPhrase = filled($transition->customer_label);
+            $guidance = $this->conversationGuidance->guidanceForTransition($transition);
 
             return [
                 'transition_id' => (int) $transition->id,
@@ -199,6 +201,7 @@ final class SalesScriptPlayPresentationService
                 'target_script_title' => $transition->targetVersion?->script?->title,
                 'has_customer_phrase' => $hasCustomerPhrase,
                 'compound' => $compound,
+                ...$guidance,
             ];
         }, $transitions);
     }
@@ -221,6 +224,7 @@ final class SalesScriptPlayPresentationService
             'target_script_title' => $transition->targetVersion?->script?->title,
             'has_customer_phrase' => false,
             'compound' => false,
+            ...$this->conversationGuidance->guidanceForTransition($transition),
         ];
     }
 

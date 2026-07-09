@@ -29,6 +29,91 @@
                     </li>
                 </ul>
             </div>
+            <div
+                v-if="!isTrainer && crmLinking.available"
+                class="mt-4 border-t border-emerald-200/80 pt-4 dark:border-emerald-800/60"
+            >
+                <div class="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
+                    Связь с CRM
+                </div>
+                <div
+                    v-if="crmLinking.linked_lead"
+                    class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white/70 p-3 dark:bg-zinc-950/40"
+                >
+                    <div>
+                        <div class="font-semibold">
+                            {{ crmLinking.linked_lead.number }} · {{ crmLinking.linked_lead.title }}
+                        </div>
+                        <div class="mt-0.5 text-xs opacity-75">
+                            Итог разговора {{ session.crm_synced_at ? 'добавлен в CRM' : 'будет добавлен в CRM' }}.
+                        </div>
+                    </div>
+                    <Link
+                        :href="crmLinking.linked_lead.show_url"
+                        class="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 dark:border-emerald-800 dark:bg-zinc-950 dark:text-emerald-200"
+                    >
+                        Открыть лид →
+                    </Link>
+                </div>
+                <div v-else class="mt-3 grid gap-3 lg:grid-cols-2">
+                    <div class="rounded-xl bg-white/70 p-3 dark:bg-zinc-950/40">
+                        <div class="text-sm font-semibold">Создать лид из разговора</div>
+                        <p class="mt-1 text-xs opacity-75">
+                            Маршрут, груз и другие заполненные поля перенесутся автоматически.
+                        </p>
+                        <input
+                            v-model="newLeadTitle"
+                            type="text"
+                            class="mt-3 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-emerald-900 dark:bg-zinc-950 dark:text-zinc-100"
+                            placeholder="Название лида — можно оставить пустым"
+                        >
+                        <button
+                            type="button"
+                            class="mt-2 w-full rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                            :disabled="crmLinkBusy"
+                            @click="createLeadFromSession"
+                        >
+                            Создать лид
+                        </button>
+                    </div>
+                    <div class="rounded-xl bg-white/70 p-3 dark:bg-zinc-950/40">
+                        <div class="text-sm font-semibold">Связать с существующим</div>
+                        <div class="mt-3 flex gap-2">
+                            <input
+                                v-model="leadSearch"
+                                type="search"
+                                class="min-w-0 flex-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-emerald-900 dark:bg-zinc-950 dark:text-zinc-100"
+                                placeholder="Номер или название лида"
+                                @keydown.enter.prevent="searchLeads"
+                            >
+                            <button
+                                type="button"
+                                class="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-800 dark:bg-zinc-950 dark:text-emerald-200"
+                                :disabled="leadSearchBusy || leadSearch.trim().length < 2"
+                                @click="searchLeads"
+                            >
+                                Найти
+                            </button>
+                        </div>
+                        <div v-if="leadSearchResults.length" class="mt-2 max-h-44 space-y-1 overflow-y-auto">
+                            <button
+                                v-for="lead in leadSearchResults"
+                                :key="lead.id"
+                                type="button"
+                                class="w-full rounded-lg border border-emerald-100 bg-white px-3 py-2 text-left text-xs text-zinc-800 hover:border-emerald-300 dark:border-emerald-950 dark:bg-zinc-900 dark:text-zinc-100"
+                                :disabled="crmLinkBusy"
+                                @click="linkLead(lead.id)"
+                            >
+                                <span class="font-semibold">{{ lead.number }}</span> · {{ lead.title }}
+                                <span v-if="lead.responsible_name" class="mt-0.5 block opacity-60">{{ lead.responsible_name }}</span>
+                            </button>
+                        </div>
+                        <p v-else-if="leadSearchDone" class="mt-2 text-xs opacity-70">
+                            Подходящие лиды не найдены.
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Тренажёр: подсказки менеджеру, диалог и качество раздельно -->
@@ -572,30 +657,93 @@
 
             <section
                 v-if="!mustComplete && playPresentation.choices.length > 0"
-                class="flex flex-col gap-2.5"
+                class="grid items-stretch gap-4 md:grid-cols-[108px_minmax(0,1fr)]"
             >
-                <button
-                    v-for="(choice, idx) in playPresentation.choices"
-                    :key="`${choice.transition_id}-${idx}`"
-                    type="button"
-                    :class="crmBtnScriptChoice"
-                    @click="advanceChoice(choice)"
-                >
-                    <span v-if="choice.has_customer_phrase">{{ choice.label }}</span>
-                    <span v-else class="italic opacity-90">{{ choice.label }}</span>
-                    <span
-                        v-if="choice.subtitle"
-                        class="mt-1 block text-xs font-normal text-zinc-500 dark:text-zinc-400"
+                <aside class="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+                    <div class="text-center text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                        Диалог
+                    </div>
+                    <div class="relative mx-auto mt-3 h-44 w-3 rounded-full bg-gradient-to-t from-rose-400 via-amber-300 to-emerald-400">
+                        <div
+                            class="absolute left-1/2 h-5 w-5 -translate-x-1/2 translate-y-1/2 rounded-full border-4 border-white bg-zinc-800 shadow-md transition-all duration-500 dark:border-zinc-950 dark:bg-white"
+                            :style="{ bottom: `${dialogState.score}%` }"
+                        />
+                    </div>
+                    <div class="mt-3 text-center text-[11px] font-medium leading-tight text-zinc-700 dark:text-zinc-200">
+                        {{ dialogState.label }}
+                    </div>
+                    <div
+                        v-if="dialogState.last_delta !== 0"
+                        class="mt-1 text-center text-[10px] leading-tight"
+                        :class="dialogState.last_delta > 0
+                            ? 'text-emerald-700 dark:text-emerald-300'
+                            : 'text-rose-700 dark:text-rose-300'"
                     >
-                        {{ choice.subtitle }}
-                    </span>
-                    <span
-                        v-if="statsHintForChoice(choice)"
-                        class="mt-1 block text-xs font-normal text-emerald-700 dark:text-emerald-300"
+                        {{ dialogState.last_delta > 0 ? '↑' : '↓' }} {{ dialogState.movement_label }}
+                    </div>
+                </aside>
+
+                <div class="flex min-w-0 flex-col gap-2.5">
+                    <div
+                        v-if="dialogState.phase"
+                        class="mb-1 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400"
                     >
-                        {{ statsHintForChoice(choice).message }}
-                    </span>
-                </button>
+                        <span class="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+                        <span>{{ dialogState.phase }}</span>
+                        <span class="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+                    </div>
+                    <button
+                        v-for="(choice, idx) in playPresentation.choices"
+                        :key="`${choice.transition_id}-${idx}`"
+                        type="button"
+                        class="group rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                        :class="choiceCardClass(choice.effect)"
+                        @click="advanceChoice(choice)"
+                    >
+                        <span class="flex items-start justify-between gap-3">
+                            <span
+                                class="text-sm font-semibold leading-snug text-zinc-900 dark:text-zinc-50 sm:text-base"
+                                :class="{ italic: !choice.has_customer_phrase }"
+                            >
+                                {{ choice.label }}
+                            </span>
+                            <span
+                                class="shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                                :class="choiceBadgeClass(choice.effect)"
+                            >
+                                {{ choice.effect_label }}
+                                <span v-if="choice.momentum_delta !== 0">
+                                    {{ choice.momentum_delta > 0 ? `+${choice.momentum_delta}` : choice.momentum_delta }}
+                                </span>
+                            </span>
+                        </span>
+                        <span
+                            v-if="choice.next_move_preview"
+                            class="mt-2 block border-t border-current/10 pt-2 text-xs font-normal leading-relaxed text-zinc-500 opacity-75 transition group-hover:opacity-100 dark:text-zinc-400"
+                        >
+                            <span class="mr-1 text-[10px] font-semibold uppercase tracking-wide opacity-70">Следующий ход</span>
+                            {{ choice.next_move_preview }}
+                        </span>
+                        <span
+                            v-if="choice.next_phase && choice.next_phase !== dialogState.phase"
+                            class="mt-1.5 block text-[10px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500"
+                        >
+                            → {{ choice.next_phase }}
+                        </span>
+                        <span
+                            v-if="choice.subtitle"
+                            class="mt-1 block text-xs font-normal text-zinc-500 dark:text-zinc-400"
+                        >
+                            {{ choice.subtitle }}
+                        </span>
+                        <span
+                            v-if="statsHintForChoice(choice)"
+                            class="mt-1 block text-xs font-normal text-emerald-700 dark:text-emerald-300"
+                        >
+                            {{ statsHintForChoice(choice).message }}
+                        </span>
+                    </button>
+                </div>
             </section>
 
             <button
@@ -632,28 +780,6 @@
             </div>
 
             <div class="space-y-2">
-                <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">Лид (ID, необязательно)</label>
-                <input
-                    v-model="completeForm.lead_id"
-                    type="number"
-                    min="1"
-                    class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                    placeholder="Для заметки и задачи в лиде"
-                />
-            </div>
-
-            <div class="space-y-2">
-                <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">Заказ (ID, необязательно)</label>
-                <input
-                    v-model="completeForm.order_id"
-                    type="number"
-                    min="1"
-                    class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                    placeholder="Привязка исхода к orders.id"
-                />
-            </div>
-
-            <div class="space-y-2">
                 <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">Комментарий</label>
                 <textarea
                     v-model="completeForm.notes"
@@ -670,7 +796,7 @@
                 :disabled="!completeForm.outcome"
                 @click="submitComplete"
             >
-                Сохранить и выйти
+                Сохранить итог
             </button>
         </div>
 
@@ -689,6 +815,7 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnCreate, crmBtnPrimary, crmBtnScriptChoice } from '@/support/crmUi.js';
 
@@ -726,21 +853,46 @@ const props = defineProps({
             is_branch_only: false,
         }),
     },
+    dialogState: {
+        type: Object,
+        default: () => ({
+            score: 50,
+            level: 'open',
+            label: 'Диалог открыт',
+            phase: null,
+            last_delta: 0,
+            last_effect: 'neutral',
+            movement_label: 'Позиция не изменилась',
+        }),
+    },
     mustComplete: { type: Boolean, default: false },
     eventTrail: { type: Array, default: () => [] },
     outcomeOptions: { type: Array, default: () => [] },
     reactionClasses: { type: Array, default: () => [] },
     capturedFields: { type: Array, default: () => [] },
     statsHints: { type: Object, default: () => ({}) },
+    crmLinking: {
+        type: Object,
+        default: () => ({
+            available: false,
+            linked_lead: null,
+        }),
+    },
 });
 
 const isTrainer = computed(() => props.playContext?.return === 'trainer');
 const isTrainerActive = computed(() => isTrainer.value && !props.session.completed_at);
+const leadSearch = ref('');
+const leadSearchResults = ref([]);
+const leadSearchBusy = ref(false);
+const leadSearchDone = ref(false);
+const crmLinkBusy = ref(false);
+const newLeadTitle = ref('');
 
 const pageRootClass = computed(() =>
     isTrainerActive.value
         ? 'mx-auto w-full max-w-[95rem] min-h-0 flex-1 space-y-6 overflow-y-auto pb-8 lg:min-h-0'
-        : 'mx-auto max-w-3xl min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0',
+        : 'mx-auto max-w-4xl min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0',
 );
 
 const trainingRoleMode = computed(() => props.playContext?.training_role_mode || 'manager_seller');
@@ -998,6 +1150,79 @@ function statsHintForChoice(choice) {
     }
 
     return props.statsHints?.[reactionId] ?? props.statsHints?.[String(reactionId)] ?? null;
+}
+
+function choiceCardClass(effect) {
+    return {
+        positive: 'border-emerald-200 bg-emerald-50/55 hover:border-emerald-300 dark:border-emerald-900/70 dark:bg-emerald-950/20',
+        risk: 'border-amber-200 bg-amber-50/55 hover:border-amber-300 dark:border-amber-900/70 dark:bg-amber-950/20',
+        critical: 'border-rose-200 bg-rose-50/55 hover:border-rose-300 dark:border-rose-900/70 dark:bg-rose-950/20',
+        neutral: 'border-zinc-200 bg-white hover:border-sky-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-sky-800',
+    }[effect] ?? 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950';
+}
+
+function choiceBadgeClass(effect) {
+    return {
+        positive: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200',
+        risk: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200',
+        critical: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200',
+        neutral: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+    }[effect] ?? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300';
+}
+
+async function searchLeads() {
+    const query = leadSearch.value.trim();
+    if (query.length < 2 || leadSearchBusy.value) {
+        return;
+    }
+
+    leadSearchBusy.value = true;
+    leadSearchDone.value = false;
+
+    try {
+        const response = await axios.get(route('scripts.sessions.leads.search', props.session.id), {
+            params: { q: query },
+        });
+        leadSearchResults.value = Array.isArray(response.data?.rows) ? response.data.rows : [];
+        leadSearchDone.value = true;
+    } catch {
+        leadSearchResults.value = [];
+        leadSearchDone.value = true;
+    } finally {
+        leadSearchBusy.value = false;
+    }
+}
+
+function linkLead(leadId) {
+    if (crmLinkBusy.value) {
+        return;
+    }
+
+    crmLinkBusy.value = true;
+    router.post(route('scripts.sessions.lead.link', props.session.id), {
+        lead_id: leadId,
+    }, {
+        preserveScroll: true,
+        onFinish: () => {
+            crmLinkBusy.value = false;
+        },
+    });
+}
+
+function createLeadFromSession() {
+    if (crmLinkBusy.value) {
+        return;
+    }
+
+    crmLinkBusy.value = true;
+    router.post(route('scripts.sessions.lead.create', props.session.id), {
+        title: newLeadTitle.value.trim() || null,
+    }, {
+        preserveScroll: true,
+        onFinish: () => {
+            crmLinkBusy.value = false;
+        },
+    });
 }
 
 watch(

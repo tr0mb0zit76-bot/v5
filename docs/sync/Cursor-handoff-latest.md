@@ -3,7 +3,25 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-09 22:30 (M5.3b план продавцов) · **HEAD:** `756c858` · **Ветка:** `master`
+**Обновлено:** 2026-07-09 23:15 (Live Play + CRM + MCP скриптов) · **HEAD:** _(этот push)_ · **Ветка:** `master`
+
+### Итог сессии 2026-07-09 (ночь) — человечный Live Play
+
+| Блок | Статус |
+| --- | --- |
+| Переходы: `conversation_effect`, `momentum_delta`, `next_move_preview` | ✅ migration `2026_07_09_230000_*` |
+| Live Play: карточки ответов, бейдж направления, следующий ход | ✅ |
+| Индикатор температуры + фаза разговора из тегов | ✅ |
+| Шаблон блока переносит сохранённые ветки и следующие реплики | ✅ |
+| Запуск из лида: prefill `client_name`, маршрута и дат | ✅ |
+| Финал: создать лид / найти и связать лид без ручного ID | ✅ |
+| Идемпотентный перенос итога в CRM (`crm_synced_at`) | ✅ |
+| MCP `list/get/validate_sales_script_graph` | ✅ read-only |
+| Тесты Play / CRM / MCP / editor / полный flow | ✅ 22 tests, 564 assertions |
+
+**На прод:** `git pull` → `php artisan migrate` → `npm run build` → перезапустить MCP-клиент для обновления списка tools.
+
+**Локальный build-блокер вне этого пакета:** `LoadBoard/Show.vue` импортирует отсутствующий `@/Components/CrmPageHeader.vue`; фактический файл лежит в `Components/Crm/CrmPageHeader.vue`.
 
 ### Итог сессии 2026-07-09 (поздний вечер) — M5.3b план продавцов
 

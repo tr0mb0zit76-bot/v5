@@ -381,6 +381,32 @@
                                 <option :value="null">Линейный переход (без реакции)</option>
                                 <option v-for="reaction in reactionClasses" :key="reaction.id" :value="reaction.id">{{ reaction.label }}</option>
                             </select>
+                            <div class="grid grid-cols-[1fr_112px] gap-2">
+                                <select v-model="selectedTransition.conversation_effect" :class="crmFieldFluid">
+                                    <option :value="null">Направление — автоматически</option>
+                                    <option value="positive">Интерес растёт</option>
+                                    <option value="neutral">Нейтрально</option>
+                                    <option value="risk">Есть риск</option>
+                                    <option value="critical">Критичный поворот</option>
+                                </select>
+                                <select v-model="selectedTransition.momentum_delta" :class="crmFieldFluid">
+                                    <option :value="null">Δ авто</option>
+                                    <option :value="2">+2</option>
+                                    <option :value="1">+1</option>
+                                    <option :value="0">0</option>
+                                    <option :value="-1">−1</option>
+                                    <option :value="-2">−2</option>
+                                </select>
+                            </div>
+                            <textarea
+                                v-model="selectedTransition.next_move_preview"
+                                rows="2"
+                                :class="crmFieldFluid"
+                                placeholder="Короткая фраза следующего хода. Если пусто — попробуем взять прямую речь из следующего шага."
+                            />
+                            <p class="text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+                                Направление и Δ двигают «температуру разговора». Предпросмотр показывается полупрозрачно под ответом клиента.
+                            </p>
                             <div class="flex gap-2">
                                 <button type="button" :class="`${crmBtnSecondary} flex-1 text-xs`" @click="moveTransition(-1)">↑</button>
                                 <button type="button" :class="`${crmBtnSecondary} flex-1 text-xs`" @click="moveTransition(1)">↓</button>
@@ -500,6 +526,9 @@ const graphTransitions = reactive(
         target_sales_script_version_id: transition.target_sales_script_version_id ?? null,
         sales_script_reaction_class_id: transition.sales_script_reaction_class_id ?? null,
         customer_label: transition.customer_label ?? '',
+        conversation_effect: transition.conversation_effect ?? null,
+        momentum_delta: transition.momentum_delta ?? null,
+        next_move_preview: transition.next_move_preview ?? '',
         sort_order: transition.sort_order ?? index,
     })),
 );
@@ -690,10 +719,21 @@ function saveNodeAsTemplate() {
         hint: selectedNode.value.hint || null,
         tags: selectedNode.value.tags,
         capture_field_codes: selectedNode.value.capture_field_codes,
-        default_transitions: outgoingForSelectedNode().map((transition) => ({
-            customer_label: transition.customer_label || null,
-            sales_script_reaction_class_id: transition.sales_script_reaction_class_id,
-        })),
+        default_transitions: outgoingForSelectedNode().map((transition) => {
+            const targetNode = graphNodes.find((node) => node.client_key === transition.to_client_key);
+
+            return {
+                customer_label: transition.customer_label || null,
+                sales_script_reaction_class_id: transition.sales_script_reaction_class_id,
+                conversation_effect: transition.conversation_effect,
+                momentum_delta: transition.momentum_delta,
+                next_move_preview: transition.next_move_preview || null,
+                target_kind: targetNode?.kind ?? 'say',
+                target_body: targetNode?.body ?? 'Новая реплика оператора',
+                target_hint: targetNode?.hint || null,
+                target_tags: targetNode?.tags ?? [],
+            };
+        }),
     }, { preserveScroll: true });
 }
 
@@ -715,12 +755,48 @@ function insertFromTemplate(template) {
         client_key: key,
         kind: template.kind,
         body: template.body,
+        body_variant_b: '',
+        ab_enabled: false,
+        ab_variant_b_weight: 50,
         hint: template.hint ?? '',
         tags: Array.isArray(template.tags) ? [...template.tags] : [],
         capture_field_codes: Array.isArray(template.capture_field_codes) ? [...template.capture_field_codes] : [],
         sort_order: graphNodes.length,
         canvas_x: canvasX,
         canvas_y: canvasY,
+    });
+
+    const defaults = Array.isArray(template.default_transitions) ? template.default_transitions : [];
+    defaults.forEach((transition, index) => {
+        const targetKey = uniqueClientKey(`${key}_answer_${index + 1}`);
+        graphNodes.push({
+            client_key: targetKey,
+            kind: transition.target_kind ?? 'say',
+            body: transition.target_body ?? 'Новая реплика оператора',
+            body_variant_b: '',
+            ab_enabled: false,
+            ab_variant_b_weight: 50,
+            hint: transition.target_hint ?? '',
+            tags: Array.isArray(transition.target_tags) ? [...transition.target_tags] : [],
+            capture_field_codes: [],
+            sort_order: graphNodes.length,
+            canvas_x: canvasX + 300,
+            canvas_y: canvasY + index * 190,
+        });
+        graphTransitions.push({
+            local_id: `template-${edgeSeq.value}`,
+            from_client_key: key,
+            to_client_key: targetKey,
+            target_type: 'node',
+            target_sales_script_version_id: null,
+            sales_script_reaction_class_id: transition.sales_script_reaction_class_id ?? null,
+            customer_label: transition.customer_label ?? '',
+            conversation_effect: transition.conversation_effect ?? null,
+            momentum_delta: transition.momentum_delta ?? null,
+            next_move_preview: transition.next_move_preview ?? '',
+            sort_order: graphTransitions.length,
+        });
+        edgeSeq.value += 1;
     });
     onSelectNode(key);
 }
@@ -783,6 +859,9 @@ function onAddAnswer(fromClientKey) {
         target_sales_script_version_id: null,
         sales_script_reaction_class_id: props.reactionClasses[0]?.id ?? null,
         customer_label: '',
+        conversation_effect: null,
+        momentum_delta: null,
+        next_move_preview: '',
         sort_order: graphTransitions.length,
     });
     selectedTransitionId.value = localId;
@@ -811,6 +890,9 @@ function onCreateTransition({ from_client_key, to_client_key }) {
         target_sales_script_version_id: null,
         sales_script_reaction_class_id: null,
         customer_label: '',
+        conversation_effect: null,
+        momentum_delta: null,
+        next_move_preview: '',
         sort_order: graphTransitions.length,
     });
     selectedTransitionId.value = localId;
@@ -923,6 +1005,9 @@ function buildGraphPayload() {
             : null,
         sales_script_reaction_class_id: transition.sales_script_reaction_class_id,
         customer_label: transition.customer_label?.trim() || null,
+        conversation_effect: transition.conversation_effect || null,
+        momentum_delta: transition.momentum_delta === null ? null : Number(transition.momentum_delta),
+        next_move_preview: transition.next_move_preview?.trim() || null,
         sort_order: index,
     }));
 

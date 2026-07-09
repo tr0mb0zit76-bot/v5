@@ -7,10 +7,13 @@ use App\Enums\SalesPlaySessionOutcome;
 use App\Enums\TrainerPeerReaction;
 use App\Http\Requests\AdvanceSalesScriptPlaySessionRequest;
 use App\Http\Requests\CompleteSalesScriptPlaySessionRequest;
+use App\Http\Requests\CreateSalesScriptLeadRequest;
+use App\Http\Requests\LinkSalesScriptLeadRequest;
 use App\Http\Requests\StoreSalesScriptPlaySessionRequest;
 use App\Http\Requests\StoreTrainerChatMessageRequest;
 use App\Http\Requests\UpdateTrainerMessagePeerReactionRequest;
 use App\Http\Requests\UpdateTrainerSessionMetaRequest;
+use App\Models\Lead;
 use App\Models\SalesScript;
 use App\Models\SalesScriptCaptureField;
 use App\Models\SalesScriptNode;
@@ -20,7 +23,9 @@ use App\Models\SalesScriptTrainerMessage;
 use App\Models\SalesScriptVersion;
 use App\Services\Ai\AiInteractionRecorder;
 use App\Services\SalesScripts\SalesScriptAnalyticsService;
+use App\Services\SalesScripts\SalesScriptConversationGuidanceService;
 use App\Services\SalesScripts\SalesScriptCrmActionService;
+use App\Services\SalesScripts\SalesScriptLeadLinkService;
 use App\Services\SalesScripts\SalesScriptNodeBodyResolver;
 use App\Services\SalesScripts\SalesScriptPlayPresentationService;
 use App\Services\SalesScripts\SalesScriptPlaySessionService;
@@ -48,7 +53,9 @@ class SalesScriptController extends Controller
     public function __construct(
         private readonly SalesScriptPlaySessionService $playSessionService,
         private readonly SalesScriptCrmActionService $crmActionService,
+        private readonly SalesScriptLeadLinkService $leadLinkService,
         private readonly SalesScriptPlayPresentationService $playPresentationService,
+        private readonly SalesScriptConversationGuidanceService $conversationGuidance,
         private readonly SalesScriptAnalyticsService $scriptAnalyticsService,
         private readonly SalesScriptNodeBodyResolver $nodeBodyResolver,
         private readonly TrainerDialogHintService $trainerDialogHintService,
@@ -167,9 +174,9 @@ class SalesScriptController extends Controller
         $session = $sales_script_play_session;
         $this->authorize('interact', $session);
 
-        $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node', 'trainerMessages', 'fieldValues.captureField']);
+        $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node', 'trainerMessages', 'fieldValues.captureField', 'lead']);
         $current = $this->resolveCurrentNode($session);
-        $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node', 'trainerMessages', 'fieldValues.captureField']);
+        $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node', 'trainerMessages', 'fieldValues.captureField', 'lead']);
         $outgoing = [];
         if ($current !== null && ! $session->isComplete()) {
             foreach ($this->playSessionService->outgoingTransitions($current) as $t) {
@@ -270,6 +277,7 @@ class SalesScriptController extends Controller
                 'notes' => $session->notes,
                 'lead_id' => $session->lead_id,
                 'order_id' => $session->order_id,
+                'crm_synced_at' => $session->crm_synced_at?->toIso8601String(),
                 'script_title' => $session->version?->script?->title,
                 'version_number' => $session->version?->version_number,
                 'return_stack_depth' => count((array) ($session->return_stack ?? [])),
@@ -286,6 +294,7 @@ class SalesScriptController extends Controller
             ] : null,
             'outgoingTransitions' => $outgoing,
             'playPresentation' => $playPresentation,
+            'dialogState' => $this->conversationGuidance->stateForSession($session, $current),
             'statsHints' => $statsHints,
             'mustComplete' => $current !== null && count($outgoing) === 0 && ! $session->isComplete(),
             'eventTrail' => $eventTrail,
@@ -302,6 +311,18 @@ class SalesScriptController extends Controller
             ]),
             'reactionClasses' => $reactionClasses,
             'capturedFields' => $this->serializeCapturedFieldsSummary($session),
+            'crmLinking' => [
+                'available' => RoleAccess::hasVisibilityArea(
+                    RoleAccess::userVisibilityAreas($request->user()),
+                    'leads',
+                ),
+                'linked_lead' => $session->lead ? [
+                    'id' => $session->lead->id,
+                    'number' => $session->lead->number,
+                    'title' => $session->lead->title,
+                    'show_url' => route('leads.show', $session->lead),
+                ] : null,
+            ],
         ]);
     }
 
@@ -795,7 +816,9 @@ class SalesScriptController extends Controller
                 ]);
                 $session->refresh();
             }
-            $this->crmActionService->syncAfterCompletion($session);
+            if ($session->lead_id !== null || $session->order_id !== null) {
+                $this->crmActionService->syncAfterCompletion($session);
+            }
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['complete' => $e->getMessage()]);
         }
@@ -810,7 +833,66 @@ class SalesScriptController extends Controller
             return to_route('sales-assistant.trainer')->with('flash', $flash);
         }
 
-        return to_route('scripts.index')->with('flash', $flash);
+        return to_route('scripts.sessions.show', $session)->with('flash', $flash);
+    }
+
+    public function searchLeads(Request $request, SalesScriptPlaySession $sales_script_play_session): JsonResponse
+    {
+        $session = $sales_script_play_session;
+        $this->authorize('interact', $session);
+        abort_unless(
+            RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($request->user()), 'leads'),
+            403,
+        );
+
+        return response()->json([
+            'rows' => $this->leadLinkService->search(
+                $request->user(),
+                (string) $request->query('q', ''),
+            ),
+        ]);
+    }
+
+    public function linkLead(
+        LinkSalesScriptLeadRequest $request,
+        SalesScriptPlaySession $sales_script_play_session,
+    ): RedirectResponse {
+        $session = $sales_script_play_session;
+        $this->authorize('interact', $session);
+
+        try {
+            $lead = Lead::query()->findOrFail((int) $request->validated('lead_id'));
+            $this->leadLinkService->link($session, $lead, $request->user());
+        } catch (InvalidArgumentException $exception) {
+            return back()->withErrors(['lead_link' => $exception->getMessage()]);
+        }
+
+        return to_route('scripts.sessions.show', $session)
+            ->with('flash', ['type' => 'success', 'message' => 'Разговор связан с лидом. Итог добавлен в CRM.']);
+    }
+
+    public function createLead(
+        CreateSalesScriptLeadRequest $request,
+        SalesScriptPlaySession $sales_script_play_session,
+    ): RedirectResponse {
+        $session = $sales_script_play_session;
+        $this->authorize('interact', $session);
+
+        try {
+            $lead = $this->leadLinkService->create(
+                $session,
+                $request->user(),
+                $request->validated('title'),
+            );
+        } catch (InvalidArgumentException $exception) {
+            return back()->withErrors(['lead_create' => $exception->getMessage()]);
+        }
+
+        return to_route('scripts.sessions.show', $session)
+            ->with('flash', [
+                'type' => 'success',
+                'message' => 'Создан лид '.$lead->number.'. Итог разговора добавлен в CRM.',
+            ]);
     }
 
     /**

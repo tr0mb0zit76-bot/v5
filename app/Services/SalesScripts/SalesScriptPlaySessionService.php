@@ -4,6 +4,7 @@ namespace App\Services\SalesScripts;
 
 use App\Enums\SalesPlayEventType;
 use App\Enums\SalesPlaySessionOutcome;
+use App\Models\Lead;
 use App\Models\Order;
 use App\Models\SalesScriptCaptureField;
 use App\Models\SalesScriptNode;
@@ -22,6 +23,7 @@ class SalesScriptPlaySessionService
 {
     public function __construct(
         private readonly SalesScriptPlayContextResolver $playContextResolver,
+        private readonly SalesScriptConversationGuidanceService $conversationGuidance,
     ) {}
 
     public function start(
@@ -64,6 +66,11 @@ class SalesScriptPlaySessionService
             $this->logEvent($session, SalesPlayEventType::EnteredNode, $entry->id, null, null, [
                 'client_key' => $entry->client_key,
             ], $session);
+            $this->saveFieldValues(
+                $session,
+                $entry,
+                $this->prefillFieldValues($resolvedLeadId),
+            );
 
             return $session->fresh(['currentNode', 'version.script']);
         });
@@ -122,6 +129,7 @@ class SalesScriptPlaySessionService
         $transition = $this->resolveTransition($current, $reactionClassId);
 
         return DB::transaction(function () use ($session, $transition, $reactionClassId, $current): SalesScriptPlaySession {
+            $guidance = $this->conversationGuidance->guidanceForTransition($transition);
             $this->logEvent(
                 $session,
                 SalesPlayEventType::RecordedReaction,
@@ -129,9 +137,12 @@ class SalesScriptPlaySessionService
                 $reactionClassId,
                 null,
                 [
+                    'transition_id' => $transition->id,
                     'to_node_id' => $transition->to_node_id,
                     'target_type' => $transition->target_type ?? 'node',
                     'target_sales_script_version_id' => $transition->target_sales_script_version_id,
+                    'conversation_effect' => $guidance['effect'],
+                    'momentum_delta' => $guidance['momentum_delta'],
                 ],
                 $session,
             );
@@ -368,6 +379,29 @@ class SalesScriptPlaySessionService
         }
 
         return $t;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function prefillFieldValues(?int $leadId): array
+    {
+        if ($leadId === null || ! Schema::hasTable('leads')) {
+            return [];
+        }
+
+        $lead = Lead::query()->with('counterparty:id,name')->find($leadId);
+        if ($lead === null) {
+            return [];
+        }
+
+        return array_filter([
+            'client_name' => $lead->counterparty?->name ?: $lead->title,
+            'route_from' => $lead->loading_location,
+            'route_to' => $lead->unloading_location,
+            'loading_date' => $lead->planned_shipping_date?->toDateString(),
+            'decision_deadline' => $lead->next_contact_at?->toDateString(),
+        ], fn (mixed $value): bool => is_string($value) && trim($value) !== '');
     }
 
     /**

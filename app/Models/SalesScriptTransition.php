@@ -17,6 +17,9 @@ class SalesScriptTransition extends Model
         'target_sales_script_version_id',
         'sales_script_reaction_class_id',
         'customer_label',
+        'conversation_effect',
+        'momentum_delta',
+        'next_move_preview',
         'sort_order',
     ];
 
@@ -63,6 +66,7 @@ class SalesScriptTransition extends Model
     protected function casts(): array
     {
         return [
+            'momentum_delta' => 'integer',
             'sort_order' => 'integer',
         ];
     }

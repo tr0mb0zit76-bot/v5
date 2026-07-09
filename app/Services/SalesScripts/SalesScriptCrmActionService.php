@@ -21,6 +21,10 @@ class SalesScriptCrmActionService
 
     public function syncAfterCompletion(SalesScriptPlaySession $session): void
     {
+        if (! $session->isComplete() || $session->crm_synced_at !== null) {
+            return;
+        }
+
         $session->loadMissing([
             'fieldValues.captureField',
             'primaryReactionClass',
@@ -51,6 +55,8 @@ class SalesScriptCrmActionService
         }
 
         if (! $nextStepAt instanceof CarbonInterface || ! Schema::hasTable('tasks')) {
+            $session->forceFill(['crm_synced_at' => now()])->save();
+
             return;
         }
 
@@ -74,6 +80,8 @@ class SalesScriptCrmActionService
                 'is_trainer' => (bool) $session->is_trainer,
             ],
         ]);
+
+        $session->forceFill(['crm_synced_at' => now()])->save();
     }
 
     /**

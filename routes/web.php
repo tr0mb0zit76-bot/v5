@@ -295,6 +295,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::patch('/scripts/sessions/{sales_script_play_session}/trainer-messages/{trainer_message}/peer-reaction', 'updateTrainerMessagePeerReaction')->name('scripts.sessions.trainer-message.peer-reaction');
             Route::patch('/scripts/sessions/{sales_script_play_session}/trainer-meta', 'updateTrainerMeta')->name('scripts.sessions.trainer-meta');
             Route::post('/scripts/sessions/{sales_script_play_session}/complete', 'complete')->name('scripts.sessions.complete');
+            Route::get('/scripts/sessions/{sales_script_play_session}/leads', 'searchLeads')->name('scripts.sessions.leads.search');
+            Route::post('/scripts/sessions/{sales_script_play_session}/lead', 'linkLead')->name('scripts.sessions.lead.link');
+            Route::post('/scripts/sessions/{sales_script_play_session}/lead/create', 'createLead')->name('scripts.sessions.lead.create');
         });
     });
 

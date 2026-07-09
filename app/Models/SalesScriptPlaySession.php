@@ -34,6 +34,7 @@ class SalesScriptPlaySession extends Model
         'notes',
         'started_at',
         'completed_at',
+        'crm_synced_at',
     ];
 
     /**
@@ -132,6 +133,7 @@ class SalesScriptPlaySession extends Model
             'trainer_score' => 'integer',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
+            'crm_synced_at' => 'datetime',
         ];
     }
 }
