@@ -48,6 +48,7 @@
 - [[v5-local/Components/Import Cost Calculator|Растаможка — калькулятор ввоза]]
 - [[v5-local/Components/Management Accounting|Управленческий учёт — план/факт, split]]
 - [[v5-local/Components/Print Forms Verification|Печать — QR и страница verify]]
+- [[v5-local/Components/Code Audit 2026-07|Code audit — backlog P0–P3 (2026-07)]]
 
 ## Документация в репозитории
 

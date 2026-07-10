@@ -45,5 +45,6 @@
 | Управленческий учёт | `v5-local-Components-Management-Accounting.md` |
 | QR / verify печати | `v5-local-Components-Print-Forms-Verification.md` |
 | Утилиты | `v5-local-Components-Utility-Modules.md` |
+| **Code audit 2026-07** | `v5-local-Components-Code-Audit-2026-07.md` |
 
-*Обновлено: 2026-06-02.*
+*Обновлено: 2026-07-10.*

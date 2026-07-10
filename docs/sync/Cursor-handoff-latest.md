@@ -3,7 +3,9 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-10 15:20 (audit P0/P1 + уплотнение мастера заказа) · **HEAD:** `c54526b` · **Ветка:** `master`
+**Обновлено:** 2026-07-10 15:25 (audit card + handoff) · **HEAD:** `f6a1ec2` · **Ветка:** `master`
+
+> **Полный backlog аудита:** [`docs/sync/v5-local-Components-Code-Audit-2026-07.md`](v5-local-Components-Code-Audit-2026-07.md) → vault: `v5-local/Components/Code Audit 2026-07`
 
 ### Итог сессии 2026-07-10 — audit hardening + UI мастера заказа
 
@@ -20,10 +22,13 @@
 
 **Не в git (локально):** `docs/roadmap-2026.md`, `docs/saas-roadmap.md`, `scripts/repair-order-*`, `scripts/fix-order-5-*` — одноразовые/черновики, не пушили.
 
-**Следующая сессия (по порядку audit):**
-1. `PaymentScheduleAutomaticStatus::refreshForOrdersScope` — department scope
-2. Уплотнить остальные вкладки мастера (Нормативы, Документы, Переписка)
-3. Декомпозиция Order Wizard — отдельная большая задача
+**Следующая сессия (порядок — см. audit card):**
+1. `PaymentScheduleAutomaticStatus::refreshForOrdersScope` + finance scope (`manager_id` → department/own)
+2. Leads: `LeadAttentionQueueService` department scope
+3. Wizard UI: Нормативы, Документы, Переписка
+4. Phase 2: декомпозиция Order Wizard (отдельная задача)
+
+**На большом ПК:** `git pull` → `sync-docs-to-yandex.ps1` → читать **audit card** + этот handoff.
 
 ---
 
