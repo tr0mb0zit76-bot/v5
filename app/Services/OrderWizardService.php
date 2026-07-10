@@ -99,9 +99,13 @@ class OrderWizardService
             }
             $previousStatus = $order->status;
             $previousOrderDate = optional($order->order_date)?->toDateString();
-            $previousManagerId = $this->hasOrdersColumn('order_owner_id') && $order->order_owner_id !== null
-                ? (int) $order->order_owner_id
-                : (int) $order->manager_id;
+            $previousManagerId = (int) $order->manager_id;
+            $previousOrderOwnerId = $this->hasOrdersColumn('order_owner_id')
+                ? ($order->order_owner_id !== null ? (int) $order->order_owner_id : null)
+                : null;
+            $previousDispatcherId = $this->hasOrdersColumn('dispatcher_id')
+                ? ($order->dispatcher_id !== null ? (int) $order->dispatcher_id : null)
+                : null;
 
             $ownCompany = $this->resolveOwnCompany($validated);
             $orderOwnerId = $this->resolveOrderOwnerIdFromValidated($validated, $user, false, $order);
@@ -117,7 +121,13 @@ class OrderWizardService
 
             $updatedOrder = OrderRouteMilestoneDateResolver::syncToOrder($order->fresh() ?? $order);
 
-            $this->orderCompensationService->recalculateImpactedPeriods($updatedOrder, $previousManagerId, $previousOrderDate);
+            $this->orderCompensationService->recalculateImpactedPeriods(
+                $updatedOrder,
+                $previousManagerId,
+                $previousOrderDate,
+                $previousOrderOwnerId,
+                $previousDispatcherId,
+            );
             $this->orderCompensationService->refreshOrderCompensationFields($updatedOrder->fresh());
             $this->syncDerivedStatus($updatedOrder, $validated, $user, $previousStatus);
 

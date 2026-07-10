@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Disposition\DispositionKpiService;
+use App\Support\OrderViewAuthorization;
 use App\Support\PaymentScheduleSettlementStatus;
 use App\Support\RoleAccess;
 use App\Support\UserDashboardDepartmentScope;
@@ -193,24 +194,28 @@ class DashboardMetricsService
             return;
         }
 
-        $managerIds = array_values(array_unique(array_map(
+        $userIds = array_values(array_unique(array_map(
             static fn (mixed $id): int => (int) $id,
             $managerFilter['ids'] ?? [],
         )));
 
-        if ($managerIds === []) {
+        if ($userIds === []) {
             $query->whereRaw('1 = 0');
 
             return;
         }
 
-        if (count($managerIds) === 1) {
-            $query->where($managerColumn, $managerIds[0]);
+        $tablePrefix = str_contains($managerColumn, '.')
+            ? explode('.', $managerColumn, 2)[0]
+            : ($query instanceof EloquentBuilder ? $query->getModel()->getTable() : 'orders');
+
+        if ($query instanceof EloquentBuilder) {
+            OrderViewAuthorization::applyUserIdsOwnsOrderScope($query, $userIds);
 
             return;
         }
 
-        $query->whereIn($managerColumn, $managerIds);
+        OrderViewAuthorization::applyUserIdsOwnsOrderScopeToQuery($query, $userIds, $tablePrefix);
     }
 
     /**

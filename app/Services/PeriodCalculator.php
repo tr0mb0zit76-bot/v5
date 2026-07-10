@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Support\CarrierPaymentFormResolver;
+use App\Support\OrderViewAuthorization;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Schema;
@@ -43,13 +44,14 @@ class PeriodCalculator
     {
         try {
             $query = Order::query()
-                ->where('manager_id', $managerId)
                 ->whereBetween('order_date', [$periodStart, $periodEnd])
                 ->whereNotNull('customer_payment_form')
                 ->when(
                     Schema::hasColumn('orders', 'deleted_at'),
                     fn ($query) => $query->whereNull('deleted_at')
                 );
+
+            OrderViewAuthorization::applyUserIdsOwnsOrderScope($query, [$managerId]);
 
             if (Schema::hasColumn('orders', 'carrier_payment_form')) {
                 $query->whereNotNull('carrier_payment_form');

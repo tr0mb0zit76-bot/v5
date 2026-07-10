@@ -198,7 +198,7 @@ class McpAccessGate
             throw new AuthenticationException('Недостаточно прав для изменения заказа.');
         }
 
-        if (! OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id)) {
+        if (! OrderViewAuthorization::userCanMutateOrder($user, $order)) {
             throw new AuthenticationException('Заказ недоступен для редактирования.');
         }
 

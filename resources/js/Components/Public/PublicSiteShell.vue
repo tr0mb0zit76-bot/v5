@@ -2,6 +2,7 @@
 import InputError from '@/Components/InputError.vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { sanitizeRichHtml } from '@/support/sanitizeRichHtml';
 import { publicNavigation } from './publicPages';
 /** Дублирует resources/locales/public/ru.json — если с сервера пришёл пустой publicSite.texts, витрина не остаётся без текста. */
 import publicSiteRuFallbacks from './publicSiteRuFallbacks.json';
@@ -168,7 +169,7 @@ const interpolateCompany = (value) =>
         .replaceAll('[Название компании]', companyBrand.value)
         .replaceAll('{company_name}', companyBrand.value);
 
-const tRich = (key) => interpolateCompany(t(key));
+const tRich = (key) => sanitizeRichHtml(interpolateCompany(t(key)));
 
 const switchSection = (index) => {
     if (!sections.value.length) {

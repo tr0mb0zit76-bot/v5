@@ -68,7 +68,8 @@ final class DispositionInProgressOrderScope
      */
     public function orderIdsForManager(int $managerId): array
     {
-        $builder = Order::query()->where('manager_id', $managerId);
+        $builder = Order::query();
+        OrderViewAuthorization::applyUserIdsOwnsOrderScope($builder, [$managerId]);
 
         if (Schema::hasColumn('orders', 'deleted_at')) {
             $builder->whereNull('deleted_at');

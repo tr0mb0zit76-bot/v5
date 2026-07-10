@@ -47,6 +47,50 @@ class McpAccessGateOrderScopeTest extends TestCase
         app(McpAccessGate::class)->findAccessibleOrder($intruder, (int) $order->id);
     }
 
+    public function test_ensure_can_edit_order_allows_department_colleague_order(): void
+    {
+        if (! Schema::hasTable('department_user') || ! Schema::hasTable('departments')) {
+            $this->markTestSkipped('department tables are unavailable.');
+        }
+
+        $role = Role::query()->create([
+            'name' => 'manager',
+            'display_name' => 'MCP dept',
+            'permissions' => [],
+            'visibility_areas' => ['orders'],
+            'visibility_scopes' => ['orders' => 'department'],
+        ]);
+
+        $departmentId = \Illuminate\Support\Facades\DB::table('departments')->insertGetId([
+            'name' => 'MCP dept '.uniqid(),
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $colleague = User::factory()->create(['role_id' => $role->id]);
+        $viewer = User::factory()->create(['role_id' => $role->id]);
+
+        foreach ([$colleague, $viewer] as $member) {
+            \Illuminate\Support\Facades\DB::table('department_user')->insert([
+                'department_id' => $departmentId,
+                'user_id' => $member->id,
+                'is_primary' => true,
+                'receives_approvals' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $order = Order::factory()->create([
+            'manager_id' => $colleague->id,
+        ]);
+
+        app(McpAccessGate::class)->ensureCanEditOrder($viewer, $order);
+
+        $this->assertTrue(true);
+    }
+
     private function createOrdersUser(string $roleName): User
     {
         $role = Role::query()->firstOrCreate([

@@ -36,7 +36,7 @@ class OrderWizardOrderAuthorization
             return false;
         }
 
-        if (! OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id)) {
+        if (! OrderViewAuthorization::userCanMutateOrder($user, $order)) {
             return false;
         }
 

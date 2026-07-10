@@ -16,6 +16,7 @@ use App\Support\OrderCompensationSplitResolver;
 use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\OrderPersistedId;
 use App\Support\OrderRouteMilestoneDateResolver;
+use App\Support\OrderViewAuthorization;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleAutomaticStatus;
@@ -48,44 +49,51 @@ class OrderCompensationService
         Order $order,
         ?int $previousManagerId = null,
         ?string $previousOrderDate = null,
+        ?int $previousOrderOwnerId = null,
+        ?int $previousDispatcherId = null,
     ): void {
         $targets = collect([
             [
-                'manager_id' => $previousManagerId,
+                'user_id' => $previousManagerId,
                 'order_date' => $previousOrderDate,
             ],
             [
-                'manager_id' => $order->manager_id,
+                'user_id' => $order->manager_id,
                 'order_date' => optional($order->order_date)?->toDateString(),
             ],
-        ])->filter(function (array $target): bool {
-            return filled($target['manager_id']) && filled($target['order_date']);
-        })->unique(fn (array $target): string => $target['manager_id'].'|'.$target['order_date']);
+        ]);
 
-        foreach ($targets as $target) {
-            $this->recalculateManagerPeriod((int) $target['manager_id'], (string) $target['order_date']);
+        if (Schema::hasColumn('orders', 'order_owner_id')) {
+            $targets->push(
+                ['user_id' => $previousOrderOwnerId, 'order_date' => $previousOrderDate],
+                ['user_id' => $order->order_owner_id, 'order_date' => optional($order->order_date)?->toDateString()],
+            );
         }
 
+        if (Schema::hasColumn('orders', 'dispatcher_id')) {
+            $targets->push(
+                ['user_id' => $previousDispatcherId, 'order_date' => $previousOrderDate],
+                ['user_id' => $order->dispatcher_id, 'order_date' => optional($order->order_date)?->toDateString()],
+            );
+        }
+
+        $targets = $targets
+            ->filter(function (array $target): bool {
+                return filled($target['user_id']) && filled($target['order_date']);
+            })
+            ->unique(fn (array $target): string => $target['user_id'].'|'.$target['order_date']);
+
+        foreach ($targets as $target) {
+            $this->recalculateManagerPeriod((int) $target['user_id'], (string) $target['order_date']);
+        }
     }
 
     public function recalculatePeriodForAllManagers(string $date): void
     {
         $period = $this->periodCalculator->getPeriodForDate($date);
 
-        $managerIds = Order::query()
-            ->whereBetween('order_date', [$period['start'], $period['end']])
-            ->whereNotNull('manager_id')
-            ->when(
-                Schema::hasColumn('orders', 'deleted_at'),
-                fn ($query) => $query->whereNull('deleted_at')
-            )
-            ->distinct()
-            ->pluck('manager_id')
-            ->filter()
-            ->all();
-
-        foreach ($managerIds as $managerId) {
-            $this->recalculateManagerPeriod((int) $managerId, $date);
+        foreach ($this->distinctOwnershipUserIdsForPeriod($period) as $userId) {
+            $this->recalculateManagerPeriod($userId, $date);
         }
     }
 
@@ -93,13 +101,16 @@ class OrderCompensationService
     {
         $period = $this->periodCalculator->getPeriodForDate($date);
 
-        $orders = Order::query()
-            ->where('manager_id', $managerId)
+        $query = Order::query()
             ->whereBetween('order_date', [$period['start'], $period['end']])
             ->when(
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($query) => $query->whereNull('deleted_at')
-            )
+            );
+
+        OrderViewAuthorization::applyUserIdsOwnsOrderScope($query, [$managerId]);
+
+        $orders = $query
             ->when(
                 Schema::hasTable('financial_terms'),
                 fn ($query) => $query->with('financialTerms'),
@@ -1000,5 +1011,43 @@ class OrderCompensationService
             ->first();
 
         return is_array($financialTerm?->contractors_costs) ? $financialTerm->contractors_costs : [];
+    }
+
+    /**
+     * @param  array{start: string, end: string, name: string}  $period
+     * @return list<int>
+     */
+    private function distinctOwnershipUserIdsForPeriod(array $period): array
+    {
+        $columns = array_values(array_filter(
+            ['manager_id', 'order_owner_id', 'dispatcher_id'],
+            fn (string $column): bool => Schema::hasColumn('orders', $column),
+        ));
+
+        if ($columns === []) {
+            return [];
+        }
+
+        $orders = Order::query()
+            ->whereBetween('order_date', [$period['start'], $period['end']])
+            ->when(
+                Schema::hasColumn('orders', 'deleted_at'),
+                fn ($query) => $query->whereNull('deleted_at')
+            )
+            ->get($columns);
+
+        $userIds = [];
+
+        foreach ($orders as $order) {
+            foreach ($columns as $column) {
+                $value = $order->{$column};
+
+                if ($value !== null && $value !== '') {
+                    $userIds[] = (int) $value;
+                }
+            }
+        }
+
+        return array_values(array_unique($userIds));
     }
 }

@@ -711,7 +711,7 @@ class OrderDocumentWorkflowController extends Controller
             abort(403);
         }
 
-        abort_unless(OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id), 403);
+        abort_unless(OrderViewAuthorization::userCanMutateOrder($user, $order), 403);
 
         $order->loadMissing('documents');
         abort_if(OrderPrintWorkflowLock::allPrintWorkflowDocumentsFinalized($order), 403);
@@ -813,6 +813,6 @@ class OrderDocumentWorkflowController extends Controller
             return false;
         }
 
-        return $user->isManager() && OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id);
+        return $user->isManager() && OrderViewAuthorization::userCanMutateOrder($user, $order);
     }
 }
