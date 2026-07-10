@@ -3,7 +3,31 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-09 23:15 (Live Play + CRM + MCP скриптов) · **HEAD:** `ace43b7` · **Ветка:** `master`
+**Обновлено:** 2026-07-10 15:20 (audit P0/P1 + уплотнение мастера заказа) · **HEAD:** `c54526b` · **Ветка:** `master`
+
+### Итог сессии 2026-07-10 — audit hardening + UI мастера заказа
+
+| Блок | Статус |
+| --- | --- |
+| **P0 audit:** `OrderViewAuthorization`, транзакция `syncPaymentSchedules`, Play CRM lock | ✅ `911fb7b` |
+| **P1 audit:** IDOR в documents/payments/MCP/mobile/registry; partial payment не сбрасывает `overdue`; MCP TTL `--days=90`; XSS `dompurify` в agent markdown; защита system transport templates | ✅ `4b7e9b7` |
+| **Department scope** для заказов/лидов (`applyOrdersVisibilityScope`, pipeline, mobile, MCP) | ✅ `ae7e9d9` |
+| **Мастер заказа:** убраны «Этапы маршрута», smart-link «Документы N», служебные подсказки на Маршрут/Груз/Финансы; уплотнены блоки оплаты | ✅ `54fab5f` … `c54526b` |
+| Loading planner: admin/supervisor видят все проекты; redirect после delete | ✅ `eed02a1`, `4504646` |
+| Тесты: `OrderViewAuthorization*`, `McpAccessGateOrderScope*`, `PaymentScheduleSettlementSyncService*`, `IssueMcpTokenCommand*`, `LoadingPlannerTest` | ✅ добавлены (локально PHPUnit — нужен mysql в PATH) |
+
+**На прод (уже):** `git pull` → `npm run build` → `php artisan optimize:clear`. Миграций в этих коммитах нет.
+
+**Не в git (локально):** `docs/roadmap-2026.md`, `docs/saas-roadmap.md`, `scripts/repair-order-*`, `scripts/fix-order-5-*` — одноразовые/черновики, не пушили.
+
+**Следующая сессия (по порядку audit):**
+1. `PaymentScheduleAutomaticStatus::refreshForOrdersScope` — department scope
+2. Уплотнить остальные вкладки мастера (Нормативы, Документы, Переписка)
+3. Декомпозиция Order Wizard — отдельная большая задача
+
+---
+
+**Обновлено (архив):** 2026-07-09 23:15 (Live Play + CRM + MCP скриптов) · **HEAD:** `ace43b7`
 
 ### Итог сессии 2026-07-09 (ночь) — человечный Live Play
 
