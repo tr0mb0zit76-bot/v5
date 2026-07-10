@@ -69,16 +69,21 @@ class LoadingPlannerController extends Controller
         }
 
         $selectedId = $request->integer('project');
-        $selectedProject = LoadingPlannerAccess::applyVisibleProjectsScope(
-            LoadingPlannerProject::query(),
+        $selectedProject = $this->resolveSelectedProject(
             $user,
-        )
-            ->when($selectedId > 0, fn ($query) => $query->whereKey($selectedId))
-            ->when($orderFilterId !== null, fn ($query) => $query->where('order_id', $orderFilterId))
-            ->when($leadFilterId !== null && $orderFilterId === null, fn ($query) => $query->where('lead_id', $leadFilterId))
-            ->with(['cargoGroups.items', 'selectedTransportTemplate', 'user:id,name', 'lead:id,number,title', 'order:id,order_number,lead_id'])
-            ->orderByDesc('updated_at')
-            ->first();
+            $selectedId,
+            $leadFilterId,
+            $orderFilterId,
+        );
+
+        if ($selectedProject === null && $projects->isNotEmpty()) {
+            $selectedProject = $this->resolveSelectedProject(
+                $user,
+                (int) $projects->first()->id,
+                $leadFilterId,
+                $orderFilterId,
+            );
+        }
 
         return Inertia::render('Modules/HowMuchFits', [
             'projects' => $projects->map(fn (LoadingPlannerProject $project): array => $this->formatProjectSummary($project, (int) $user->id))->values(),
@@ -196,10 +201,18 @@ class LoadingPlannerController extends Controller
 
     public function destroyProject(Request $request, LoadingPlannerProject $loadingPlannerProject): RedirectResponse
     {
-        abort_unless(LoadingPlannerAccess::canMutateProject($request->user(), $loadingPlannerProject), 404);
+        $user = $request->user();
+        abort_if($user === null, 403);
+        abort_unless(LoadingPlannerAccess::canMutateProject($user, $loadingPlannerProject), 404);
 
-        $redirectParams = $this->indexRouteParams($loadingPlannerProject);
+        $linkParams = $this->indexRouteParamsFromRequest($request);
         $loadingPlannerProject->delete();
+
+        $redirectParams = $linkParams;
+        $nextProject = $this->resolveNextVisibleProject($user, $linkParams);
+        if ($nextProject instanceof LoadingPlannerProject) {
+            $redirectParams['project'] = $nextProject->id;
+        }
 
         return to_route('modules.how-much-fits.index', $redirectParams);
     }
@@ -329,6 +342,58 @@ class LoadingPlannerController extends Controller
         }
 
         return $params;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function indexRouteParamsFromRequest(Request $request): array
+    {
+        $params = [];
+
+        if ($request->filled('order')) {
+            $params['order'] = $request->integer('order');
+        } elseif ($request->filled('lead')) {
+            $params['lead'] = $request->integer('lead');
+        }
+
+        return $params;
+    }
+
+    private function resolveSelectedProject(
+        User $user,
+        int $projectId,
+        ?int $leadFilterId,
+        ?int $orderFilterId,
+    ): ?LoadingPlannerProject {
+        if ($projectId <= 0) {
+            return null;
+        }
+
+        return LoadingPlannerAccess::applyVisibleProjectsScope(
+            LoadingPlannerProject::query(),
+            $user,
+        )
+            ->whereKey($projectId)
+            ->when($orderFilterId !== null, fn ($query) => $query->where('order_id', $orderFilterId))
+            ->when($leadFilterId !== null && $orderFilterId === null, fn ($query) => $query->where('lead_id', $leadFilterId))
+            ->with(['cargoGroups.items', 'selectedTransportTemplate', 'user:id,name', 'lead:id,number,title', 'order:id,order_number,lead_id'])
+            ->first();
+    }
+
+    /**
+     * @param  array<string, int>  $linkParams
+     */
+    private function resolveNextVisibleProject(User $user, array $linkParams): ?LoadingPlannerProject
+    {
+        return LoadingPlannerAccess::applyVisibleProjectsScope(
+            LoadingPlannerProject::query(),
+            $user,
+        )
+            ->when(isset($linkParams['order']), fn ($query) => $query->where('order_id', $linkParams['order']))
+            ->when(isset($linkParams['lead']) && ! isset($linkParams['order']), fn ($query) => $query->where('lead_id', $linkParams['lead']))
+            ->orderByDesc('updated_at')
+            ->first();
     }
 
     /**

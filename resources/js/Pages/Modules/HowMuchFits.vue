@@ -636,6 +636,10 @@ watch(() => props.selectedProject, (project) => {
     scenePanY.value = Number(project?.calculation?.scene_view?.pan_y ?? 0);
     basePlacementsCache.value = project?.calculation?.base_placements ?? {};
     activeCargoGroupIndex.value = 0;
+
+    if (!project) {
+        activeStep.value = 'projects';
+    }
 }, { deep: true });
 
 const filteredProjects = computed(() => {
@@ -1295,7 +1299,13 @@ function deleteProjectById(projectId) {
     if (!project || !window.confirm(`Удалить проект «${project.name}»?`)) {
         return;
     }
-    router.delete(route('modules.how-much-fits.projects.destroy', projectId));
+    router.delete(route('modules.how-much-fits.projects.destroy', projectId), {
+        preserveState: false,
+        preserveScroll: true,
+        onSuccess: () => {
+            activeStep.value = 'projects';
+        },
+    });
 }
 
 function stepBottomLabel(stepKey) {

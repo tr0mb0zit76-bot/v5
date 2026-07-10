@@ -129,6 +129,66 @@ class LoadingPlannerTest extends TestCase
             );
     }
 
+    public function test_supervisor_deleting_managers_project_redirects_to_remaining_project(): void
+    {
+        $manager = $this->createPlannerUser('manager');
+        $supervisor = $this->createPlannerUser('supervisor');
+
+        $projectToDelete = LoadingPlannerProject::query()->create([
+            'user_id' => $manager->id,
+            'name' => 'Удаляемый черновик',
+            'status' => 'draft',
+        ]);
+
+        $remainingProject = LoadingPlannerProject::query()->create([
+            'user_id' => $manager->id,
+            'name' => 'Остаётся в списке',
+            'status' => 'draft',
+            'updated_at' => now()->addSecond(),
+        ]);
+
+        $this->actingAs($supervisor)
+            ->from(route('modules.how-much-fits.index', ['project' => $projectToDelete->id]))
+            ->delete(route('modules.how-much-fits.projects.destroy', $projectToDelete))
+            ->assertRedirect(route('modules.how-much-fits.index', ['project' => $remainingProject->id]));
+
+        $this->assertDatabaseMissing('loading_planner_projects', [
+            'id' => $projectToDelete->id,
+        ]);
+
+        $this->actingAs($supervisor)
+            ->get(route('modules.how-much-fits.index', ['project' => $remainingProject->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Modules/HowMuchFits')
+                ->where('selectedProject.id', $remainingProject->id)
+                ->where('projects', fn ($projects) => collect($projects)->contains(
+                    fn (array $row): bool => (int) ($row['id'] ?? 0) === (int) $remainingProject->id,
+                ) && ! collect($projects)->contains(
+                    fn (array $row): bool => (int) ($row['id'] ?? 0) === (int) $projectToDelete->id,
+                ))
+            );
+    }
+
+    public function test_index_falls_back_to_first_project_when_selected_project_is_missing(): void
+    {
+        $manager = $this->createPlannerUser('manager');
+
+        $project = LoadingPlannerProject::query()->create([
+            'user_id' => $manager->id,
+            'name' => 'Единственный проект',
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($manager)
+            ->get(route('modules.how-much-fits.index', ['project' => 999999]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Modules/HowMuchFits')
+                ->where('selectedProject.id', $project->id)
+            );
+    }
+
     public function test_store_project_from_lead_seeds_default_cargo_group(): void
     {
         if (! Schema::hasColumn('loading_planner_projects', 'lead_id')) {
