@@ -13,6 +13,24 @@ use Illuminate\Support\Facades\Schema;
 
 final class LoadingPlannerAccess
 {
+    public static function canViewAllProjects(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if (! $user->isSupervisor()) {
+            return false;
+        }
+
+        return RoleAccess::canAccessVisibilityArea($user, 'modules_how_much_fits')
+            || RoleAccess::canAccessVisibilityArea($user, 'modules');
+    }
+
     public static function canAccessLead(?User $user, Lead $lead): bool
     {
         if ($user === null) {
@@ -57,6 +75,10 @@ final class LoadingPlannerAccess
             return false;
         }
 
+        if (self::canViewAllProjects($user)) {
+            return true;
+        }
+
         if ((int) $project->user_id === (int) $user->id) {
             return true;
         }
@@ -82,6 +104,14 @@ final class LoadingPlannerAccess
 
     public static function canMutateProject(?User $user, LoadingPlannerProject $project): bool
     {
+        if ($user === null) {
+            return false;
+        }
+
+        if (self::canViewAllProjects($user)) {
+            return true;
+        }
+
         return self::canViewProject($user, $project);
     }
 
@@ -91,6 +121,10 @@ final class LoadingPlannerAccess
      */
     public static function applyVisibleProjectsScope(Builder $query, User $user): Builder
     {
+        if (self::canViewAllProjects($user)) {
+            return $query;
+        }
+
         return $query->where(function (Builder $builder) use ($user): void {
             $builder->where('user_id', $user->id);
 

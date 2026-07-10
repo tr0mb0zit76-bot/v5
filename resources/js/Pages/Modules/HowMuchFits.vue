@@ -12,6 +12,10 @@
             </div>
         </div>
 
+        <div v-if="viewerCanSeeAllProjects && !linkContext" class="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-100 print:hidden">
+            Показаны <strong>все проекты</strong> сотрудников с доступом к модулю.
+        </div>
+
         <div v-if="linkContext" class="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100 print:hidden">
             Расчёты привязаны к <strong>{{ linkContext.label }}</strong>. Их видят все, у кого есть доступ к этой сделке.
         </div>
@@ -579,6 +583,7 @@ const props = defineProps({
     transportTemplates: { type: Array, default: () => [] },
     linkContext: { type: Object, default: null },
     initialStep: { type: String, default: null },
+    viewerCanSeeAllProjects: { type: Boolean, default: false },
 });
 
 const steps = [
@@ -638,7 +643,7 @@ const filteredProjects = computed(() => {
     if (!query) {
         return props.projects;
     }
-    return props.projects.filter((project) => [project.name, project.transport_name].filter(Boolean).join(' ').toLowerCase().includes(query));
+    return props.projects.filter((project) => [project.name, project.transport_name, project.owner_name, project.link_label].filter(Boolean).join(' ').toLowerCase().includes(query));
 });
 
 const sortedProjects = computed(() => {

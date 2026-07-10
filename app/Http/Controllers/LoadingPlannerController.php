@@ -52,7 +52,7 @@ class LoadingPlannerController extends Controller
 
         $projects = $projectsQuery->get();
 
-        if ($projects->isEmpty() && $linkContext === null) {
+        if ($projects->isEmpty() && $linkContext === null && ! LoadingPlannerAccess::canViewAllProjects($user)) {
             $this->createStarterProject($request);
             $projects = LoadingPlannerAccess::applyVisibleProjectsScope(
                 LoadingPlannerProject::query(),
@@ -85,6 +85,7 @@ class LoadingPlannerController extends Controller
             'selectedProject' => $selectedProject ? $this->formatProject($selectedProject, (int) $user->id) : null,
             'linkContext' => $linkContext,
             'initialStep' => $request->string('step')->toString() ?: null,
+            'viewerCanSeeAllProjects' => LoadingPlannerAccess::canViewAllProjects($user),
             'transportTemplates' => TransportTemplate::query()
                 ->orderBy('category')
                 ->orderBy('sort_order')

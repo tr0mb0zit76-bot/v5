@@ -105,6 +105,30 @@ class LoadingPlannerTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_supervisor_sees_managers_personal_unlinked_project_in_index(): void
+    {
+        $manager = $this->createPlannerUser('manager');
+        $supervisor = $this->createPlannerUser('supervisor');
+
+        $project = LoadingPlannerProject::query()->create([
+            'user_id' => $manager->id,
+            'name' => 'Черновик менеджера без сделки',
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($supervisor)
+            ->get(route('modules.how-much-fits.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Modules/HowMuchFits')
+                ->where('viewerCanSeeAllProjects', true)
+                ->where('projects', fn ($projects) => collect($projects)->contains(
+                    fn (array $row): bool => (int) ($row['id'] ?? 0) === (int) $project->id
+                        && ($row['owner_name'] ?? '') === $manager->name,
+                ))
+            );
+    }
+
     public function test_store_project_from_lead_seeds_default_cargo_group(): void
     {
         if (! Schema::hasColumn('loading_planner_projects', 'lead_id')) {

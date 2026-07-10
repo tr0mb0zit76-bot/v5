@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\Lead;
 use App\Models\LoadingPlannerProject;
+use App\Models\Role;
 use App\Models\User;
 use App\Support\LoadingPlannerAccess;
 use Illuminate\Support\Facades\DB;
@@ -43,10 +44,39 @@ class LoadingPlannerAccessTest extends TestCase
         $this->assertTrue(LoadingPlannerAccess::canViewProject($supervisor, $project->fresh('lead')));
     }
 
+    public function test_supervisor_can_view_managers_personal_unlinked_project(): void
+    {
+        $manager = User::factory()->create();
+        $supervisor = $this->createSupervisorUser();
+
+        $project = LoadingPlannerProject::query()->create([
+            'user_id' => $manager->id,
+            'name' => 'Личный черновик менеджера',
+            'status' => 'draft',
+        ]);
+
+        $this->assertTrue(LoadingPlannerAccess::canViewAllProjects($supervisor));
+        $this->assertTrue(LoadingPlannerAccess::canViewProject($supervisor, $project));
+    }
+
+    public function test_admin_can_view_all_projects(): void
+    {
+        $role = Role::query()->firstOrCreate(['name' => 'admin'], [
+            'display_name' => 'Admin',
+            'permissions' => [],
+            'columns_config' => [],
+            'visibility_areas' => ['modules_how_much_fits'],
+        ]);
+
+        $admin = User::factory()->create(['role_id' => $role->id]);
+
+        $this->assertTrue(LoadingPlannerAccess::canViewAllProjects($admin));
+    }
+
     private function createSupervisorUser(): User
     {
         $roleId = DB::table('roles')->insertGetId([
-            'name' => 'supervisor-access-test',
+            'name' => 'supervisor',
             'visibility_areas' => json_encode(['leads', 'orders', 'modules_how_much_fits'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['leads' => 'all', 'orders' => 'all'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
