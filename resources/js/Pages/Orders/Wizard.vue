@@ -494,27 +494,15 @@
 
                 </div>
 
-                <div class="space-y-4">
-                    <div class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                        <h2 class="text-base font-semibold">Этапы маршрута</h2>
-                        <p class="mt-1 text-sm text-zinc-500">Этапы и исполнители настраиваются на вкладках «Маршрут» и «Финансы».</p>
-                        <div class="mt-3 space-y-2 text-sm">
-                            <div v-for="(performer, index) in form.performers" :key="`stage-preview-${index}`" class="rounded-xl bg-zinc-50 px-3 py-2 dark:bg-zinc-800/60">
-                                {{ stageLabel(performer.stage) }}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Особые отметки</label>
-                        <textarea v-model="form.special_notes" rows="4" :class="crmFieldFluid" />
-                    </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium">Особые отметки</label>
+                    <textarea v-model="form.special_notes" rows="6" :class="crmFieldFluid" />
                 </div>
                 </div>
 
-                <div class="space-y-4">
+                <div class="space-y-3">
                     <h2 class="text-base font-semibold">Финансовая сводка</h2>
-                    <div class="grid gap-3 rounded-2xl border border-zinc-200 p-4 text-sm dark:border-zinc-800 md:grid-cols-5">
+                    <div class="grid gap-2 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800 md:grid-cols-5">
                         <div>Цена клиента: <span class="font-medium">{{ financialSummary.clientPrice.toFixed(2) }}</span></div>
                         <div>Себестоимость: <span class="font-medium">{{ financialSummary.totalCost.toFixed(2) }}</span></div>
                         <div>Маржа: <span class="font-medium">{{ financialSummary.margin.toFixed(2) }}</span></div>
@@ -524,7 +512,7 @@
 
                     <div
                         v-if="showPaymentSettlementBlock"
-                        class="space-y-2 rounded-2xl border border-zinc-200 p-4 text-sm dark:border-zinc-800"
+                        class="space-y-2 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800"
                     >
                         <div class="font-semibold text-zinc-800 dark:text-zinc-100">Расчёты по графику оплат</div>
                         <div class="space-y-1.5 text-zinc-700 dark:text-zinc-200">
@@ -544,7 +532,6 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <h2 class="text-base font-semibold">Маршрут</h2>
-                        <p class="text-sm text-zinc-500">Этапы маршрута, точки погрузки и выгрузки</p>
                         <p v-if="form.errors.performers" class="mt-1 text-xs text-rose-500">{{ form.errors.performers }}</p>
                     </div>
                     <div class="flex items-center gap-2">
@@ -554,19 +541,19 @@
                     </div>
                 </div>
 
-                <div class="flex flex-col gap-3 rounded-2xl border border-dashed border-zinc-200 p-4 dark:border-zinc-700 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                    <div class="min-w-0 flex-1 text-sm leading-relaxed text-zinc-500">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="min-w-0 flex-1 rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">
                         {{ routeChainLabel }}
                     </div>
                     <div
                         v-if="form.is_international_transport"
-                        class="flex w-full shrink-0 flex-col gap-2 sm:ml-auto sm:max-w-xs sm:items-end"
+                        class="w-full shrink-0 sm:max-w-xs"
                     >
                         <label class="sr-only" for="wizard-border-crossing-leg">Добавить прохождение границы на плечо</label>
                         <select
                             id="wizard-border-crossing-leg"
                             v-model="borderCrossingLegPicker"
-                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-55 dark:border-zinc-700 dark:bg-zinc-950 sm:max-w-xs"
+                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-55 dark:border-zinc-700 dark:bg-zinc-950"
                             :disabled="hasBorderCrossingPoint"
                             @change="onBorderCrossingLegPickerChange"
                         >
@@ -720,12 +707,6 @@
                                 >
                                     Заполнено перевозчиком: {{ performer.carrier_portal_submission.driver_full_name }}
                                 </p>
-                                <p
-                                    v-if="needsCargoPerformerAllocationUi && performerCargoSummaryLabel(performer.stage, null)"
-                                    class="text-xs text-zinc-500 dark:text-zinc-400"
-                                >
-                                    Груз на машине: <span class="font-medium text-zinc-700 dark:text-zinc-300">{{ performerCargoSummaryLabel(performer.stage, null) }}</span>
-                                </p>
                                 <div class="flex flex-wrap gap-2">
                                     <div class="w-[8.75rem] space-y-0.5">
                                         <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. погрузка</label>
@@ -739,7 +720,6 @@
                             </template>
 
                             <template v-else>
-                                <p class="text-xs text-zinc-500">Точки маршрута ниже общие для всех исполнителей этого плеча.</p>
                                 <div
                                     v-for="(slot, slotIndex) in performer.split_carriers"
                                     :key="`leg-${legIndex}-slot-${slot.slot}`"
@@ -748,12 +728,6 @@
                                     <div class="flex flex-wrap items-center justify-between gap-2">
                                         <div>
                                             <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ splitCarrierSlotLabel(slot.slot) }}</span>
-                                            <p
-                                                v-if="needsCargoPerformerAllocationUi && performerCargoSummaryLabel(performer.stage, slot.slot)"
-                                                class="text-xs text-zinc-500"
-                                            >
-                                                Груз: {{ performerCargoSummaryLabel(performer.stage, slot.slot) }}
-                                            </p>
                                         </div>
                                         <button
                                             v-if="performer.split_carriers.length > 2"
@@ -1102,10 +1076,7 @@
             </div>
 
             <div v-else-if="activeTab === 'cargo'" class="space-y-4">
-                <div>
-                    <h2 class="text-base font-semibold">Грузовые позиции</h2>
-                    <p class="text-sm text-zinc-500">Несколько грузов в одном заказе</p>
-                </div>
+                <h2 class="text-base font-semibold">Грузовые позиции</h2>
 
                 <div class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                     <div class="space-y-2">
@@ -1434,16 +1405,13 @@
                 />
             </div>
 
-            <div v-else-if="activeTab === 'finance'" class="space-y-6">
-                <div class="space-y-6">
-                    <div class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+            <div v-else-if="activeTab === 'finance'" class="space-y-4">
+                <div class="space-y-4">
+                    <div class="space-y-3 rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
                         <div class="flex items-start justify-between gap-3">
-                            <div>
-                                <h2 class="text-base font-semibold">Оплата клиентом</h2>
-                                <p class="text-xs text-zinc-500">Условия клиента задаются первым блоком, остальные расходы идут ниже по маршруту.</p>
-                            </div>
-                            <div v-if="form.performers.length > 1" class="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-right text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                                {{ form.financial_term.client_request_mode === 'split_by_leg' ? 'Маршрут разбивается на несколько клиентских заявок' : 'Маршрут оформляется одной клиентской заявкой' }}
+                            <h2 class="text-base font-semibold">Оплата клиентом</h2>
+                            <div v-if="form.performers.length > 1" class="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-right text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                                {{ form.financial_term.client_request_mode === 'split_by_leg' ? 'Несколько заявок' : 'Одна заявка' }}
                             </div>
                         </div>
                         <div class="grid gap-3 lg:grid-cols-3">
@@ -1484,25 +1452,21 @@
                         />
                     </div>
 
-                    <div class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                    <div class="space-y-3 rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
                         <div class="flex items-center justify-between gap-3">
-                            <div>
-                                <h2 class="text-base font-semibold">Затраты по исполнителям</h2>
-                                <p class="text-xs text-zinc-500">Каждое плечо идет отдельной карточкой, чтобы структура не ломалась при нескольких этапах.</p>
-                            </div>
+                            <h2 class="text-base font-semibold">Затраты по исполнителям</h2>
                             <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="syncContractorCostsFromPerformers">
                                 Подтянуть из этапов
                             </button>
                         </div>
 
                     <div class="space-y-3">
-                        <div v-for="(cost, index) in legContractorCosts" :key="`contractor-cost-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div class="grid grid-cols-1 gap-3 md:grid-cols-12 md:items-start">
+                        <div v-for="(cost, index) in legContractorCosts" :key="`contractor-cost-${index}`" class="space-y-3 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
                                 <div class="min-w-0 md:col-span-5">
                                     <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                                         {{ costRowTitle(cost) }}
                                     </div>
-                                    <p class="text-xs text-zinc-500">Исполнитель и условия оплаты для плеча маршрута.</p>
                                 </div>
                                 <div class="min-w-0 space-y-2 md:col-span-2">
                                     <label class="text-sm font-medium">
@@ -1538,12 +1502,9 @@
                 </div>
             </div>
 
-            <div class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+            <div class="space-y-3 rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h2 class="text-base font-semibold">Дополнительные затраты</h2>
-                        <p class="text-xs text-zinc-500">Подрядчики и прочие расходы по заказу (не оплата перевозчикам по этапам)</p>
-                    </div>
+                    <h2 class="text-base font-semibold">Дополнительные затраты</h2>
                     <button
                         type="button"
                         class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
@@ -1553,8 +1514,8 @@
                     </button>
                 </div>
 
-                <div v-if="form.financial_term.additional_costs.length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
-                    Нет дополнительных затрат. Нажмите «Добавить затрату», чтобы указать подрядчика, дату услуги, стоимость, валюту и форму оплаты.
+                <div v-if="form.financial_term.additional_costs.length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-3 text-sm text-zinc-500 dark:border-zinc-700">
+                    Нет дополнительных затрат.
                 </div>
 
                 <div

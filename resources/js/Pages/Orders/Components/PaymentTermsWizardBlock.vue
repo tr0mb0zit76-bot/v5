@@ -168,7 +168,7 @@ function onInstallmentAmountInput(index) {
 </script>
 
 <template>
-    <div :class="`${crmPanel} space-y-3 p-4`">
+    <div :class="`${crmPanel} space-y-2.5 p-3`">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Сроки и условия оплаты</div>
         </div>

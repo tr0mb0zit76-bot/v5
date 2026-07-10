@@ -5,7 +5,6 @@ namespace App\Support;
 use App\Models\Lead;
 use App\Models\MailThread;
 use App\Models\Order;
-use App\Models\OrderDocument;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Commercial\CommercialNudgeEvaluator;
@@ -107,25 +106,6 @@ final class CardSmartLinksResolver
                     label: 'Почта',
                     count: $mailThreads,
                     href: route('mail.index'),
-                );
-            }
-        }
-
-        if (Schema::hasTable('order_documents')) {
-            $pendingDocuments = OrderDocument::query()
-                ->where('order_id', $order->id)
-                ->where(function ($query): void {
-                    $query->whereNull('generated_pdf_path')
-                        ->orWhere('status', '!=', 'approved');
-                })
-                ->count();
-
-            if ($pendingDocuments > 0) {
-                $links[] = $this->link(
-                    key: 'documents',
-                    label: 'Документы',
-                    count: $pendingDocuments,
-                    href: route('orders.edit', $order).'#documents',
                 );
             }
         }
