@@ -50,7 +50,7 @@
 
 | # | Проблема | Статус | Действие |
 | --- | --- | --- | --- |
-| 2.1 | **Order Wizard ~12k строк** (`Wizard.vue` + fat controller) | 🟡 | Slices 1–6: controller **~386**; Vue **~4160** (было ~7180); composables: route, cargo, finance, submit, counterparty, documentAttach |
+| 2.1 | **Order Wizard ~12k строк** (`Wizard.vue` + fat controller) | 🟡 | Slices 1–7: controller **~386**; Vue **~3140** (было ~7180); shell + intake composable; lazy tabs (route/cargo/finance/documents); composables: route, cargo, finance, submit, counterparty, documentAttach, intake |
 | 2.2 | `OrderWizardController` дублирует serialize/authorize | ✅ | `OrderWizardOrderPresenter`, `PagePresenter`, `OrderAuthorization`, `DocumentSerializer` |
 | 2.3 | Другие `v-html` (Mermaid, PublicSiteShell) | ⏳ | Аудит; DOMPurify или escape |
 

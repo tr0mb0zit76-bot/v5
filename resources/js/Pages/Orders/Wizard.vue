@@ -1,302 +1,59 @@
 <template>
-    <div :class="crmWizardShell">
-        <div
-            v-if="isMobileStandalone"
-            :class="`${crmPanel} space-y-3 px-4 py-4`"
-        >
-            <div class="flex items-start justify-between gap-3">
-                <div class="flex min-w-0 items-center gap-3">
-                    <button
-                        type="button"
-                        :class="crmWizardBack"
-                        title="К реестру"
-                        @click="goBack"
-                    >
-                        <X class="h-5 w-5" />
-                        <span class="sr-only">К реестру</span>
-                    </button>
-
-                    <div class="min-w-0">
-                        <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Мобильный мастер</div>
-                        <h1 class="truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                            {{ isEditing ? form.order_number || `Заказ #${order.id}` : 'Новый заказ' }}
-                        </h1>
-                        <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Статус</span>
-                                <span
-                                    class="inline-flex max-w-full items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
-                                    :title="'Рассчитывается автоматически по фактическим датам плеч, документам и оплатам. Текущий: ' + orderStatusBadgeLabel"
-                                >
-                                    <OrderStatusIcon v-if="orderStatusIconMeta" :icon-key="orderStatusIconKey" :size="18" />
-                                    <span class="min-w-0 truncate">{{ orderStatusBadgeLabel }}</span>
-                                </span>
-                                <button
-                                    v-if="canShowMarkDisruptionButton"
-                                    type="button"
-                                    class="inline-flex shrink-0 items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 transition-colors hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/60"
-                                    title="Перевозка не началась, заказ уже не «Новый». Доступно руководителю и администратору."
-                                    @click="markOrderDisruption"
-                                >
-                                    <OctagonAlert class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                                    Срыв
-                                </button>
-                            </div>
-                            <span class="h-4 w-px shrink-0 bg-zinc-200 dark:bg-zinc-600" aria-hidden="true" />
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Перевозка</span>
-                                <div :class="crmSegmented">
-                                    <button
-                                        type="button"
-                                        :class="[!form.is_international_transport ? crmSegmentedBtnActive : crmSegmentedBtn, 'px-2.5 py-1 text-[11px]']"
-                                        @click="form.is_international_transport = false"
-                                    >
-                                        Внутренняя
-                                    </button>
-                                    <button
-                                        type="button"
-                                        :class="[form.is_international_transport ? crmSegmentedBtnActive : crmSegmentedBtn, 'px-2.5 py-1 text-[11px]']"
-                                        @click="form.is_international_transport = true"
-                                    >
-                                        Международная
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <button
-                    type="button"
-                    :class="crmBtnCreate"
-                    class="h-11 shrink-0"
-                    :disabled="form.processing || customerDebtBlocked || !isOrderFormEditable"
-                    @click="submit"
-                >
-                    <Save class="h-4 w-4" />
-                    {{ form.processing ? '...' : 'Сохранить' }}
-                </button>
-            </div>
-
-            <p v-if="hasUnsavedDocumentFiles" class="text-xs text-amber-800 dark:text-amber-200">
-                В документах выбран новый файл — нажмите «Сохранить» выше, иначе вложение не попадёт в заказ.
-            </p>
-            <p v-if="coreValidationIssues.length > 0" class="text-xs text-rose-700 dark:text-rose-300">
-                Для сохранения заполните: {{ coreValidationIssues.join(', ') }}.
-            </p>
-
-            <div class="space-y-2">
-                <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">Шаг</label>
-                <select
-                    v-model="activeTab"
-                    :class="crmFieldFluid"
-                >
-                    <option v-for="tab in tabs" :key="tab.key" :value="tab.key">{{ tab.label }}</option>
-                </select>
-            </div>
-        </div>
-
-        <template v-else>
-            <div :class="crmWizardHeader">
-                <div class="flex items-center gap-3">
-                    <button
-                        type="button"
-                        :class="crmWizardBack"
-                        title="К реестру"
-                        @click="goBack"
-                    >
-                        <X class="h-5 w-5" />
-                        <span class="sr-only">К реестру</span>
-                    </button>
-
-                    <div class="min-w-0">
-                        <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
-                            {{ isEditing ? 'Карточка заказа' : 'Новый заказ' }}
-                        </div>
-                        <h1 class="mt-1 truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                            {{ isEditing ? form.order_number || `Заказ #${order.id}` : 'Добавление' }}
-                        </h1>
-                    </div>
-                </div>
-
-                <div class="flex flex-wrap items-center justify-end gap-2">
-                    <span
-                        v-if="hasUnsavedDocumentFiles"
-                        class="max-w-md text-right text-xs text-amber-800 dark:text-amber-200"
-                    >
-                        В документах есть новый файл — сохраните заказ.
-                    </span>
-                    <button
-                        v-if="canUseHowMuchFits && isEditing"
-                        type="button"
-                        :class="`${crmBtnSecondary} inline-flex items-center gap-2 !px-4 !py-2`"
-                        @click="openHowMuchFitsFromOrder"
-                    >
-                        <Package class="h-4 w-4" />
-                        Сколько влезет?
-                    </button>
-                    <button
-                        type="button"
-                        :class="crmBtnCreate"
-                        :disabled="form.processing || customerDebtBlocked || !isOrderFormEditable"
-                        @click="submit"
-                    >
-                        <Save class="h-4 w-4" />
-                        {{ form.processing ? 'Сохранение...' : 'Сохранить' }}
-                    </button>
-                </div>
-            </div>
-
-            <div class="flex flex-col gap-2 border-b border-zinc-200 bg-white px-5 py-2 dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-x-3 sm:gap-y-2">
-                <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                    <button
-                        v-for="tab in tabs"
-                        :key="tab.key"
-                        type="button"
-                        class="inline-flex items-center gap-2 text-sm transition-colors"
-                        :class="crmTabButtonClasses(activeTab === tab.key)"
-                        @click="activeTab = tab.key"
-                    >
-                        <component :is="tab.icon" class="h-4 w-4" />
-                        {{ tab.label }}
-                    </button>
-                </div>
-                <div class="flex w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-2 border-t border-zinc-200 pt-2.5 sm:w-auto sm:min-w-0 sm:flex-nowrap sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 dark:border-zinc-700">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Перевозка</span>
-                        <div :class="crmSegmented">
-                            <button
-                                type="button"
-                                :class="!form.is_international_transport ? crmSegmentedBtnActive : crmSegmentedBtn"
-                                @click="form.is_international_transport = false"
-                            >
-                                Внутренняя
-                            </button>
-                            <button
-                                type="button"
-                                :class="form.is_international_transport ? crmSegmentedBtnActive : crmSegmentedBtn"
-                                @click="form.is_international_transport = true"
-                            >
-                                Международная
-                            </button>
-                        </div>
-                    </div>
-                    <span class="hidden h-6 w-px shrink-0 bg-zinc-200 sm:block dark:bg-zinc-600" aria-hidden="true" />
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Статус заказа</span>
-                        <span
-                            class="inline-flex max-w-full items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-medium leading-none text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
-                            :title="'Рассчитывается автоматически по фактическим датам плеч, документам и оплатам. Текущий: ' + orderStatusBadgeLabel"
-                        >
-                            <OrderStatusIcon v-if="orderStatusIconMeta" :icon-key="orderStatusIconKey" />
-                            <span class="min-w-0 truncate">{{ orderStatusBadgeLabel }}</span>
-                        </span>
-                        <button
-                            v-if="canShowMarkDisruptionButton"
-                            type="button"
-                            class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold leading-none text-red-700 transition-colors hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/60"
-                            title="Перевозка не началась, заказ уже не «Новый». Доступно руководителю и администратору."
-                            @click="markOrderDisruption"
-                        >
-                            <OctagonAlert class="h-4 w-4 shrink-0" aria-hidden="true" />
-                            Срыв
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </template>
-
-        <div
-            :class="crmWizardBody"
-            :inert="wizardBodyInert"
-        >
-            <p
-                v-if="isEditing && !isOrderFormEditable && !canViewOrderDocuments"
-                class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
-                role="status"
-            >
-                Редактирование заказа недоступно: все печатные заявки по заказу доведены до финального PDF. Данные можно просматривать; изменения не сохраняются.
-            </p>
-            <p
-                v-else-if="isEditing && !isOrderFormEditable && canViewOrderDocuments"
-                class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
-                role="status"
-            >
-                Редактирование заказа недоступно: все печатные заявки по заказу доведены до финального PDF. Документы доступны на вкладке «Документы».
-            </p>
-            <p
-                v-else-if="isEditing && isOrderFormEditable && !canEditFinancialFields"
-                class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
-                role="status"
-            >
-                Стоимость перевозки и финансовые условия недоступны для изменения, пока рейс в статусе «Выполняется». Остальные поля заказа можно редактировать.
-            </p>
-            <p v-if="saveAttempted && coreValidationIssues.length > 0" class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
-                Не удалось сохранить: заполните {{ coreValidationIssues.join(', ') }}.
-            </p>
-            <div
-                v-if="!isEditing"
-                class="mb-4 rounded-xl border border-sky-200 bg-sky-50/80 px-4 py-3 dark:border-sky-900/50 dark:bg-sky-950/20"
-            >
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <div class="text-sm font-semibold text-sky-950 dark:text-sky-100">Заполнить из заявки заказчика</div>
-                        <p class="mt-1 text-xs text-sky-900/80 dark:text-sky-200/80">PDF или DOCX с текстовым слоем. Данные попадут в форму — проверьте перед сохранением.</p>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <input
-                            ref="intakeFileInput"
-                            type="file"
-                            accept=".pdf,.docx,image/jpeg,image/png,image/webp"
-                            class="max-w-xs text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-medium dark:file:bg-zinc-800"
-                            @change="onIntakeFileSelected"
-                        />
-                        <button
-                            type="button"
-                            class="rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-60"
-                            :disabled="intakeLoading || !intakeSelectedFile"
-                            @click="extractIntakeDraft"
-                        >
-                            {{ intakeLoading ? 'Распознавание…' : 'Распознать' }}
-                        </button>
-                    </div>
-                </div>
-                <p v-if="intakeError" class="mt-2 text-xs text-rose-700 dark:text-rose-300">{{ intakeError }}</p>
-                <div v-if="intakePreview" class="mt-3 space-y-2 rounded-lg border border-sky-200/80 bg-white/70 p-3 dark:border-sky-900/40 dark:bg-zinc-900/40">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                        <div class="text-xs font-medium text-zinc-700 dark:text-zinc-200">
-                            Черновик #{{ intakePreview.draft_id }}
-                            <span v-if="intakePreview.confidence != null"> · уверенность {{ Math.round(intakePreview.confidence * 100) }}%</span>
-                        </div>
-                        <button
-                            type="button"
-                            class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
-                            @click="applyIntakeDraft"
-                        >
-                            Применить к форме
-                        </button>
-                    </div>
-                    <ul v-if="intakePreview.preview?.length" class="grid gap-1 text-xs text-zinc-700 dark:text-zinc-300 sm:grid-cols-2">
-                        <li v-for="row in intakePreview.preview" :key="row.label">
-                            <span class="text-zinc-500">{{ row.label }}:</span> {{ row.value }}
-                        </li>
-                    </ul>
-                    <ul v-if="intakePreview.warnings?.length" class="text-xs text-amber-800 dark:text-amber-200">
-                        <li v-for="(warning, index) in intakePreview.warnings" :key="index">{{ warning }}</li>
-                    </ul>
-                </div>
-            </div>
+    <OrderWizardShell
+        :active-tab="activeTab"
+        :is-mobile-standalone="isMobileStandalone"
+        :is-editing="isEditing"
+        :page-title="wizardPageTitle"
+        :mobile-page-title="wizardMobilePageTitle"
+        :desktop-subtitle="wizardDesktopSubtitle"
+        :form-processing="form.processing"
+        :customer-debt-blocked="customerDebtBlocked"
+        :is-order-form-editable="isOrderFormEditable"
+        :has-unsaved-document-files="hasUnsavedDocumentFiles"
+        :core-validation-issues="coreValidationIssues"
+        :tabs="tabs"
+        :is-international-transport="form.is_international_transport"
+        :order-status-badge-label="orderStatusBadgeLabel"
+        :order-status-icon-meta="orderStatusIconMeta"
+        :order-status-icon-key="orderStatusIconKey"
+        :can-show-mark-disruption-button="canShowMarkDisruptionButton"
+        :can-use-how-much-fits="canUseHowMuchFits"
+        :wizard-body-inert="wizardBodyInert"
+        @update:active-tab="activeTab = $event"
+        @update:is-international-transport="form.is_international_transport = $event"
+        @go-back="goBack"
+        @submit="submit"
+        @mark-disruption="markOrderDisruption"
+        @open-how-much-fits="openHowMuchFitsFromOrder"
+    >
+        <OrderWizardBodyAlerts
+            :is-editing="isEditing"
+            :is-order-form-editable="isOrderFormEditable"
+            :can-view-order-documents="canViewOrderDocuments"
+            :can-edit-financial-fields="canEditFinancialFields"
+            :save-attempted="saveAttempted"
+            :core-validation-issues="coreValidationIssues"
+        />
+        <OrderWizardIntakePanel
+            v-if="!isEditing"
+            :intake-loading="intakeLoading"
+            :intake-selected-file="intakeSelectedFile"
+            :intake-error="intakeError"
+            :intake-preview="intakePreview"
+            @file-selected="onIntakeFileSelected"
+            @extract="extractIntakeDraft"
+            @apply="applyIntakeDraft"
+        />
             <OrderWizardMainTab v-if="activeTab === 'main'" />
 
             <OrderWizardRouteTab v-else-if="activeTab === 'route'" />
             <OrderWizardCargoTab v-else-if="activeTab === 'cargo'" />
 
-            <div v-else-if="activeTab === 'lead_precalc' && leadPrecalculationSnapshot" class="space-y-4">
-                <OrderWizardLeadPrecalculationSnapshot
-                    :snapshot="leadPrecalculationSnapshot"
-                    :order-id="order.id"
-                />
-            </div>
+            <OrderWizardLeadPrecalculationSnapshot
+                v-else-if="activeTab === 'lead_precalc' && leadPrecalculationSnapshot"
+                :snapshot="leadPrecalculationSnapshot"
+                :order-id="order.id"
+            />
 
             <OrderWizardFinanceTab v-else-if="activeTab === 'finance'" />
 
@@ -362,7 +119,7 @@
                 :show-customer="orderNormsShowCustomer"
                 :show-carrier="orderNormsShowCarrier"
             />
-        </div>
+    </OrderWizardShell>
 
     <OrderWizardCounterpartyModal
         :show="showCounterpartyModal"
@@ -401,34 +158,32 @@
         @update:stage="orderDocumentAttachStage = $event"
         @update:new-doc-type="orderDocumentAttachNewDocType = $event"
     />
-    </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { Calculator, ClipboardList, FileText, Gavel, History, Mail, MapPinned, Minus, OctagonAlert, Package, Plus, Save, ScrollText, Wallet, X } from 'lucide-vue-next';
-import OrderWizardCargoTab from '@/Components/Orders/OrderWizardCargoTab.vue';
+import { Calculator, ClipboardList, FileText, Gavel, History, Mail, MapPinned, Minus, Package, Plus, ScrollText, Wallet } from 'lucide-vue-next';
+import OrderWizardBodyAlerts from '@/Components/Orders/OrderWizardBodyAlerts.vue';
 import OrderWizardCounterpartyModal from '@/Components/Orders/OrderWizardCounterpartyModal.vue';
 import OrderWizardDocumentAttachModal from '@/Components/Orders/OrderWizardDocumentAttachModal.vue';
-import OrderWizardDocumentsTab from '@/Components/Orders/OrderWizardDocumentsTab.vue';
-import OrderWizardFinanceTab from '@/Components/Orders/OrderWizardFinanceTab.vue';
+import OrderWizardIntakePanel from '@/Components/Orders/OrderWizardIntakePanel.vue';
 import OrderWizardLeadPrecalculationSnapshot from '@/Components/Orders/OrderWizardLeadPrecalculationSnapshot.vue';
 import OrderWizardMailTab from '@/Components/Orders/OrderWizardMailTab.vue';
 import OrderWizardMainTab from '@/Components/Orders/OrderWizardMainTab.vue';
-import { ORDER_STATUS_ICON_META, resolveOrderStatusIconKey } from '@/support/orderStatusDisplay.js';
-import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
-import {
-    routePointCityValue,
-    setRoutePointCity,
-    syncRoutePointCityFromAddress,
-} from '@/support/routePointNormalizedData.js';
-import CrmLayout from '@/Layouts/CrmLayout.vue';
-import OrderStatusIcon from '@/Components/Orders/OrderStatusIcon.vue';
 import OrderWizardNormsPenaltiesTab from '@/Components/Orders/OrderWizardNormsPenaltiesTab.vue';
 import OrderWizardOrderNormsTab from '@/Components/Orders/OrderWizardOrderNormsTab.vue';
-import OrderWizardRouteTab from '@/Components/Orders/OrderWizardRouteTab.vue';
+import OrderWizardShell from '@/Components/Orders/OrderWizardShell.vue';
 import OrderWizardTimelineTab from '@/Components/Orders/OrderWizardTimelineTab.vue';
+
+const OrderWizardRouteTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardRouteTab.vue'));
+const OrderWizardCargoTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardCargoTab.vue'));
+const OrderWizardFinanceTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardFinanceTab.vue'));
+const OrderWizardDocumentsTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardDocumentsTab.vue'));
+import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { ORDER_STATUS_ICON_META, resolveOrderStatusIconKey } from '@/support/orderStatusDisplay.js';
+import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { syncRoutePointCityFromAddress } from '@/support/routePointNormalizedData.js';
 import { basicTermsPartiesForTemplateSelection } from '@/support/printFormBasicTerms.js';
 import { EMPTY_ORDER_DOCUMENTS } from '@/support/emptyOrderDocuments.js';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
@@ -439,14 +194,9 @@ import {
     crmField,
     crmFieldFluid,
     crmModalPanel,
-    crmPanel,
     crmSegmented,
     crmSegmentedBtn,
     crmSegmentedBtnActive,
-    crmWizardBack,
-    crmWizardBody,
-    crmWizardHeader,
-    crmWizardShell,
 } from '@/support/crmUi.js';
 import * as orderPs from '@/support/orderPaymentScheduleUi.js';
 import {
@@ -485,6 +235,7 @@ import { clampActualDateToToday, todayIsoDate } from '@/support/orderActualDates
 import { classifyDealType, paymentFormMetaFromOptions } from '@/support/paymentFormDealType.js';
 import { buildNormalizeCargoItem, useOrderWizardCargoTab } from '@/composables/useOrderWizardCargoTab.js';
 import { useOrderWizardCounterpartyModal } from '@/composables/useOrderWizardCounterpartyModal.js';
+import { useOrderWizardIntake } from '@/composables/useOrderWizardIntake.js';
 import { useOrderWizardDocumentAttach } from '@/composables/useOrderWizardDocumentAttach.js';
 import { useOrderWizardFinanceTab } from '@/composables/useOrderWizardFinanceTab.js';
 import { useOrderWizardRouteTab } from '@/composables/useOrderWizardRouteTab.js';
@@ -1590,6 +1341,18 @@ watch(
 
 const isEditing = computed(() => props.order !== null);
 
+const wizardPageTitle = computed(() => {
+    if (isEditing.value) {
+        return form.order_number || `Заказ #${props.order?.id ?? ''}`;
+    }
+
+    return 'Добавление';
+});
+
+const wizardMobilePageTitle = computed(() => (isEditing.value ? '' : 'Новый заказ'));
+
+const wizardDesktopSubtitle = computed(() => (isEditing.value ? 'Карточка заказа' : 'Новый заказ'));
+
 const canUseHowMuchFits = computed(() => {
     const role = page.props.auth?.user?.role ?? {};
     const areas = role.visibility_areas ?? [];
@@ -1603,60 +1366,6 @@ function openHowMuchFitsFromOrder() {
     }
 
     router.get(route('modules.how-much-fits.index', { order: props.order.id }));
-}
-
-const intakeFileInput = ref(null);
-const intakeSelectedFile = ref(null);
-const intakeLoading = ref(false);
-const intakePreview = ref(null);
-const intakeError = ref('');
-const activeIntakeDraftId = ref(null);
-const intakeDraftCommitted = ref(false);
-
-function getCsrfToken() {
-    if (typeof document === 'undefined') {
-        return '';
-    }
-
-    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
-}
-
-async function activateIntakeDraftLearning(draftId) {
-    try {
-        await fetch(route('orders.intake.learning.activate', { draft: draftId }), {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': getCsrfToken(),
-            },
-        });
-    } catch (error) {
-        console.error('intake learning activate failed', error);
-    }
-}
-
-function discardActiveIntakeLearning() {
-    if (isEditing.value || intakeDraftCommitted.value || !activeIntakeDraftId.value) {
-        return;
-    }
-
-    const id = activeIntakeDraftId.value;
-    activeIntakeDraftId.value = null;
-
-    try {
-        fetch(route('orders.intake.learning.discard', { draft: id }), {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': getCsrfToken(),
-            },
-            keepalive: true,
-        });
-    } catch (error) {
-        console.error('intake learning discard failed', error);
-    }
 }
 
 function mergeFinancialTermFromIntake(patchTerm) {
@@ -1683,164 +1392,6 @@ function mergeFinancialTermFromIntake(patchTerm) {
     }
 
     form.financial_term = merged;
-}
-
-function onIntakeFileSelected(event) {
-    intakeError.value = '';
-    intakePreview.value = null;
-    intakeSelectedFile.value = event.target.files?.[0] ?? null;
-}
-
-async function extractIntakeDraft() {
-    if (!intakeSelectedFile.value) {
-        return;
-    }
-
-    intakeLoading.value = true;
-    intakeError.value = '';
-    intakePreview.value = null;
-
-    const body = new FormData();
-    body.append('file', intakeSelectedFile.value);
-
-    try {
-        const response = await fetch(route('orders.intake.extract'), {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-            },
-            body,
-        });
-
-        const payload = await response.json();
-
-        if (!response.ok) {
-            intakeError.value = payload?.message
-                ?? payload?.errors?.file?.[0]
-                ?? 'Не удалось распознать заявку.';
-            return;
-        }
-
-        intakePreview.value = payload;
-    } catch (error) {
-        console.error('order intake extract failed', error);
-        intakeError.value = 'Ошибка сети при распознавании заявки.';
-    } finally {
-        intakeLoading.value = false;
-    }
-}
-
-function applyIntakeDraft() {
-    const patch = intakePreview.value?.wizard_patch;
-    if (!patch || typeof patch !== 'object') {
-        return;
-    }
-
-    Object.entries(patch).forEach(([key, value]) => {
-        if (key === 'route_points' && Array.isArray(value)) {
-            form.route_points = value.map((point, index) => ({
-                ...blankRoutePoint(point.type ?? 'loading', Number(point.sequence ?? (index + 1)), toStageKey(point.stage ?? 'leg_1') || 'leg_1'),
-                ...point,
-                stage: toStageKey(point.stage ?? 'leg_1') || 'leg_1',
-                sequence: Number(point.sequence ?? (index + 1)),
-                normalized_data: point.normalized_data || {},
-            }));
-            normalizeRoutePointSequences();
-            return;
-        }
-
-        if (key === 'cargo_items' && Array.isArray(value) && value[0]) {
-            const base = form.cargo_items[0] ?? blankOrder().cargo_items[0];
-            form.cargo_items[0] = normalizeCargoItem({ ...base, ...value[0] });
-            return;
-        }
-
-        if (key === 'financial_term' && value && typeof value === 'object') {
-            mergeFinancialTermFromIntake(value);
-
-            return;
-        }
-
-        if (key === 'carrier_contractor_id' && value != null && form.performers[0]) {
-            const carrierId = Number(value);
-            form.performers[0].contractor_id = carrierId;
-            const carrierName = patch.carrier_contractor_name ?? getContractorById(carrierId)?.name ?? '';
-            if (carrierName) {
-                form.performers[0].contractor_name = carrierName;
-                setCarrierSearchValue('performer', 0, carrierName);
-            }
-            const costIndex = form.financial_term.contractors_costs.findIndex((cost) => stageMatches(cost.stage, form.performers[0].stage));
-            if (costIndex !== -1) {
-                form.financial_term.contractors_costs[costIndex].contractor_id = carrierId;
-            }
-
-            return;
-        }
-
-        if (Object.prototype.hasOwnProperty.call(form, key)) {
-            form[key] = value;
-        }
-    });
-
-    syncContractorCostsFromPerformers();
-
-    const draftId = Number(intakePreview.value?.draft_id ?? 0);
-    if (draftId > 0 && !isEditing.value) {
-        activeIntakeDraftId.value = draftId;
-        intakeDraftCommitted.value = false;
-        void activateIntakeDraftLearning(draftId);
-    }
-
-    activeTab.value = 'main';
-}
-
-function applyIntakeDraftPayload(payload) {
-    if (!payload?.wizard_patch || typeof payload.wizard_patch !== 'object') {
-        return;
-    }
-
-    intakePreview.value = {
-        draft_id: payload.draft_id,
-        confidence: payload.confidence,
-        preview: payload.preview ?? [],
-        warnings: payload.warnings ?? [],
-        wizard_patch: payload.wizard_patch,
-        matched_contractors: payload.matched_contractors ?? [],
-    };
-    applyIntakeDraft();
-}
-
-async function loadAndApplyIntakeDraftById(draftId) {
-    const id = Number(draftId);
-    if (!Number.isFinite(id) || id <= 0) {
-        return;
-    }
-
-    intakeError.value = '';
-
-    try {
-        const response = await fetch(route('orders.intake.draft', { draft: id }), {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        });
-        const data = await response.json();
-
-        if (!response.ok) {
-            intakeError.value = data?.message ?? 'Не удалось загрузить черновик заявки.';
-            return;
-        }
-
-        applyIntakeDraftPayload(data);
-        activeIntakeDraftId.value = id;
-        intakeDraftCommitted.value = false;
-        void activateIntakeDraftLearning(id);
-    } catch (error) {
-        console.error('order intake draft load failed', error);
-        intakeError.value = 'Ошибка сети при загрузке черновика.';
-    }
 }
 
 const orderStatusBadgeLabel = computed(() => {
@@ -3841,6 +3392,36 @@ const routeTab = useOrderWizardRouteTab({
 routeTab.initRouteTabSideEffects();
 
 provide(ORDER_WIZARD_ROUTE_TAB_KEY, routeTab);
+
+const {
+    intakeLoading,
+    intakeSelectedFile,
+    intakePreview,
+    intakeError,
+    activeIntakeDraftId,
+    intakeDraftCommitted,
+    onIntakeFileSelected,
+    extractIntakeDraft,
+    applyIntakeDraft,
+    loadAndApplyIntakeDraftById,
+    discardActiveIntakeLearning,
+} = useOrderWizardIntake({
+    form,
+    isEditing,
+    activeTab,
+    blankRoutePoint,
+    blankOrder,
+    normalizeRoutePointSequences,
+    normalizeCargoItem,
+    normalizeContractorCost,
+    normalizePaymentSchedule,
+    mergeFinancialTermFromIntake,
+    syncContractorCostsFromPerformers,
+    getContractorById,
+    stageMatches,
+    toStageKey,
+    setCarrierSearchValue,
+});
 
 const mainTabContext = {
     form,
