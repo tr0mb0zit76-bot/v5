@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\Lead;
 use App\Models\LoadingPlannerProject;
+use App\Models\Order;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\LoadingPlannerAccess;
@@ -57,6 +58,30 @@ class LoadingPlannerAccessTest extends TestCase
 
         $this->assertTrue(LoadingPlannerAccess::canViewAllProjects($supervisor));
         $this->assertTrue(LoadingPlannerAccess::canViewProject($supervisor, $project));
+    }
+
+    public function test_order_owner_can_access_project_linked_to_order(): void
+    {
+        if (! Schema::hasColumn('loading_planner_projects', 'order_id')
+            || ! Schema::hasColumn('orders', 'order_owner_id')) {
+            $this->markTestSkipped('order link columns are unavailable.');
+        }
+
+        $owner = User::factory()->create();
+        $manager = User::factory()->create();
+        $order = Order::factory()->create([
+            'manager_id' => $manager->id,
+            'order_owner_id' => $owner->id,
+        ]);
+
+        $project = LoadingPlannerProject::query()->create([
+            'user_id' => $manager->id,
+            'order_id' => $order->id,
+            'name' => 'Расчёт владельца сделки',
+            'status' => 'draft',
+        ]);
+
+        $this->assertTrue(LoadingPlannerAccess::canViewProject($owner, $project->fresh('order')));
     }
 
     public function test_admin_can_view_all_projects(): void

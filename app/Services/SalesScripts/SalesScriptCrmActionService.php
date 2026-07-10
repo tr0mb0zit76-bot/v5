@@ -10,6 +10,7 @@ use App\Models\Task;
 use App\Support\TaskNumberGenerator;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -21,10 +22,22 @@ class SalesScriptCrmActionService
 
     public function syncAfterCompletion(SalesScriptPlaySession $session): void
     {
-        if (! $session->isComplete() || $session->crm_synced_at !== null) {
-            return;
-        }
+        DB::transaction(function () use ($session): void {
+            $lockedSession = SalesScriptPlaySession::query()
+                ->whereKey($session->id)
+                ->lockForUpdate()
+                ->first();
 
+            if ($lockedSession === null || ! $lockedSession->isComplete() || $lockedSession->crm_synced_at !== null) {
+                return;
+            }
+
+            $this->syncLockedSession($lockedSession);
+        });
+    }
+
+    private function syncLockedSession(SalesScriptPlaySession $session): void
+    {
         $session->loadMissing([
             'fieldValues.captureField',
             'primaryReactionClass',

@@ -52,21 +52,7 @@ final class LoadingPlannerAccess
 
     public static function canAccessOrder(?User $user, Order $order): bool
     {
-        if ($user === null) {
-            return false;
-        }
-
-        if ($user->isAdmin()) {
-            return true;
-        }
-
-        if (! RoleAccess::canAccessVisibilityArea($user, 'orders')) {
-            return false;
-        }
-
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
-
-        return $scope === 'all' || (int) $order->manager_id === (int) $user->id;
+        return OrderViewAuthorization::userCanViewOrder($user, $order);
     }
 
     public static function canViewProject(?User $user, LoadingPlannerProject $project): bool

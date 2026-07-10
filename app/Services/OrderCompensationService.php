@@ -478,37 +478,6 @@ class OrderCompensationService
         $invoiceByKey = $this->snapshotInvoiceNumbersByOrder($orderId);
         $settlementSnapshot = app(PaymentScheduleSettlementPreserver::class)->snapshot($orderId);
 
-        try {
-            // Используем chunk для удаления, чтобы избежать ошибки 1615 Prepared statement needs to be re-prepared
-            DB::table('payment_schedules')
-                ->where('order_id', $orderId)
-                ->orderBy('id')
-                ->chunk(100, function ($schedules) {
-                    DB::table('payment_schedules')
-                        ->whereIn('id', $schedules->pluck('id')->toArray())
-                        ->delete();
-                });
-        } catch (QueryException $e) {
-            // Если возникает ошибка 1615, пытаемся переподключиться и удалить снова
-            if (str_contains($e->getMessage(), '1615') || str_contains($e->getMessage(), 'Prepared statement needs to be re-prepared')) {
-                // Закрываем текущее соединение и переподключаемся
-                DB::purge('mysql');
-                DB::reconnect('mysql');
-
-                // Пытаемся удалить снова с chunk
-                DB::table('payment_schedules')
-                    ->where('order_id', $orderId)
-                    ->orderBy('id')
-                    ->chunk(100, function ($schedules) {
-                        DB::table('payment_schedules')
-                            ->whereIn('id', $schedules->pluck('id')->toArray())
-                            ->delete();
-                    });
-            } else {
-                throw $e;
-            }
-        }
-
         $paymentTerms = $this->decodePaymentTerms($order);
         $rows = [];
 
@@ -595,14 +564,52 @@ class OrderCompensationService
             return;
         }
 
-        DB::table('payment_schedules')->insert($rows);
+        DB::transaction(function () use ($orderId, $rows, $settlementSnapshot): void {
+            $this->deletePaymentSchedulesForOrder($orderId);
 
-        app(PaymentScheduleSettlementPreserver::class)->restore($orderId, $settlementSnapshot);
+            DB::table('payment_schedules')->insert($rows);
 
-        app(PaymentSchedulePaymentEventRelinker::class)->relinkOrphanedEventsForOrder($orderId);
-        $this->syncPaymentScheduleSettlementForOrder($orderId);
+            app(PaymentScheduleSettlementPreserver::class)->restore($orderId, $settlementSnapshot);
 
-        PaymentScheduleAutomaticStatus::refreshForOrder($orderId);
+            app(PaymentSchedulePaymentEventRelinker::class)->relinkOrphanedEventsForOrder($orderId);
+            $this->syncPaymentScheduleSettlementForOrder($orderId);
+
+            PaymentScheduleAutomaticStatus::refreshForOrder($orderId);
+        });
+    }
+
+    private function deletePaymentSchedulesForOrder(int $orderId): void
+    {
+        try {
+            // Используем chunk для удаления, чтобы избежать ошибки 1615 Prepared statement needs to be re-prepared
+            DB::table('payment_schedules')
+                ->where('order_id', $orderId)
+                ->orderBy('id')
+                ->chunk(100, function ($schedules): void {
+                    DB::table('payment_schedules')
+                        ->whereIn('id', $schedules->pluck('id')->toArray())
+                        ->delete();
+                });
+        } catch (QueryException $e) {
+            // Если возникает ошибка 1615, пытаемся переподключиться и удалить снова
+            if (str_contains($e->getMessage(), '1615') || str_contains($e->getMessage(), 'Prepared statement needs to be re-prepared')) {
+                DB::purge('mysql');
+                DB::reconnect('mysql');
+
+                DB::table('payment_schedules')
+                    ->where('order_id', $orderId)
+                    ->orderBy('id')
+                    ->chunk(100, function ($schedules): void {
+                        DB::table('payment_schedules')
+                            ->whereIn('id', $schedules->pluck('id')->toArray())
+                            ->delete();
+                    });
+
+                return;
+            }
+
+            throw $e;
+        }
     }
 
     private function syncPaymentScheduleSettlementForOrder(int $orderId): void

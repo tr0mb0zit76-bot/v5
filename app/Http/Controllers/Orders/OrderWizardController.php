@@ -59,6 +59,7 @@ use App\Support\OrderLeadPrecalculationSnapshotResolver;
 use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\OrderPrintFormContext;
 use App\Support\OrderPrintWorkflowLock;
+use App\Support\OrderViewAuthorization;
 use App\Support\OwnFleetCatalog;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentScheduleAutomaticStatus;
@@ -128,6 +129,8 @@ class OrderWizardController extends Controller
 
     public function edit(Request $request, Order $order): Response
     {
+        abort_unless(OrderViewAuthorization::userCanViewOrder($request->user(), $order), 403);
+
         return $this->renderPage($request, $this->loadOrderForEditing($order));
     }
 
