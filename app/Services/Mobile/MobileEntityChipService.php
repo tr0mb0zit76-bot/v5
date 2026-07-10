@@ -112,14 +112,9 @@ class MobileEntityChipService
             return [];
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
-
         $query = Order::query()
             ->with(['client:id,name'])
-            ->when(
-                ! $user->isAdmin() && ! $user->isSupervisor() && $scope !== 'all',
-                fn ($builder) => OrderViewAuthorization::applyUserOwnsOrderScope($builder, (int) $user->id),
-            );
+            ->tap(fn ($builder) => OrderViewAuthorization::applyOrdersVisibilityScope($builder, $user, 'orders'));
 
         if (Schema::hasColumn('orders', 'deleted_at')) {
             $query->whereNull('deleted_at');

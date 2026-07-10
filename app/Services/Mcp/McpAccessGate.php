@@ -59,15 +59,7 @@ class McpAccessGate
      */
     public function applyOrdersScope(Builder $query, User $user): void
     {
-        if ($user->isAdmin() || $user->isSupervisor()) {
-            return;
-        }
-
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
-
-        if ($scope !== 'all') {
-            OrderViewAuthorization::applyUserOwnsOrderScope($query, (int) $user->id);
-        }
+        OrderViewAuthorization::applyOrdersVisibilityScope($query, $user, 'orders');
     }
 
     public function canViewFinance(User $user): bool
@@ -301,6 +293,6 @@ class McpAccessGate
             return true;
         }
 
-        return OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id);
+        return OrderViewAuthorization::userCanViewOrderForArea($user, $order, 'documents');
     }
 }

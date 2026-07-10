@@ -46,6 +46,7 @@ final class OrderDocumentAccessAuthorization
             return true;
         }
 
-        return $user->isManager() && OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id);
+        return $user->isManager()
+            && OrderViewAuthorization::userCanViewOrderForArea($user, $order, 'documents');
     }
 }

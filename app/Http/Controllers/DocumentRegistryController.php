@@ -47,7 +47,6 @@ class DocumentRegistryController extends Controller
         $user = $request->user();
         abort_if($user === null, 403);
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'documents');
         $search = trim((string) $request->query('q', ''));
 
         $query = Order::query()
@@ -60,8 +59,8 @@ class DocumentRegistryController extends Controller
             ])
             ->orderByDesc('id');
 
-        if (! RoleAccess::isAdminUser($user) && ! $user->isSupervisor() && $scope !== 'all') {
-            OrderViewAuthorization::applyUserOwnsOrderScope($query, (int) $user->id);
+        if (! RoleAccess::isAdminUser($user) && ! $user->isSupervisor()) {
+            OrderViewAuthorization::applyOrdersVisibilityScope($query, $user, 'documents');
         }
 
         if (Schema::hasColumn('orders', 'deleted_at')) {

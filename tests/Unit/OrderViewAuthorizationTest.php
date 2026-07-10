@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\OrderViewAuthorization;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -63,5 +64,62 @@ class OrderViewAuthorizationTest extends TestCase
         ]);
 
         $this->assertFalse(OrderViewAuthorization::userOwnsOrderRecord($order, (int) $managerB->id));
+    }
+
+    public function test_department_scope_allows_colleague_order(): void
+    {
+        if (! Schema::hasTable('department_user') || ! Schema::hasTable('departments')) {
+            $this->markTestSkipped('department tables are unavailable.');
+        }
+
+        $departmentId = DB::table('departments')->insertGetId([
+            'name' => 'Отдел продаж '.uniqid(),
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $viewerRole = Role::query()->firstOrCreate([
+            'name' => 'dept_viewer_'.uniqid(),
+        ], [
+            'display_name' => 'Dept viewer',
+            'permissions' => [],
+            'columns_config' => [],
+            'visibility_areas' => ['orders'],
+            'visibility_scopes' => ['orders' => 'department'],
+        ]);
+
+        $viewerRole->update([
+            'visibility_areas' => ['orders'],
+            'visibility_scopes' => ['orders' => 'department'],
+        ]);
+
+        $colleague = User::factory()->create(['role_id' => $viewerRole->id]);
+        $viewer = User::factory()->create(['role_id' => $viewerRole->id]);
+
+        DB::table('department_user')->insert([
+            [
+                'department_id' => $departmentId,
+                'user_id' => $colleague->id,
+                'is_primary' => true,
+                'receives_approvals' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'department_id' => $departmentId,
+                'user_id' => $viewer->id,
+                'is_primary' => true,
+                'receives_approvals' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $order = new Order([
+            'manager_id' => $colleague->id,
+        ]);
+
+        $this->assertTrue(OrderViewAuthorization::userCanViewOrder($viewer, $order));
     }
 }

@@ -863,12 +863,7 @@ class MobileShellFeedService
             return $query->whereRaw('1 = 0');
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
-
-        $query->when(
-            ! $user->isAdmin() && ! $user->isSupervisor() && $scope !== 'all',
-            fn (Builder $builder) => OrderViewAuthorization::applyUserOwnsOrderScope($builder, (int) $user->id),
-        );
+        OrderViewAuthorization::applyOrdersVisibilityScope($query, $user, 'orders');
 
         if (Schema::hasColumn('orders', 'deleted_at')) {
             $query->whereNull('deleted_at');

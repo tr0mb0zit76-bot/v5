@@ -36,11 +36,7 @@ final class DispositionInProgressOrderScope
         }
 
         if (! RoleAccess::isAdminUser($user) && ! $user->isSupervisor()) {
-            $scope = RoleAccess::resolveVisibilityScopeForUser($user, $area);
-
-            if ($scope !== 'all') {
-                OrderViewAuthorization::applyUserOwnsOrderScope($query, (int) $user->id);
-            }
+            OrderViewAuthorization::applyOrdersVisibilityScope($query, $user, $area);
         }
 
         return $query;
