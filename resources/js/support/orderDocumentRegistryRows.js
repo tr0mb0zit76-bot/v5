@@ -156,11 +156,6 @@ function buildMatchedRow(document, rule, completed, typeLabels) {
 function registryTypeLabel(document, rule, typeLabels) {
     const transportLabel = documentTypeDisplayLabel(String(document?.type ?? ''), typeLabels);
     const base = transportLabel !== String(document?.type ?? '') ? transportLabel : (typeLabels.get(String(document?.type ?? '')) ?? rule.label);
-    const counterparty = rule.counterparty_label ? String(rule.counterparty_label) : '';
-
-    if (counterparty !== '' && String(rule.party) !== 'internal') {
-        return `${base} · ${counterparty}`;
-    }
 
     return base;
 }

@@ -330,11 +330,15 @@ class DocumentRegistryController extends Controller
         abort_unless(RoleAccess::canEditDocumentEdoAcknowledgements($request->user()), 403);
         $this->ensureCanManageOrder($request, $order);
 
-        $acknowledgement = $edoAcknowledgementService->upsertForOrder(
-            $order,
-            $request->validated(),
-            $request->user(),
-        );
+        try {
+            $acknowledgement = $edoAcknowledgementService->upsertForOrder(
+                $order,
+                $request->validated(),
+                $request->user(),
+            );
+        } catch (\InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
 
         return response()->json([
             'acknowledgement' => [

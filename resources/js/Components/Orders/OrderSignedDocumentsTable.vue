@@ -136,7 +136,71 @@ const typeLabelByValue = computed(() => {
 
 const attachTypeOptions = computed(() => withTransportSubtypeOptions(props.documentTypeOptions || []));
 
+function findPerformerContractorName(contractorId, performers) {
+    const targetId = Number(contractorId ?? 0);
+    if (targetId <= 0) {
+        return null;
+    }
+
+    for (const performer of performers ?? []) {
+        if (Number(performer?.contractor_id ?? 0) === targetId && performer?.contractor_name) {
+            return String(performer.contractor_name).trim();
+        }
+
+        for (const slot of performer?.split_carriers ?? []) {
+            if (Number(slot?.contractor_id ?? 0) === targetId && slot?.contractor_name) {
+                return String(slot.contractor_name).trim();
+            }
+        }
+    }
+
+    return null;
+}
+
+function findContractorCostName(contractorId, contractorsCosts) {
+    const targetId = Number(contractorId ?? 0);
+    if (targetId <= 0) {
+        return null;
+    }
+
+    const match = (contractorsCosts ?? []).find((row) => Number(row?.contractor_id ?? 0) === targetId);
+
+    return match?.contractor_name ? String(match.contractor_name).trim() : null;
+}
+
 function partyLabel(row) {
+    const explicit = String(row.counterparty_label ?? '').trim();
+    if (explicit !== '') {
+        return explicit;
+    }
+
+    if (row.party === 'customer') {
+        const clientName = props.order?.client?.name ?? props.order?.client_snapshot?.name;
+        return clientName ? String(clientName).trim() : 'Заказчик';
+    }
+
+    if (row.party === 'carrier') {
+        const contractorId = Number(row.contractor_id ?? 0);
+        const performerName = findPerformerContractorName(contractorId, props.performers);
+        if (performerName) {
+            return performerName;
+        }
+
+        const carrierName = props.order?.carrier?.name;
+        if (carrierName) {
+            return String(carrierName).trim();
+        }
+
+        return 'Перевозчик';
+    }
+
+    if (row.party === 'contractor') {
+        const contractorId = Number(row.contractor_id ?? 0);
+        return findContractorCostName(contractorId, props.contractorsCosts)
+            ?? findPerformerContractorName(contractorId, props.performers)
+            ?? 'Подрядчик';
+    }
+
     return partyLabelFromParty(row.party);
 }
 
@@ -228,6 +292,48 @@ function edoToggleLabel(row) {
     return edoAcknowledgementToggleLabel(row.party);
 }
 
+function isMandatoryChecklistRow(row) {
+    return row.requirement_key != null && String(row.requirement_key) !== '';
+}
+
+function checklistCellClass(row) {
+    if (!isMandatoryChecklistRow(row)) {
+        return '';
+    }
+
+    if (row.checklist_completed) {
+        return 'bg-emerald-50/90 dark:bg-emerald-950/35';
+    }
+
+    return 'bg-rose-50/90 dark:bg-rose-950/35';
+}
+
+function checklistCheckboxClass(row) {
+    const base = 'h-4 w-4 rounded focus:ring-2 focus:ring-offset-0 disabled:cursor-default';
+
+    if (!isMandatoryChecklistRow(row)) {
+        return `${base} border-zinc-300 text-zinc-400 dark:border-zinc-600`;
+    }
+
+    if (row.checklist_completed) {
+        return `${base} border-emerald-500 bg-emerald-100 text-emerald-700 focus:ring-emerald-400 dark:border-emerald-400 dark:bg-emerald-950/60 dark:text-emerald-300`;
+    }
+
+    return `${base} border-rose-400 bg-rose-100 text-rose-600 focus:ring-rose-400 dark:border-rose-500 dark:bg-rose-950/60 dark:text-rose-300`;
+}
+
+function checklistStatusTitle(row) {
+    if (!isMandatoryChecklistRow(row)) {
+        return 'Дополнительный документ';
+    }
+
+    if (row.checklist_completed) {
+        return `${row.requirement_label ?? 'Обязательный документ'} — выполнено`;
+    }
+
+    return `${row.requirement_label ?? 'Обязательный документ'} — не хватает документа`;
+}
+
 async function saveEdoRow(row) {
     const key = edoRowKey(row);
     const state = localEdoState[key];
@@ -257,6 +363,7 @@ async function saveEdoRow(row) {
     } catch (error) {
         edoSaveErrors[key] = error?.response?.data?.message
             ?? error?.response?.data?.errors?.document_number?.[0]
+            ?? error?.response?.data?.errors?.received_via_edo?.[0]
             ?? 'Не удалось сохранить отметку ЭДО.';
     } finally {
         savingEdoKeys[key] = false;
@@ -270,6 +377,7 @@ function onEdoToggle(row, event) {
     }
 
     localEdoState[key].received_via_edo = event.target.checked;
+    delete edoSaveErrors[key];
 
     if (!event.target.checked) {
         saveEdoRow(row);
@@ -284,6 +392,12 @@ function onEdoFieldBlur(row) {
         return;
     }
 
+    if (String(state.document_number ?? '').trim() === '') {
+        edoSaveErrors[key] = 'Укажите номер документа для отметки ЭДО.';
+
+        return;
+    }
+
     saveEdoRow(row);
 }
 </script>
@@ -293,11 +407,11 @@ function onEdoFieldBlur(row) {
         <table class="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
             <thead class="bg-zinc-50/80 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:bg-zinc-900/60 dark:text-zinc-400">
                 <tr>
-                    <th class="w-10 px-3 py-2.5 text-center" title="Обязательный документ для этапов «Оплата» и «Завершено»">
+                    <th class="w-10 px-2 py-2.5 text-center" title="Обязательный документ: красный — не хватает, зелёный — выполнено">
                         ✓
                     </th>
-                    <th class="min-w-[110px] px-3 py-2.5">Сторона</th>
-                    <th class="min-w-[160px] px-3 py-2.5">Тип</th>
+                    <th class="min-w-[180px] max-w-[240px] px-3 py-2.5">Сторона</th>
+                    <th class="w-[96px] min-w-[96px] px-3 py-2.5">Тип</th>
                     <th class="min-w-[120px] px-3 py-2.5">Номер</th>
                     <th class="min-w-[130px] px-3 py-2.5">Дата документа</th>
                     <th v-if="showReceivedDateColumn" class="min-w-[130px] px-3 py-2.5">Дата получения</th>
@@ -312,19 +426,22 @@ function onEdoFieldBlur(row) {
                     :key="`registry-row-${row.id ?? row._localKey}`"
                     :class="row.is_placeholder ? 'bg-zinc-50/80 dark:bg-zinc-900/30' : ''"
                 >
-                    <td class="px-3 py-2.5 text-center align-middle">
+                    <td
+                        class="px-2 py-2.5 text-center align-middle"
+                        :class="checklistCellClass(row)"
+                    >
                         <input
                             type="checkbox"
-                            class="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600"
+                            :class="checklistCheckboxClass(row)"
                             :checked="row.checklist_completed"
                             disabled
-                            :title="row.requirement_label ?? 'Обязательный документ'"
+                            :title="checklistStatusTitle(row)"
                         >
                     </td>
-                    <td class="px-3 py-2.5 whitespace-nowrap text-zinc-700 dark:text-zinc-300">
+                    <td class="max-w-[240px] px-3 py-2.5 whitespace-normal text-zinc-700 dark:text-zinc-300">
                         {{ partyLabel(row) }}
                     </td>
-                    <td class="px-3 py-2.5 text-zinc-700 dark:text-zinc-300">
+                    <td class="w-[96px] min-w-[96px] px-3 py-2.5 text-zinc-700 dark:text-zinc-300">
                         <select
                             v-if="canEdit && row.id && !row.is_placeholder && !row.is_closing_edo_row"
                             :value="row.type"

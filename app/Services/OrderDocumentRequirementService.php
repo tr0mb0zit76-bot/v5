@@ -51,12 +51,38 @@ class OrderDocumentRequirementService
      */
     public function requirementRulesForOrder(Order $order): array
     {
-        return $this->requirementRulesForContext(
+        $rules = $this->requirementRulesForContext(
             $this->resolvePerformersForOrder($order),
             $this->resolveClientRequestModeForOrder($order),
             $this->resolveAdditionalCostsForOrder($order),
             $this->resolvePaymentContextForOrder($order),
         );
+
+        return $this->enrichRequirementRulesWithCounterpartyLabels($order, $rules);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rules
+     * @return list<array<string, mixed>>
+     */
+    private function enrichRequirementRulesWithCounterpartyLabels(Order $order, array $rules): array
+    {
+        $customerName = $this->resolveCustomerDisplayName($order);
+
+        return array_map(static function (array $rule) use ($customerName): array {
+            if (($rule['party'] ?? '') === 'customer' && blank($rule['counterparty_label'] ?? null) && $customerName !== '') {
+                $rule['counterparty_label'] = $customerName;
+            }
+
+            return $rule;
+        }, $rules);
+    }
+
+    private function resolveCustomerDisplayName(Order $order): string
+    {
+        $order->loadMissing('client:id,name');
+
+        return trim((string) ($order->client?->name ?? ''));
     }
 
     /**

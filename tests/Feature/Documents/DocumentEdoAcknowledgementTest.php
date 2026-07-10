@@ -53,6 +53,29 @@ class DocumentEdoAcknowledgementTest extends TestCase
         ]);
     }
 
+    public function test_edo_acknowledgement_requires_document_number_when_marked_received(): void
+    {
+        if (! Schema::hasTable('order_document_edo_acknowledgements')) {
+            $this->markTestSkipped('Таблица order_document_edo_acknowledgements недоступна.');
+        }
+
+        $clerk = $this->makeClerkUser();
+        $order = Order::factory()->create([
+            'manager_id' => $clerk->id,
+            'customer_payment_form' => 'bank_transfer',
+        ]);
+
+        $this->actingAs($clerk)
+            ->patchJson(route('documents.orders.edo-acknowledgement', $order), [
+                'party' => 'customer',
+                'document_type' => 'upd',
+                'slot_key' => 'customer-all',
+                'received_via_edo' => true,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['document_number']);
+    }
+
     public function test_manager_cannot_mark_edo_acknowledgement(): void
     {
         if (! Schema::hasTable('order_document_edo_acknowledgements')) {

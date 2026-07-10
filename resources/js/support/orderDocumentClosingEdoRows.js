@@ -35,6 +35,7 @@ function findSignedDocumentForClosingType(signedDocuments, context) {
             document.carrier_contractor_id
             ?? document.metadata?.carrier_contractor_id
             ?? document.metadata?.contractor_id
+            ?? document.contractor_id
             ?? 0,
         );
         const slotKey = String(document.requirement_slot_key ?? document.metadata?.requirement_slot_key ?? '');
@@ -51,22 +52,66 @@ function findSignedDocumentForClosingType(signedDocuments, context) {
     }) ?? null;
 }
 
-function buildClosingTypeRow(baseRow, closingType, signedDocuments, edoAcknowledgements) {
-    const context = {
+function buildClosingContext(baseRow, documentType) {
+    return {
         party: baseRow.party,
-        document_type: closingType.type,
+        document_type: documentType,
         slot_key: baseRow.slot_key ?? '',
         contractor_id: Number(baseRow.contractor_id ?? 0),
     };
+}
+
+function isClosingTypeFulfilled(context, signedDocuments, edoAcknowledgements) {
+    const matchedDocument = findSignedDocumentForClosingType(signedDocuments, context);
+
+    if (matchedDocument) {
+        return true;
+    }
+
+    const edoAcknowledgement = findEdoAcknowledgement(edoAcknowledgements, context);
+
+    return Boolean(edoAcknowledgement?.received_via_edo && edoAcknowledgement?.document_number);
+}
+
+function resolveClosingTypesToShow(baseRow, signedDocuments, edoAcknowledgements) {
+    const updFulfilled = isClosingTypeFulfilled(
+        buildClosingContext(baseRow, 'upd'),
+        signedDocuments,
+        edoAcknowledgements,
+    );
+    const invoiceFulfilled = isClosingTypeFulfilled(
+        buildClosingContext(baseRow, 'invoice_factura'),
+        signedDocuments,
+        edoAcknowledgements,
+    );
+    const actFulfilled = isClosingTypeFulfilled(
+        buildClosingContext(baseRow, 'act'),
+        signedDocuments,
+        edoAcknowledgements,
+    );
+    const pairFulfilled = invoiceFulfilled && actFulfilled;
+
+    if (updFulfilled) {
+        return CLOSING_TYPE_ROWS.filter((row) => row.type === 'upd');
+    }
+
+    if (pairFulfilled) {
+        return CLOSING_TYPE_ROWS.filter((row) => row.type !== 'upd');
+    }
+
+    if (invoiceFulfilled || actFulfilled) {
+        return CLOSING_TYPE_ROWS.filter((row) => row.type !== 'upd');
+    }
+
+    return CLOSING_TYPE_ROWS;
+}
+
+function buildClosingTypeRow(baseRow, closingType, signedDocuments, edoAcknowledgements) {
+    const context = buildClosingContext(baseRow, closingType.type);
 
     const matchedDocument = findSignedDocumentForClosingType(signedDocuments, context);
     const edoAcknowledgement = findEdoAcknowledgement(edoAcknowledgements, context);
     const edoActive = Boolean(edoAcknowledgement?.received_via_edo && edoAcknowledgement?.document_number);
-
-    const typeLabelSuffix = baseRow.counterparty_label || baseRow.requirement_label || '';
-    const typeLabel = typeLabelSuffix
-        ? `${closingType.label} · ${typeLabelSuffix}`
-        : closingType.label;
 
     if (matchedDocument) {
         const hasScan = Boolean(matchedDocument.uploaded_file_preview_url);
@@ -80,7 +125,7 @@ function buildClosingTypeRow(baseRow, closingType, signedDocuments, edoAcknowled
             contractor_id: baseRow.contractor_id,
             counterparty_label: baseRow.counterparty_label,
             type: closingType.type,
-            type_label: typeLabel,
+            type_label: closingType.label,
             checklist_completed: true,
             is_placeholder: false,
             is_closing_edo_row: false,
@@ -100,7 +145,7 @@ function buildClosingTypeRow(baseRow, closingType, signedDocuments, edoAcknowled
         counterparty_label: baseRow.counterparty_label,
         party: baseRow.party,
         type: closingType.type,
-        type_label: typeLabel,
+        type_label: closingType.label,
         number: edoAcknowledgement?.document_number ?? null,
         document_date: edoAcknowledgement?.document_date ?? null,
         original_name: null,
@@ -128,7 +173,9 @@ export function expandClosingRowsForEdo(rows, signedDocuments = [], edoAcknowled
             continue;
         }
 
-        for (const closingType of CLOSING_TYPE_ROWS) {
+        const closingTypes = resolveClosingTypesToShow(row, signedDocuments, edoAcknowledgements);
+
+        for (const closingType of closingTypes) {
             expanded.push(buildClosingTypeRow(row, closingType, signedDocuments, edoAcknowledgements));
         }
     }
