@@ -122,4 +122,81 @@ class OrderViewAuthorizationTest extends TestCase
 
         $this->assertTrue(OrderViewAuthorization::userCanViewOrder($viewer, $order));
     }
+
+    public function test_apply_orders_visibility_scope_to_query_includes_department_colleague(): void
+    {
+        if (! Schema::hasTable('department_user') || ! Schema::hasTable('departments')) {
+            $this->markTestSkipped('department tables are unavailable.');
+        }
+
+        $departmentId = DB::table('departments')->insertGetId([
+            'name' => 'Query dept '.uniqid(),
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $viewerRole = Role::query()->firstOrCreate([
+            'name' => 'dept_query_'.uniqid(),
+        ], [
+            'display_name' => 'Dept query',
+            'permissions' => [],
+            'columns_config' => [],
+            'visibility_areas' => ['orders'],
+            'visibility_scopes' => ['orders' => 'department'],
+        ]);
+
+        $viewerRole->update([
+            'visibility_areas' => ['orders'],
+            'visibility_scopes' => ['orders' => 'department'],
+        ]);
+
+        $colleague = User::factory()->create(['role_id' => $viewerRole->id]);
+        $viewer = User::factory()->create(['role_id' => $viewerRole->id]);
+
+        DB::table('department_user')->insert([
+            [
+                'department_id' => $departmentId,
+                'user_id' => $colleague->id,
+                'is_primary' => true,
+                'receives_approvals' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'department_id' => $departmentId,
+                'user_id' => $viewer->id,
+                'is_primary' => true,
+                'receives_approvals' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $colleagueOrderId = DB::table('orders')->insertGetId([
+            'manager_id' => $colleague->id,
+            'order_number' => 'Q-DEPT-'.uniqid(),
+            'order_date' => now()->toDateString(),
+            'status' => 'new',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $foreignOrderId = DB::table('orders')->insertGetId([
+            'manager_id' => User::factory()->create()->id,
+            'order_number' => 'Q-FOREIGN-'.uniqid(),
+            'order_date' => now()->toDateString(),
+            'status' => 'new',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $query = DB::table('orders');
+        OrderViewAuthorization::applyOrdersVisibilityScopeToQuery($query, $viewer, 'orders');
+
+        $visibleIds = $query->pluck('id')->map(fn ($id): int => (int) $id)->all();
+
+        $this->assertContains($colleagueOrderId, $visibleIds);
+        $this->assertNotContains($foreignOrderId, $visibleIds);
+    }
 }

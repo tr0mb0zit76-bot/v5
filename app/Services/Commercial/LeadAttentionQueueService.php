@@ -5,6 +5,7 @@ namespace App\Services\Commercial;
 use App\Models\Lead;
 use App\Models\User;
 use App\Support\CommercialNudgeType;
+use App\Support\LeadViewAuthorization;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -36,17 +37,13 @@ class LeadAttentionQueueService
         }
 
         $limit = max(1, min(50, $limit));
-        $scope = $this->resolveLeadsScope($user);
 
         $grouped = [];
 
         Lead::query()
             ->with(['responsible:id,name', 'businessProcessStage:id,name'])
             ->whereNotIn('status', ['won', 'lost'])
-            ->when(
-                $scope !== 'all',
-                fn ($query) => $query->where('responsible_id', $user->id),
-            )
+            ->tap(fn ($query) => LeadViewAuthorization::applyLeadsVisibilityScope($query, $user))
             ->orderBy('id')
             ->chunkById(100, function ($leads) use (&$grouped): void {
                 foreach ($leads as $lead) {
@@ -131,36 +128,5 @@ class LeadAttentionQueueService
         $decoded = json_decode($areas, true);
 
         return is_array($decoded) && in_array('leads', $decoded, true);
-    }
-
-    private function resolveLeadsScope(User $user): string
-    {
-        if ($user->role_id === null) {
-            return 'own';
-        }
-
-        $role = DB::table('roles')->where('id', $user->role_id)->first(['name', 'visibility_scopes']);
-
-        if ($role === null) {
-            return 'own';
-        }
-
-        if (in_array($role->name, ['admin', 'director', 'supervisor'], true)) {
-            return 'all';
-        }
-
-        if (! is_string($role->visibility_scopes) || $role->visibility_scopes === '') {
-            return 'own';
-        }
-
-        $scopes = json_decode($role->visibility_scopes, true);
-
-        if (! is_array($scopes) || ! isset($scopes['leads'])) {
-            return 'own';
-        }
-
-        $scope = (string) $scopes['leads'];
-
-        return in_array($scope, ['own', 'department', 'all'], true) ? $scope : 'own';
     }
 }

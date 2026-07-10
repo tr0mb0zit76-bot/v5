@@ -1251,6 +1251,20 @@ class RoleAccess
     }
 
     /**
+     * Область visibility_scopes для фильтрации заказов в графике оплат (orders vs payment_schedules).
+     */
+    public static function resolvePaymentScheduleVisibilityAreaForUser(?User $user): string
+    {
+        if ($user === null) {
+            return 'orders';
+        }
+
+        $areas = static::userVisibilityAreas($user);
+
+        return static::hasVisibilityArea($areas, 'payment_schedules') ? 'payment_schedules' : 'orders';
+    }
+
+    /**
      * @return array{hasPs: bool, hasFs: bool}
      */
     private static function userPaymentScheduleFinanceAreas(?User $user): array

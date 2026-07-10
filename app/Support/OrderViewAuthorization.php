@@ -7,6 +7,7 @@ namespace App\Support;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\Schema;
 
 final class OrderViewAuthorization
@@ -110,10 +111,24 @@ final class OrderViewAuthorization
 
     /**
      * @param  Builder<Order>  $query
-     * @param  list<int>  $userIds
      */
     public static function applyUserIdsOwnsOrderScope(Builder $query, array $userIds): void
     {
+        self::applyUserIdsOwnsOrderScopeToQuery(
+            $query->getQuery(),
+            $userIds,
+            $query->getModel()->getTable(),
+        );
+    }
+
+    /**
+     * @param  list<int>  $userIds
+     */
+    public static function applyUserIdsOwnsOrderScopeToQuery(
+        QueryBuilder $query,
+        array $userIds,
+        string $tablePrefix = 'orders',
+    ): void {
         $userIds = array_values(array_unique(array_map(static fn (mixed $id): int => (int) $id, $userIds)));
 
         if ($userIds === []) {
@@ -122,16 +137,56 @@ final class OrderViewAuthorization
             return;
         }
 
-        $query->where(function (Builder $ownedQuery) use ($userIds): void {
-            $ownedQuery->whereIn('manager_id', $userIds);
+        $managerColumn = "{$tablePrefix}.manager_id";
+
+        $query->where(function (QueryBuilder $ownedQuery) use ($userIds, $tablePrefix, $managerColumn): void {
+            $ownedQuery->whereIn($managerColumn, $userIds);
 
             if (Schema::hasColumn('orders', 'order_owner_id')) {
-                $ownedQuery->orWhereIn('order_owner_id', $userIds);
+                $ownedQuery->orWhereIn("{$tablePrefix}.order_owner_id", $userIds);
             }
 
             if (Schema::hasColumn('orders', 'dispatcher_id')) {
-                $ownedQuery->orWhereIn('dispatcher_id', $userIds);
+                $ownedQuery->orWhereIn("{$tablePrefix}.dispatcher_id", $userIds);
             }
         });
+    }
+
+    /**
+     * Область видимости заказов для query builder (join payment_schedules → orders и т.п.).
+     */
+    public static function applyOrdersVisibilityScopeToQuery(
+        QueryBuilder $query,
+        User $user,
+        string $area = 'orders',
+        string $tablePrefix = 'orders',
+    ): void {
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            return;
+        }
+
+        if (! RoleAccess::canAccessVisibilityArea($user, $area)) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, $area);
+
+        if ($scope === 'all') {
+            return;
+        }
+
+        if ($scope === 'department') {
+            self::applyUserIdsOwnsOrderScopeToQuery(
+                $query,
+                UserDashboardDepartmentScope::departmentUserIds($user),
+                $tablePrefix,
+            );
+
+            return;
+        }
+
+        self::applyUserIdsOwnsOrderScopeToQuery($query, [(int) $user->id], $tablePrefix);
     }
 }

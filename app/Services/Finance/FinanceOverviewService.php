@@ -2,6 +2,8 @@
 
 namespace App\Services\Finance;
 
+use App\Models\User;
+use App\Support\OrderViewAuthorization;
 use App\Support\PaymentScheduleSettlementStatus;
 use App\Support\RoleAccess;
 use Carbon\Carbon;
@@ -14,11 +16,15 @@ class FinanceOverviewService
     /**
      * @return Collection<int, array<string, mixed>>
      */
-    public function cashFlowJournal(?int $userId, ?string $roleName, string $ordersScope): Collection
+    public function cashFlowJournal(?User $user = null): Collection
     {
         if (! Schema::hasTable('payment_schedules')) {
             return collect();
         }
+
+        $area = $user !== null
+            ? RoleAccess::resolvePaymentScheduleVisibilityAreaForUser($user)
+            : 'orders';
 
         $journalQuery = DB::table('payment_schedules')
             ->join('orders', 'orders.id', '=', 'payment_schedules.order_id')
@@ -30,11 +36,13 @@ class FinanceOverviewService
                 }),
                 fn ($query) => $query->leftJoin('contractors as carriers', 'carriers.id', '=', 'orders.carrier_id'),
             )
-            ->leftJoin('users as managers', 'managers.id', '=', 'orders.manager_id')
-            ->when(
-                $userId !== null && $roleName !== 'admin' && $ordersScope !== 'all',
-                fn ($query) => $query->where('orders.manager_id', $userId)
-            )
+            ->leftJoin('users as managers', 'managers.id', '=', 'orders.manager_id');
+
+        if ($user !== null) {
+            OrderViewAuthorization::applyOrdersVisibilityScopeToQuery($journalQuery, $user, $area);
+        }
+
+        $journalQuery
             ->when(
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($query) => $query->whereNull('orders.deleted_at')
@@ -300,17 +308,21 @@ class FinanceOverviewService
 
     /**
      * Базовый запрос: только «открытые» корневые строки графика (как в журнале «Открытые»).
-     *
-     * @param  'all'|'own'  $ordersScope
      */
-    private function paymentSchedulesOpenRootsBaseQuery(?int $userId, ?string $roleName, string $ordersScope)
+    private function paymentSchedulesOpenRootsBaseQuery(?User $user)
     {
+        $area = $user !== null
+            ? RoleAccess::resolvePaymentScheduleVisibilityAreaForUser($user)
+            : 'orders';
+
         $query = DB::table('payment_schedules')
-            ->join('orders', 'orders.id', '=', 'payment_schedules.order_id')
-            ->when(
-                $userId !== null && $roleName !== 'admin' && $ordersScope !== 'all',
-                fn ($query) => $query->where('orders.manager_id', $userId),
-            )
+            ->join('orders', 'orders.id', '=', 'payment_schedules.order_id');
+
+        if ($user !== null) {
+            OrderViewAuthorization::applyOrdersVisibilityScopeToQuery($query, $user, $area);
+        }
+
+        $query
             ->when(
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($query) => $query->whereNull('orders.deleted_at'),
@@ -352,7 +364,7 @@ class FinanceOverviewService
      *
      * @return array<string, mixed>
      */
-    public function cashFlowStats(?int $userId, ?string $roleName, string $ordersScope): array
+    public function cashFlowStats(?User $user = null): array
     {
         if (! Schema::hasTable('payment_schedules')) {
             return $this->defaultCashFlowStats();
@@ -365,7 +377,7 @@ class FinanceOverviewService
 
         $effective = $this->paymentScheduleEffectiveAmountSql();
 
-        $rows = $this->paymentSchedulesOpenRootsBaseQuery($userId, $roleName, $ordersScope)
+        $rows = $this->paymentSchedulesOpenRootsBaseQuery($user)
             ->selectRaw(
                 'LOWER(TRIM(payment_schedules.party)) as party, '.
                 "SUM(CASE WHEN payment_schedules.planned_date = ? THEN {$effective} ELSE 0 END) as today, ".

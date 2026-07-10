@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\User;
 use App\Services\MessengerService;
+use App\Support\LeadViewAuthorization;
 use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Support\Facades\Schema;
@@ -162,14 +163,9 @@ class MobileEntityChipService
             return [];
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-
         $query = Lead::query()
             ->with(['counterparty:id,name'])
-            ->when(
-                ! $user->isAdmin() && $scope !== 'all',
-                fn ($builder) => $builder->where('responsible_id', $user->id),
-            );
+            ->tap(fn ($builder) => LeadViewAuthorization::applyLeadsVisibilityScope($builder, $user));
 
         if ($needle !== '') {
             $like = '%'.$needle.'%';

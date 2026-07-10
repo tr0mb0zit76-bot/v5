@@ -6,7 +6,7 @@ use App\Models\Lead;
 use App\Models\SalesScriptPlaySession;
 use App\Models\User;
 use App\Support\LeadStatus;
-use App\Support\RoleAccess;
+use App\Support\LeadViewAuthorization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -29,11 +29,9 @@ class SalesScriptLeadLinkService
             return [];
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-
         return Lead::query()
             ->with('responsible:id,name')
-            ->when($scope !== 'all', fn (Builder $builder): Builder => $builder->where('responsible_id', $user->id))
+            ->tap(fn (Builder $builder): Builder => LeadViewAuthorization::applyLeadsVisibilityScope($builder, $user))
             ->where(function (Builder $builder) use ($normalized): void {
                 $builder
                     ->where('number', 'like', '%'.$normalized.'%')
@@ -120,8 +118,7 @@ class SalesScriptLeadLinkService
 
     private function assertCanUseLead(Lead $lead, User $user): void
     {
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-        if ($scope !== 'all' && (int) $lead->responsible_id !== (int) $user->id) {
+        if (! LeadViewAuthorization::userCanViewLead($user, $lead)) {
             throw new InvalidArgumentException('Нет доступа к выбранному лиду.');
         }
     }

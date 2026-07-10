@@ -12,10 +12,13 @@ use App\Services\MessengerService;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\TaskSlaService;
 use App\Support\LeadStatus;
+use App\Support\LeadViewAuthorization;
 use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
+use App\Support\TaskViewAuthorization;
+use App\Support\UserDashboardDepartmentScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
@@ -37,16 +40,12 @@ class MobileShellFeedService
             return ['tasks' => [], 'overdue_count' => 0];
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
         $needle = trim((string) $search);
 
         $query = Task::query()
             ->with(['responsible:id,name', 'lead:id,number', 'contractor:id,name'])
             ->where('status', '!=', 'done')
-            ->when(
-                ! $user->isAdmin() && $scope !== 'all',
-                fn ($builder) => $builder->where('responsible_id', $user->id),
-            );
+            ->tap(fn ($builder) => TaskViewAuthorization::applyTasksVisibilityScope($builder, $user));
 
         if ($needle !== '') {
             $like = '%'.$needle.'%';
@@ -346,20 +345,13 @@ class MobileShellFeedService
             return ['leads' => []];
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
         $needle = trim((string) $search);
 
         $query = Lead::query()
             ->with(['counterparty:id,name', 'responsible:id,name'])
             ->whereIn('source', ['traklo_public_request', 'traklo_message_intake'])
             ->whereNotIn('status', ['won', 'lost'])
-            ->when(
-                ! $user->isAdmin() && $scope !== 'all',
-                fn ($builder) => $builder->where(function ($inner) use ($user): void {
-                    $inner->where('responsible_id', $user->id)
-                        ->orWhereNull('responsible_id');
-                }),
-            );
+            ->tap(fn ($builder) => LeadViewAuthorization::applyLeadsVisibilityScope($builder, $user, includeUnassigned: true));
 
         if ($needle !== '') {
             $like = '%'.$needle.'%';
@@ -725,21 +717,11 @@ class MobileShellFeedService
             return false;
         }
 
-        if ($user->isAdmin()) {
-            return true;
-        }
-
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-
-        if ($scope === 'all') {
-            return true;
-        }
-
         if ($this->isVisibleIncomingTrakloLead($lead)) {
             return true;
         }
 
-        return (int) $lead->responsible_id === (int) $user->id;
+        return LeadViewAuthorization::userCanViewLead($user, $lead);
     }
 
     private function isVisibleIncomingTrakloLead(Lead $lead): bool
@@ -764,14 +746,26 @@ class MobileShellFeedService
             return false;
         }
 
-        if ($user->isAdmin()) {
+        if ($user->isAdmin() || $user->isSupervisor()) {
             return true;
+        }
+
+        if ($task->responsible_id === null) {
+            return false;
         }
 
         $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
 
         if ($scope === 'all') {
             return true;
+        }
+
+        if ($scope === 'department') {
+            return in_array(
+                (int) $task->responsible_id,
+                UserDashboardDepartmentScope::departmentUserIds($user),
+                true,
+            );
         }
 
         return (int) $task->responsible_id === (int) $user->id;

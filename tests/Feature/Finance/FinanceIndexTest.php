@@ -5,6 +5,7 @@ namespace Tests\Feature\Finance;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -832,5 +833,94 @@ class FinanceIndexTest extends TestCase
         $response = $this->actingAs($manager)->post(route('payment-schedules.cancel', $paymentScheduleId));
 
         $response->assertForbidden();
+    }
+
+    public function test_department_scope_includes_colleague_orders_in_cash_flow_journal(): void
+    {
+        if (! Schema::hasTable('department_user')
+            || ! Schema::hasTable('departments')) {
+            $this->markTestSkipped('department tables are unavailable.');
+        }
+
+        $departmentId = DB::table('departments')->insertGetId([
+            'name' => 'Finance dept '.uniqid(),
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'dept_finance_'.uniqid(),
+            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_scopes' => json_encode(['orders' => 'department'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $viewer = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $colleague = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        DB::table('department_user')->insert([
+            [
+                'department_id' => $departmentId,
+                'user_id' => $viewer->id,
+                'is_primary' => true,
+                'receives_approvals' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'department_id' => $departmentId,
+                'user_id' => $colleague->id,
+                'is_primary' => true,
+                'receives_approvals' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $customerId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Клиент dept',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $colleagueOrderId = $this->insertOrderRow([
+            'manager_id' => $colleague->id,
+            'customer_id' => $customerId,
+            'order_number' => 'ORD-DEPT-COLLEAGUE',
+            'order_date' => '2026-04-05',
+            'status' => 'documents',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $colleagueOrderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 55000,
+            'invoice_number' => 'СЧ-DEPT-1',
+            'planned_date' => '2026-04-20',
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($viewer)->get(route('finance.index', ['section' => 'cashflow']));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Finance/Index')
+            ->has('cashFlowJournal', 1)
+            ->where('cashFlowJournal.0.invoice_number', 'СЧ-DEPT-1')
+        );
     }
 }

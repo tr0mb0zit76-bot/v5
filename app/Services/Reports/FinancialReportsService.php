@@ -2,7 +2,9 @@
 
 namespace App\Services\Reports;
 
+use App\Models\User;
 use App\Services\CompletedOrderFinancialAnalytics;
+use App\Support\OrderViewAuthorization;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
@@ -35,9 +37,9 @@ class FinancialReportsService
      *     total_orders: int
      * }
      */
-    public function abcByCustomer(Carbon $from, Carbon $to, ?int $managerId, string $party = 'customer'): array
+    public function abcByCustomer(Carbon $from, Carbon $to, ?User $user, string $party = 'customer'): array
     {
-        return $this->abcByContractorParty($from, $to, $managerId, $party);
+        return $this->abcByContractorParty($from, $to, $user, $party);
     }
 
     /**
@@ -56,7 +58,7 @@ class FinancialReportsService
      *     party: string
      * }
      */
-    public function abcByContractorParty(Carbon $from, Carbon $to, ?int $managerId, string $party = 'customer'): array
+    public function abcByContractorParty(Carbon $from, Carbon $to, ?User $user, string $party = 'customer'): array
     {
         $party = $party === 'carrier' ? 'carrier' : 'customer';
         $contractorColumn = $party === 'carrier' ? 'carrier_id' : 'customer_id';
@@ -72,8 +74,11 @@ class FinancialReportsService
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($q) => $q->whereNull('orders.deleted_at'),
             )
-            ->whereNotNull('orders.'.$contractorColumn)
-            ->when($managerId !== null, fn ($q) => $q->where('orders.manager_id', $managerId));
+            ->whereNotNull('orders.'.$contractorColumn);
+
+        if ($user !== null) {
+            OrderViewAuthorization::applyOrdersVisibilityScopeToQuery($query, $user, 'orders');
+        }
 
         $nameSql = $this->contractorDisplayNameSql('c');
 
@@ -157,9 +162,9 @@ class FinancialReportsService
      *     months: list<string>
      * }
      */
-    public function xyzByCustomer(Carbon $from, Carbon $to, ?int $managerId, int $monthSpan = 6, string $party = 'customer'): array
+    public function xyzByCustomer(Carbon $from, Carbon $to, ?User $user, int $monthSpan = 6, string $party = 'customer'): array
     {
-        return $this->xyzByContractorParty($from, $to, $managerId, $monthSpan, $party);
+        return $this->xyzByContractorParty($from, $to, $user, $monthSpan, $party);
     }
 
     /**
@@ -169,7 +174,7 @@ class FinancialReportsService
      *     party: string
      * }
      */
-    public function xyzByContractorParty(Carbon $from, Carbon $to, ?int $managerId, int $monthSpan = 6, string $party = 'customer'): array
+    public function xyzByContractorParty(Carbon $from, Carbon $to, ?User $user, int $monthSpan = 6, string $party = 'customer'): array
     {
         $party = $party === 'carrier' ? 'carrier' : 'customer';
         $contractorColumn = $party === 'carrier' ? 'carrier_id' : 'customer_id';
@@ -198,8 +203,11 @@ class FinancialReportsService
             ->when(
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($q) => $q->whereNull('orders.deleted_at'),
-            )
-            ->when($managerId !== null, fn ($q) => $q->where('orders.manager_id', $managerId));
+            );
+
+        if ($user !== null) {
+            OrderViewAuthorization::applyOrdersVisibilityScopeToQuery($cellsQuery, $user, 'orders');
+        }
 
         $this->applyContractorPartyFilter($cellsQuery, 'c', $party);
 
@@ -264,9 +272,9 @@ class FinancialReportsService
      *
      * @return list<array{manager_id: int, manager_name: string, orders_count: int, margin: float, avg_check: float}>
      */
-    public function managerStatsByCompletedOrders(Carbon $from, Carbon $to, ?int $managerId): array
+    public function managerStatsByCompletedOrders(Carbon $from, Carbon $to, ?User $user): array
     {
-        return $this->completedOrderFinancialAnalytics->statsByManagers($from, $to, $managerId);
+        return $this->completedOrderFinancialAnalytics->statsByManagers($from, $to, $user);
     }
 
     /**

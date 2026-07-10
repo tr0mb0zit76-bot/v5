@@ -27,9 +27,7 @@ class ReportsController extends Controller
 
         $user = $request->user();
         $orderScope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
-        $managerId = $orderScope === 'own' ? $user->id : null;
         $leadsScope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-        $leadsManagerId = $leadsScope === 'own' ? $user->id : null;
         $hasLeadsAccess = RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'leads');
 
         $dateFrom = Carbon::parse($validated['date_from'] ?? now()->startOfMonth()->toDateString())->startOfDay();
@@ -53,7 +51,7 @@ class ReportsController extends Controller
         $stuckDays = max(1, min(365, $stuckDays));
 
         $leadProcess = $hasLeadsAccess
-            ? $leadProcessReports->processStageIssues($leadsManagerId, $stuckDays)
+            ? $leadProcessReports->processStageIssues($user, $stuckDays)
             : ['rows' => [], 'stuck_days' => $stuckDays];
 
         return Inertia::render('Reports/Index', [
@@ -68,9 +66,9 @@ class ReportsController extends Controller
             'leads_scope' => $leadsScope,
             'has_leads_access' => $hasLeadsAccess,
             'lead_process' => $leadProcess,
-            'abc' => $financialReports->abcByContractorParty($dateFrom, $dateTo, $managerId, $party),
-            'xyz' => $financialReports->xyzByContractorParty($dateFrom, $dateTo, $managerId, 6, $party),
-            'managers' => $financialReports->managerStatsByCompletedOrders($dateFrom, $dateTo, $managerId),
+            'abc' => $financialReports->abcByContractorParty($dateFrom, $dateTo, $user, $party),
+            'xyz' => $financialReports->xyzByContractorParty($dateFrom, $dateTo, $user, 6, $party),
+            'managers' => $financialReports->managerStatsByCompletedOrders($dateFrom, $dateTo, $user),
             'glossary' => [
                 'abc_customer' => 'ABC (клиенты): классификация заказчиков по доле накопленной выручки (ставка клиента в заказах) за период. A — до 80% накопленной суммы, B — до 95%, C — остальное. Перевозчики с типом «только перевозчик» не участвуют.',
                 'abc_carrier' => 'ABC (перевозчики): классификация перевозчиков по доле накопленной суммы ставок перевозчика (carrier_rate) в заказах за период. A — до 80%, B — до 95%, C — остальное. Заказчики с типом «только заказчик» не участвуют.',

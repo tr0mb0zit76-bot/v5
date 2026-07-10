@@ -5,6 +5,9 @@ namespace App\Services\Finance;
 use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\PaymentSchedulePaymentEvent;
+use App\Models\User;
+use App\Support\OrderViewAuthorization;
+use App\Support\RoleAccess;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -24,9 +27,7 @@ class ContractorReconciliationService
         int $contractorId,
         ?string $dateFrom,
         ?string $dateTo,
-        ?int $userId,
-        ?string $roleName,
-        string $ordersScope,
+        ?User $user = null,
     ): array {
         $contractor = Contractor::query()->findOrFail($contractorId);
         $contractorType = strtolower(trim((string) ($contractor->type ?? 'both')));
@@ -34,8 +35,8 @@ class ContractorReconciliationService
         $from = $dateFrom ? Carbon::parse($dateFrom)->startOfDay() : null;
         $to = $dateTo ? Carbon::parse($dateTo)->endOfDay() : null;
 
-        $asCustomer = $this->buildCustomerSection($contractorId, $from, $to, $userId, $roleName, $ordersScope);
-        $asCarrier = $this->buildCarrierSection($contractorId, $contractorType, $from, $to, $userId, $roleName, $ordersScope);
+        $asCustomer = $this->buildCustomerSection($contractorId, $from, $to, $user);
+        $asCarrier = $this->buildCarrierSection($contractorId, $contractorType, $from, $to, $user);
 
         return [
             'contractor' => [
@@ -62,11 +63,9 @@ class ContractorReconciliationService
         int $contractorId,
         ?Carbon $from,
         ?Carbon $to,
-        ?int $userId,
-        ?string $roleName,
-        string $ordersScope,
+        ?User $user,
     ): array {
-        $orders = $this->ordersBaseQuery($userId, $roleName, $ordersScope)
+        $orders = $this->ordersBaseQuery($user)
             ->where('orders.customer_id', $contractorId)
             ->when($from, fn ($q) => $q->whereDate('orders.order_date', '>=', $from->toDateString()))
             ->when($to, fn ($q) => $q->whereDate('orders.order_date', '<=', $to->toDateString()))
@@ -114,13 +113,11 @@ class ContractorReconciliationService
         string $contractorType,
         ?Carbon $from,
         ?Carbon $to,
-        ?int $userId,
-        ?string $roleName,
-        string $ordersScope,
+        ?User $user,
     ): array {
         $counterpartyParty = $contractorType === 'contractor' ? 'contractor' : 'carrier';
 
-        $orders = $this->ordersBaseQuery($userId, $roleName, $ordersScope)
+        $orders = $this->ordersBaseQuery($user)
             ->when($from, fn ($q) => $q->whereDate('orders.order_date', '>=', $from->toDateString()))
             ->when($to, fn ($q) => $q->whereDate('orders.order_date', '<=', $to->toDateString()))
             ->orderByDesc('orders.order_date')
@@ -466,17 +463,20 @@ class ContractorReconciliationService
     /**
      * @return Builder<Order>
      */
-    private function ordersBaseQuery(?int $userId, ?string $roleName, string $ordersScope)
+    private function ordersBaseQuery(?User $user): Builder
     {
-        return Order::query()
+        $query = Order::query()
             ->when(
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($query) => $query->whereNull('deleted_at'),
-            )
-            ->when(
-                $userId !== null && $roleName !== 'admin' && $ordersScope !== 'all',
-                fn ($query) => $query->where('manager_id', $userId),
             );
+
+        if ($user !== null) {
+            $area = RoleAccess::resolvePaymentScheduleVisibilityAreaForUser($user);
+            OrderViewAuthorization::applyOrdersVisibilityScope($query, $user, $area);
+        }
+
+        return $query;
     }
 
     /**

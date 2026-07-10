@@ -58,11 +58,11 @@ final class HeadOfSalesInsightsService
         }
 
         $managerFilterId = $filterUserId;
-        $managerStats = $this->managerPerformance($from, $to, $managerFilterId, $scopedUserIds);
+        $managerStats = $this->managerPerformance($from, $to, $user, $managerFilterId, $scopedUserIds);
         $funnel = $this->funnelCoaching->insights($user, $days, $managerFilterId, 8);
         $scripts = $this->scriptCoaching->insights($user, min($days, 60), $managerFilterId, 10);
         $pipeline = $this->pipelineKpi->metricsForUser($user, max(3, (int) ceil($days / 30)));
-        $openFunnel = $this->openFunnelRisks($managerFilterId, $scopedUserIds);
+        $openFunnel = $this->openFunnelRisks($user, $managerFilterId, $scopedUserIds);
         $transportMix = $this->transportMix($since, $managerFilterId, $scopedUserIds);
         $perManagerFunnel = $this->perManagerFunnelSnapshots($user, $days, $managerStats, $scopedUserIds);
 
@@ -95,9 +95,9 @@ final class HeadOfSalesInsightsService
     /**
      * @return list<array{manager_id: int, manager_name: string, orders_count: int, margin: float, avg_check: float}>
      */
-    private function managerPerformance(Carbon $from, Carbon $to, ?int $filterUserId, array $scopedUserIds): array
+    private function managerPerformance(Carbon $from, Carbon $to, User $viewer, ?int $filterUserId, array $scopedUserIds): array
     {
-        $rows = $this->financialReports->managerStatsByCompletedOrders($from, $to, $filterUserId);
+        $rows = $this->financialReports->managerStatsByCompletedOrders($from, $to, $viewer);
 
         if ($scopedUserIds === []) {
             return $rows;
@@ -158,16 +158,16 @@ final class HeadOfSalesInsightsService
      * @param  list<int>  $scopedUserIds
      * @return array{total_issues: int, due_overdue: int, stuck_on_stage: int, top_rows: list<array<string, mixed>>}
      */
-    private function openFunnelRisks(?int $filterUserId, array $scopedUserIds): array
+    private function openFunnelRisks(User $viewer, ?int $filterUserId, array $scopedUserIds): array
     {
         if ($filterUserId !== null) {
-            $report = $this->leadProcessReports->processStageIssues($filterUserId);
+            $report = $this->leadProcessReports->processStageIssues($viewer, LeadProcessReportsService::STUCK_STAGE_DAYS, $filterUserId);
 
             return $this->serializeOpenFunnelReport($report);
         }
 
         if ($scopedUserIds === []) {
-            $report = $this->leadProcessReports->processStageIssues(null);
+            $report = $this->leadProcessReports->processStageIssues($viewer);
 
             return $this->serializeOpenFunnelReport($report);
         }
@@ -175,7 +175,7 @@ final class HeadOfSalesInsightsService
         $merged = [];
 
         foreach ($scopedUserIds as $userId) {
-            $report = $this->leadProcessReports->processStageIssues($userId);
+            $report = $this->leadProcessReports->processStageIssues($viewer, LeadProcessReportsService::STUCK_STAGE_DAYS, $userId);
             foreach ($report['rows'] ?? [] as $row) {
                 $merged[(int) $row['lead_id']] = $row;
             }

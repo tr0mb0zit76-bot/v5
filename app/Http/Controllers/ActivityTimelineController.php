@@ -6,6 +6,7 @@ use App\Models\Lead;
 use App\Models\Order;
 use App\Services\ActivityLedgerService;
 use App\Services\OrderActivityTimelineService;
+use App\Support\LeadViewAuthorization;
 use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
@@ -31,7 +32,6 @@ class ActivityTimelineController extends Controller
 
     public function showForOrder(Request $request, Order $order): JsonResponse
     {
-        abort_unless($request->user()?->isAdmin(), 403);
         abort_unless($this->canAccessOrder($request, $order), 403);
 
         return response()->json([
@@ -47,7 +47,7 @@ class ActivityTimelineController extends Controller
             return false;
         }
 
-        if ($user->isAdmin()) {
+        if ($user->isAdmin() || $user->isSupervisor()) {
             return true;
         }
 
@@ -66,12 +66,10 @@ class ActivityTimelineController extends Controller
             return false;
         }
 
-        if ($user->isAdmin()) {
+        if ($user->isAdmin() || $user->isSupervisor()) {
             return true;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-
-        return $scope === 'all' || (int) $lead->responsible_id === (int) $user->id;
+        return LeadViewAuthorization::userCanViewLead($user, $lead);
     }
 }

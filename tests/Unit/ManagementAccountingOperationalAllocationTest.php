@@ -63,7 +63,7 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
         $this->assertContains($schedule->status, ['pending', 'overdue']);
 
         $journalRow = app(FinanceOverviewService::class)
-            ->cashFlowJournal(null, 'admin', 'all')
+            ->cashFlowJournal(null)
             ->firstWhere('id', $scheduleId);
 
         $this->assertNotNull($journalRow);
@@ -115,7 +115,7 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
         $this->assertSame('paid', $schedule->status);
         $this->assertSame(0.0, (float) $schedule->remaining_amount);
 
-        $journal = app(FinanceOverviewService::class)->cashFlowJournal(null, 'admin', 'all');
+        $journal = app(FinanceOverviewService::class)->cashFlowJournal(null);
         $this->assertNull($journal->firstWhere('id', $scheduleId));
     }
 
@@ -163,7 +163,7 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
         $this->assertSame(300000.0, (float) $schedule->remaining_amount);
 
         $journalRow = app(FinanceOverviewService::class)
-            ->cashFlowJournal(null, 'admin', 'all')
+            ->cashFlowJournal(null)
             ->firstWhere('id', $scheduleId);
 
         $this->assertNotNull($journalRow);
@@ -243,7 +243,7 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
         $this->assertSame(400000.0, (float) $final->paid_amount);
         $this->assertSame(0.0, (float) $final->remaining_amount);
 
-        $journal = app(FinanceOverviewService::class)->cashFlowJournal(null, 'admin', 'all');
+        $journal = app(FinanceOverviewService::class)->cashFlowJournal(null);
         $this->assertNotNull($journal->firstWhere('id', $prepaymentId));
         $this->assertNull($journal->firstWhere('id', $finalId));
     }

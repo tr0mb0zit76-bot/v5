@@ -9,9 +9,11 @@ use App\Models\ManagementStatementLine;
 use App\Models\Order;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\LeadViewAuthorization;
 use App\Support\OrderPrintWorkflowLock;
 use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
+use App\Support\UserDashboardDepartmentScope;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -162,6 +164,14 @@ class McpAccessGate
 
         $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
 
+        if ($scope === 'department') {
+            if (! in_array($responsibleId, UserDashboardDepartmentScope::departmentUserIds($user), true)) {
+                throw new AuthenticationException('Нельзя назначить задачу другому ответственному.');
+            }
+
+            return;
+        }
+
         if ($scope !== 'all' && (int) $responsibleId !== (int) $user->id) {
             throw new AuthenticationException('Нельзя назначить задачу другому ответственному.');
         }
@@ -246,9 +256,7 @@ class McpAccessGate
             return $lead;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-
-        if ($scope !== 'all' && (int) $lead->responsible_id !== (int) $user->id) {
+        if (! LeadViewAuthorization::userCanViewLead($user, $lead)) {
             throw new AuthenticationException('Лид недоступен.');
         }
 
@@ -260,15 +268,7 @@ class McpAccessGate
      */
     public function applyTasksScope(Builder $query, User $user): void
     {
-        if ($user->isAdmin()) {
-            return;
-        }
-
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
-
-        if ($scope !== 'all') {
-            $query->where('responsible_id', $user->id);
-        }
+        TaskViewAuthorization::applyTasksVisibilityScope($query, $user);
     }
 
     /**

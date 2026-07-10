@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\User;
+use App\Support\OrderViewAuthorization;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -193,7 +195,7 @@ class CompletedOrderFinancialAnalytics
      *
      * @return list<array{manager_id: int, manager_name: string, orders_count: int, margin: float, avg_check: float}>
      */
-    public function statsByManagers(Carbon $from, Carbon $to, ?int $restrictToManagerId): array
+    public function statsByManagers(Carbon $from, Carbon $to, ?User $user): array
     {
         if (! Schema::hasTable('orders') || ! Schema::hasColumn('orders', 'manager_id')) {
             return [];
@@ -217,8 +219,8 @@ class CompletedOrderFinancialAnalytics
             $query->whereNull('orders.deleted_at');
         }
 
-        if ($restrictToManagerId !== null) {
-            $query->where('orders.manager_id', $restrictToManagerId);
+        if ($user !== null) {
+            OrderViewAuthorization::applyOrdersVisibilityScopeToQuery($query, $user, 'orders');
         }
 
         $incomeExpr = Schema::hasColumn('orders', 'customer_rate')

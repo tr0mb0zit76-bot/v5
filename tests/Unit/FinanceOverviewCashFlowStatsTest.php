@@ -53,7 +53,7 @@ class FinanceOverviewCashFlowStatsTest extends TestCase
             ],
         ]);
 
-        $stats = app(FinanceOverviewService::class)->cashFlowStats(null, 'admin', 'all');
+        $stats = app(FinanceOverviewService::class)->cashFlowStats(null);
 
         $this->assertSame(28000.0, $stats['receivables']['overdue']);
         $this->assertSame(22000.0, $stats['payables']['overdue']);
@@ -87,7 +87,7 @@ class FinanceOverviewCashFlowStatsTest extends TestCase
         ]);
 
         $row = app(FinanceOverviewService::class)
-            ->cashFlowJournal(null, 'admin', 'all')
+            ->cashFlowJournal(null)
             ->first();
 
         $this->assertNotNull($row);

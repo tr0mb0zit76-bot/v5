@@ -23,8 +23,6 @@ class FinanceIndexController extends Controller
         }
 
         $user = $request->user();
-        $role = $financeOverview->resolveRole($user?->role_id);
-        $paymentScheduleScope = RoleAccess::resolvePaymentScheduleDataScopeForUser($user);
 
         $activeSubmodule = match ($request->query('section')) {
             'dds', 'cashflow' => 'cashflow',
@@ -35,10 +33,10 @@ class FinanceIndexController extends Controller
             return redirect()->route('finance.index');
         }
 
-        PaymentScheduleAutomaticStatus::refreshForOrdersScope($user?->id, $role['name'], $paymentScheduleScope);
+        PaymentScheduleAutomaticStatus::refreshForUser($user);
 
-        $cashFlow = $financeOverview->cashFlowJournal($user?->id, $role['name'], $paymentScheduleScope);
-        $cashFlowStats = $financeOverview->cashFlowStats($user?->id, $role['name'], $paymentScheduleScope);
+        $cashFlow = $financeOverview->cashFlowJournal($user);
+        $cashFlowStats = $financeOverview->cashFlowStats($user);
 
         $cashflowTab = (string) $request->query('cashflow_tab', 'schedule');
         if (! in_array($cashflowTab, ['schedule', 'reconcile'], true)) {

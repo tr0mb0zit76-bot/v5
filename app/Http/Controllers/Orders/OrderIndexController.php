@@ -10,6 +10,7 @@ use App\Support\OrderDeleteAuthorization;
 use App\Support\OrderFinancialEditAuthorization;
 use App\Support\OrderGridOneCSummaryResolver;
 use App\Support\OrderTableColumns;
+use App\Support\OrderViewAuthorization;
 use App\Support\PaymentFormDictionary;
 use App\Support\RoleAccess;
 use App\Support\RoutePointDatesDisplay;
@@ -27,7 +28,6 @@ class OrderIndexController extends Controller
         $user = $request->user();
         $role = $this->resolveRole($user?->role_id);
         $roleName = $role['name'];
-        $ordersScope = RoleAccess::resolveVisibilityScopeForRolePayload($roleName, $role['visibility_scopes'], 'orders');
 
         // Крупный JSON (ai_metadata, ati_response, metadata, payment_statuses) не выбираем — только карточка заказа.
 
@@ -122,10 +122,10 @@ class OrderIndexController extends Controller
                 fn ($query) => $query->selectSub($this->assignedCarrierCountSubquery(), 'assigned_carrier_count'),
             )
             ->when(
-                $user !== null && $roleName !== 'admin' && $ordersScope !== 'all',
-                function ($query) use ($user) {
-                    $query->where('orders.manager_id', $user->id);
-                }
+                $user !== null,
+                function ($query) use ($user): void {
+                    OrderViewAuthorization::applyOrdersVisibilityScopeToQuery($query, $user, 'orders');
+                },
             )
             ->when(
                 Schema::hasColumn('orders', 'deleted_at'),

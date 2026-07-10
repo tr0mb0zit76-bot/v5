@@ -122,17 +122,14 @@ final class LoadingPlannerAccess
                                 ->from('orders')
                                 ->whereColumn('orders.id', 'loading_planner_projects.order_id');
 
-                            if (! $user->isAdmin()) {
+                            if (! $user->isAdmin() && ! $user->isSupervisor()) {
                                 if (! RoleAccess::canAccessVisibilityArea($user, 'orders')) {
                                     $sub->whereRaw('1 = 0');
 
                                     return;
                                 }
 
-                                $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
-                                if ($scope !== 'all') {
-                                    $sub->where('orders.manager_id', $user->id);
-                                }
+                                OrderViewAuthorization::applyOrdersVisibilityScopeToQuery($sub, $user, 'orders');
                             }
                         });
                 });
@@ -150,17 +147,14 @@ final class LoadingPlannerAccess
                                 $sub->whereNull('leads.deleted_at');
                             }
 
-                            if (! $user->isAdmin()) {
+                            if (! $user->isAdmin() && ! $user->isSupervisor()) {
                                 if (! RoleAccess::canAccessVisibilityArea($user, 'leads')) {
                                     $sub->whereRaw('1 = 0');
 
                                     return;
                                 }
 
-                                $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-                                if ($scope !== 'all') {
-                                    $sub->where('leads.responsible_id', $user->id);
-                                }
+                                LeadViewAuthorization::applyLeadsVisibilityScopeToQuery($sub, $user, 'leads');
                             }
                         });
                 });

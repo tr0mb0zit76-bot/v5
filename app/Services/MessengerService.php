@@ -6,6 +6,7 @@ use App\Models\ChatMessage;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Services\ExternalUsers\CounterpartyConversationService;
+use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -167,9 +168,6 @@ class MessengerService
             return [];
         }
 
-        $roleName = $user->role?->name;
-        $documentsScope = RoleAccess::resolveVisibilityScopeForUser($user, 'documents');
-
         $query = DB::table('order_documents')
             ->join('orders', 'orders.id', '=', 'order_documents.order_id')
             ->select([
@@ -184,8 +182,8 @@ class MessengerService
             $query->addSelect('orders.order_customer_number');
         }
 
-        if ($roleName !== 'admin' && $documentsScope !== 'all') {
-            $query->where('orders.manager_id', $user->id);
+        if ($user !== null) {
+            OrderViewAuthorization::applyOrdersVisibilityScopeToQuery($query, $user, 'documents');
         }
 
         if (Schema::hasColumn('orders', 'deleted_at')) {

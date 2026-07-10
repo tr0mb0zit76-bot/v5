@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\FinanceReconciliationRequest;
 use App\Services\Finance\ContractorReconciliationService;
-use App\Services\Finance\FinanceOverviewService;
 use App\Services\Finance\PaymentSchedulePaymentLedgerService;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
@@ -28,16 +27,12 @@ class FinanceReconciliationController extends Controller
 
         if ($filters['contractor_id']) {
             $user = $request->user();
-            $role = app(FinanceOverviewService::class)->resolveRole($user?->role_id);
-            $ordersScope = RoleAccess::resolvePaymentScheduleDataScopeForUser($user);
 
             $report = $reconciliationService->build(
                 (int) $filters['contractor_id'],
                 $filters['date_from'],
                 $filters['date_to'],
-                $user?->id,
-                $role['name'],
-                $ordersScope,
+                $user,
             );
         }
 

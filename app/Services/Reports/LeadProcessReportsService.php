@@ -3,7 +3,9 @@
 namespace App\Services\Reports;
 
 use App\Models\Lead;
+use App\Models\User;
 use App\Services\LeadBusinessProcessService;
+use App\Support\LeadViewAuthorization;
 use Illuminate\Database\Eloquent\Builder;
 
 class LeadProcessReportsService
@@ -17,13 +19,13 @@ class LeadProcessReportsService
     /**
      * @return list<array<string, mixed>>
      */
-    public function stageSlaBreached(?int $responsibleId = null): array
+    public function stageSlaBreached(?User $viewer = null, ?int $filterResponsibleId = null): array
     {
         if (! $this->leadBusinessProcessService->tablesReady()) {
             return [];
         }
 
-        return $this->activeProcessLeadsQuery($responsibleId)
+        return $this->activeProcessLeadsQuery($viewer, $filterResponsibleId)
             ->whereNotNull('stage_due_at')
             ->where('stage_due_at', '<', now())
             ->whereHas('businessProcessStage', fn ($query) => $query->where('is_terminal', false))
@@ -39,19 +41,19 @@ class LeadProcessReportsService
      *
      * @return array{rows: list<array<string, mixed>>, stuck_days: int}
      */
-    public function processStageIssues(?int $responsibleId = null, int $minStuckDays = self::STUCK_STAGE_DAYS): array
+    public function processStageIssues(?User $viewer = null, int $minStuckDays = self::STUCK_STAGE_DAYS, ?int $filterResponsibleId = null): array
     {
         $minStuckDays = max(1, min(365, $minStuckDays));
 
         $byLeadId = [];
 
-        foreach ($this->stageSlaBreached($responsibleId) as $row) {
+        foreach ($this->stageSlaBreached($viewer, $filterResponsibleId) as $row) {
             $id = (int) $row['lead_id'];
             $byLeadId[$id] = $row;
             $byLeadId[$id]['issue_flags'] = ['due_overdue'];
         }
 
-        foreach ($this->stuckOnStage($responsibleId, $minStuckDays) as $row) {
+        foreach ($this->stuckOnStage($viewer, $minStuckDays, $filterResponsibleId) as $row) {
             $id = (int) $row['lead_id'];
             if (isset($byLeadId[$id])) {
                 $byLeadId[$id]['days_on_stage'] = $row['days_on_stage'];
@@ -89,7 +91,7 @@ class LeadProcessReportsService
     /**
      * @return list<array<string, mixed>>
      */
-    public function stuckOnStage(?int $responsibleId = null, int $minDays = self::STUCK_STAGE_DAYS): array
+    public function stuckOnStage(?User $viewer = null, int $minDays = self::STUCK_STAGE_DAYS, ?int $filterResponsibleId = null): array
     {
         if (! $this->leadBusinessProcessService->tablesReady()) {
             return [];
@@ -97,7 +99,7 @@ class LeadProcessReportsService
 
         $threshold = now()->subDays(max(1, $minDays));
 
-        return $this->activeProcessLeadsQuery($responsibleId)
+        return $this->activeProcessLeadsQuery($viewer, $filterResponsibleId)
             ->whereNotNull('stage_entered_at')
             ->where('stage_entered_at', '<', $threshold)
             ->whereHas('businessProcessStage', fn ($query) => $query->where('is_terminal', false))
@@ -111,17 +113,26 @@ class LeadProcessReportsService
     /**
      * @return Builder<Lead>
      */
-    private function activeProcessLeadsQuery(?int $responsibleId)
+    private function activeProcessLeadsQuery(?User $viewer, ?int $filterResponsibleId = null)
     {
-        return Lead::query()
+        $query = Lead::query()
             ->with([
                 'businessProcess:id,name',
                 'businessProcessStage:id,name,is_terminal,duration_days',
                 'responsible:id,name',
             ])
             ->whereNotNull('business_process_id')
-            ->whereNotIn('status', ['won', 'lost'])
-            ->when($responsibleId !== null, fn ($query) => $query->where('responsible_id', $responsibleId));
+            ->whereNotIn('status', ['won', 'lost']);
+
+        if ($viewer !== null) {
+            LeadViewAuthorization::applyLeadsVisibilityScope($query, $viewer);
+        }
+
+        if ($filterResponsibleId !== null) {
+            $query->where('responsible_id', $filterResponsibleId);
+        }
+
+        return $query;
     }
 
     /**
