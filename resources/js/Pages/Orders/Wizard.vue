@@ -364,119 +364,53 @@
             />
         </div>
 
-    <Teleport to="body">
-        <div
-            v-show="showCounterpartyModal"
-            class="fixed inset-0 flex items-center justify-center bg-black/40 p-4"
-            style="z-index: 2147483647;"
-            @click.self="closeCounterpartyModal"
-        >
-            <div :class="`${crmModalPanel} w-full max-w-xl p-5 shadow-2xl`" @click.stop>
-                <div class="mb-4 flex items-center justify-between">
-                    <div>
-                        <div class="text-lg font-semibold">Новый контрагент</div>
-                        <div class="text-sm text-zinc-500">
-                            {{
-                                counterpartyTarget.kind === 'performer'
-                                    ? 'Создаётся в справочнике и сразу подставляется как перевозчик в это плечо'
-                                    : 'Создаётся в справочнике и сразу подставляется в заказ'
-                            }}
-                        </div>
-                    </div>
-                    <button type="button" class="rounded-xl p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" @click="closeCounterpartyModal">×</button>
-                </div>
+    <OrderWizardCounterpartyModal
+        :show="showCounterpartyModal"
+        :counterparty-target="counterpartyTarget"
+        :counterparty-form="counterpartyForm"
+        :counterparty-name-input="counterpartyNameInput"
+        :inline-contractor-saving="inlineContractorSaving"
+        :crm-field-fluid="crmFieldFluid"
+        :crm-btn-neutral="crmBtnNeutral"
+        :crm-btn-create="crmBtnCreate"
+        :crm-modal-panel="crmModalPanel"
+        @close="closeCounterpartyModal"
+        @create="createInlineCounterparty"
+    />
 
-                <div class="grid gap-3 md:grid-cols-2">
-                    <input ref="counterpartyNameInput" v-model="counterpartyForm.name" type="text" placeholder="Название" :class="`${crmFieldFluid} md:col-span-2`" />
-                    <input v-model="counterpartyForm.inn" type="text" placeholder="ИНН" :class="crmFieldFluid" />
-                    <input v-model="counterpartyForm.kpp" type="text" placeholder="КПП" :class="crmFieldFluid" />
-                    <input v-model="counterpartyForm.address" type="text" placeholder="Адрес" :class="`${crmFieldFluid} md:col-span-2`" />
-                    <input v-model="counterpartyForm.phone" type="text" placeholder="Телефон" :class="crmFieldFluid" />
-                    <input v-model="counterpartyForm.email" type="email" placeholder="Email" :class="crmFieldFluid" />
-                    <input v-model="counterpartyForm.contact_person" type="text" placeholder="Контактное лицо" :class="`${crmFieldFluid} md:col-span-2`" />
-                </div>
-
-                <div class="mt-5 flex justify-end gap-3">
-                    <button type="button" :class="crmBtnNeutral" @click="closeCounterpartyModal">
-                        Отмена
-                    </button>
-                    <button type="button" :class="crmBtnCreate" :disabled="inlineContractorSaving" @click="createInlineCounterparty">
-                        {{ inlineContractorSaving ? 'Создание...' : 'Создать' }}
-                    </button>
-                </div>
-            </div>
-        </div>
-    </Teleport>
-
-    <Modal :show="showOrderDocumentAttachModal" max-width="xl" @close="closeOrderDocumentAttachModal">
-        <CrmModalHeader :title="orderDocumentAttachModalTitle" @close="closeOrderDocumentAttachModal">
-            <template v-if="orderDocumentAttachPresetIndex === null">
-                Укажите, чей это документ и тип. Форматы: PDF, Word, Excel, JPG, PNG, WebP.
-            </template>
-            <template v-else>
-                Выберите файл и подтвердите замену.
-            </template>
-        </CrmModalHeader>
-        <div class="space-y-4 border-t border-zinc-200 px-5 py-5 dark:border-zinc-800 sm:px-6">
-            <div v-if="orderDocumentAttachPendingFile" class="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-900/50">
-                <Paperclip class="h-4 w-4 shrink-0 text-zinc-500" />
-                <span class="min-w-0 truncate font-medium text-zinc-800 dark:text-zinc-100">{{ orderDocumentAttachPendingFile.name }}</span>
-            </div>
-            <div v-else>
-                <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900">
-                    <span>Выбрать файл…</span>
-                    <input
-                        ref="orderDocumentAttachModalFileInputRef"
-                        type="file"
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
-                        class="hidden"
-                        @change="onOrderDocumentAttachModalFileChange"
-                    >
-                </label>
-            </div>
-
-            <div v-if="orderDocumentAttachPresetIndex !== null && form.documents[orderDocumentAttachPresetIndex]" class="rounded-xl border border-zinc-100 bg-zinc-50/70 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300">
-                {{ orderDocumentAttachPresetSummary }}
-            </div>
-
-            <div v-if="orderDocumentAttachPresetIndex === null" class="grid gap-4 sm:grid-cols-2">
-                <div class="space-y-2">
-                    <label class="text-sm font-medium">Чей документ</label>
-                    <select v-model="orderDocumentAttachTargetKind" :class="crmFieldFluid">
-                        <option value="customer">Заказчик</option>
-                        <option value="carrier" :disabled="form.performers.length === 0">Плечо (перевозчик)</option>
-                    </select>
-                </div>
-                <div v-if="orderDocumentAttachTargetKind === 'carrier'" class="space-y-2">
-                    <label class="text-sm font-medium">Плечо</label>
-                    <select v-model="orderDocumentAttachStage" :class="crmFieldFluid">
-                        <option v-for="(p, idx) in form.performers" :key="`attach-leg-${idx}`" :value="p.stage">{{ stageLabel(p.stage) }}</option>
-                    </select>
-                </div>
-                <div class="space-y-2 sm:col-span-2">
-                    <label class="text-sm font-medium">Тип документа</label>
-                    <select v-model="orderDocumentAttachNewDocType" :class="crmFieldFluid">
-                        <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="flex justify-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-                <button type="button" :class="crmBtnNeutral" @click="closeOrderDocumentAttachModal">Отмена</button>
-                <button type="button" :class="crmBtnCreate" :disabled="!orderDocumentAttachPendingFile" @click="confirmOrderDocumentAttach">
-                    {{ orderDocumentAttachPresetIndex !== null ? 'Заменить файл' : 'Прикрепить' }}
-                </button>
-            </div>
-        </div>
-    </Modal>
+    <OrderWizardDocumentAttachModal
+        :show="showOrderDocumentAttachModal"
+        :title="orderDocumentAttachModalTitle"
+        :preset-summary="orderDocumentAttachPresetSummary"
+        :pending-file="orderDocumentAttachPendingFile"
+        :preset-index="orderDocumentAttachPresetIndex"
+        :target-kind="orderDocumentAttachTargetKind"
+        :stage="orderDocumentAttachStage"
+        :new-doc-type="orderDocumentAttachNewDocType"
+        :performers="form.performers"
+        :document-type-options="documentTypeOptions"
+        :crm-field-fluid="crmFieldFluid"
+        :crm-btn-neutral="crmBtnNeutral"
+        :crm-btn-create="crmBtnCreate"
+        :stage-label="stageLabel"
+        :file-input-ref="orderDocumentAttachModalFileInputRef"
+        @close="closeOrderDocumentAttachModal"
+        @confirm="confirmOrderDocumentAttach"
+        @file-change="onOrderDocumentAttachModalFileChange"
+        @update:target-kind="orderDocumentAttachTargetKind = $event"
+        @update:stage="orderDocumentAttachStage = $event"
+        @update:new-doc-type="orderDocumentAttachNewDocType = $event"
+    />
     </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, toRaw, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { Calculator, ClipboardList, FileText, Gavel, History, Mail, MapPinned, Minus, OctagonAlert, Package, Paperclip, Plus, Save, ScrollText, Wallet, X } from 'lucide-vue-next';
+import { Calculator, ClipboardList, FileText, Gavel, History, Mail, MapPinned, Minus, OctagonAlert, Package, Plus, Save, ScrollText, Wallet, X } from 'lucide-vue-next';
 import OrderWizardCargoTab from '@/Components/Orders/OrderWizardCargoTab.vue';
+import OrderWizardCounterpartyModal from '@/Components/Orders/OrderWizardCounterpartyModal.vue';
+import OrderWizardDocumentAttachModal from '@/Components/Orders/OrderWizardDocumentAttachModal.vue';
 import OrderWizardDocumentsTab from '@/Components/Orders/OrderWizardDocumentsTab.vue';
 import OrderWizardFinanceTab from '@/Components/Orders/OrderWizardFinanceTab.vue';
 import OrderWizardLeadPrecalculationSnapshot from '@/Components/Orders/OrderWizardLeadPrecalculationSnapshot.vue';
@@ -489,9 +423,6 @@ import {
     setRoutePointCity,
     syncRoutePointCityFromAddress,
 } from '@/support/routePointNormalizedData.js';
-import { parseLocaleDecimal, sanitizeDecimalInput } from '@/support/wizardDictionaryHelpers.js';
-import Modal from '@/Components/Modal.vue';
-import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import OrderStatusIcon from '@/Components/Orders/OrderStatusIcon.vue';
 import OrderWizardNormsPenaltiesTab from '@/Components/Orders/OrderWizardNormsPenaltiesTab.vue';
@@ -531,7 +462,6 @@ import {
     blankAdditionalCostRow,
     migrateLegacyAdditionalContractorCosts,
     normalizeAdditionalCostsList,
-    serializeAdditionalCostsForSubmit,
     sumAdditionalCostsAmount,
 } from '@/support/orderAdditionalCosts.js';
 import CarrierPortalInviteButton from '@/Components/Orders/CarrierPortalInviteButton.vue';
@@ -542,7 +472,6 @@ import {
     blankSplitCarrier,
     CARRIER_MODE_SINGLE,
     CARRIER_MODE_SPLIT,
-    contractorCostRowsFromPerformers,
     costMatchesPerformerSlot,
     isAdditionalContractorCost,
     EXECUTION_MODE_OWN_FLEET,
@@ -554,26 +483,17 @@ import {
 } from '@/support/orderPerformers.js';
 import { clampActualDateToToday, todayIsoDate } from '@/support/orderActualDates.js';
 import { classifyDealType, paymentFormMetaFromOptions } from '@/support/paymentFormDealType.js';
+import { buildNormalizeCargoItem, useOrderWizardCargoTab } from '@/composables/useOrderWizardCargoTab.js';
+import { useOrderWizardCounterpartyModal } from '@/composables/useOrderWizardCounterpartyModal.js';
+import { useOrderWizardDocumentAttach } from '@/composables/useOrderWizardDocumentAttach.js';
+import { useOrderWizardFinanceTab } from '@/composables/useOrderWizardFinanceTab.js';
 import { useOrderWizardRouteTab } from '@/composables/useOrderWizardRouteTab.js';
+import { useOrderWizardSubmit } from '@/composables/useOrderWizardSubmit.js';
 import { ORDER_WIZARD_CARGO_TAB_KEY } from '@/support/orderWizardCargoTabKey.js';
 import { ORDER_WIZARD_FINANCE_TAB_KEY } from '@/support/orderWizardFinanceTabKey.js';
 import { ORDER_WIZARD_MAIN_TAB_KEY } from '@/support/orderWizardMainTabKey.js';
 import { ORDER_WIZARD_ROUTE_TAB_KEY } from '@/support/orderWizardRouteTabKey.js';
 import { stageLabel, stageMatches, toStageKey } from '@/support/orderWizardStageHelpers.js';
-import {
-    allocationWeightPlaceholder,
-    cargoAllocationRowStatus,
-    cargoLinePerPlaceWeightKg,
-    ensureCargoAllocation,
-    findCargoAllocation,
-    needsCargoPerformerAllocation,
-    normalizePerformerAllocations,
-    performerAllocationColumns,
-    pruneCargoAllocationsToColumns,
-    remapCargoAllocationsToCanonicalStages,
-    summarizeAllocationsForColumn,
-    validateCargoPerformerAllocations,
-} from '@/support/orderCargoPerformerAllocations.js';
 import {
     isVirtualOwnFleetContractor,
     OWN_FLEET_CONTRACTOR_NAME,
@@ -707,7 +627,7 @@ onMounted(() => {
         }
     }
 
-    remapCargoAllocationsToCanonicalStages(form.cargo_items);
+    syncCargoAllocationMatrixSlots();
 
     preloadFleetOptionsForPerformers();
 
@@ -715,10 +635,7 @@ onMounted(() => {
         const contractor = getContractorById(row?.contractor_id);
         const label = contractor?.name ?? row?.contractor_name ?? '';
         if (label && row?.id != null) {
-            additionalCostSearch.value = {
-                ...additionalCostSearch.value,
-                [additionalCostSearchKey(row.id)]: label,
-            };
+            financeTab.setAdditionalCostSearchValue(row.id, label);
         }
     });
 
@@ -858,22 +775,28 @@ if ((props.order ?? props.orderTemplate)?.client_snapshot) {
 const ownCompanyOptions = ref(
     props.ownCompanies.filter((company) => !isVirtualOwnFleetContractor(company)),
 );
+
+let applyCounterpartyContractor = () => {};
+const {
+    showCounterpartyModal,
+    counterpartyNameInput,
+    inlineContractorSaving,
+    counterpartyTarget,
+    counterpartyForm,
+    openCounterpartyModal,
+    closeCounterpartyModal,
+    createInlineCounterparty,
+} = useOrderWizardCounterpartyModal({
+    contractors,
+    ownCompanyOptions,
+    applyContractor: (target, contractor) => applyCounterpartyContractor(target, contractor),
+});
+
 const clientSearch = ref('');
 const showClientResults = ref(false);
 const carrierSearch = ref({});
 const showCarrierResults = ref({});
-const additionalCostSearch = ref({});
-const showAdditionalCostResults = ref({});
-const additionalCostSearchTimers = ref({});
-const additionalCostSearchAbortControllers = ref({});
-const additionalCostSearchFetchSeq = ref({});
-const serverAdditionalCostSearchResults = ref({});
-const isSearchingAdditionalCosts = ref({});
 const fleetOptionsCache = ref({});
-const showCounterpartyModal = ref(false);
-const counterpartyNameInput = ref(null);
-const inlineContractorSaving = ref(false);
-const counterpartyTarget = ref({ kind: 'client', index: null });
 const saveAttempted = ref(false);
 const addressSuggestions = ref({});
 const addressTimers = {};
@@ -940,37 +863,6 @@ const clientRequestModeOptions = [
 ];
 const blankPaymentSchedule = orderPs.blankSingleInstallmentSchedule;
 const normalizePaymentSchedule = orderPs.normalizePaymentSchedule;
-const counterpartyForm = useForm({
-    name: '',
-    inn: '',
-    kpp: '',
-    address: '',
-    phone: '',
-    email: '',
-    contact_person: '',
-    type: 'customer',
-});
-
-async function openCounterpartyModal(options = {}) {
-    counterpartyTarget.value = {
-        kind: options.kind === 'performer-slot'
-            ? 'performer-slot'
-            : (options.kind === 'performer' ? 'performer' : 'client'),
-        index: options.index ?? null,
-    };
-    counterpartyForm.type = options.type === 'carrier'
-        ? 'carrier'
-        : (options.type === 'contractor' ? 'contractor' : 'customer');
-    showCounterpartyModal.value = true;
-
-    await nextTick();
-    counterpartyNameInput.value?.focus?.();
-}
-
-function closeCounterpartyModal() {
-    showCounterpartyModal.value = false;
-    counterpartyTarget.value = { kind: 'client', index: null };
-}
 
 function templatePartyShortLabel(party) {
     if (party === 'customer') {
@@ -1257,400 +1149,11 @@ function normalizeNullableNumber(value) {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
-function dictionaryOptionByValue(options, value) {
-    const normalized = normalizeNullableNumber(value);
-    if (normalized === null) {
-        return null;
-    }
-
-    return options.find((option) => Number(option.value) === normalized) ?? null;
-}
-
-function dictionaryOptionByCode(options, code) {
-    const normalized = code ? String(code).trim() : '';
-    if (normalized === '') {
-        return null;
-    }
-
-    return options.find((option) => option.code === normalized) ?? null;
-}
-
 function defaultCargoTypeOption() {
     return props.cargoTypeOptions[0] ?? { value: 1, code: 'general', label: 'Общий груз' };
 }
 
-function applyCargoTypeOption(item) {
-    const option = dictionaryOptionByValue(props.cargoTypeOptions, item.cargo_type_id) ?? defaultCargoTypeOption();
-    item.cargo_type_id = normalizeNullableNumber(option.value);
-    item.cargo_type = option.code ?? item.cargo_type ?? 'general';
-    item.cargo_type_label = option.label ?? '';
-    item.dangerous_goods = item.cargo_type === 'dangerous';
-    item.is_oversized = item.cargo_type === 'oversized';
-    item.is_fragile = item.cargo_type === 'fragile';
-}
-
-function applyPackageTypeOption(item) {
-    const option = dictionaryOptionByValue(props.packageTypeOptions, item.pack_type_id);
-    item.pack_type_id = option ? normalizeNullableNumber(option.value) : null;
-    item.package_type = option?.code ?? null;
-    item.pack_type_label = option?.label ?? '';
-}
-
-function applyDictionaryOption(item, options, idKey, codeKey, labelKey) {
-    const option = dictionaryOptionByValue(options, item[idKey]);
-    item[idKey] = option ? normalizeNullableNumber(option.value) : null;
-    item[codeKey] = option?.code ?? null;
-    item[labelKey] = option?.label ?? '';
-}
-
-function selectedDictionaryItems(options, ids) {
-    if (!Array.isArray(ids)) {
-        return [];
-    }
-
-    return ids
-        .map((id) => dictionaryOptionByValue(options, id))
-        .filter(Boolean)
-        .map((option) => ({
-            id: normalizeNullableNumber(option.value),
-            code: option.code ?? null,
-            label: option.label ?? '',
-        }));
-}
-
-function dictionarySelectionLabel(items) {
-    if (!Array.isArray(items) || items.length === 0) {
-        return 'Выберите';
-    }
-
-    const labels = items
-        .map((item) => item?.label)
-        .filter((label) => label !== null && label !== undefined && String(label).trim() !== '')
-        .map((label) => String(label).trim());
-
-    if (labels.length === 0) {
-        return 'Выбрано: ' + items.length;
-    }
-
-    return labels.length <= 2 ? labels.join(', ') : `${labels.slice(0, 2).join(', ')} +${labels.length - 2}`;
-}
-
-function normalizeDictionaryItems(rawItems, options, fallbackOption) {
-    const items = Array.isArray(rawItems) ? rawItems : [];
-    const normalized = items
-        .map((item) => {
-            if (!item || typeof item !== 'object') {
-                return null;
-            }
-
-            const option = dictionaryOptionByValue(options, item.id) ?? dictionaryOptionByCode(options, item.code);
-
-            return {
-                id: normalizeNullableNumber(option?.value ?? item.id),
-                code: option?.code ?? item.code ?? null,
-                label: option?.label ?? item.label ?? '',
-            };
-        })
-        .filter((item) => item && (item.id !== null || item.code || item.label));
-
-    if (normalized.length > 0) {
-        return normalized;
-    }
-
-    return fallbackOption
-        ? [{
-            id: normalizeNullableNumber(fallbackOption.value),
-            code: fallbackOption.code ?? null,
-            label: fallbackOption.label ?? '',
-        }]
-        : [];
-}
-
-function applyDictionaryItems(item, options, idsKey, idKey, codeKey, labelKey, itemsKey) {
-    const selected = selectedDictionaryItems(options, item[idsKey]);
-    const first = selected[0] ?? null;
-    item[itemsKey] = selected;
-    item[idKey] = first?.id ?? null;
-    item[codeKey] = first?.code ?? null;
-    item[labelKey] = first?.label ?? '';
-}
-
-function applyLoadingTypeOption(item) {
-    applyDictionaryItems(item, props.loadingTypeOptions, 'loading_type_ids', 'loading_type_id', 'loading_type_code', 'loading_type_label', 'loading_type_items');
-}
-
-function applyTruckBodyTypeOption(item) {
-    applyDictionaryItems(item, props.truckBodyTypeOptions, 'truck_body_type_ids', 'truck_body_type_id', 'truck_body_type_code', 'truck_body_type_label', 'truck_body_type_items');
-}
-
-function applyTrailerTypeOption(item) {
-    applyDictionaryItems(item, props.trailerTypeOptions, 'trailer_type_ids', 'trailer_type_id', 'trailer_type_code', 'trailer_type_label', 'trailer_type_items');
-}
-
-function normalizeAtiCargoPayload(payload) {
-    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-        return { ...payload };
-    }
-
-    return {};
-}
-
-function performerAllocationsForSubmitItem(item) {
-    const columns = cargoPerformerAllocationColumns.value ?? [];
-    const fromMatrix = columns
-        .map((column) => {
-            const row = findCargoAllocation(item, column.stage, column.carrier_slot);
-            if (!row) {
-                return null;
-            }
-
-            const packageCount = row.package_count;
-            const weightValue = row.weight_value;
-            const hasPackages = packageCount !== null && packageCount !== '' && Number.isFinite(Number(packageCount));
-            const hasWeight = weightValue !== null && weightValue !== '' && Number.isFinite(Number(weightValue));
-
-            if (!hasPackages && !hasWeight) {
-                return null;
-            }
-
-            return {
-                stage: column.stage,
-                carrier_slot: column.carrier_slot,
-                package_count: hasPackages ? Number(packageCount) : null,
-                weight_value: hasWeight ? Number(weightValue) : null,
-            };
-        })
-        .filter(Boolean);
-
-    if (fromMatrix.length > 0) {
-        return normalizePerformerAllocations(fromMatrix);
-    }
-
-    return normalizePerformerAllocations(item.performer_allocations);
-}
-
-function serializeCargoItemsForSubmit() {
-    return form.cargo_items.map((item) => {
-        const performerAllocations = performerAllocationsForSubmitItem(item);
-        const atiBase = normalizeAtiCargoPayload(item.ati_cargo_payload);
-
-        return {
-            name: item.name,
-            description: item.description,
-            weight_value: item.weight_value ?? item.weight_kg,
-            weight_kg: item.weight_value ?? item.weight_kg,
-            weight_unit: item.weight_unit === 't' ? 't' : 'kg',
-            volume_m3: item.volume_m3,
-            length_m: item.length_m,
-            width_m: item.width_m,
-            height_m: item.height_m,
-            diameter_m: item.diameter_m,
-            package_type: item.package_type,
-            pack_type_id: normalizeNullableNumber(item.pack_type_id),
-            pack_type_label: item.pack_type_label,
-            loading_type_id: normalizeNullableNumber(item.loading_type_id),
-            loading_type_code: item.loading_type_code,
-            loading_type_label: item.loading_type_label,
-            loading_type_items: item.loading_type_items || [],
-            truck_body_type_id: normalizeNullableNumber(item.truck_body_type_id),
-            truck_body_type_code: item.truck_body_type_code,
-            truck_body_type_label: item.truck_body_type_label,
-            truck_body_type_items: item.truck_body_type_items || [],
-            trailer_type_id: normalizeNullableNumber(item.trailer_type_id),
-            trailer_type_code: item.trailer_type_code,
-            trailer_type_label: item.trailer_type_label,
-            trailer_type_items: item.trailer_type_items || [],
-            package_count: item.package_count,
-            dangerous_goods: item.dangerous_goods,
-            dangerous_class: item.dangerous_class,
-            hs_code: item.hs_code,
-            cargo_type: item.cargo_type,
-            cargo_type_id: normalizeNullableNumber(item.cargo_type_id),
-            cargo_type_label: item.cargo_type_label,
-            is_oversized: item.is_oversized,
-            is_fragile: item.is_fragile,
-            performer_allocations: performerAllocations,
-            ati_cargo_payload: {
-                ...atiBase,
-                performer_allocations: performerAllocations,
-            },
-        };
-    });
-}
-
-function normalizeCargoItem(raw = {}) {
-    const selectedCargoType = dictionaryOptionByValue(props.cargoTypeOptions, raw.cargo_type_id)
-        ?? dictionaryOptionByCode(props.cargoTypeOptions, raw.cargo_type)
-        ?? defaultCargoTypeOption();
-    let cargoType = selectedCargoType.code ?? (raw.cargo_type && String(raw.cargo_type).trim() !== '' ? raw.cargo_type : 'general');
-    if (cargoType === 'general' && Boolean(raw.dangerous_goods)) {
-        cargoType = 'dangerous';
-    }
-    const effectiveCargoType = dictionaryOptionByCode(props.cargoTypeOptions, cargoType) ?? selectedCargoType;
-    const selectedPackageType = dictionaryOptionByValue(props.packageTypeOptions, raw.pack_type_id)
-        ?? dictionaryOptionByCode(props.packageTypeOptions, raw.package_type);
-    const selectedLoadingType = dictionaryOptionByValue(props.loadingTypeOptions, raw.loading_type_id)
-        ?? dictionaryOptionByCode(props.loadingTypeOptions, raw.loading_type_code)
-        ?? dictionaryOptionByCode(props.loadingTypeOptions, Array.isArray(raw.loading_types) ? raw.loading_types[0] : null)
-        ?? dictionaryOptionByCode(props.loadingTypeOptions, Array.isArray(props.order?.loading_types) ? props.order.loading_types[0] : null);
-    const selectedTruckBodyType = dictionaryOptionByValue(props.truckBodyTypeOptions, raw.truck_body_type_id)
-        ?? dictionaryOptionByCode(props.truckBodyTypeOptions, raw.truck_body_type_code);
-    const selectedTrailerType = dictionaryOptionByValue(props.trailerTypeOptions, raw.trailer_type_id)
-        ?? dictionaryOptionByCode(props.trailerTypeOptions, raw.trailer_type_code);
-    const loadingTypeItems = normalizeDictionaryItems(raw.loading_type_items, props.loadingTypeOptions, selectedLoadingType);
-    const truckBodyTypeItems = normalizeDictionaryItems(raw.truck_body_type_items, props.truckBodyTypeOptions, selectedTruckBodyType);
-    const trailerTypeItems = normalizeDictionaryItems(raw.trailer_type_items, props.trailerTypeOptions, selectedTrailerType);
-    const weightValue = raw.weight_value ?? raw.weight_kg ?? null;
-
-    return {
-        name: raw.name ?? '',
-        description: raw.description ?? '',
-        weight_value: weightValue,
-        weight_kg: weightValue,
-        weight_unit: raw.weight_unit === 't' ? 't' : 'kg',
-        volume_m3: raw.volume_m3 ?? null,
-        length_m: raw.length_m ?? null,
-        width_m: raw.width_m ?? null,
-        height_m: raw.height_m ?? null,
-        diameter_m: raw.diameter_m ?? null,
-        pack_type_id: selectedPackageType ? normalizeNullableNumber(selectedPackageType.value) : normalizeNullableNumber(raw.pack_type_id),
-        pack_type_label: raw.pack_type_label ?? selectedPackageType?.label ?? '',
-        package_type: raw.package_type ?? selectedPackageType?.code ?? null,
-        loading_type_id: loadingTypeItems[0]?.id ?? normalizeNullableNumber(raw.loading_type_id),
-        loading_type_ids: loadingTypeItems.map((item) => item.id).filter((id) => id !== null),
-        loading_type_code: loadingTypeItems[0]?.code ?? raw.loading_type_code ?? null,
-        loading_type_label: loadingTypeItems[0]?.label ?? raw.loading_type_label ?? '',
-        loading_type_items: loadingTypeItems,
-        truck_body_type_id: truckBodyTypeItems[0]?.id ?? normalizeNullableNumber(raw.truck_body_type_id),
-        truck_body_type_ids: truckBodyTypeItems.map((item) => item.id).filter((id) => id !== null),
-        truck_body_type_code: truckBodyTypeItems[0]?.code ?? raw.truck_body_type_code ?? null,
-        truck_body_type_label: truckBodyTypeItems[0]?.label ?? raw.truck_body_type_label ?? '',
-        truck_body_type_items: truckBodyTypeItems,
-        trailer_type_id: trailerTypeItems[0]?.id ?? normalizeNullableNumber(raw.trailer_type_id),
-        trailer_type_ids: trailerTypeItems.map((item) => item.id).filter((id) => id !== null),
-        trailer_type_code: trailerTypeItems[0]?.code ?? raw.trailer_type_code ?? null,
-        trailer_type_label: trailerTypeItems[0]?.label ?? raw.trailer_type_label ?? '',
-        trailer_type_items: trailerTypeItems,
-        package_count: raw.package_count ?? null,
-        dangerous_goods: cargoType === 'dangerous',
-        dangerous_class: raw.dangerous_class ?? '',
-        hs_code: raw.hs_code ?? '',
-        cargo_type_id: effectiveCargoType ? normalizeNullableNumber(effectiveCargoType.value) : normalizeNullableNumber(raw.cargo_type_id),
-        cargo_type_label: raw.cargo_type_label ?? effectiveCargoType?.label ?? '',
-        cargo_type: cargoType,
-        is_oversized: Boolean(raw.is_oversized ?? cargoType === 'oversized'),
-        is_fragile: Boolean(raw.is_fragile ?? cargoType === 'fragile'),
-        ati_cargo_payload: normalizeAtiCargoPayload(raw.ati_cargo_payload),
-        performer_allocations: normalizePerformerAllocations(
-            raw.performer_allocations ?? normalizeAtiCargoPayload(raw.ati_cargo_payload).performer_allocations,
-        ),
-    };
-}
-
-function cargoWeightInKg(item) {
-    const value = parseLocaleDecimal(item.weight_value ?? item.weight_kg ?? 0) ?? 0;
-    if (item.weight_unit === 't') {
-        return value * 1000;
-    }
-
-    return value;
-}
-
-/** Вес и габариты в строке — на одно место; множитель для сводок по числу мест. */
-function cargoPackageCountFactor(item) {
-    const n = parseLocaleDecimal(item.package_count);
-    if (n !== null && n > 0) {
-        return Math.trunc(n);
-    }
-
-    return 1;
-}
-
-function cargoLineTotalWeightKg(item) {
-    return cargoWeightInKg(item) * cargoPackageCountFactor(item);
-}
-
-function cargoLineTotalVolumeM3(item) {
-    const per = parseLocaleDecimal(item.volume_m3);
-    if (per === null || per <= 0) {
-        return 0;
-    }
-
-    return per * cargoPackageCountFactor(item);
-}
-
-function cargoHasDimensions(item) {
-    return [item.length_m, item.width_m, item.height_m].some((v) => v !== null && v !== undefined && String(v).trim() !== '');
-}
-
-function cargoDimensionsLabel(item) {
-    const l = parseLocaleDecimal(item.length_m);
-    const w = parseLocaleDecimal(item.width_m);
-    const h = parseLocaleDecimal(item.height_m);
-
-    const lengthLabel = l !== null ? l.toFixed(2) : '—';
-    const widthLabel = w !== null ? w.toFixed(2) : '—';
-    const heightLabel = h !== null ? h.toFixed(2) : '—';
-
-    return `${lengthLabel}×${widthLabel}×${heightLabel} м`;
-}
-
-/**
- * Объём по габаритам (м³). Только если заданы все три стороны и они положительны.
- */
-function cargoComputedVolumeM3(item) {
-    const l = parseLocaleDecimal(item.length_m);
-    const w = parseLocaleDecimal(item.width_m);
-    const h = parseLocaleDecimal(item.height_m);
-
-    if (l === null || w === null || h === null || l <= 0 || w <= 0 || h <= 0) {
-        return null;
-    }
-
-    return l * w * h;
-}
-
-function cargoDimensionFieldsEmpty(item) {
-    return [item.length_m, item.width_m, item.height_m].every(
-        (v) => v === null || v === undefined || v === '',
-    );
-}
-
-/**
- * Текст для readonly «Объём»: сначала расчёт по габаритам, иначе значение из базы.
- */
-function cargoVolumeDisplay(item) {
-    const computed = cargoComputedVolumeM3(item);
-    if (computed !== null) {
-        return (Math.round(computed * 1000) / 1000).toFixed(3);
-    }
-
-    const legacy = parseLocaleDecimal(item.volume_m3);
-    if (legacy !== null) {
-        return legacy.toFixed(3);
-    }
-
-    return '';
-}
-
-function onCargoDecimalInput(item, field, event) {
-    item[field] = sanitizeDecimalInput(event.target.value);
-
-    if (field === 'weight_value') {
-        item.weight_kg = item.weight_value;
-    }
-}
-
-function selectedLoadingTypeCodes() {
-    const fromCargo = form.cargo_items
-        .flatMap((item) => Array.isArray(item.loading_type_items) && item.loading_type_items.length > 0
-            ? item.loading_type_items.map((selected) => selected.code)
-            : [item.loading_type_code])
-        .filter((value) => value !== null && value !== undefined && String(value).trim() !== '')
-        .map((value) => String(value).trim());
-
-    return [...new Set(fromCargo.length > 0 ? fromCargo : (Array.isArray(form.loading_types) ? form.loading_types : []))];
-}
+const normalizeCargoItem = buildNormalizeCargoItem(props, normalizeNullableNumber);
 
 const initialWizardPerformers = Array.isArray(props.order?.performers)
     ? props.order.performers.map((performer) => normalizePerformer({
@@ -2386,14 +1889,6 @@ const wizardBodyInert = computed(() => {
     return !isOrderFormEditable.value;
 });
 
-const canEditFinancialFields = computed(() => {
-    if (!isEditing.value) {
-        return true;
-    }
-
-    return props.order?.can_edit_financial_fields !== false;
-});
-
 function performerHasLoadingActual(performer) {
     if (!performer) {
         return false;
@@ -2454,16 +1949,6 @@ const isMobileStandalone = computed(() => {
 });
 const selectedClient = computed(() => contractors.value.find((contractor) => Number(contractor.id) === Number(form.client_id)) ?? null);
 const carrierOptions = computed(() => contractors.value.filter((contractor) => contractor.type === 'carrier' || contractor.type === 'both'));
-const additionalCostContractorOptions = computed(() => contractors.value.filter((contractor) => {
-    const type = String(contractor.type ?? '');
-
-    return type === 'contractor' || type === 'carrier' || type === 'both';
-}));
-const legContractorCosts = computed(() => (
-    Array.isArray(form.financial_term.contractors_costs)
-        ? form.financial_term.contractors_costs.filter((row) => !isAdditionalContractorCost(row))
-        : []
-));
 
 const customerDebtBlocked = computed(() => !isEditing.value && Boolean(selectedClient.value?.debt_limit_reached));
 
@@ -3132,27 +2617,6 @@ function performerCarrierSearchLabel(performerIndex, contractorId) {
     return fromRow || '';
 }
 
-function costRowTitle(cost) {
-    const contractor = getContractorById(cost?.contractor_id);
-    const contractorName = contractor?.name ? String(contractor.name).trim() : String(cost?.contractor_name ?? '').trim();
-    const stagePart = stageLabel(cost?.stage);
-    const slotPart = cost?.carrier_slot ? ` · ${splitCarrierSlotLabel(cost.carrier_slot)}` : '';
-
-    if (contractorName !== '') {
-        return `${stagePart}${slotPart} · ${contractorName}`;
-    }
-
-    return `${stagePart}${slotPart}`;
-}
-
-function contractorCostAmountLabel(cost) {
-    return isOwnFleetExecutionMode(cost?.execution_mode) ? 'Примерная стоимость' : 'Стоимость перевозки';
-}
-
-function contractorCostOrderDate(cost) {
-    return form.order_date;
-}
-
 function carrierSearchKey(kind, index) {
     return `${kind}-${index}`;
 }
@@ -3318,6 +2782,9 @@ function applyClientDefaults(contractor) {
         form.special_notes = contractor.cooperation_terms_notes;
     }
 }
+
+let syncCarrierNormsByLegFromPerformers = () => {};
+let syncContractorCostsFromPerformers = () => {};
 
 function applyCarrierNormsDefaultsByStage(stage, contractorId) {
     const norms = contractorNormsDefaults(getContractorById(contractorId), 'default_carrier_norms_penalties');
@@ -3790,175 +3257,43 @@ const hasBorderCrossingPoint = computed(
     () => Array.isArray(form.route_points) && form.route_points.some((p) => p.type === 'border_crossing'),
 );
 
-const cargoSummary = computed(() => {
-    return form.cargo_items.reduce((summary, item) => {
-        summary.totalWeight += cargoLineTotalWeightKg(item);
-        summary.totalVolume += cargoLineTotalVolumeM3(item);
-        summary.totalPackages += Number(item.package_count || 0);
-
-        return summary;
-    }, {
-        totalWeight: 0,
-        totalVolume: 0,
-        totalPackages: 0,
-    });
+const financeTab = useOrderWizardFinanceTab({
+    form,
+    props,
+    isEditing,
+    contractors,
+    getContractorById,
+    ensureContractorInLocalList,
+    normalizeContractorCost,
+    normalizePaymentFormCode,
+    contractorPaymentSchedule,
+    applyCarrierNormsDefaultsByStage,
+    isPerformerSplit,
+    isAdditionalContractorCost,
+    costMatchesPerformerSlot,
+    blankAdditionalCostRow,
+    MIN_CONTRACTOR_QUERY_LENGTH,
+    additionalExpenseAmountFieldClass,
+    stageMatches,
+    stageLabel,
+    toStageKey,
+    orderPs,
+    normalizeNullableNumber,
+    highlightRequiredField,
+    crmFieldFluid,
+    paymentFormOptions,
 });
 
-const needsCargoPerformerAllocationUi = computed(() => needsCargoPerformerAllocation(form.performers, isPerformerSplit));
+const {
+    tabContext: financeTabContext,
+    canEditFinancialFields,
+    legContractorCosts,
+    syncContractorCostsFromPerformers: syncContractorCostsFromPerformersImpl,
+    syncCarrierNormsByLegFromPerformers: syncCarrierNormsByLegFromPerformersImpl,
+} = financeTab;
 
-function allocationColumnContractorName(stage, carrierSlot) {
-    const performer = form.performers.find((row) => stageMatches(row.stage, stage));
-    if (!performer) {
-        return '';
-    }
-
-    if (isPerformerSplit(performer)) {
-        const slotNumber = Number(carrierSlot ?? 1);
-        const slot = (performer.split_carriers ?? []).find(
-            (row, index) => Number(row?.slot ?? index + 1) === slotNumber,
-        );
-        const fromRow = String(slot?.contractor_name ?? '').trim();
-        if (fromRow !== '') {
-            return fromRow;
-        }
-
-        return String(getContractorById(slot?.contractor_id)?.name ?? '').trim();
-    }
-
-    const fromRow = String(performer.contractor_name ?? '').trim();
-    if (fromRow !== '') {
-        return fromRow;
-    }
-
-    return String(getContractorById(performer.contractor_id)?.name ?? '').trim();
-}
-
-const cargoPerformerAllocationColumns = computed(() =>
-    performerAllocationColumns(
-        form.performers,
-        stageLabel,
-        splitCarrierSlotLabel,
-        isPerformerSplit,
-        allocationColumnContractorName,
-    ),
-);
-
-const cargoPerformerAllocationColumnSummaries = computed(() =>
-    cargoPerformerAllocationColumns.value.map((column) => ({
-        ...column,
-        ...summarizeAllocationsForColumn(form.cargo_items, column.stage, column.carrier_slot),
-    })),
-);
-
-const cargoAllocationRowStatuses = computed(() =>
-    form.cargo_items.map((item) =>
-        cargoAllocationRowStatus(item, cargoPerformerAllocationColumns.value, stageLabel),
-    ),
-);
-
-function syncCargoAllocationMatrixSlots(options = {}) {
-    if (!needsCargoPerformerAllocationUi.value) {
-        return;
-    }
-
-    remapCargoAllocationsToCanonicalStages(form.cargo_items);
-
-    if (options.pruneOrphans !== true) {
-        return;
-    }
-
-    const allowedKeys = new Set(cargoPerformerAllocationColumns.value.map((column) => column.key));
-    pruneCargoAllocationsToColumns(form.cargo_items, allowedKeys);
-}
-
-function syncAllocationWeightFromPackages(row, item) {
-    const packages = Number(row.package_count ?? 0);
-    if (!Number.isFinite(packages) || packages <= 0) {
-        return;
-    }
-
-    const perPlaceKg = cargoLinePerPlaceWeightKg(item);
-    if (perPlaceKg <= 0) {
-        return;
-    }
-
-    const explicit = row.weight_value;
-    if (explicit !== null && explicit !== '' && Number(explicit) > 0) {
-        return;
-    }
-
-    const totalKg = perPlaceKg * packages;
-    row.weight_value = item.weight_unit === 't'
-        ? Math.round((totalKg / 1000) * 1000) / 1000
-        : Math.round(totalKg * 100) / 100;
-}
-
-function allocationWeightFieldPlaceholder(item, column) {
-    const allocation = findCargoAllocation(item, column.stage, column.carrier_slot);
-    if (!allocation) {
-        return 'кг';
-    }
-
-    return allocationWeightPlaceholder(allocation, item);
-}
-
-function onCargoAllocationPackagesInput(item, column, rawValue) {
-    const row = ensureCargoAllocation(item, column.stage, column.carrier_slot);
-    row.package_count = rawValue === '' || rawValue === null ? null : Number(rawValue);
-    syncAllocationWeightFromPackages(row, item);
-    touchCargoItemAllocations(item);
-}
-
-function onCargoAllocationWeightInput(item, column, rawValue) {
-    const row = ensureCargoAllocation(item, column.stage, column.carrier_slot);
-    row.weight_value = rawValue === '' || rawValue === null ? null : Number(rawValue);
-    touchCargoItemAllocations(item);
-}
-
-/** Явно помечаем массив allocations изменённым для useForm / Vue. */
-function touchCargoItemAllocations(item) {
-    if (!Array.isArray(item.performer_allocations)) {
-        item.performer_allocations = [];
-    }
-    item.performer_allocations = [...item.performer_allocations];
-}
-
-function performerCargoSummaryLabel(stage, carrierSlot) {
-    const summary = summarizeAllocationsForColumn(form.cargo_items, stage, carrierSlot);
-    if (!summary.hasAny) {
-        return null;
-    }
-
-    return `${summary.totalPackages} мест · ${summary.totalWeightKg.toFixed(0)} кг`;
-}
-
-watch(
-    () => form.performers.map((performer, index) => ({
-        index,
-        stage: performer.stage,
-        carrier_mode: performer.carrier_mode,
-        split_count: Array.isArray(performer.split_carriers) ? performer.split_carriers.length : 0,
-    })),
-    () => {
-        syncCargoAllocationMatrixSlots({ pruneOrphans: true });
-    },
-);
-
-watch(
-    () => form.cargo_items,
-    (items) => {
-        items.forEach((item) => {
-            item.dangerous_goods = item.cargo_type === 'dangerous';
-            const v = cargoComputedVolumeM3(item);
-            if (v !== null) {
-                item.volume_m3 = Math.round(v * 1000) / 1000;
-            } else if (!cargoDimensionFieldsEmpty(item)) {
-                item.volume_m3 = null;
-            }
-        });
-    },
-    { deep: true, immediate: true },
-);
+syncContractorCostsFromPerformers = syncContractorCostsFromPerformersImpl;
+syncCarrierNormsByLegFromPerformers = syncCarrierNormsByLegFromPerformersImpl;
 
 /** Ошибки валидации по документам и полю order_payload (вкладка «Документы»). */
 const documentTabValidationMessages = computed(() => {
@@ -4415,10 +3750,6 @@ function handleRoutePointDragEnd() {
     dragOverRoutePointIndex.value = null;
 }
 
-function addCargoItem() {
-    form.cargo_items.push(normalizeCargoItem({}));
-}
-
 function addDocumentFor(party, stage = null, overrides = {}) {
     form.documents.push(normalizeDocument({
         party,
@@ -4440,86 +3771,28 @@ function removeItem(collection, index) {
     }
 }
 
-function contractorCostRowHasPaymentDetails(costRow) {
-    if (!costRow || typeof costRow !== 'object') {
-        return false;
-    }
+const cargoTab = useOrderWizardCargoTab({
+    form,
+    props,
+    getContractorById,
+    highlightRequiredField,
+    crmFieldFluid,
+    removeItem,
+    cargoAllocationFieldClass,
+    normalizeNullableNumber,
+});
 
-    if (String(costRow.payment_terms ?? '').trim() !== '') {
-        return true;
-    }
+const {
+    tabContext: cargoTabContext,
+    initCargoTabSideEffects,
+    serializeCargoItemsForSubmit,
+    selectedLoadingTypeCodes,
+    syncCargoAllocationMatrixSlots,
+    cargoPerformerAllocationColumns,
+    needsCargoPerformerAllocationUi,
+} = cargoTab;
 
-    const schedule = costRow.payment_schedule;
-    if (!schedule || typeof schedule !== 'object') {
-        return false;
-    }
-
-    if (orderPs.usesInstallments(schedule)) {
-        return true;
-    }
-
-    return Boolean(schedule.has_prepayment)
-        || Number(schedule.postpayment_days || 0) > 0
-        || Number(schedule.prepayment_days || 0) > 0;
-}
-
-function syncContractorCostsFromPerformers() {
-    const existingRows = Array.isArray(form.financial_term.contractors_costs)
-        ? form.financial_term.contractors_costs.filter((row) => !isAdditionalContractorCost(row))
-        : [];
-
-    const syncedRows = contractorCostRowsFromPerformers(form.performers).map((row) => {
-        const existingRow = existingRows.find(
-            (cost) => !isAdditionalContractorCost(cost) && costMatchesPerformerSlot(cost, row.performer, row.slot),
-        );
-
-        const nextRow = normalizeContractorCost({
-            ...existingRow,
-            stage: row.stage,
-            carrier_slot: row.carrier_slot,
-            contractor_id: row.contractor_id,
-            contractor_name: existingRow?.contractor_name ?? null,
-            execution_mode: row.execution_mode ?? existingRow?.execution_mode ?? null,
-            is_additional: false,
-        });
-
-        const previousContractorId = normalizeNullableNumber(existingRow?.contractor_id);
-        const nextContractorId = normalizeNullableNumber(row.contractor_id);
-        const contractorChanged = previousContractorId !== nextContractorId;
-        const shouldApplyCarrierDefaults = nextContractorId !== null
-            && (contractorChanged || !contractorCostRowHasPaymentDetails(existingRow));
-
-        if (shouldApplyCarrierDefaults) {
-            const contractor = getContractorById(nextContractorId);
-
-            if (contractor?.default_carrier_payment_form) {
-                nextRow.payment_form = normalizePaymentFormCode(contractor.default_carrier_payment_form, 'no_vat');
-            }
-
-            nextRow.payment_schedule = contractorPaymentSchedule(contractor, 'default_carrier_payment_schedule', 'default_carrier_payment_term');
-        }
-
-        return nextRow;
-    });
-    form.financial_term.contractors_costs = syncedRows;
-    syncCarrierNormsByLegFromPerformers();
-
-    form.performers.forEach((performer) => {
-        if (isPerformerSplit(performer)) {
-            performer.split_carriers.forEach((slot) => {
-                if (slot.contractor_id) {
-                    applyCarrierNormsDefaultsByStage(performer.stage, slot.contractor_id);
-                }
-            });
-
-            return;
-        }
-
-        if (performer.contractor_id) {
-            applyCarrierNormsDefaultsByStage(performer.stage, performer.contractor_id);
-        }
-    });
-}
+initCargoTabSideEffects();
 
 const routeTab = useOrderWizardRouteTab({
     form,
@@ -4604,309 +3877,71 @@ const mainTabContext = {
 
 provide(ORDER_WIZARD_MAIN_TAB_KEY, mainTabContext);
 
-const cargoTabContext = {
-    form,
-    highlightRequiredField,
-    cargoTypeOptions: props.cargoTypeOptions,
-    packageTypeOptions: props.packageTypeOptions,
-    loadingTypeOptions: props.loadingTypeOptions,
-    truckBodyTypeOptions: props.truckBodyTypeOptions,
-    trailerTypeOptions: props.trailerTypeOptions,
-    cargoTitleSuggestions: props.cargoTitleSuggestions,
-    crmFieldFluid,
-    removeItem,
-    addCargoItem,
-    applyCargoTypeOption,
-    applyPackageTypeOption,
-    applyLoadingTypeOption,
-    applyTruckBodyTypeOption,
-    applyTrailerTypeOption,
-    dictionarySelectionLabel,
-    onCargoDecimalInput,
-    cargoComputedVolumeM3,
-    cargoLineTotalWeightKg,
-    cargoPackageCountFactor,
-    cargoWeightInKg,
-    cargoLineTotalVolumeM3,
-    cargoHasDimensions,
-    cargoDimensionsLabel,
-    cargoSummary,
-    needsCargoPerformerAllocationUi,
-    cargoPerformerAllocationColumns,
-    cargoPerformerAllocationColumnSummaries,
-    cargoAllocationRowStatuses,
-    cargoAllocationFieldClass,
-    findCargoAllocation,
-    onCargoAllocationPackagesInput,
-    onCargoAllocationWeightInput,
-    allocationWeightFieldPlaceholder,
-};
-
 provide(ORDER_WIZARD_CARGO_TAB_KEY, cargoTabContext);
-
-const financeTabContext = {
-    form,
-    order: props.order,
-    canEditFinancialFields,
-    highlightRequiredField,
-    currencyOptions: props.currencyOptions,
-    paymentFormOptions: props.paymentFormOptions,
-    legContractorCosts,
-    costRowTitle,
-    contractorCostAmountLabel,
-    contractorCostOrderDate,
-    syncContractorCostsFromPerformers,
-    crmFieldFluid,
-    addAdditionalCostRow,
-    removeAdditionalCostRow,
-    additionalCostSearchValue,
-    setAdditionalCostSearchValue,
-    setAdditionalCostResultsVisible,
-    hideAdditionalCostResults,
-    isAdditionalCostResultsVisible,
-    additionalCostCombinedResults,
-    selectAdditionalCostContractor,
-    additionalExpenseAmountFieldClass,
-    bonusMultiplier: props.bonusMultiplier,
-};
 
 provide(ORDER_WIZARD_FINANCE_TAB_KEY, financeTabContext);
 
-function addAdditionalCostRow() {
-    form.financial_term.additional_costs.push(blankAdditionalCostRow(form.order_date));
-}
-
-function removeAdditionalCostRow(index) {
-    if (!Array.isArray(form.financial_term.additional_costs)) {
-        return;
+applyCounterpartyContractor = (target, contractor) => {
+    if (target.kind === 'performer-slot' && target.index !== null) {
+        const parsed = routeTab.parsePerformerCarrierTarget('performer-slot', target.index);
+        routeTab.selectSplitPerformerContractor(parsed.legIndex, parsed.slotIndex, contractor);
+    } else if (target.kind === 'performer' && target.index !== null) {
+        routeTab.selectPerformerContractor(target.index, contractor);
+    } else {
+        selectClient(contractor);
     }
+};
 
-    const row = form.financial_term.additional_costs[index];
-    const key = row?.id != null ? additionalCostSearchKey(row.id) : null;
+const {
+    showOrderDocumentAttachModal,
+    orderDocumentAttachPendingFile,
+    orderDocumentAttachPresetIndex,
+    orderDocumentAttachNewDocType,
+    orderDocumentAttachTargetKind,
+    orderDocumentAttachStage,
+    orderDocumentAttachModalFileInputRef,
+    orderDocumentAttachModalTitle,
+    orderDocumentAttachPresetSummary,
+    openOrderDocumentAttachModal,
+    closeOrderDocumentAttachModal,
+    confirmOrderDocumentAttach,
+    onOrderDocumentAttachModalFileChange,
+} = useOrderWizardDocumentAttach({
+    form,
+    props,
+    page,
+    isOrderFormEditable,
+    stageLabel,
+    stageMatches,
+    addDocumentFor,
+});
 
-    if (key) {
-        const { [key]: _search, ...restSearch } = additionalCostSearch.value;
-        additionalCostSearch.value = restSearch;
-
-        const { [key]: _visible, ...restVisible } = showAdditionalCostResults.value;
-        showAdditionalCostResults.value = restVisible;
-
-        const { [key]: _server, ...restServer } = serverAdditionalCostSearchResults.value;
-        serverAdditionalCostSearchResults.value = restServer;
-    }
-
-    form.financial_term.additional_costs.splice(index, 1);
-}
-
-function additionalCostSearchKey(rowId) {
-    return String(rowId ?? '');
-}
-
-function isAdditionalCostContractorType(type) {
-    const normalized = String(type ?? '');
-
-    return normalized === 'contractor' || normalized === 'carrier' || normalized === 'both';
-}
-
-function filterAdditionalCostSearchResults(list) {
-    return (Array.isArray(list) ? list : []).filter((contractor) => isAdditionalCostContractorType(contractor?.type));
-}
-
-function additionalCostSearchValue(rowId) {
-    return additionalCostSearch.value[additionalCostSearchKey(rowId)] ?? '';
-}
-
-function setAdditionalCostSearchValue(rowId, value) {
-    const key = additionalCostSearchKey(rowId);
-    additionalCostSearch.value = {
-        ...additionalCostSearch.value,
-        [key]: value,
-    };
-    queueAdditionalCostSearch(rowId, value);
-}
-
-function setAdditionalCostResultsVisible(rowId, visible) {
-    const key = additionalCostSearchKey(rowId);
-    showAdditionalCostResults.value = {
-        ...showAdditionalCostResults.value,
-        [key]: visible,
-    };
-}
-
-function isAdditionalCostResultsVisible(rowId) {
-    return Boolean(showAdditionalCostResults.value[additionalCostSearchKey(rowId)]);
-}
-
-function hideAdditionalCostResults(rowId) {
-    window.setTimeout(() => setAdditionalCostResultsVisible(rowId, false), 150);
-}
-
-function queueAdditionalCostSearch(rowId, query) {
-    const key = additionalCostSearchKey(rowId);
-
-    if (additionalCostSearchTimers.value[key]) {
-        clearTimeout(additionalCostSearchTimers.value[key]);
-    }
-
-    if (String(query ?? '').trim().length < MIN_CONTRACTOR_QUERY_LENGTH) {
-        serverAdditionalCostSearchResults.value = {
-            ...serverAdditionalCostSearchResults.value,
-            [key]: [],
-        };
-
-        return;
-    }
-
-    additionalCostSearchTimers.value[key] = window.setTimeout(async () => {
-        await searchAdditionalCostContractors(rowId, String(query).trim());
-    }, 550);
-}
-
-async function searchAdditionalCostContractors(rowId, query) {
-    const key = additionalCostSearchKey(rowId);
-
-    additionalCostSearchAbortControllers.value[key]?.abort();
-    const ac = new AbortController();
-    additionalCostSearchAbortControllers.value = {
-        ...additionalCostSearchAbortControllers.value,
-        [key]: ac,
-    };
-    const seq = (additionalCostSearchFetchSeq.value[key] ?? 0) + 1;
-    additionalCostSearchFetchSeq.value = {
-        ...additionalCostSearchFetchSeq.value,
-        [key]: seq,
-    };
-    isSearchingAdditionalCosts.value = {
-        ...isSearchingAdditionalCosts.value,
-        [key]: true,
-    };
-
-    try {
-        const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&limit=100`, {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            credentials: 'include',
-            signal: ac.signal,
-        });
-
-        if (!response.ok) {
-            throw new Error(`Contractor search failed with status ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (seq !== additionalCostSearchFetchSeq.value[key]) {
-            return;
-        }
-
-        serverAdditionalCostSearchResults.value = {
-            ...serverAdditionalCostSearchResults.value,
-            [key]: filterAdditionalCostSearchResults(data.contractors || []),
-        };
-    } catch (error) {
-        if (error?.name !== 'AbortError') {
-            console.error('Additional cost contractor search error', error);
-            serverAdditionalCostSearchResults.value = {
-                ...serverAdditionalCostSearchResults.value,
-                [key]: [],
-            };
-        }
-    } finally {
-        if (seq === additionalCostSearchFetchSeq.value[key]) {
-            isSearchingAdditionalCosts.value = {
-                ...isSearchingAdditionalCosts.value,
-                [key]: false,
-            };
-        }
-    }
-}
-
-function additionalCostCombinedResults(rowId) {
-    const query = additionalCostSearchValue(rowId).trim().toLowerCase();
-    const key = additionalCostSearchKey(rowId);
-    const serverResults = serverAdditionalCostSearchResults.value[key] ?? [];
-    const selectedRow = (form.financial_term.additional_costs ?? []).find(
-        (row) => additionalCostSearchKey(row.id) === key,
-    );
-    const selectedContractor = getContractorById(selectedRow?.contractor_id);
-
-    if (query.length < MIN_CONTRACTOR_QUERY_LENGTH) {
-        const visibleContractors = additionalCostContractorOptions.value
-            .filter((contractor) => {
-                const name = String(contractor.name ?? '').toLowerCase();
-                const fullName = String(contractor.full_name ?? '').toLowerCase();
-                const inn = String(contractor.inn ?? '').toLowerCase();
-
-                if (!query) {
-                    return true;
-                }
-
-                return name.includes(query) || fullName.includes(query) || inn.includes(query);
-            })
-            .slice(0, 50);
-
-        if (!selectedContractor || visibleContractors.some((contractor) => contractor.id === selectedContractor.id)) {
-            return visibleContractors;
-        }
-
-        return [selectedContractor, ...visibleContractors.slice(0, 49)];
-    }
-
-    const serverIds = new Set(serverResults.map((contractor) => contractor.id));
-    const localResults = additionalCostContractorOptions.value
-        .filter((contractor) => {
-            const name = String(contractor.name ?? '').toLowerCase();
-            const fullName = String(contractor.full_name ?? '').toLowerCase();
-            const inn = String(contractor.inn ?? '').toLowerCase();
-
-            return name.includes(query) || fullName.includes(query) || inn.includes(query);
-        })
-        .filter((contractor) => !serverIds.has(contractor.id));
-
-    const merged = [...serverResults, ...localResults].slice(0, 50);
-
-    if (selectedContractor && !merged.some((contractor) => contractor.id === selectedContractor.id)) {
-        return [selectedContractor, ...merged.slice(0, 49)];
-    }
-
-    return merged;
-}
-
-function selectAdditionalCostContractor(index, contractor) {
-    ensureContractorInLocalList(contractor);
-
-    const row = form.financial_term.additional_costs[index];
-    if (!row) {
-        return;
-    }
-
-    row.contractor_id = normalizeNullableNumber(contractor.id);
-    row.contractor_name = contractor.name ?? null;
-
-    if (contractor.default_carrier_payment_form) {
-        row.payment_form = normalizePaymentFormCode(contractor.default_carrier_payment_form, 'no_vat');
-    }
-
-    row.payment_schedule = contractorPaymentSchedule(contractor, 'default_carrier_payment_schedule', 'default_carrier_payment_term');
-    setAdditionalCostSearchValue(row.id, contractor.name ?? '');
-    setAdditionalCostResultsVisible(row.id, false);
-}
-
-function syncCarrierNormsByLegFromPerformers() {
-    const existingRows = Array.isArray(form.financial_term.carrier_norms_by_leg)
-        ? form.financial_term.carrier_norms_by_leg
-        : [];
-
-    form.financial_term.carrier_norms_by_leg = form.performers.map((performer) => {
-        const existingRow = existingRows.find((row) => stageMatches(row.stage, performer.stage));
-
-        return normalizePartyNormsPenaltiesWithStage({
-            ...existingRow,
-            stage: performer.stage,
-        });
-    });
-}
+const { submit, markOrderDisruption } = useOrderWizardSubmit({
+    form,
+    props,
+    activeTab,
+    isEditing,
+    isOrderFormEditable,
+    saveAttempted,
+    coreRequiredFieldsValid,
+    hasSelectedCarrier,
+    hasClientPrice,
+    canShowMarkDisruptionButton,
+    syncContractorCostsFromPerformers,
+    needsCargoPerformerAllocationUi,
+    cargoPerformerAllocationColumns,
+    serializeCargoItemsForSubmit,
+    selectedLoadingTypeCodes,
+    normalizeNullableNumber,
+    normalizePaymentFormCode,
+    defaultClientPaymentForm,
+    toStageKey,
+    stageLabel,
+    printFormTemplateSelection,
+    orderBasicTermsDraft,
+    activeIntakeDraftId,
+    intakeDraftCommitted,
+});
 
 // Watch for changes in contractors_costs to sync back to performers
 // Удалено для предотвращения циклической синхронизации при очистке исполнителя
@@ -5033,233 +4068,6 @@ watch(
     { immediate: true },
 );
 
-const ORDER_DOCUMENT_UPLOAD_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'webp']);
-
-const showOrderDocumentAttachModal = ref(false);
-const orderDocumentAttachPendingFile = ref(null);
-const orderDocumentAttachPresetIndex = ref(null);
-const orderDocumentAttachNewDocType = ref('request');
-const orderDocumentAttachTargetKind = ref('customer');
-const orderDocumentAttachStage = ref(null);
-const orderDocumentGlobalDropActive = ref(false);
-let orderDocumentGlobalDropDepth = 0;
-const orderDocumentGlobalFileInputRef = ref(null);
-const orderDocumentAttachModalFileInputRef = ref(null);
-
-const orderDocumentAttachModalTitle = computed(() => (orderDocumentAttachPresetIndex.value !== null ? 'Заменить файл' : 'Прикрепить файл'));
-
-watch(orderDocumentAttachTargetKind, (kind) => {
-    if (kind === 'carrier' && form.performers.length === 0) {
-        orderDocumentAttachTargetKind.value = 'customer';
-
-        return;
-    }
-    if (kind === 'carrier' && form.performers.length > 0) {
-        const stages = form.performers.map((p) => p.stage);
-        if (orderDocumentAttachStage.value === null || orderDocumentAttachStage.value === '' || !stages.some((s) => stageMatches(s, orderDocumentAttachStage.value))) {
-            orderDocumentAttachStage.value = form.performers[0].stage;
-        }
-    }
-});
-
-function documentStatusLabel(status) {
-    return props.documentStatusOptions.find((o) => o.value === status)?.label ?? status;
-}
-
-function orderDocumentUploadExtension(file) {
-    return (file.name.split('.').pop() || '').toLowerCase();
-}
-
-function onOrderDocumentGlobalDragEnter() {
-    if (!isOrderFormEditable.value) {
-        return;
-    }
-    orderDocumentGlobalDropDepth += 1;
-    orderDocumentGlobalDropActive.value = true;
-}
-
-function onOrderDocumentGlobalDragLeave() {
-    orderDocumentGlobalDropDepth = Math.max(0, orderDocumentGlobalDropDepth - 1);
-    if (orderDocumentGlobalDropDepth === 0) {
-        orderDocumentGlobalDropActive.value = false;
-    }
-}
-
-function onOrderDocumentGlobalDragOver(event) {
-    if (!isOrderFormEditable.value) {
-        return;
-    }
-    const dt = event.dataTransfer;
-    if (dt) {
-        dt.dropEffect = 'copy';
-    }
-}
-
-async function onOrderDocumentGlobalDrop(event) {
-    orderDocumentGlobalDropDepth = 0;
-    orderDocumentGlobalDropActive.value = false;
-    if (!isOrderFormEditable.value) {
-        return;
-    }
-    const file = event.dataTransfer?.files?.[0] ?? null;
-    if (!file) {
-        return;
-    }
-    await openOrderDocumentAttachModal({ file });
-}
-
-function triggerOrderDocumentGlobalFilePick() {
-    if (!isOrderFormEditable.value) {
-        return;
-    }
-    orderDocumentGlobalFileInputRef.value?.click();
-}
-
-async function onOrderDocumentGlobalFileInputChange(event) {
-    const file = event.target.files?.[0] ?? null;
-    const input = event.target;
-    if (input && 'value' in input) {
-        input.value = '';
-    }
-    if (!file) {
-        return;
-    }
-    await openOrderDocumentAttachModal({ file });
-}
-
-async function setOrderDocumentAttachPendingFile(file) {
-    if (!file) {
-        orderDocumentAttachPendingFile.value = null;
-
-        return;
-    }
-    const ext = orderDocumentUploadExtension(file);
-    if (!ORDER_DOCUMENT_UPLOAD_EXTENSIONS.has(ext)) {
-        window.alert(
-            'Недопустимый тип файла. Разрешены: PDF, Word, Excel, изображения (JPG, PNG, WebP).',
-        );
-
-        return;
-    }
-    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
-    orderDocumentAttachPendingFile.value = file;
-}
-
-async function openOrderDocumentAttachModal(options = {}) {
-    const file = options.file ?? null;
-    const rawPreset = options.presetIndex;
-    const presetIndex = rawPreset !== undefined && rawPreset !== null && form.documents[rawPreset]
-        ? rawPreset
-        : null;
-
-    orderDocumentAttachPresetIndex.value = presetIndex;
-    orderDocumentAttachPendingFile.value = null;
-
-    if (presetIndex !== null) {
-        const doc = form.documents[presetIndex];
-        orderDocumentAttachTargetKind.value = doc.party === 'carrier' ? 'carrier' : 'customer';
-        orderDocumentAttachStage.value = doc.party === 'carrier' ? doc.stage : null;
-    } else {
-        orderDocumentAttachTargetKind.value = 'customer';
-        orderDocumentAttachStage.value = form.performers[0]?.stage ?? null;
-        orderDocumentAttachNewDocType.value = props.documentTypeOptions[0]?.value ?? 'request';
-    }
-
-    if (file) {
-        await setOrderDocumentAttachPendingFile(file);
-    }
-
-    showOrderDocumentAttachModal.value = true;
-}
-
-function closeOrderDocumentAttachModal() {
-    showOrderDocumentAttachModal.value = false;
-    orderDocumentAttachPendingFile.value = null;
-    orderDocumentAttachPresetIndex.value = null;
-    if (orderDocumentAttachModalFileInputRef.value) {
-        orderDocumentAttachModalFileInputRef.value.value = '';
-    }
-    if (orderDocumentGlobalFileInputRef.value) {
-        orderDocumentGlobalFileInputRef.value.value = '';
-    }
-}
-
-async function onOrderDocumentAttachModalFileChange(event) {
-    const file = event.target.files?.[0] ?? null;
-    await setOrderDocumentAttachPendingFile(file);
-    const input = event.target;
-    if (input && 'value' in input) {
-        input.value = '';
-    }
-}
-
-async function confirmOrderDocumentAttach() {
-    const file = orderDocumentAttachPendingFile.value;
-    if (!file) {
-        window.alert('Выберите файл.');
-
-        return;
-    }
-    const presetIdx = orderDocumentAttachPresetIndex.value;
-    let index;
-    if (presetIdx !== null) {
-        if (!form.documents[presetIdx]) {
-            window.alert('Документ не найден.');
-
-            return;
-        }
-        index = presetIdx;
-    } else {
-        const party = orderDocumentAttachTargetKind.value === 'carrier' ? 'carrier' : 'customer';
-        const stage = party === 'carrier' ? orderDocumentAttachStage.value : null;
-        if (party === 'carrier' && (stage === null || stage === '')) {
-            window.alert('Выберите плечо маршрута.');
-
-            return;
-        }
-        const docType = orderDocumentAttachNewDocType.value;
-        addDocumentFor(party, stage, { type: docType, flow: 'uploaded' });
-        index = form.documents.length - 1;
-    }
-    await assignDocumentFileAtIndex(index, file);
-    closeOrderDocumentAttachModal();
-}
-
-async function assignDocumentFileAtIndex(index, file) {
-    if (!file) {
-        return;
-    }
-    const ext = orderDocumentUploadExtension(file);
-    if (!ORDER_DOCUMENT_UPLOAD_EXTENSIONS.has(ext)) {
-        window.alert(
-            'Недопустимый тип файла. Разрешены: PDF, Word, Excel, изображения (JPG, PNG, WebP).',
-        );
-
-        return;
-    }
-    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
-    form.documents[index].file = file;
-    form.documents[index].original_name = file.name;
-}
-
-function documentTypeLabel(type) {
-    return props.documentTypeOptions.find((option) => option.value === type)?.label ?? type;
-}
-
-const orderDocumentAttachPresetSummary = computed(() => {
-    const idx = orderDocumentAttachPresetIndex.value;
-    if (idx === null || !form.documents[idx]) {
-        return '';
-    }
-    const d = form.documents[idx];
-    const partyLabel = d.party === 'carrier' ? 'Перевозчик' : 'Заказчик';
-    const leg = d.party === 'carrier' && d.stage !== null && d.stage !== undefined && String(d.stage).length > 0
-        ? ` · ${stageLabel(d.stage)}`
-        : '';
-
-    return `${partyLabel}${leg} · ${documentTypeLabel(d.type)} · ${documentStatusLabel(d.status)}${d.number ? ` · № ${d.number}` : ''}`;
-});
-
 function documentRequirementLabel(key) {
     return effectiveRequiredDocumentRules.value.find((rule) => rule.key === key)?.label ?? '';
 }
@@ -5336,424 +4144,6 @@ function selectAddress(index, suggestion) {
     };
     syncRoutePointCityFromAddress(point);
     addressSuggestions.value[index] = [];
-}
-
-async function createInlineCounterparty() {
-    inlineContractorSaving.value = true;
-
-    try {
-        const response = await fetch(route('orders.contractors.store'), {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-            },
-            body: JSON.stringify(counterpartyForm.data()),
-        });
-
-        if (!response.ok) {
-            throw new Error(`Inline contractor creation failed with status ${response.status}`);
-        }
-
-        const payload = await response.json();
-        const contractor = payload.contractor;
-
-        contractors.value.unshift(contractor);
-        if (contractor.is_own_company && !isVirtualOwnFleetContractor(contractor)) {
-            ownCompanyOptions.value.unshift(contractor);
-        }
-        if (counterpartyTarget.value.kind === 'performer-slot' && counterpartyTarget.value.index !== null) {
-            const target = parsePerformerCarrierTarget('performer-slot', counterpartyTarget.value.index);
-            selectSplitPerformerContractor(target.legIndex, target.slotIndex, contractor);
-        } else if (counterpartyTarget.value.kind === 'performer' && counterpartyTarget.value.index !== null) {
-            selectPerformerContractor(counterpartyTarget.value.index, contractor);
-        } else {
-            selectClient(contractor);
-        }
-        counterpartyForm.reset();
-        counterpartyForm.type = 'customer';
-        showCounterpartyModal.value = false;
-        counterpartyTarget.value = { kind: 'client', index: null };
-    } catch (error) {
-        console.error(error);
-    } finally {
-        inlineContractorSaving.value = false;
-    }
-}
-
-function normsPenaltiesForSubmit(row) {
-    const n = normalizePartyNormsPenalties(row && typeof row === 'object' ? row : {});
-
-    return {
-        ...(n.stage ? { stage: n.stage } : {}),
-        miss_amount: n.miss_amount,
-        miss_currency: n.miss_currency,
-        downtime_amount: n.downtime_amount,
-        downtime_currency: n.downtime_currency,
-        fine_amount: n.fine_amount,
-        fine_currency: n.fine_currency,
-        penalty_terms: n.penalty_terms,
-        norm_loading_hours: n.norm_loading_hours,
-        norm_customs_hours: n.norm_customs_hours,
-        norm_unloading_hours: n.norm_unloading_hours,
-    };
-}
-
-function buildSubmitPayload() {
-    // Снимок без Vue/Inertia proxy: иначе вложенные суммы иногда уходят в запросе «как при загрузке».
-    const rawFinancial = JSON.parse(JSON.stringify(toRaw(form.financial_term)));
-
-    return {
-        // Basic order fields
-        status: form.status,
-        own_company_id: form.own_company_id,
-        own_company_bank_account_id: form.own_company_bank_account_id && String(form.own_company_bank_account_id).trim() !== ''
-            ? String(form.own_company_bank_account_id).trim()
-            : null,
-        client_id: form.client_id,
-        order_owner_id: form.order_owner_id,
-        responsible_id: form.order_owner_id,
-        dispatcher_id: form.dispatcher_id,
-        compensation_owner_percent: form.dispatcher_id ? form.compensation_owner_percent : 100,
-        compensation_dispatcher_percent: form.dispatcher_id ? form.compensation_dispatcher_percent : 0,
-        order_date: form.order_date,
-        order_number: form.order_number,
-        payment_terms: form.payment_terms,
-        special_notes: form.special_notes,
-        svh_name: form.svh_name,
-        svh_address: form.svh_address,
-        customs_post_code: form.customs_post_code,
-        cargo_declared_sum: form.cargo_declared_sum,
-        is_international_transport: Boolean(form.is_international_transport),
-        additional_expenses: sumAdditionalCostsAmount(form.financial_term.additional_costs),
-        additional_expenses_payment_date: form.financial_term.additional_costs[0]?.service_date || form.order_date || null,
-        insurance: form.insurance,
-        bonus: form.bonus,
-
-        print_form_template_selection: {
-            ...(props.order?.print_form_template_selection ?? {}),
-            ...printFormTemplateSelection,
-        },
-
-        ...(function exportOrderBasicTermsPayload() {
-            if (!orderBasicTermsDraft.dirty) {
-                return {};
-            }
-
-            const payload = {};
-
-            if (orderBasicTermsDraft.customer_basic_terms !== undefined) {
-                payload.customer_basic_terms = orderBasicTermsDraft.customer_basic_terms ?? null;
-            }
-
-            if (orderBasicTermsDraft.carrier_basic_terms !== undefined) {
-                payload.carrier_basic_terms = orderBasicTermsDraft.carrier_basic_terms ?? null;
-            }
-
-            return payload;
-        }()),
-
-        // Performers: полный снимок (split_carriers / carrier_mode), иначе «Несколько исполнителей» не доходит до сервера.
-        performers: form.performers.map((performer) => {
-            const carrierMode = performer.carrier_mode === CARRIER_MODE_SPLIT ? CARRIER_MODE_SPLIT : CARRIER_MODE_SINGLE;
-
-            if (carrierMode === CARRIER_MODE_SPLIT) {
-                return {
-                    stage: toStageKey(performer.stage) || 'leg_1',
-                    carrier_mode: CARRIER_MODE_SPLIT,
-                    contractor_id: null,
-                    contractor_name: null,
-                    fleet_vehicle_id: null,
-                    fleet_driver_id: null,
-                    loading_actual: null,
-                    unloading_actual: null,
-                    split_carriers: (performer.split_carriers ?? []).map((slot, index) => ({
-                        slot: Number(slot?.slot ?? index + 1),
-                        contractor_id: normalizeNullableNumber(slot.contractor_id),
-                        contractor_name: slot.contractor_name ? String(slot.contractor_name).trim() || null : null,
-                        fleet_vehicle_id: normalizeNullableNumber(slot.fleet_vehicle_id),
-                        fleet_driver_id: normalizeNullableNumber(slot.fleet_driver_id),
-                        execution_mode: isOwnFleetExecutionMode(slot?.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
-                        fleet_trip_id: normalizeNullableNumber(slot?.fleet_trip_id),
-                        loading_actual: slot.loading_actual || null,
-                        unloading_actual: slot.unloading_actual || null,
-                    })),
-                    loading_special_conditions: String(performer.loading_special_conditions ?? '').trim() || null,
-                    unloading_special_conditions: String(performer.unloading_special_conditions ?? '').trim() || null,
-                };
-            }
-
-            return {
-                stage: toStageKey(performer.stage) || 'leg_1',
-                carrier_mode: CARRIER_MODE_SINGLE,
-                contractor_id: normalizeNullableNumber(performer.contractor_id),
-                contractor_name: performer.contractor_name ? String(performer.contractor_name).trim() || null : null,
-                fleet_vehicle_id: normalizeNullableNumber(performer.fleet_vehicle_id),
-                fleet_driver_id: normalizeNullableNumber(performer.fleet_driver_id),
-                execution_mode: isOwnFleetExecutionMode(performer?.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
-                fleet_trip_id: normalizeNullableNumber(performer?.fleet_trip_id),
-                loading_actual: performer.loading_actual || null,
-                unloading_actual: performer.unloading_actual || null,
-                loading_special_conditions: String(performer.loading_special_conditions ?? '').trim() || null,
-                unloading_special_conditions: String(performer.unloading_special_conditions ?? '').trim() || null,
-                split_carriers: [],
-            };
-        }),
-
-        // Route points
-        route_points: form.route_points.map((point) => ({
-            stage: toStageKey(point.stage) || 'leg_1',
-            type: point.type,
-            sequence: point.sequence,
-            address: point.address,
-            normalized_data: point.normalized_data || {},
-            planned_date: point.planned_date,
-            planned_time_from: point.planned_time_from || null,
-            planned_time_to: point.planned_time_to || null,
-            actual_date: point.actual_date,
-            actual_time: point.actual_time || null,
-            contact_person: point.contact_person,
-            contact_phone: point.contact_phone,
-            sender_name: point.sender_name,
-            sender_contact: point.sender_contact,
-            sender_phone: point.sender_phone,
-            recipient_name: point.recipient_name,
-            recipient_contact: point.recipient_contact,
-            recipient_phone: point.recipient_phone,
-        })),
-        loading_types: selectedLoadingTypeCodes(),
-
-        // Cargo items: глубокий снимок без proxy, иначе performer_allocations часто не попадают в POST.
-        cargo_items: serializeCargoItemsForSubmit(),
-
-        // Financial term
-        financial_term: {
-            client_price: rawFinancial.client_price,
-            client_currency: rawFinancial.client_currency,
-            client_payment_form: normalizePaymentFormCode(rawFinancial.client_payment_form, defaultClientPaymentForm()),
-            client_request_mode: rawFinancial.client_request_mode,
-            client_payment_schedule: rawFinancial.client_payment_schedule || {},
-            client_payment_terms: rawFinancial.client_payment_terms ?? '',
-            contractors_costs: (rawFinancial.contractors_costs || [])
-                .filter((cost) => !cost?.is_additional && !String(cost?.stage ?? '').startsWith('additional'))
-                .map((cost) => ({
-                stage: cost.stage,
-                carrier_slot: cost.carrier_slot != null && cost.carrier_slot !== '' ? Number(cost.carrier_slot) : null,
-                contractor_id: normalizeNullableNumber(cost.contractor_id),
-                amount: cost.amount,
-                currency: cost.currency || 'RUB',
-                payment_form: normalizePaymentFormCode(cost.payment_form, 'no_vat'),
-                payment_schedule: cost.payment_schedule || {},
-                payment_terms: cost.payment_terms ?? '',
-                execution_mode: isOwnFleetExecutionMode(cost.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
-            })),
-            additional_costs: serializeAdditionalCostsForSubmit(rawFinancial.additional_costs || []),
-            kpi_percent: rawFinancial.kpi_percent,
-            client_norms_penalties: normsPenaltiesForSubmit(rawFinancial.client_norms_penalties),
-            carrier_norms_by_leg: Array.isArray(rawFinancial.carrier_norms_by_leg)
-                ? rawFinancial.carrier_norms_by_leg.map((row) => normsPenaltiesForSubmit(row))
-                : [],
-        },
-
-        // Documents
-        documents: form.documents
-            .filter((document) => !document.is_print_workflow && document.flow !== 'print_template_workflow')
-            .map((document) => ({
-                id: document.id ?? null,
-                type: document.type,
-                flow: 'uploaded',
-                party: document.party,
-                stage: document.stage,
-                contractor_id: document.contractor_id ?? null,
-                carrier_contractor_id: document.carrier_contractor_id ?? null,
-                requirement_key: document.requirement_key,
-                number: document.number,
-                document_date: document.document_date && String(document.document_date).trim() !== ''
-                    ? document.document_date
-                    : null,
-                status: 'signed',
-                template_id: document.template_id,
-                file: document.file instanceof File ? document.file : null,
-            })),
-        ...(activeIntakeDraftId.value && !isEditing.value
-            ? { intake_draft_id: activeIntakeDraftId.value }
-            : {}),
-    };
-}
-
-function markIntakeDraftCommitted() {
-    intakeDraftCommitted.value = true;
-    activeIntakeDraftId.value = null;
-}
-
-function buildWizardSubmitOptions(onError, extra = {}) {
-    return {
-        preserveScroll: true,
-        preserveState: true,
-        onError,
-        ...extra,
-    };
-}
-
-function postWizardPayload(url, payload, onError, extraOptions = {}) {
-    form.processing = true;
-
-    router.post(url, payload, {
-        ...buildWizardSubmitOptions(onError),
-        ...extraOptions,
-        onFinish: () => {
-            form.processing = false;
-            extraOptions.onFinish?.();
-        },
-    });
-}
-
-function markOrderDisruption() {
-    if (!canShowMarkDisruptionButton.value || !props.order?.id) {
-        return;
-    }
-
-    if (! window.confirm('Установить статус «Срыв»? Убедитесь, что по плечам ещё не указана фактическая дата погрузки.')) {
-        return;
-    }
-
-    const previousStatus = form.status;
-    form.status = 'disruption';
-
-    submit({
-        skipCoreValidation: true,
-        revertStatusOnError: previousStatus,
-    });
-}
-
-function submit(options = {}) {
-    const skipCoreValidation = options.skipCoreValidation === true;
-    const revertStatusOnError = options.revertStatusOnError ?? null;
-
-    saveAttempted.value = true;
-
-    if (isEditing.value && !isOrderFormEditable.value) {
-        return;
-    }
-
-    if (! skipCoreValidation && ! coreRequiredFieldsValid.value) {
-        const errors = {};
-
-        if (!form.client_id) {
-            errors.client_id = 'Выберите заказчика.';
-        }
-
-        if (!form.order_date) {
-            errors.order_date = 'Укажите дату заказа.';
-        }
-
-        if (!hasSelectedCarrier.value) {
-            errors.performers = 'Укажите хотя бы одного перевозчика.';
-            errors['financial_term.contractors_costs'] = 'Для сохранения нужен выбранный перевозчик.';
-        }
-
-        if (!hasClientPrice.value) {
-            errors['financial_term.client_price'] = 'Укажите цену клиента больше 0.';
-        }
-
-        if (!form.client_id || !form.order_date) {
-            activeTab.value = 'main';
-        } else if (!hasSelectedCarrier.value) {
-            activeTab.value = 'route';
-        } else if (!hasClientPrice.value) {
-            activeTab.value = 'finance';
-        }
-
-        form.clearErrors().setError(errors);
-
-        return;
-    }
-
-    // Источник перевозчика — вкладка «Маршрут» (performers). Синхронизируем costs перед отправкой;
-    // не перезаписываем performer пустым contractor_id из устаревшего wizard_state.
-    syncContractorCostsFromPerformers();
-
-    if (!skipCoreValidation && needsCargoPerformerAllocationUi.value) {
-        const allocationErrors = validateCargoPerformerAllocations(
-            form.cargo_items,
-            cargoPerformerAllocationColumns.value,
-            true,
-            stageLabel,
-        );
-        if (allocationErrors.length > 0) {
-            activeTab.value = 'cargo';
-            window.alert(allocationErrors.join('\n'));
-
-            return;
-        }
-    }
-
-    const hasNewDocumentFiles = form.documents.some((document) => document.file instanceof File);
-
-    const handleRequestError = (errors) => {
-        if (revertStatusOnError !== null) {
-            form.status = revertStatusOnError;
-        }
-
-        const fieldErrors = errors && typeof errors === 'object' ? errors : {};
-        const hasFieldErrors = Object.keys(fieldErrors).length > 0;
-
-        if (hasFieldErrors) {
-            form.clearErrors().setError(fieldErrors);
-
-            return;
-        }
-
-        form.clearErrors();
-        window.alert('Не удалось сохранить заказ. Обновите страницу и попробуйте снова.');
-    };
-
-    // Multipart FormData с глубокой вложенностью из браузера часто «ломает» financial_term / route_points на PHP.
-    // При новых файлах шлём JSON в `order_payload` и прикладываем бинарники отдельными полями `document_file_{i}`.
-    if (hasNewDocumentFiles) {
-        const payload = buildSubmitPayload();
-        const jsonBody = {
-            ...payload,
-            documents: payload.documents.map(({ file: _file, ...meta }) => meta),
-        };
-        const formData = new FormData();
-        formData.append('order_payload', JSON.stringify(jsonBody));
-        payload.documents.forEach((doc, index) => {
-            if (doc.file instanceof File) {
-                formData.append(`document_file_${index}`, doc.file);
-            }
-        });
-
-        const url = isEditing.value ? route('orders.save', props.order.id) : route('orders.store');
-        postWizardPayload(url, formData, handleRequestError, {
-            forceFormData: true,
-            onSuccess: () => {
-                if (!isEditing.value) {
-                    markIntakeDraftCommitted();
-                }
-            },
-        });
-
-        return;
-    }
-
-    const payload = buildSubmitPayload();
-
-    if (isEditing.value) {
-        if (!props.order?.id) {
-            return;
-        }
-
-        postWizardPayload(route('orders.save', props.order.id), payload, handleRequestError);
-
-        return;
-    }
-
-    postWizardPayload(route('orders.store'), payload, handleRequestError, {
-        onSuccess: markIntakeDraftCommitted,
-    });
 }
 
 onBeforeUnmount(() => {
