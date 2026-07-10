@@ -22,6 +22,7 @@ use App\Support\DocumentRegistryOrderAttentionResolver;
 use App\Support\OrderClipboardSummaryResolver;
 use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\OrderTrackReceivedRequirementResolver;
+use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -59,8 +60,8 @@ class DocumentRegistryController extends Controller
             ])
             ->orderByDesc('id');
 
-        if (! RoleAccess::isAdminUser($user) && $scope !== 'all') {
-            $query->where('manager_id', $user->id);
+        if (! RoleAccess::isAdminUser($user) && ! $user->isSupervisor() && $scope !== 'all') {
+            OrderViewAuthorization::applyUserOwnsOrderScope($query, (int) $user->id);
         }
 
         if (Schema::hasColumn('orders', 'deleted_at')) {

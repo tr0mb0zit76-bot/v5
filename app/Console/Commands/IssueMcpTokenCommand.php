@@ -10,7 +10,8 @@ class IssueMcpTokenCommand extends Command
     protected $signature = 'mcp:issue-token
                             {user : ID или email пользователя CRM}
                             {--name=mcp-cursor : Имя токена в personal_access_tokens}
-                            {--abilities= : Способности Sanctum (через запятую; пусто = все)}';
+                            {--abilities= : Способности Sanctum (через запятую; пусто = все)}
+                            {--days=90 : Срок действия в днях (0 = без срока)}';
 
     protected $description = 'Выпустить Sanctum-токен для MCP (Cursor, внешние агенты)';
 
@@ -34,7 +35,11 @@ class IssueMcpTokenCommand extends Command
             return self::FAILURE;
         }
 
-        $token = $user->createToken((string) $this->option('name'), $this->resolveAbilities());
+        $token = $user->createToken(
+            (string) $this->option('name'),
+            $this->resolveAbilities(),
+            $this->resolveExpiresAt(),
+        );
 
         $this->info('Токен создан. Сохраните его сейчас — повторно он не показывается.');
         $this->newLine();
@@ -78,5 +83,16 @@ class IssueMcpTokenCommand extends Command
         $abilities = array_values(array_filter(array_map('trim', explode(',', (string) $raw))));
 
         return $abilities === [] ? ['*'] : $abilities;
+    }
+
+    private function resolveExpiresAt(): ?\DateTimeInterface
+    {
+        $days = (int) $this->option('days');
+
+        if ($days <= 0) {
+            return null;
+        }
+
+        return now()->addDays($days);
     }
 }

@@ -13,6 +13,7 @@ use App\Services\OrderDocumentRequirementService;
 use App\Services\TaskSlaService;
 use App\Support\LeadStatus;
 use App\Support\OrderDocumentAccessAuthorization;
+use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
 use Illuminate\Database\Eloquent\Builder;
@@ -778,21 +779,7 @@ class MobileShellFeedService
 
     private function userCanViewOrder(User $user, Order $order): bool
     {
-        if (! Schema::hasTable('orders') || ! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'orders')) {
-            return false;
-        }
-
-        if ($user->isAdmin()) {
-            return true;
-        }
-
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
-
-        if ($scope === 'all') {
-            return true;
-        }
-
-        return (int) $order->manager_id === (int) $user->id;
+        return OrderViewAuthorization::userCanViewOrder($user, $order);
     }
 
     /**
@@ -879,8 +866,8 @@ class MobileShellFeedService
         $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
 
         $query->when(
-            ! $user->isAdmin() && $scope !== 'all',
-            fn (Builder $builder) => $builder->where('manager_id', $user->id),
+            ! $user->isAdmin() && ! $user->isSupervisor() && $scope !== 'all',
+            fn (Builder $builder) => OrderViewAuthorization::applyUserOwnsOrderScope($builder, (int) $user->id),
         );
 
         if (Schema::hasColumn('orders', 'deleted_at')) {

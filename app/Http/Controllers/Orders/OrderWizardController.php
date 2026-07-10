@@ -594,7 +594,7 @@ class OrderWizardController extends Controller
             return false;
         }
 
-        if ((int) $order->manager_id !== (int) $user->id) {
+        if (! OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id)) {
             return false;
         }
 
@@ -3194,19 +3194,7 @@ class OrderWizardController extends Controller
 
     private function userCanUseOrderAsTemplate(Request $request, Order $order): bool
     {
-        $user = $request->user();
-
-        if ($user === null) {
-            return false;
-        }
-
-        if (RoleAccess::isAdminUser($user)) {
-            return true;
-        }
-
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
-
-        return $scope === 'all' || (int) $order->manager_id === (int) $user->id;
+        return OrderViewAuthorization::userCanViewOrder($request->user(), $order);
     }
 
     private function canAssignResponsible(Request $request): bool

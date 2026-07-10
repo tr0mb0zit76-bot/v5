@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Lead;
 use App\Models\LoadingPlannerProject;
 use App\Models\Role;
+use App\Models\TransportTemplate;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -235,6 +236,37 @@ class LoadingPlannerTest extends TestCase
         $this->assertSame(6500, (int) $item->length_mm);
         $this->assertSame(2400, (int) $item->width_mm);
         $this->assertSame(3100, (int) $item->height_mm);
+    }
+
+    public function test_non_admin_cannot_update_system_transport_template(): void
+    {
+        if (! Schema::hasTable('transport_templates')) {
+            $this->markTestSkipped('transport_templates table is unavailable.');
+        }
+
+        $user = $this->createPlannerUser('manager');
+        $template = TransportTemplate::query()->create([
+            'name' => 'Системный тент',
+            'category' => 'truck',
+            'length_mm' => 13600,
+            'width_mm' => 2450,
+            'height_mm' => 2700,
+            'max_payload_kg' => 20000,
+            'is_active' => true,
+            'is_system' => true,
+            'sort_order' => 1,
+        ]);
+
+        $this->actingAs($user)
+            ->patch(route('modules.how-much-fits.transport-templates.update', $template), [
+                'name' => 'Взломанный тент',
+                'category' => 'truck',
+                'length_mm' => 13600,
+                'width_mm' => 2450,
+                'height_mm' => 2700,
+                'max_payload_kg' => 20000,
+            ])
+            ->assertForbidden();
     }
 
     private function createPlannerUser(string $roleName): User

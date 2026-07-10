@@ -476,6 +476,12 @@ async function recalculate() {
             body: JSON.stringify(payload),
         });
 
+        if (!response.ok) {
+            result.value = { error: 'Не удалось выполнить расчёт.' };
+
+            return;
+        }
+
         result.value = await response.json();
     } catch {
         result.value = { error: 'Не удалось выполнить расчёт.' };

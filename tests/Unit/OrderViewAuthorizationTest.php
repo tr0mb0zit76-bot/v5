@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\Order;
+use App\Models\Role;
 use App\Models\User;
 use App\Support\OrderViewAuthorization;
 use Illuminate\Support\Facades\Schema;
@@ -25,6 +26,31 @@ class OrderViewAuthorizationTest extends TestCase
         ]);
 
         $this->assertTrue(OrderViewAuthorization::userOwnsOrderRecord($order, (int) $owner->id));
+    }
+
+    public function test_supervisor_can_view_any_order(): void
+    {
+        $supervisorRole = Role::query()->firstOrCreate([
+            'name' => 'supervisor',
+        ], [
+            'display_name' => 'Supervisor',
+            'permissions' => [],
+            'columns_config' => [],
+            'visibility_areas' => ['orders'],
+            'visibility_scopes' => ['orders' => 'own'],
+        ]);
+
+        $supervisor = User::factory()->create([
+            'role_id' => $supervisorRole->id,
+        ]);
+
+        $foreignManager = User::factory()->create();
+
+        $order = new Order([
+            'manager_id' => $foreignManager->id,
+        ]);
+
+        $this->assertTrue(OrderViewAuthorization::userCanViewOrder($supervisor, $order));
     }
 
     public function test_unrelated_manager_with_own_scope_cannot_own_order_record(): void

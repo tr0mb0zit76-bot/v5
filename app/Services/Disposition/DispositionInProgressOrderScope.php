@@ -5,6 +5,7 @@ namespace App\Services\Disposition;
 use App\Models\Order;
 use App\Models\User;
 use App\Support\DispositionInTransitResolver;
+use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -34,11 +35,11 @@ final class DispositionInProgressOrderScope
             $query->whereNull('deleted_at');
         }
 
-        if (! RoleAccess::isAdminUser($user)) {
+        if (! RoleAccess::isAdminUser($user) && ! $user->isSupervisor()) {
             $scope = RoleAccess::resolveVisibilityScopeForUser($user, $area);
 
             if ($scope !== 'all') {
-                $query->where('manager_id', $user->id);
+                OrderViewAuthorization::applyUserOwnsOrderScope($query, (int) $user->id);
             }
         }
 

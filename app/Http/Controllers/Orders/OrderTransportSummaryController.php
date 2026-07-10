@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Orders;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Support\OrderClipboardSummaryResolver;
-use App\Support\RoleAccess;
+use App\Support\OrderViewAuthorization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -16,10 +16,7 @@ class OrderTransportSummaryController extends Controller
         $user = $request->user();
         abort_if($user === null, 403);
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
-        if (! RoleAccess::isAdminUser($user) && $scope !== 'all' && (int) $order->manager_id !== (int) $user->id) {
-            abort(403);
-        }
+        abort_unless(OrderViewAuthorization::userCanViewOrder($user, $order), 403);
 
         $summaries = app(OrderClipboardSummaryResolver::class)->mapForOrders(collect([$order]));
 

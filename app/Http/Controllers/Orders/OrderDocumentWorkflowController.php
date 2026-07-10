@@ -21,6 +21,7 @@ use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintFormContext;
 use App\Support\OrderPrintWorkflowLock;
+use App\Support\OrderViewAuthorization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -710,7 +711,7 @@ class OrderDocumentWorkflowController extends Controller
             abort(403);
         }
 
-        abort_unless((int) $order->manager_id === (int) $user->id, 403);
+        abort_unless(OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id), 403);
 
         $order->loadMissing('documents');
         abort_if(OrderPrintWorkflowLock::allPrintWorkflowDocumentsFinalized($order), 403);
@@ -812,6 +813,6 @@ class OrderDocumentWorkflowController extends Controller
             return false;
         }
 
-        return $user->isManager() && (int) $order->manager_id === (int) $user->id;
+        return $user->isManager() && OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id);
     }
 }

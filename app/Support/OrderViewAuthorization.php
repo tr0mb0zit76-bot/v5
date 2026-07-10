@@ -6,6 +6,7 @@ namespace App\Support;
 
 use App\Models\Order;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
 
 final class OrderViewAuthorization
@@ -16,7 +17,7 @@ final class OrderViewAuthorization
             return false;
         }
 
-        if ($user->isAdmin()) {
+        if ($user->isAdmin() || $user->isSupervisor()) {
             return true;
         }
 
@@ -48,5 +49,23 @@ final class OrderViewAuthorization
         }
 
         return false;
+    }
+
+    /**
+     * @param  Builder<Order>  $query
+     */
+    public static function applyUserOwnsOrderScope(Builder $query, int $userId): void
+    {
+        $query->where(function (Builder $ownedQuery) use ($userId): void {
+            $ownedQuery->where('manager_id', $userId);
+
+            if (Schema::hasColumn('orders', 'order_owner_id')) {
+                $ownedQuery->orWhere('order_owner_id', $userId);
+            }
+
+            if (Schema::hasColumn('orders', 'dispatcher_id')) {
+                $ownedQuery->orWhere('dispatcher_id', $userId);
+            }
+        });
     }
 }

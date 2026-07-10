@@ -232,13 +232,17 @@ class LoadingPlannerController extends Controller
 
     public function updateTransportTemplate(Request $request, TransportTemplate $transportTemplate): RedirectResponse
     {
+        $this->ensureCanMutateTransportTemplate($request, $transportTemplate);
+
         $transportTemplate->update($request->validate($this->transportTemplateRules()));
 
         return back();
     }
 
-    public function destroyTransportTemplate(TransportTemplate $transportTemplate): RedirectResponse
+    public function destroyTransportTemplate(Request $request, TransportTemplate $transportTemplate): RedirectResponse
     {
+        $this->ensureCanMutateTransportTemplate($request, $transportTemplate);
+
         $transportTemplate->delete();
 
         return back();
@@ -444,6 +448,16 @@ class LoadingPlannerController extends Controller
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'settings' => ['nullable', 'array'],
         ];
+    }
+
+    private function ensureCanMutateTransportTemplate(Request $request, TransportTemplate $transportTemplate): void
+    {
+        if (! $transportTemplate->is_system) {
+            return;
+        }
+
+        $user = $request->user();
+        abort_unless($user !== null && $user->isAdmin(), 403);
     }
 
     private function createStarterProject(Request $request): LoadingPlannerProject

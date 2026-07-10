@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\Task;
 use App\Models\User;
 use App\Support\OrderPrintWorkflowLock;
+use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\Builder;
@@ -58,14 +59,14 @@ class McpAccessGate
      */
     public function applyOrdersScope(Builder $query, User $user): void
     {
-        if ($user->isAdmin()) {
+        if ($user->isAdmin() || $user->isSupervisor()) {
             return;
         }
 
         $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
 
         if ($scope !== 'all') {
-            $query->where('manager_id', $user->id);
+            OrderViewAuthorization::applyUserOwnsOrderScope($query, (int) $user->id);
         }
     }
 
@@ -208,7 +209,7 @@ class McpAccessGate
             throw new AuthenticationException('Недостаточно прав для изменения заказа.');
         }
 
-        if ((int) $order->manager_id !== (int) $user->id) {
+        if (! OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id)) {
             throw new AuthenticationException('Заказ недоступен для редактирования.');
         }
 
@@ -300,6 +301,6 @@ class McpAccessGate
             return true;
         }
 
-        return (int) $order->manager_id === (int) $user->id;
+        return OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id);
     }
 }

@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\User;
 use App\Services\MessengerService;
+use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Support\Facades\Schema;
 
@@ -116,8 +117,8 @@ class MobileEntityChipService
         $query = Order::query()
             ->with(['client:id,name'])
             ->when(
-                ! $user->isAdmin() && $scope !== 'all',
-                fn ($builder) => $builder->where('manager_id', $user->id),
+                ! $user->isAdmin() && ! $user->isSupervisor() && $scope !== 'all',
+                fn ($builder) => OrderViewAuthorization::applyUserOwnsOrderScope($builder, (int) $user->id),
             );
 
         if (Schema::hasColumn('orders', 'deleted_at')) {

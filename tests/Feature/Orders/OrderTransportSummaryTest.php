@@ -106,11 +106,48 @@ class OrderTransportSummaryTest extends TestCase
         }
     }
 
-    private function createManagerUser(): User
+    public function test_transport_summary_forbidden_for_foreign_order_with_own_scope(): void
+    {
+        if (! Schema::hasTable('orders')) {
+            $this->markTestSkipped('orders table is unavailable.');
+        }
+
+        $owner = $this->createManagerUser('manager_owner');
+        $intruder = $this->createManagerUser('manager_intruder');
+
+        $order = Order::factory()->create([
+            'manager_id' => $owner->id,
+        ]);
+
+        $this->actingAs($intruder)
+            ->getJson(route('orders.transport-summary', $order))
+            ->assertForbidden();
+    }
+
+    public function test_transport_summary_allowed_for_order_owner_with_own_scope(): void
+    {
+        if (! Schema::hasColumn('orders', 'order_owner_id')) {
+            $this->markTestSkipped('orders.order_owner_id is unavailable.');
+        }
+
+        $owner = $this->createManagerUser('deal_owner');
+        $dispatcherManager = $this->createManagerUser('dispatcher_manager');
+
+        $order = Order::factory()->create([
+            'manager_id' => $dispatcherManager->id,
+            'order_owner_id' => $owner->id,
+        ]);
+
+        $this->actingAs($owner)
+            ->getJson(route('orders.transport-summary', $order))
+            ->assertOk();
+    }
+
+    private function createManagerUser(string $roleName = 'manager'): User
     {
         $roleId = DB::table('roles')->insertGetId([
-            'name' => 'manager',
-            'display_name' => 'Менеджер',
+            'name' => $roleName,
+            'display_name' => ucfirst(str_replace('_', ' ', $roleName)),
             'visibility_areas' => json_encode(['dashboard', 'orders'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
             'created_at' => now(),

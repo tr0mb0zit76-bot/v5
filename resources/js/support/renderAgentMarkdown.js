@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify';
 import { Marked } from 'marked';
 
 /**
@@ -21,5 +22,9 @@ export function renderAgentMarkdown(text) {
 
     const html = agentMarked.parse(source);
 
-    return typeof html === 'string' ? html : '';
+    if (typeof html !== 'string') {
+        return '';
+    }
+
+    return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
 }

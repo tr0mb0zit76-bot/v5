@@ -6,6 +6,7 @@ use App\Models\Lead;
 use App\Models\Order;
 use App\Services\ActivityLedgerService;
 use App\Services\OrderActivityTimelineService;
+use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -54,9 +55,7 @@ class ActivityTimelineController extends Controller
             return false;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
-
-        return $scope === 'all' || (int) $order->manager_id === (int) $user->id;
+        return OrderViewAuthorization::userCanViewOrder($user, $order);
     }
 
     private function canAccessLead(Request $request, Lead $lead): bool

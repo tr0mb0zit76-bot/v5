@@ -71,10 +71,6 @@ final class PaymentScheduleSettlementSyncService
         $schedule->remaining_amount = max(0, round($amount - $totalPaid, 2));
         PaymentScheduleSettlementStatus::applyToSchedule($schedule);
 
-        if ($schedule->status !== 'paid') {
-            $schedule->status = 'pending';
-        }
-
         $schedule->save();
 
         if ($schedule->order_id !== null) {

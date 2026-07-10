@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Support\OrderDocumentAccessAuthorization;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class OrderDocumentAccessAuthorizationTest extends TestCase
@@ -31,6 +32,23 @@ class OrderDocumentAccessAuthorizationTest extends TestCase
 
         $this->assertFalse(OrderDocumentAccessAuthorization::userMayManageDocuments($manager, $foreignOrder));
         $this->assertFalse(OrderDocumentAccessAuthorization::userMayViewDocuments($manager, $foreignOrder));
+    }
+
+    public function test_order_owner_may_manage_documents_when_manager_differs(): void
+    {
+        if (! Schema::hasColumn('orders', 'order_owner_id')) {
+            $this->markTestSkipped('orders.order_owner_id is unavailable.');
+        }
+
+        $owner = $this->makeUser('manager', ['documents' => 'own', 'orders' => 'own'], userId: 55);
+        $order = new Order([
+            'id' => 3,
+            'manager_id' => 999,
+            'order_owner_id' => 55,
+        ]);
+
+        $this->assertTrue(OrderDocumentAccessAuthorization::userMayManageDocuments($owner, $order));
+        $this->assertTrue(OrderDocumentAccessAuthorization::userMayViewDocuments($owner, $order));
     }
 
     public function test_accountant_with_documents_all_scope_may_manage_documents(): void

@@ -8,6 +8,7 @@ use App\Models\OrderDocument;
 use App\Services\OrderDocumentEdoAcknowledgementService;
 use App\Services\OrderDocumentRequirementService;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -143,18 +144,6 @@ class OrderDocumentsModalController extends Controller
 
     private function ensureCanViewOrder(Request $request, Order $order): void
     {
-        $user = $request->user();
-        abort_if($user === null, 403);
-
-        if ($user->isAdmin() || $user->isSupervisor()) {
-            return;
-        }
-
-        $ordersScope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
-        if ($ordersScope === 'all') {
-            return;
-        }
-
-        abort_unless((int) $order->manager_id === (int) $user->id, 403);
+        abort_unless(OrderViewAuthorization::userCanViewOrder($request->user(), $order), 403);
     }
 }

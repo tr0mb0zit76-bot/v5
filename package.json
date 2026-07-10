@@ -52,6 +52,7 @@
         "@vue-flow/core": "^1.48.2",
         "ag-grid-community": "^35.2.0",
         "ag-grid-vue3": "^35.2.0",
+        "dompurify": "^3.4.11",
         "grapesjs": "^0.23.2",
         "grapesjs-preset-newsletter": "^1.0.2",
         "lucide-vue-next": "^1.0.0",

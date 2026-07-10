@@ -7,6 +7,7 @@ use App\Models\PaymentSchedule;
 use App\Models\PaymentSchedulePaymentEvent;
 use App\Services\Finance\PaymentSchedulePaymentLedgerService;
 use App\Services\Finance\PaymentSchedulePaymentReversalService;
+use App\Support\OrderViewAuthorization;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PaymentScheduleSettlementStatus;
 use App\Support\RoleAccess;
@@ -556,7 +557,7 @@ class PaymentScheduleController extends Controller
 
         $order = Order::query()->find((int) $paymentSchedule->order_id);
         abort_if($order === null, 403);
-        abort_unless((int) $order->manager_id === (int) $user->id, 403);
+        abort_unless(OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id), 403);
     }
 
     private function clearPaymentRunMark(PaymentSchedule $paymentSchedule): void
