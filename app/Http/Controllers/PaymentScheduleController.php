@@ -547,17 +547,19 @@ class PaymentScheduleController extends Controller
     private function ensurePaymentScheduleInUserDataScope(Request $request, PaymentSchedule $paymentSchedule): void
     {
         $user = $request->user();
-        if ($user === null || $user->isAdmin()) {
-            return;
+        if ($user === null) {
+            abort(403);
         }
 
-        if (RoleAccess::resolvePaymentScheduleDataScopeForUser($user) === 'all') {
+        if ($user->isAdmin() || $user->isSupervisor()) {
             return;
         }
 
         $order = Order::query()->find((int) $paymentSchedule->order_id);
         abort_if($order === null, 403);
-        abort_unless(OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id), 403);
+
+        $area = RoleAccess::resolvePaymentScheduleVisibilityAreaForUser($user);
+        abort_unless(OrderViewAuthorization::userCanMutateOrderForArea($user, $order, $area), 403);
     }
 
     private function clearPaymentRunMark(PaymentSchedule $paymentSchedule): void

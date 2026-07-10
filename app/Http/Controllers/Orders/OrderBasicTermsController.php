@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\PrintFormBasicTerm;
 use App\Services\PrintForm\ContractorPrintFormChangeRequestService;
 use App\Services\PrintForm\PrintFormBasicTermsService;
+use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,6 +37,7 @@ class OrderBasicTermsController extends Controller
         $payload = $this->basicTermsService->wizardPayloadForOrder($order, $party);
         $user = $request->user();
         abort_if($user === null, 403);
+        abort_unless(OrderViewAuthorization::userCanMutateOrder($user, $order), 403);
 
         $contractorId = $payload['contractor_id'] ?? null;
 

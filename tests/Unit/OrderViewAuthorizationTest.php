@@ -123,6 +123,55 @@ class OrderViewAuthorizationTest extends TestCase
         $this->assertTrue(OrderViewAuthorization::userCanViewOrder($viewer, $order));
     }
 
+    public function test_user_can_mutate_order_matches_view_for_department_scope(): void
+    {
+        if (! Schema::hasTable('department_user') || ! Schema::hasTable('departments')) {
+            $this->markTestSkipped('department tables are unavailable.');
+        }
+
+        $departmentId = DB::table('departments')->insertGetId([
+            'name' => 'Mutate dept '.uniqid(),
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $viewerRole = Role::query()->firstOrCreate([
+            'name' => 'dept_mutate_'.uniqid(),
+        ], [
+            'display_name' => 'Dept mutate',
+            'permissions' => [],
+            'columns_config' => [],
+            'visibility_areas' => ['orders'],
+            'visibility_scopes' => ['orders' => 'department'],
+        ]);
+
+        $viewerRole->update([
+            'visibility_areas' => ['orders'],
+            'visibility_scopes' => ['orders' => 'department'],
+        ]);
+
+        $colleague = User::factory()->create(['role_id' => $viewerRole->id]);
+        $viewer = User::factory()->create(['role_id' => $viewerRole->id]);
+
+        foreach ([$colleague, $viewer] as $member) {
+            DB::table('department_user')->insert([
+                'department_id' => $departmentId,
+                'user_id' => $member->id,
+                'is_primary' => true,
+                'receives_approvals' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $order = new Order([
+            'manager_id' => $colleague->id,
+        ]);
+
+        $this->assertTrue(OrderViewAuthorization::userCanMutateOrder($viewer, $order));
+    }
+
     public function test_apply_orders_visibility_scope_to_query_includes_department_colleague(): void
     {
         if (! Schema::hasTable('department_user') || ! Schema::hasTable('departments')) {

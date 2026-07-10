@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Disposition\DispositionInProgressOrderScope;
 use App\Support\EndToEndOrderPipelineColumn;
 use App\Support\LeadViewAuthorization;
+use App\Support\OrderViewAuthorization;
 use App\Support\OrderTransportTypeResolver;
 use App\Support\RoleAccess;
 use Illuminate\Database\Eloquent\Builder;
@@ -165,6 +166,7 @@ final class PipelineBoardService
     public function markAccountingHandoff(Order $order, User $user): void
     {
         abort_unless($this->canMarkAccountingHandoff($user), 403);
+        abort_unless(OrderViewAuthorization::userCanMutateOrder($user, $order), 403);
         abort_unless(Schema::hasColumn('orders', 'accounting_handoff_at'), 404);
 
         $order->forceFill([

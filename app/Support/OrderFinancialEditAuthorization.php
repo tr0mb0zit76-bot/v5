@@ -25,7 +25,7 @@ final class OrderFinancialEditAuthorization
             return false;
         }
 
-        if ((int) $order->manager_id !== (int) $user->id) {
+        if (! OrderViewAuthorization::userOwnsOrderRecord($order, (int) $user->id)) {
             return false;
         }
 

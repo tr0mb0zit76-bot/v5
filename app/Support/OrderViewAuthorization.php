@@ -44,6 +44,19 @@ final class OrderViewAuthorization
         return self::userOwnsOrderRecord($order, (int) $user->id);
     }
 
+    /**
+     * Мутации данных заказа (оплаты, handoff, промоус условий): тот же scope, что и просмотр.
+     */
+    public static function userCanMutateOrderForArea(?User $user, Order $order, string $area = 'orders'): bool
+    {
+        return self::userCanViewOrderForArea($user, $order, $area);
+    }
+
+    public static function userCanMutateOrder(?User $user, Order $order): bool
+    {
+        return self::userCanMutateOrderForArea($user, $order, 'orders');
+    }
+
     public static function userOwnsOrderRecord(Order $order, int $userId): bool
     {
         return self::orderRecordOwnedByAnyUser($order, [$userId]);
