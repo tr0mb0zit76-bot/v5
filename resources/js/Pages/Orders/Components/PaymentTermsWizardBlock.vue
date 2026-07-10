@@ -3,8 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import * as ps from '../../../support/orderPaymentScheduleUi.js';
 import {
     crmBtnSecondary,
-    crmField,
-    crmFieldFluid,
+    crmFieldPaymentInstallment,
     crmPanel,
     crmSegmented,
     crmSegmentedBtn,
@@ -195,9 +194,9 @@ function onInstallmentAmountInput(index) {
             <div
                 v-for="(inst, instIndex) in schedule.installments"
                 :key="'inst-' + instIndex"
-                class="rounded-md border border-zinc-200 bg-white p-1.5 dark:border-zinc-700 dark:bg-zinc-950"
+                class="overflow-visible rounded-md border border-zinc-200 bg-white px-2 py-2 dark:border-zinc-700 dark:bg-zinc-950"
             >
-                <div v-if="schedule.installments.length > 1" class="mb-1 flex items-center justify-between gap-2">
+                <div v-if="schedule.installments.length > 1" class="mb-1.5 flex items-center justify-between gap-2">
                     <div class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Транш {{ instIndex + 1 }}</div>
                     <button
                         type="button"
@@ -207,62 +206,80 @@ function onInstallmentAmountInput(index) {
                         Удалить
                     </button>
                 </div>
-                <div class="grid grid-cols-2 gap-x-1 gap-y-1 sm:grid-cols-3 xl:grid-cols-6 xl:items-end">
-                    <div class="min-w-0 space-y-0.5">
-                        <label class="block text-[10px] font-medium leading-tight text-zinc-600 dark:text-zinc-400">%, доля</label>
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                    <div class="flex min-h-8 min-w-[5.75rem] flex-[1_1_5.75rem] items-center gap-1">
+                        <label class="shrink-0 text-[10px] font-medium leading-none text-zinc-600 dark:text-zinc-400">%, доля</label>
                         <input
                             v-model.number="inst.percent"
                             type="number"
                             min="0"
                             max="100"
                             step="0.01"
-                            :class="`${crmField} h-7 min-w-0 px-1 py-0.5 text-center text-[11px] tabular-nums`"
+                            :class="`${crmFieldPaymentInstallment} min-w-0 flex-1`"
                             :disabled="schedule.installments.length === 1"
                             @input="onInstallmentPercentInput(instIndex)"
                         />
                     </div>
-                    <div class="min-w-0 space-y-0.5">
-                        <label class="block text-[10px] font-medium leading-tight text-zinc-600 dark:text-zinc-400">Сумма</label>
+                    <div class="flex min-h-8 min-w-[6.5rem] flex-[1_1_6.5rem] items-center gap-1">
+                        <label class="shrink-0 text-[10px] font-medium leading-none text-zinc-600 dark:text-zinc-400">Сумма</label>
                         <input
                             v-model.number="inst.amount"
                             type="number"
                             min="0"
                             step="0.01"
-                            :class="`${crmField} h-7 min-w-0 px-1 py-0.5 text-center text-[11px] tabular-nums`"
+                            :class="`${crmFieldPaymentInstallment} min-w-0 flex-1`"
                             :disabled="schedule.installments.length === 1"
                             @change="onInstallmentAmountInput(instIndex)"
                         />
                     </div>
-                    <div class="min-w-0 space-y-0.5">
-                        <label class="block text-[10px] font-medium leading-tight text-zinc-600 dark:text-zinc-400">Сдвиг, дн</label>
+                    <div class="flex min-h-8 min-w-[5.5rem] flex-[1_1_5.5rem] items-center gap-1">
+                        <label class="shrink-0 text-[10px] font-medium leading-none text-zinc-600 dark:text-zinc-400">±дн</label>
                         <input
                             v-model.number="inst.offset_days"
                             type="number"
                             min="-730"
                             max="730"
                             step="1"
-                            :class="`${crmField} h-7 min-w-0 px-1 py-0.5 text-center text-[11px] tabular-nums`"
+                            :class="`${crmFieldPaymentInstallment} min-w-0 flex-1`"
                         />
                     </div>
-                    <div class="min-w-0 space-y-0.5">
-                        <label class="block text-[10px] font-medium leading-tight text-zinc-600 dark:text-zinc-400">Тип дней</label>
-                        <select v-model="inst.offset_unit" :class="`${crmField} h-7 min-w-0 px-1 text-[10px]`">
-                            <option value="calendar_days">кал.</option>
-                            <option value="bank_days">банк.</option>
-                        </select>
-                    </div>
-                    <div class="min-w-0 space-y-0.5">
-                        <label class="block text-[10px] font-medium leading-tight text-zinc-600 dark:text-zinc-400">Якорь</label>
-                        <select v-model="inst.anchor" :class="`${crmField} h-7 min-w-0 px-1 text-[10px]`">
-                            <option v-for="opt in ps.PAYMENT_ANCHOR_OPTIONS" :key="`anchor-${opt.value}`" :value="opt.value">
+                    <div class="flex min-h-8 min-w-[6.75rem] flex-[1_1_6.75rem] items-center gap-1">
+                        <label class="shrink-0 text-[10px] font-medium leading-none text-zinc-600 dark:text-zinc-400">Дни</label>
+                        <select v-model="inst.offset_unit" :class="`${crmFieldPaymentInstallment} min-w-0 flex-1`">
+                            <option
+                                v-for="opt in ps.PAYMENT_OFFSET_UNIT_OPTIONS"
+                                :key="`unit-${opt.value}`"
+                                :value="opt.value"
+                                :title="opt.label"
+                            >
                                 {{ opt.shortLabel || opt.label }}
                             </option>
                         </select>
                     </div>
-                    <div class="min-w-0 space-y-0.5">
-                        <label class="block text-[10px] font-medium leading-tight text-zinc-600 dark:text-zinc-400">Событие</label>
-                        <select v-model="inst.basis" :class="`${crmField} h-7 min-w-0 px-1 text-[10px]`">
-                            <option v-for="option in ps.PAYMENT_BASIS_OPTIONS" :key="`i-${option.value}`" :value="option.value">{{ option.label }}</option>
+                    <div class="flex min-h-8 min-w-[8.5rem] flex-[1_1_8.5rem] items-center gap-1">
+                        <label class="shrink-0 text-[10px] font-medium leading-none text-zinc-600 dark:text-zinc-400">Якорь</label>
+                        <select v-model="inst.anchor" :class="`${crmFieldPaymentInstallment} min-w-0 flex-1`">
+                            <option
+                                v-for="opt in ps.PAYMENT_ANCHOR_OPTIONS"
+                                :key="`anchor-${opt.value}`"
+                                :value="opt.value"
+                                :title="opt.label"
+                            >
+                                {{ opt.shortLabel || opt.label }}
+                            </option>
+                        </select>
+                    </div>
+                    <div class="flex min-h-8 min-w-[8.5rem] flex-[1_1_8.5rem] items-center gap-1">
+                        <label class="shrink-0 text-[10px] font-medium leading-none text-zinc-600 dark:text-zinc-400">Базис</label>
+                        <select v-model="inst.basis" :class="`${crmFieldPaymentInstallment} min-w-0 flex-1`">
+                            <option
+                                v-for="option in ps.PAYMENT_BASIS_OPTIONS"
+                                :key="`i-${option.value}`"
+                                :value="option.value"
+                                :title="option.label"
+                            >
+                                {{ option.shortLabel || option.label }}
+                            </option>
                         </select>
                     </div>
                 </div>

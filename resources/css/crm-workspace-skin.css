@@ -420,6 +420,27 @@ html.dark[data-crm-workspace-skin='sky'] {
         font-size: 0.8125rem;
     }
 
+    /* Строка транша в мастере заказа: inline-подпись + поле без обрезки текста снизу */
+    .crm-field--payment-installment {
+        max-width: none;
+        box-sizing: border-box;
+        height: 2rem;
+        min-height: 2rem;
+        padding: 0 0.375rem;
+        font-size: 0.6875rem;
+        line-height: 1.25rem;
+    }
+
+    input.crm-field--payment-installment {
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+    }
+
+    select.crm-field--payment-installment {
+        padding-right: 1.125rem;
+        line-height: 1.875rem;
+    }
+
     .crm-field--compact {
         max-width: 6rem;
         padding: 0.35rem 0.45rem;

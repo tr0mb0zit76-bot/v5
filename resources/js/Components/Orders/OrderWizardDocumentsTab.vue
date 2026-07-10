@@ -21,7 +21,6 @@ import {
     findRequirementRuleForUpload,
 } from '@/support/orderDocumentRequirementSlots.js';
 import { isTransportDocumentType } from '@/support/orderDocumentTypes.js';
-import { isOwnFleetCarrierOnly } from '@/support/orderPerformers.js';
 import { stageLabel, toStageKey } from '@/support/orderPrintFormSlots.js';
 import {
     carrierPrintSlots,
@@ -100,27 +99,6 @@ const printFormTemplateOptionsCarrier = computed(() => {
     return filterPrintFormTemplates(catalog, printFormTemplateContext.value, 'carrier');
 });
 
-const carrierVedTemplateHint = computed(() => {
-    if (props.isInternationalTransport || printFormTemplateOptionsCarrier.value.length > 0) {
-        return '';
-    }
-
-    const catalog = Array.isArray(props.printFormTemplateCatalog) ? props.printFormTemplateCatalog : [];
-
-    const hasInternationalCarrierTemplates = catalog.some(
-        (template) => template?.party === 'carrier'
-            && template?.transport_scope === 'international'
-            && template?.is_active !== false
-            && template?.file_path,
-    );
-
-    if (!hasInternationalCarrierTemplates) {
-        return '';
-    }
-
-    return 'Шаблоны для ВЭД появятся после выбора «Международная» на вкладке «Основное». Сохраните заказ, если переключатель уже включён.';
-});
-
 const documentPaymentContext = computed(() => buildDocumentPaymentContext(
     props.customerPaymentForm,
     props.contractorsCosts,
@@ -132,19 +110,6 @@ const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRu
     props.additionalCosts,
     documentPaymentContext.value,
 ));
-
-const documentChecklistHint = computed(() => {
-    if (isOwnFleetCarrierOnly(props.performers)) {
-        const cashCustomer = String(documentPaymentContext.value?.customer ?? '').trim().toLowerCase() === 'cash';
-        const closingHint = cashCustomer
-            ? 'заявка заказчику и ТСД (при наличных закрывающие не требуются)'
-            : 'заявка заказчику, закрывающие (УПД / акт + счёт-фактура), ТСД';
-
-        return `${effectiveRequiredDocumentRules.value.length} обязательных пункта для этапов «Оплата» и «Завершено» при собственном парке: ${closingHint}. Документы перевозчика не требуются.`;
-    }
-
-    return `${effectiveRequiredDocumentRules.value.length} обязательных пунктов для этапов «Оплата» и «Завершено». Галочка — после подписанного файла или финализации печатной формы. При оплате наличными у контрагента закрывающие документы (УПД, счёт-фактура, акт) не требуются — только заявка.`;
-});
 
 const effectiveDocumentChecklist = computed(() => {
     const rules = effectiveRequiredDocumentRules.value;
@@ -775,10 +740,7 @@ async function onGlobalDrop(event) {
 <template>
     <div class="space-y-4">
         <div class="flex items-center justify-between">
-            <div>
-                <h2 class="text-base font-semibold">Документы</h2>
-                <p class="text-sm text-zinc-500">Печатные формы и учёт подписанных документов</p>
-            </div>
+            <h2 class="text-base font-semibold">Документы</h2>
         </div>
 
         <div
@@ -794,24 +756,13 @@ async function onGlobalDrop(event) {
 
         <section class="space-y-4">
             <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Печатные формы</h3>
-            <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                Каталог шаблонов — в разделе «Настройки → Шаблоны печати» (файлы шаблонов на диске сервера CRM, не в Nextcloud).
-                Здесь выбираете шаблон и нажимаете «Создать в карточке» — черновик появится в списке ниже.
-                Файлы заявок: {{ documentStorage.label ?? 'хранилище' }}<template v-if="documentStorage.folder_hint">, папка «{{ documentStorage.folder_hint }}»</template>.
-                Выбор шаблона сохраняется вместе с заказом.
-            </p>
 
             <div
                 v-for="slot in customerSlots"
                 :key="slot.slotKey"
                 class="space-y-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/25"
             >
-                <div>
-                    <div class="text-sm font-semibold text-emerald-950 dark:text-emerald-100">{{ slot.label }}</div>
-                    <p class="mt-1 text-xs text-emerald-900/80 dark:text-emerald-200/80">
-                        Шаблоны только для заказчика. Черновик → согласование → финальный PDF.
-                    </p>
-                </div>
+                <div class="text-sm font-semibold text-emerald-950 dark:text-emerald-100">{{ slot.label }}</div>
                 <template v-if="!order?.id">
                     <p class="text-xs text-emerald-900/80">Сохраните заказ, чтобы создать печатную форму.</p>
                 </template>
@@ -866,16 +817,7 @@ async function onGlobalDrop(event) {
                 :key="`carrier-${slot.slotKey}`"
                 class="space-y-3 rounded-2xl border border-rose-200/80 bg-rose-50/40 p-4 dark:border-rose-900/60 dark:bg-rose-950/25"
             >
-                <div>
-                    <div class="text-sm font-semibold text-rose-950 dark:text-rose-100">{{ slot.label }}</div>
-                    <p class="mt-1 text-xs text-rose-900/80 dark:text-rose-200/80">
-                        Шаблоны только для перевозчика.
-                        <span v-if="slot.routeLegsAsTableRows"> Маршрут по плечам — таблица ${route_row_stage}; точки маршрута — ${route_point_row_address}.</span>
-                    </p>
-                    <p v-if="carrierVedTemplateHint" class="mt-2 text-xs text-amber-800 dark:text-amber-200">
-                        {{ carrierVedTemplateHint }}
-                    </p>
-                </div>
+                <div class="text-sm font-semibold text-rose-950 dark:text-rose-100">{{ slot.label }}</div>
                 <template v-if="!order?.id">
                     <p class="text-xs text-rose-900/80">Сохраните заказ и укажите перевозчика на плече.</p>
                 </template>
@@ -931,7 +873,6 @@ async function onGlobalDrop(event) {
 
         <section class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
             <div class="text-sm font-semibold">Прикрепить файл</div>
-            <p class="text-xs text-zinc-500">Подписанные документы попадут в таблицу учёта ниже.</p>
             <input
                 ref="orderDocumentGlobalFileInputRef"
                 type="file"
@@ -964,9 +905,6 @@ async function onGlobalDrop(event) {
 
         <section class="space-y-3">
             <div class="text-sm font-semibold">Учёт документов</div>
-            <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                {{ documentChecklistHint }}
-            </p>
             <OrderSignedDocumentsTable
                 :signed-documents="signedDocuments"
                 :document-type-options="documentTypeOptions"

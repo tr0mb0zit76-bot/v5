@@ -46,6 +46,9 @@ export const crmFieldDays = 'crm-field crm-field--days';
 /** Узкий select «Оплата» в блоке условий оплаты контрагента */
 export const crmFieldPaymentMode = 'crm-field crm-field--payment-mode';
 
+/** Компактные поля строки транша (мастер заказа → Финансы) */
+export const crmFieldPaymentInstallment = 'crm-field crm-field--payment-installment';
+
 /** Read-only блок с рамкой как у поля ввода */
 export const crmFieldDisplay = 'crm-field-display';
 

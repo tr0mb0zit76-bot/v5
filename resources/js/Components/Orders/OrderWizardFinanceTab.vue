@@ -40,32 +40,32 @@ const {
                         {{ form.financial_term.client_request_mode === 'split_by_leg' ? 'Несколько заявок' : 'Одна заявка' }}
                     </div>
                 </div>
-                <div class="grid gap-2 sm:grid-cols-3">
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Цена клиента</label>
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <div class="flex min-w-[10rem] flex-[1_1_10rem] items-center gap-1.5">
+                        <label class="shrink-0 whitespace-nowrap text-xs font-medium text-zinc-600 dark:text-zinc-400">Стоимость</label>
                         <input
                             v-model="form.financial_term.client_price"
                             type="number"
                             min="0"
                             step="0.01"
                             :disabled="!canEditFinancialFields"
-                            :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('client_price', form.financial_term.client_price)]"
+                            :class="['min-w-0 flex-1 rounded-xl border bg-white px-2.5 py-1.5 text-sm dark:bg-zinc-950', highlightRequiredField('client_price', form.financial_term.client_price)]"
                         />
-                        <p v-if="form.errors['financial_term.client_price']" class="text-xs text-rose-500">{{ form.errors['financial_term.client_price'] }}</p>
                     </div>
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Валюта</label>
-                        <select v-model="form.financial_term.client_currency" :disabled="!canEditFinancialFields" :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('client_currency', form.financial_term.client_currency, form.financial_term.client_price)]">
+                    <div class="flex min-w-[7rem] flex-[1_1_7rem] items-center gap-1.5">
+                        <label class="shrink-0 whitespace-nowrap text-xs font-medium text-zinc-600 dark:text-zinc-400">Валюта</label>
+                        <select v-model="form.financial_term.client_currency" :disabled="!canEditFinancialFields" :class="['min-w-0 flex-1 rounded-xl border px-2.5 py-1.5 text-sm dark:bg-zinc-950', highlightRequiredField('client_currency', form.financial_term.client_currency, form.financial_term.client_price)]">
                             <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                         </select>
                     </div>
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Форма оплаты</label>
-                        <select v-model="form.financial_term.client_payment_form" :disabled="!canEditFinancialFields" :class="crmFieldFluid">
+                    <div class="flex min-w-[11rem] flex-[1_1_11rem] items-center gap-1.5">
+                        <label class="shrink-0 whitespace-nowrap text-xs font-medium text-zinc-600 dark:text-zinc-400">Форма оплаты</label>
+                        <select v-model="form.financial_term.client_payment_form" :disabled="!canEditFinancialFields" :class="`${crmFieldFluid} min-w-0 flex-1 py-1.5`">
                             <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                         </select>
                     </div>
                 </div>
+                <p v-if="form.errors['financial_term.client_price']" class="text-xs text-rose-500">{{ form.errors['financial_term.client_price'] }}</p>
                 <PaymentTermsWizardBlock
                     :key="`client-pay-${order?.id ?? 'draft'}`"
                     v-model:summary-text="form.financial_term.client_payment_terms"
@@ -88,27 +88,25 @@ const {
 
                 <div class="space-y-2">
                     <div v-for="(cost, index) in legContractorCosts" :key="`contractor-cost-${index}`" class="space-y-2 rounded-lg border border-zinc-200 p-2.5 dark:border-zinc-800">
-                        <div class="grid grid-cols-1 gap-2 md:grid-cols-12 md:items-end">
-                            <div class="min-w-0 md:col-span-5">
-                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                                    {{ costRowTitle(cost) }}
-                                </div>
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+                            <div class="min-w-0 basis-full text-sm font-medium text-zinc-900 dark:text-zinc-100 sm:basis-auto sm:min-w-[8rem] sm:flex-1">
+                                {{ costRowTitle(cost) }}
                             </div>
-                            <div class="min-w-0 space-y-2 md:col-span-2">
-                                <label class="text-sm font-medium">
+                            <div class="flex min-w-[9rem] flex-[1_1_9rem] items-center gap-1.5">
+                                <label class="shrink-0 whitespace-nowrap text-xs font-medium text-zinc-600 dark:text-zinc-400">
                                     {{ contractorCostAmountLabel(cost) }}
                                 </label>
-                                <input v-model="cost.amount" type="number" min="0" step="0.01" :disabled="!canEditFinancialFields" :class="crmFieldFluid" placeholder="0" />
+                                <input v-model="cost.amount" type="number" min="0" step="0.01" :disabled="!canEditFinancialFields" :class="`${crmFieldFluid} min-w-0 flex-1 py-1.5`" placeholder="0" />
                             </div>
-                            <div class="min-w-0 space-y-2 md:col-span-2">
-                                <label class="text-sm font-medium">Валюта</label>
-                                <select v-model="cost.currency" :disabled="!canEditFinancialFields" :class="crmFieldFluid">
+                            <div class="flex min-w-[6.5rem] flex-[1_1_6.5rem] items-center gap-1.5">
+                                <label class="shrink-0 whitespace-nowrap text-xs font-medium text-zinc-600 dark:text-zinc-400">Валюта</label>
+                                <select v-model="cost.currency" :disabled="!canEditFinancialFields" :class="`${crmFieldFluid} min-w-0 flex-1 py-1.5`">
                                     <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                             </div>
-                            <div class="min-w-0 space-y-2 md:col-span-3">
-                                <label class="text-sm font-medium">Форма оплаты</label>
-                                <select v-model="cost.payment_form" :disabled="!canEditFinancialFields" :class="crmFieldFluid">
+                            <div class="flex min-w-[10rem] flex-[1_1_10rem] items-center gap-1.5">
+                                <label class="shrink-0 whitespace-nowrap text-xs font-medium text-zinc-600 dark:text-zinc-400">Форма оплаты</label>
+                                <select v-model="cost.payment_form" :disabled="!canEditFinancialFields" :class="`${crmFieldFluid} min-w-0 flex-1 py-1.5`">
                                     <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                             </div>

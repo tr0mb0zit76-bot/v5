@@ -13,11 +13,11 @@ export const MAX_INSTALLMENTS = 10;
 export const PAYMENT_TERMS_SUMMARY_MAX_LENGTH = 400;
 
 export const PAYMENT_BASIS_OPTIONS = [
-    { value: 'fttn', label: 'По сканам' },
-    { value: 'fttn_receipt', label: 'По сканам + квиток' },
-    { value: 'ottn', label: 'По оригиналам' },
-    { value: 'loading', label: 'При погрузке' },
-    { value: 'unloading', label: 'При выгрузке' },
+    { value: 'fttn', label: 'По сканам', shortLabel: 'Сканы' },
+    { value: 'fttn_receipt', label: 'По сканам + квиток', shortLabel: 'Сканы+кв.' },
+    { value: 'ottn', label: 'По оригиналам', shortLabel: 'Ориг.' },
+    { value: 'loading', label: 'При погрузке', shortLabel: 'Погр.' },
+    { value: 'unloading', label: 'При выгрузке', shortLabel: 'Выгр.' },
 ];
 
 export const PAYMENT_ANCHOR_OPTIONS = [
@@ -30,8 +30,8 @@ export const PAYMENT_ANCHOR_OPTIONS = [
 ];
 
 export const PAYMENT_OFFSET_UNIT_OPTIONS = [
-    { value: 'calendar_days', label: 'Календарные дни' },
-    { value: 'bank_days', label: 'Банковские дни (пн–пт)' },
+    { value: 'calendar_days', label: 'Календарные дни', shortLabel: 'кал.' },
+    { value: 'bank_days', label: 'Банковские дни (пн–пт)', shortLabel: 'банк.' },
 ];
 
 const INSTALLMENT_ANCHOR_END = {

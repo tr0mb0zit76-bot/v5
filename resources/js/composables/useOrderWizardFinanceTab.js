@@ -177,7 +177,7 @@ export function useOrderWizardFinanceTab(deps) {
     }
 
     function contractorCostAmountLabel(cost) {
-        return isOwnFleetExecutionMode(cost?.execution_mode) ? 'Примерная стоимость' : 'Стоимость перевозки';
+        return isOwnFleetExecutionMode(cost?.execution_mode) ? 'Примерная стоимость' : 'Стоимость';
     }
 
     function contractorCostOrderDate() {
