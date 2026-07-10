@@ -50,6 +50,12 @@ Thumbs.db
 /scripts/eec-metadata-titles.txt
 /scripts/prod-check-payments.sh
 
+# Локальные отчёты «Протокол Аудит» (сессионные артефакты)
+/docs/audit-reports/
+
+# Локальные отчёты «Протокол Архитектура»
+/docs/architecture-reports/
+
 # Локальные MCP / Hive Mind (токены и пути машины — не в git)
 /.cursor/mcp.local.json
 /.cursor/hivemind.config.json

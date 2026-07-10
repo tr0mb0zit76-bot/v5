@@ -50,8 +50,8 @@
 
 | # | Проблема | Статус | Действие |
 | --- | --- | --- | --- |
-| 2.1 | **Order Wizard ~12k строк** (`Wizard.vue` + fat controller) | ⏳ | Декомпозиция: Presenter + tab services (как Load Board) + Vue tabs; **не смешивать с security-фиксами** |
-| 2.2 | `OrderWizardController` дублирует serialize/authorize | ⏳ | Вынести `OrderWizardPresenter`, `OrderWizardTab*` services |
+| 2.1 | **Order Wizard ~12k строк** (`Wizard.vue` + fat controller) | 🟡 | Slices 1–5: controller **~386**; Vue **~5770** (было ~7180); tabs: Main, Route, Cargo, Finance, Mail, Timeline, Norms |
+| 2.2 | `OrderWizardController` дублирует serialize/authorize | ✅ | `OrderWizardOrderPresenter`, `PagePresenter`, `OrderAuthorization`, `DocumentSerializer` |
 | 2.3 | Другие `v-html` (Mermaid, PublicSiteShell) | ⏳ | Аудит; DOMPurify или escape |
 
 ### Phase 3 — UX / продукт (после Phase 0–1)

@@ -6,7 +6,7 @@ use App\Models\Lead;
 use App\Models\User;
 use App\Support\CommercialNudgeType;
 use App\Support\LeadViewAuthorization;
-use Illuminate\Support\Facades\DB;
+use App\Support\RoleAccess;
 use Illuminate\Support\Facades\Schema;
 
 class LeadAttentionQueueService
@@ -115,18 +115,6 @@ class LeadAttentionQueueService
 
     private function userCanAccessLeads(User $user): bool
     {
-        if ($user->role_id === null || ! Schema::hasTable('roles')) {
-            return false;
-        }
-
-        $areas = DB::table('roles')->where('id', $user->role_id)->value('visibility_areas');
-
-        if (! is_string($areas) || $areas === '') {
-            return false;
-        }
-
-        $decoded = json_decode($areas, true);
-
-        return is_array($decoded) && in_array('leads', $decoded, true);
+        return RoleAccess::canAccessVisibilityArea($user, 'leads');
     }
 }

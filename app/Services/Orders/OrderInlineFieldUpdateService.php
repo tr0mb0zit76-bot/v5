@@ -2,10 +2,10 @@
 
 namespace App\Services\Orders;
 
-use App\Http\Controllers\Orders\OrderWizardController;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\OrderCompensationService;
+use App\Services\Orders\Wizard\OrderWizardFinancialTermsSyncService;
 use App\Services\OrderWizardStateService;
 use Illuminate\Support\Facades\Schema;
 
@@ -14,6 +14,7 @@ class OrderInlineFieldUpdateService
     public function __construct(
         private readonly OrderCompensationService $orderCompensationService,
         private readonly OrderWizardStateService $orderWizardStateService,
+        private readonly OrderWizardFinancialTermsSyncService $financialTermsSyncService,
     ) {}
 
     public function apply(User $user, Order $order, string $field, mixed $value): Order
@@ -40,11 +41,11 @@ class OrderInlineFieldUpdateService
         }
 
         if (in_array($field, ['customer_rate', 'carrier_rate', 'additional_expenses', 'insurance', 'bonus'], true)) {
-            app(OrderWizardController::class)->syncFinancialTermsFromOrderRatesForOrder($syncOrder);
+            $this->financialTermsSyncService->syncFromOrderRates($syncOrder);
         }
 
         if (in_array($field, ['customer_payment_form', 'carrier_payment_form'], true)) {
-            app(OrderWizardController::class)->syncFinancialTermsFromOrderRatesForOrder($syncOrder);
+            $this->financialTermsSyncService->syncFromOrderRates($syncOrder);
         }
 
         if (in_array($field, [

@@ -1,0 +1,219 @@
+﻿            <div v-else-if="activeTab === 'norms_penalties'" class="space-y-6">
+                <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                    РЁС‚СЂР°С„С‹ Рё РЅРѕСЂРјР°С‚РёРІС‹ РїРѕ РІСЂРµРјРµРЅРё (С‡Р°СЃС‹) РґР»СЏ Р·Р°РєР°Р·С‡РёРєР° Рё РѕС‚РґРµР»СЊРЅРѕ РїРѕ РєР°Р¶РґРѕРјСѓ РїР»РµС‡Сѓ РїРµСЂРµРІРѕР·С‡РёРєР°. Р”Р°РЅРЅС‹Рµ СЃРѕС…СЂР°РЅСЏСЋС‚СЃСЏ РІ РєР°СЂС‚РѕС‡РєРµ Р·Р°РєР°Р·Р° Рё РґРѕСЃС‚СѓРїРЅС‹ РґР»СЏ РґР°Р»СЊРЅРµР№С€РёС… СЃРѕРїРѕСЃС‚Р°РІР»РµРЅРёР№.
+                </p>
+                <div
+                    v-if="normsPenaltiesTabValidationMessages.length > 0"
+                    class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100"
+                    role="alert"
+                >
+                    <ul class="list-inside list-disc space-y-1">
+                        <li v-for="(msg, i) in normsPenaltiesTabValidationMessages" :key="`norms-err-${i}`">{{ msg }}</li>
+                    </ul>
+                </div>
+
+                <div class="rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
+                    <div class="-mx-1 flex min-h-9 min-w-0 flex-wrap items-center gap-x-3 gap-y-2 px-1 pb-0.5">
+                        <h2 class="shrink-0 text-base font-semibold">Р—Р°РєР°Р·С‡РёРє</h2>
+                        <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2 gap-y-1 overflow-x-auto">
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">РЎСЂС‹РІ</span>
+                            <input
+                                v-model.number="form.financial_term.client_norms_penalties.miss_amount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                            <select v-model="form.financial_term.client_norms_penalties.miss_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
+                                <option v-for="option in currencyOptions" :key="`cn-miss-${option.value}`" :value="option.value">{{ option.value }}</option>
+                            </select>
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">РџСЂРѕСЃС‚РѕР№</span>
+                            <input
+                                v-model.number="form.financial_term.client_norms_penalties.downtime_amount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                            <select v-model="form.financial_term.client_norms_penalties.downtime_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
+                                <option v-for="option in currencyOptions" :key="`cn-down-${option.value}`" :value="option.value">{{ option.value }}</option>
+                            </select>
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">РЁС‚СЂР°С„</span>
+                            <input
+                                v-model.number="form.financial_term.client_norms_penalties.fine_amount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                            <select v-model="form.financial_term.client_norms_penalties.fine_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
+                                <option v-for="option in currencyOptions" :key="`cn-fine-${option.value}`" :value="option.value">{{ option.value }}</option>
+                            </select>
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex min-w-0 shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">РџРµРЅСЏ</span>
+                            <input
+                                v-model="form.financial_term.client_norms_penalties.penalty_terms"
+                                type="text"
+                                class="h-8 min-w-[10rem] max-w-[28rem] flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
+                                placeholder="РЈСЃР»РѕРІРёСЏ РїРµРЅРёвЂ¦"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="РџРѕРіСЂСѓР·РєР°, С‡">РџРѕРіСЂ.</span>
+                            <input
+                                v-model.number="form.financial_term.client_norms_penalties.norm_loading_hours"
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="РўР°РјРѕР¶РЅСЏ, С‡">РўР°Рј.</span>
+                            <input
+                                v-model.number="form.financial_term.client_norms_penalties.norm_customs_hours"
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Р’С‹РіСЂСѓР·РєР°, С‡">Р’С‹РіСЂ.</span>
+                            <input
+                                v-model.number="form.financial_term.client_norms_penalties.norm_unloading_hours"
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                    </div>
+                </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200 px-4 py-3 dark:border-zinc-800">
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">РЎС‚СЂРѕРєРё РїРѕ РїР»РµС‡Р°Рј СЃРёРЅС…СЂРѕРЅРёР·РёСЂСѓСЋС‚СЃСЏ СЃ РІРєР»Р°РґРєРѕР№ В«РњР°СЂС€СЂСѓС‚В».</p>
+                    <button
+                        type="button"
+                        class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                        :disabled="!isOrderFormEditable"
+                        @click="syncCarrierNormsByLegFromPerformers"
+                    >
+                        РџРѕРґС‚СЏРЅСѓС‚СЊ РїР»РµС‡Рё
+                    </button>
+                </div>
+
+                <div v-for="(normRow, legIndex) in form.financial_term.carrier_norms_by_leg" :key="`carrier-norms-${normRow.stage}-${legIndex}`" class="rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
+                    <div class="-mx-1 flex min-h-9 min-w-0 flex-wrap items-center gap-x-3 gap-y-2 px-1 pb-0.5">
+                        <h2 class="shrink-0 text-base font-semibold">РџРµСЂРµРІРѕР·С‡РёРє В· {{ stageLabel(normRow.stage) }}</h2>
+                        <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2 gap-y-1 overflow-x-auto">
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">РЎСЂС‹РІ</span>
+                            <input
+                                v-model.number="normRow.miss_amount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                            <select v-model="normRow.miss_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
+                                <option v-for="option in currencyOptions" :key="`leg-${legIndex}-miss-${option.value}`" :value="option.value">{{ option.value }}</option>
+                            </select>
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">РџСЂРѕСЃС‚РѕР№</span>
+                            <input
+                                v-model.number="normRow.downtime_amount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                            <select v-model="normRow.downtime_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
+                                <option v-for="option in currencyOptions" :key="`leg-${legIndex}-down-${option.value}`" :value="option.value">{{ option.value }}</option>
+                            </select>
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">РЁС‚СЂР°С„</span>
+                            <input
+                                v-model.number="normRow.fine_amount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                            <select v-model="normRow.fine_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
+                                <option v-for="option in currencyOptions" :key="`leg-${legIndex}-fine-${option.value}`" :value="option.value">{{ option.value }}</option>
+                            </select>
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex min-w-0 shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">РџРµРЅСЏ</span>
+                            <input
+                                v-model="normRow.penalty_terms"
+                                type="text"
+                                class="h-8 min-w-[10rem] max-w-[28rem] flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
+                                placeholder="РЈСЃР»РѕРІРёСЏ РїРµРЅРёвЂ¦"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="РџРѕРіСЂСѓР·РєР°, С‡">РџРѕРіСЂ.</span>
+                            <input
+                                v-model.number="normRow.norm_loading_hours"
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="РўР°РјРѕР¶РЅСЏ, С‡">РўР°Рј.</span>
+                            <input
+                                v-model.number="normRow.norm_customs_hours"
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Р’С‹РіСЂСѓР·РєР°, С‡">Р’С‹РіСЂ.</span>
+                            <input
+                                v-model.number="normRow.norm_unloading_hours"
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        </div>
+                    </div>
+                </div>

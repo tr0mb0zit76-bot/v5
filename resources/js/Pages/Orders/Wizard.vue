@@ -286,1113 +286,10 @@
                     </ul>
                 </div>
             </div>
-            <div v-if="activeTab === 'main'" class="space-y-6">
-                <div class="grid gap-6 lg:grid-cols-2">
-                <div class="space-y-4">
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Своя компания</label>
-                        <select
-                            v-model="form.own_company_id"
-                            :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('own_company_id', form.own_company_id)]"
-                        >
-                            <option :value="null">Не выбрано</option>
-                            <option v-for="company in ownCompanyOptions" :key="company.id" :value="company.id">
-                                {{ company.name }}
-                            </option>
-                        </select>
-                        <p v-if="form.errors.own_company_id" class="text-xs text-rose-500">{{ form.errors.own_company_id }}</p>
-                    </div>
+            <OrderWizardMainTab v-if="activeTab === 'main'" />
 
-                    <div v-if="showOwnCompanyBankAccountPicker" class="space-y-2">
-                        <label class="text-sm font-medium">Расчётный счёт своей компании</label>
-                        <select
-                            v-model="form.own_company_bank_account_id"
-                            :class="crmFieldFluid"
-                        >
-                            <option :value="null">Основной (по умолчанию)</option>
-                            <option
-                                v-for="acc in selectableOwnCompanyBankAccounts"
-                                :key="String(acc.id)"
-                                :value="acc.id"
-                            >
-                                {{ ownCompanyBankAccountLabel(acc) }}
-                            </option>
-                        </select>
-                        <p v-if="form.errors.own_company_bank_account_id" class="text-xs text-rose-500">{{ form.errors.own_company_bank_account_id }}</p>
-                    </div>
-
-                    <div class="space-y-2">
-                        <div class="flex items-center justify-between gap-3">
-                            <label class="text-sm font-medium">Контрагент</label>
-                            <div class="flex flex-wrap items-center gap-2">
-                                <CustomerPortalInviteButton
-                                    v-if="order?.id && order?.can_edit_order && form.client_id"
-                                    :order-id="order.id"
-                                />
-                                <OrderTrakloChatButton
-                                    v-if="order?.id && form.client_id"
-                                    :order-id="order.id"
-                                    :contractor-id="form.client_id"
-                                    external-party="customer"
-                                />
-                                <button
-                                    type="button"
-                                    class="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                    @click.stop="openCounterpartyModal"
-                                >
-                                    Новый контрагент
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="relative">
-                            <input
-                                v-model="clientSearch"
-                                type="text"
-                                :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('client_id', form.client_id)]"
-                                placeholder="Начни вводить название или ИНН"
-                                @focus="showClientResults = true"
-                            />
-
-                            <div
-                                v-if="showClientResults && combinedClientResults.length > 0"
-                                class="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
-                            >
-                                <div v-if="isSearchingClients" class="px-4 py-3 text-center text-sm text-zinc-500">
-                                    Поиск...
-                                </div>
-                                <button
-                                    v-for="contractor in combinedClientResults"
-                                    :key="contractor.id"
-                                    type="button"
-                                    class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                    @click="selectClient(contractor)"
-                                >
-                                    <span class="text-sm font-medium">{{ contractor.name }}</span>
-                                    <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
-                                    <span v-if="serverSearchResults.some(c => c.id === contractor.id)" class="text-xs text-green-500 mt-1">
-                                        ✓ Найден в базе
-                                    </span>
-                                </button>
-                            </div>
-                        </div>
-                        <p v-if="customerDebtBlocked" class="text-xs text-rose-500">
-                            Лимит задолженности контрагента достигнут: {{ selectedClient?.current_debt ?? 0 }} {{ selectedClient?.debt_limit_currency || 'RUB' }}. Новый заказ сохранить нельзя.
-                        </p>
-                        <p v-if="form.errors.client_id" class="text-xs text-rose-500">{{ form.errors.client_id }}</p>
-                    </div>
-
-                    <div class="grid gap-4 md:grid-cols-2">
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Дата заказа</label>
-                        <input v-model="form.order_date" type="date" :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('order_date', form.order_date)]" />
-                        <p v-if="form.errors.order_date" class="text-xs text-rose-500">{{ form.errors.order_date }}</p>
-                        </div>
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium">Номер</label>
-                            <input
-                                v-model="form.order_number"
-                                type="text"
-                                :class="crmFieldFluid"
-                                placeholder="Сгенерируется автоматически"
-                                @input="onOrderNumberManualInput"
-                            />
-                            <p v-if="!isEditing && suggestedOrderNumberCipher" class="text-xs text-zinc-500">
-                                По правилу «{{ suggestedOrderNumberCipher }}»; можно изменить вручную.
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium">Владелец сделки</label>
-                            <select
-                                v-model.number="form.order_owner_id"
-                                :class="crmFieldFluid"
-                                :disabled="!canAssignResponsible || !isOrderFormEditable"
-                            >
-                                <option v-for="user in responsibleUsers" :key="`order-owner-${user.id}`" :value="user.id">
-                                    {{ user.name }}
-                                </option>
-                            </select>
-                            <p v-if="form.errors.order_owner_id" class="text-xs text-rose-500">{{ form.errors.order_owner_id }}</p>
-                        </div>
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium">Диспетчер</label>
-                            <select
-                                v-model="form.dispatcher_id"
-                                :class="crmFieldFluid"
-                                :disabled="!canAssignResponsible || !isOrderFormEditable"
-                            >
-                                <option :value="null">Не назначен</option>
-                                <option v-for="user in responsibleUsers" :key="`order-dispatcher-${user.id}`" :value="user.id">
-                                    {{ user.name }}
-                                </option>
-                            </select>
-                            <p v-if="form.errors.dispatcher_id" class="text-xs text-rose-500">{{ form.errors.dispatcher_id }}</p>
-                        </div>
-                    </div>
-
-                    <div v-if="form.dispatcher_id" class="space-y-2 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                        <label class="text-sm font-medium">Доля KPI / компенсации</label>
-                        <p class="text-xs text-zinc-500">Сумма долей владельца и диспетчера должна быть 100%.</p>
-                        <div class="grid gap-3 sm:grid-cols-2">
-                            <div class="space-y-1">
-                                <label class="text-xs text-zinc-500">Владелец, %</label>
-                                <input
-                                    v-model.number="form.compensation_owner_percent"
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    step="1"
-                                    :class="crmFieldFluid"
-                                    :disabled="!canAssignResponsible || !isOrderFormEditable"
-                                    @input="onCompensationOwnerPercentInput"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-xs text-zinc-500">Диспетчер, %</label>
-                                <input
-                                    v-model.number="form.compensation_dispatcher_percent"
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    step="1"
-                                    :class="crmFieldFluid"
-                                    :disabled="!canAssignResponsible || !isOrderFormEditable"
-                                    @input="onCompensationDispatcherPercentInput"
-                                />
-                            </div>
-                        </div>
-                        <p v-if="form.errors.compensation_owner_percent" class="text-xs text-rose-500">{{ form.errors.compensation_owner_percent }}</p>
-                    </div>
-
-                    <div v-if="form.performers.length > 1" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                        <div>
-                            <h2 class="text-base font-semibold">Клиентская заявка</h2>
-                            <p class="text-sm text-zinc-500">Выбери, оформляем ли весь маршрут одной заявкой или разбиваем по плечам.</p>
-                        </div>
-                        <div class="grid gap-3 md:grid-cols-2">
-                            <label
-                                v-for="option in clientRequestModeOptions"
-                                :key="option.value"
-                                class="flex cursor-pointer gap-3 rounded-2xl border border-zinc-200 p-4 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800/70"
-                                :class="form.financial_term.client_request_mode === option.value ? 'border-zinc-900 bg-zinc-50 dark:border-zinc-200 dark:bg-zinc-800/70' : ''"
-                            >
-                                <input v-model="form.financial_term.client_request_mode" type="radio" :value="option.value" class="mt-1 rounded border-zinc-300" />
-                                <span class="space-y-1">
-                                    <span class="block text-sm font-medium">{{ option.label }}</span>
-                                    <span class="block text-xs text-zinc-500">{{ option.description }}</span>
-                                </span>
-                            </label>
-                        </div>
-                    </div>
-
-                </div>
-
-                <div class="space-y-2">
-                    <label class="text-sm font-medium">Особые отметки</label>
-                    <textarea v-model="form.special_notes" rows="6" :class="crmFieldFluid" />
-                </div>
-                </div>
-
-                <div class="space-y-3">
-                    <h2 class="text-base font-semibold">Финансовая сводка</h2>
-                    <div class="grid gap-2 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800 md:grid-cols-5">
-                        <div>Цена клиента: <span class="font-medium">{{ financialSummary.clientPrice.toFixed(2) }}</span></div>
-                        <div>Себестоимость: <span class="font-medium">{{ financialSummary.totalCost.toFixed(2) }}</span></div>
-                        <div>Маржа: <span class="font-medium">{{ financialSummary.margin.toFixed(2) }}</span></div>
-                        <div>Доп. расходы: <span class="font-medium">{{ financialSummary.additionalCosts.toFixed(2) }}</span></div>
-                        <div>Вычет: <span class="font-medium">{{ Number(form.financial_term.kpi_percent || 0).toFixed(2) }}%</span></div>
-                    </div>
-
-                    <div
-                        v-if="showPaymentSettlementBlock"
-                        class="space-y-2 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800"
-                    >
-                        <div class="font-semibold text-zinc-800 dark:text-zinc-100">Расчёты по графику оплат</div>
-                        <div class="space-y-1.5 text-zinc-700 dark:text-zinc-200">
-                            <div
-                                v-for="line in paymentSettlementLines"
-                                :key="line.key"
-                            >
-                                {{ paymentSettlementLineTitle(line) }}:
-                                <span class="font-medium text-zinc-900 dark:text-zinc-50">{{ paymentSettlementLineValue(line) }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div v-else-if="activeTab === 'route'" class="space-y-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h2 class="text-base font-semibold">Маршрут</h2>
-                        <p v-if="form.errors.performers" class="mt-1 text-xs text-rose-500">{{ form.errors.performers }}</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addPerformer">
-                            Добавить плечо
-                        </button>
-                    </div>
-                </div>
-
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="min-w-0 flex-1 rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">
-                        {{ routeChainLabel }}
-                    </div>
-                    <div
-                        v-if="form.is_international_transport"
-                        class="w-full shrink-0 sm:max-w-xs"
-                    >
-                        <label class="sr-only" for="wizard-border-crossing-leg">Добавить прохождение границы на плечо</label>
-                        <select
-                            id="wizard-border-crossing-leg"
-                            v-model="borderCrossingLegPicker"
-                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-55 dark:border-zinc-700 dark:bg-zinc-950"
-                            :disabled="hasBorderCrossingPoint"
-                            @change="onBorderCrossingLegPickerChange"
-                        >
-                            <option value="">Добавить прохождение границы…</option>
-                            <option v-for="(p, idx) in form.performers" :key="p.stage" :value="String(idx)">
-                                {{ stageLabel(p.stage) }}
-                            </option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="space-y-6">
-                    <div
-                        v-for="(performer, legIndex) in form.performers"
-                        :key="`leg-route-${legIndex}`"
-                        class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
-                    >
-                        <div class="space-y-3 border-b border-zinc-100 pb-4 dark:border-zinc-800">
-                            <div class="flex flex-wrap items-center justify-between gap-3">
-                                <span class="text-base font-semibold text-zinc-900 dark:text-zinc-50">{{ stageLabel(performer.stage) }}</span>
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <div :class="crmSegmented">
-                                        <button
-                                            type="button"
-                                            :class="[!isPerformerSplit(performer) ? crmSegmentedBtnActive : crmSegmentedBtn, 'px-2.5 py-1 text-[11px]']"
-                                            @click="setPerformerCarrierMode(legIndex, CARRIER_MODE_SINGLE)"
-                                        >
-                                            Один исполнитель
-                                        </button>
-                                        <button
-                                            type="button"
-                                            :class="[isPerformerSplit(performer) ? crmSegmentedBtnActive : crmSegmentedBtn, 'px-2.5 py-1 text-[11px]']"
-                                            @click="setPerformerCarrierMode(legIndex, CARRIER_MODE_SPLIT)"
-                                        >
-                                            Несколько исполнителей
-                                        </button>
-                                    </div>
-                                    <button
-                                        v-if="form.performers.length > 1"
-                                        type="button"
-                                        class="shrink-0 rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40"
-                                        @click="removePerformer(legIndex)"
-                                    >
-                                        Удалить плечо
-                                    </button>
-                                </div>
-                            </div>
-
-                            <template v-if="!isPerformerSplit(performer)">
-                                <div class="grid min-w-0 w-full grid-cols-1 gap-2 sm:grid-cols-12 sm:gap-3">
-                                    <div class="space-y-1 sm:col-span-5">
-                                        <div class="flex items-center justify-between gap-2">
-                                            <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Перевозчик</label>
-                                            <div class="flex items-center gap-2">
-                                                <CarrierPortalInviteButton
-                                                    v-if="order?.id && order?.can_edit_order"
-                                                    :order-id="order.id"
-                                                    :stage="performer.stage"
-                                                    :contractor-id="performer.contractor_id"
-                                                    :carrier-slot="1"
-                                                />
-                                                <OrderTrakloChatButton
-                                                    v-if="order?.id && performer.contractor_id"
-                                                    :order-id="order.id"
-                                                    :contractor-id="performer.contractor_id"
-                                                    external-party="carrier"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    class="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                                    @click.stop="openCounterpartyModal({ kind: 'performer', index: legIndex, type: 'carrier' })"
-                                                >
-                                                    + Новый
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div class="relative">
-                                            <input
-                                                :value="carrierSearchValue('performer', legIndex)"
-                                                type="text"
-                                                :class="['w-full rounded-xl border bg-white px-3 py-2 pr-10 text-sm dark:bg-zinc-950', highlightRequiredField('performer_carrier', performer.contractor_id)]"
-                                                placeholder="Поиск перевозчика"
-                                                @focus="setCarrierResultsVisible('performer', legIndex, true)"
-                                                @input="onPerformerCarrierInput(legIndex, $event.target.value)"
-                                                @blur="restorePerformerCarrierSearch(legIndex)"
-                                            />
-                                            <button
-                                                v-if="normalizeNullableNumber(form.performers[legIndex]?.contractor_id) !== null"
-                                                type="button"
-                                                class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                                                title="Очистить перевозчика"
-                                                @click="clearPerformerContractor(legIndex)"
-                                            >
-                                                <X class="h-4 w-4" />
-                                            </button>
-                                            <div
-                                                v-if="isCarrierResultsVisible('performer', legIndex)"
-                                                class="absolute left-0 top-full z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
-                                            >
-                                                <button
-                                                    v-if="props.ownFleetContractor?.id"
-                                                    type="button"
-                                                    class="flex w-full flex-col items-start border-b border-zinc-100 px-4 py-3 text-left hover:bg-sky-50 dark:border-zinc-800 dark:hover:bg-sky-950/30"
-                                                    @mousedown.prevent
-                                                    @click="selectOwnFleetPerformer(legIndex)"
-                                                >
-                                                    <span class="text-sm font-medium text-sky-700 dark:text-sky-300">{{ OWN_FLEET_CONTRACTOR_NAME }}</span>
-                                                </button>
-                                                <button
-                                                    v-for="contractor in filteredCarrierResults('performer', legIndex)"
-                                                    :key="contractor.id"
-                                                    type="button"
-                                                    class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                                    @mousedown.prevent
-                                                    @click="selectPerformerContractor(legIndex, contractor)"
-                                                >
-                                                    <span class="text-sm font-medium">{{ contractor.name }}</span>
-                                                    <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="space-y-1 sm:col-span-3">
-                                        <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Авто</label>
-                                        <select
-                                            v-model="performer.fleet_vehicle_id"
-                                            :class="crmFieldFluid"
-                                            :disabled="normalizeNullableNumber(performer.contractor_id) === null"
-                                            @focus="loadFleetOptionsForLeg(legIndex)"
-                                        >
-                                            <option :value="null">—</option>
-                                            <option v-for="v in fleetVehicleOptionsForLeg(legIndex)" :key="v.id" :value="v.id">{{ v.label }}</option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-1 sm:col-span-4">
-                                        <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Водитель</label>
-                                        <select
-                                            v-model="performer.fleet_driver_id"
-                                            :class="crmFieldFluid"
-                                            :disabled="normalizeNullableNumber(performer.contractor_id) === null"
-                                            @focus="loadFleetOptionsForLeg(legIndex)"
-                                        >
-                                            <option :value="null">—</option>
-                                            <option v-for="d in fleetDriverOptionsForLeg(legIndex)" :key="d.id" :value="d.id">{{ d.label }}</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <p
-                                    v-if="performer.carrier_portal_submission?.driver_full_name"
-                                    class="text-xs text-emerald-600 dark:text-emerald-400"
-                                >
-                                    Заполнено перевозчиком: {{ performer.carrier_portal_submission.driver_full_name }}
-                                </p>
-                                <div class="flex flex-wrap gap-2">
-                                    <div class="w-[8.75rem] space-y-0.5">
-                                        <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. погрузка</label>
-                                        <input v-model="performer.loading_actual" type="date" :max="maxActualDate" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" @change="onPerformerActualDateInput(performer, 'loading_actual')" />
-                                    </div>
-                                    <div class="w-[8.75rem] space-y-0.5">
-                                        <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. выгрузка</label>
-                                        <input v-model="performer.unloading_actual" type="date" :max="maxActualDate" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" @change="onPerformerActualDateInput(performer, 'unloading_actual')" />
-                                    </div>
-                                </div>
-                            </template>
-
-                            <template v-else>
-                                <div
-                                    v-for="(slot, slotIndex) in performer.split_carriers"
-                                    :key="`leg-${legIndex}-slot-${slot.slot}`"
-                                    class="space-y-3 rounded-xl border border-zinc-100 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-900/40"
-                                >
-                                    <div class="flex flex-wrap items-center justify-between gap-2">
-                                        <div>
-                                            <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ splitCarrierSlotLabel(slot.slot) }}</span>
-                                        </div>
-                                        <button
-                                            v-if="performer.split_carriers.length > 2"
-                                            type="button"
-                                            class="rounded-lg border border-rose-200 px-2 py-1 text-[11px] text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40"
-                                            @click="removeSplitCarrier(legIndex, slotIndex)"
-                                        >
-                                            Удалить
-                                        </button>
-                                    </div>
-                                    <div class="grid min-w-0 w-full grid-cols-1 gap-2 sm:grid-cols-12 sm:gap-3">
-                                        <div class="space-y-1 sm:col-span-5">
-                                            <div class="flex items-center justify-between gap-2">
-                                                <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Перевозчик</label>
-                                                <div class="flex items-center gap-2">
-                                                    <CarrierPortalInviteButton
-                                                        v-if="order?.id && order?.can_edit_order"
-                                                        :order-id="order.id"
-                                                        :stage="performer.stage"
-                                                        :contractor-id="slot.contractor_id"
-                                                        :carrier-slot="slot.slot ?? slotIndex + 1"
-                                                    />
-                                                    <OrderTrakloChatButton
-                                                        v-if="order?.id && slot.contractor_id"
-                                                        :order-id="order.id"
-                                                        :contractor-id="slot.contractor_id"
-                                                        external-party="carrier"
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        class="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                                        @click.stop="openCounterpartyModal({ kind: 'performer-slot', index: `${legIndex}-${slotIndex}`, type: 'carrier' })"
-                                                    >
-                                                        + Новый
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <div class="relative">
-                                                <input
-                                                    :value="carrierSearchValue('performer-slot', `${legIndex}-${slotIndex}`)"
-                                                    type="text"
-                                                    :class="['w-full rounded-xl border bg-white px-3 py-2 pr-10 text-sm dark:bg-zinc-950', highlightRequiredField(`performer_carrier_${legIndex}_${slotIndex}`, slot.contractor_id)]"
-                                                    placeholder="Поиск перевозчика"
-                                                    @focus="setCarrierResultsVisible('performer-slot', `${legIndex}-${slotIndex}`, true)"
-                                                    @input="onSplitPerformerCarrierInput(legIndex, slotIndex, $event.target.value)"
-                                                    @blur="restoreSplitPerformerCarrierSearch(legIndex, slotIndex)"
-                                                />
-                                                <button
-                                                    v-if="normalizeNullableNumber(slot.contractor_id) !== null"
-                                                    type="button"
-                                                    class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                                                    title="Очистить перевозчика"
-                                                    @click="clearSplitPerformerContractor(legIndex, slotIndex)"
-                                                >
-                                                    <X class="h-4 w-4" />
-                                                </button>
-                                                <div
-                                                    v-if="isCarrierResultsVisible('performer-slot', `${legIndex}-${slotIndex}`)"
-                                                    class="absolute left-0 top-full z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
-                                                >
-                                                    <button
-                                                        v-if="props.ownFleetContractor?.id"
-                                                        type="button"
-                                                        class="flex w-full flex-col items-start border-b border-zinc-100 px-4 py-3 text-left hover:bg-sky-50 dark:border-zinc-800 dark:hover:bg-sky-950/30"
-                                                        @mousedown.prevent
-                                                        @click="selectOwnFleetSplitSlot(legIndex, slotIndex)"
-                                                    >
-                                                        <span class="text-sm font-medium text-sky-700 dark:text-sky-300">{{ OWN_FLEET_CONTRACTOR_NAME }}</span>
-                                                    </button>
-                                                    <button
-                                                        v-for="contractor in filteredCarrierResults('performer-slot', `${legIndex}-${slotIndex}`)"
-                                                        :key="contractor.id"
-                                                        type="button"
-                                                        class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                                        @mousedown.prevent
-                                                        @click="selectSplitPerformerContractor(legIndex, slotIndex, contractor)"
-                                                    >
-                                                        <span class="text-sm font-medium">{{ contractor.name }}</span>
-                                                        <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="space-y-1 sm:col-span-3">
-                                            <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Авто</label>
-                                            <select
-                                                v-model="slot.fleet_vehicle_id"
-                                                :class="crmFieldFluid"
-                                                :disabled="normalizeNullableNumber(slot.contractor_id) === null"
-                                                @focus="loadFleetOptionsForLeg(legIndex, slotIndex)"
-                                            >
-                                                <option :value="null">—</option>
-                                                <option v-for="v in fleetVehicleOptionsForLeg(legIndex, slotIndex)" :key="v.id" :value="v.id">{{ v.label }}</option>
-                                            </select>
-                                        </div>
-                                        <div class="space-y-1 sm:col-span-4">
-                                            <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Водитель</label>
-                                            <select
-                                                v-model="slot.fleet_driver_id"
-                                                :class="crmFieldFluid"
-                                                :disabled="normalizeNullableNumber(slot.contractor_id) === null"
-                                                @focus="loadFleetOptionsForLeg(legIndex, slotIndex)"
-                                            >
-                                                <option :value="null">—</option>
-                                                <option v-for="d in fleetDriverOptionsForLeg(legIndex, slotIndex)" :key="d.id" :value="d.id">{{ d.label }}</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div class="flex flex-wrap gap-2 border-t border-zinc-200/80 pt-2 dark:border-zinc-700">
-                                        <div class="w-[8.75rem] space-y-0.5">
-                                            <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. погрузка</label>
-                                            <input v-model="slot.loading_actual" type="date" :max="maxActualDate" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" @change="onSplitActualDateInput(slot, 'loading_actual')" />
-                                        </div>
-                                        <div class="w-[8.75rem] space-y-0.5">
-                                            <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. выгрузка</label>
-                                            <input v-model="slot.unloading_actual" type="date" :max="maxActualDate" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" @change="onSplitActualDateInput(slot, 'unloading_actual')" />
-                                        </div>
-                                    </div>
-                                </div>
-                                <button
-                                    v-if="performer.split_carriers.length < 4"
-                                    type="button"
-                                    class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                    @click="addSplitCarrier(legIndex)"
-                                >
-                                    Добавить исполнителя
-                                </button>
-                            </template>
-
-                            <div class="grid gap-3 border-t border-zinc-100 pt-3 md:grid-cols-2 dark:border-zinc-800">
-                                <div class="space-y-1">
-                                    <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Особые условия на загрузке</label>
-                                    <textarea
-                                        v-model="performer.loading_special_conditions"
-                                        rows="2"
-                                        class="w-full resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                        placeholder="Ограничения по времени, пропуска, техника на погрузке…"
-                                    />
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Особые условия на выгрузке</label>
-                                    <textarea
-                                        v-model="performer.unloading_special_conditions"
-                                        rows="2"
-                                        class="w-full resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                        placeholder="Окна выгрузки, документы на месте, контакт на воротах…"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div
-                            v-for="item in routePointsWithIndicesForLeg(performer.stage)"
-                            :key="`point-${item.globalIndex}`"
-                            :draggable="routePointsDragEnabled()"
-                            class="space-y-3 rounded-2xl border border-zinc-200 bg-white/40 p-4 dark:border-zinc-700 dark:bg-zinc-950/30"
-                            :class="[
-                                draggedRoutePointIndex === item.globalIndex ? 'opacity-60 ring-2 ring-zinc-300 dark:ring-zinc-700' : '',
-                                dragOverRoutePointIndex === item.globalIndex ? 'border-zinc-900 bg-zinc-50 dark:border-zinc-200 dark:bg-zinc-800/60' : '',
-                            ]"
-                            @dragstart="handleRoutePointDragStart(item.globalIndex, $event)"
-                            @dragover.prevent="handleRoutePointDragOver(item.globalIndex)"
-                            @drop.prevent="handleRoutePointDrop(item.globalIndex)"
-                            @dragend="handleRoutePointDragEnd"
-                        >
-                            <div class="flex items-center justify-between gap-3">
-                                <div class="min-w-0 text-base font-semibold text-zinc-900 dark:text-zinc-50">
-                                    {{ routePointTitle(item.point, item.globalIndex) }}
-                                </div>
-                                <span
-                                    class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500"
-                                    :class="routePointsDragEnabled() ? 'cursor-grab' : 'cursor-not-allowed opacity-50'"
-                                    :title="routePointsDragEnabled() ? 'Перетащить этап' : 'Порядок этапов фиксирован по плечам — перетаскивание отключено'"
-                                >
-                                    ⋮⋮
-                                </span>
-                            </div>
-
-                            <template v-if="item.point.type === 'border_crossing'">
-                                <div class="flex items-start justify-end">
-                                    <button
-                                        type="button"
-                                        :class="routePointInlineBtn"
-                                        title="Удалить прохождение границы"
-                                        @click="removeRoutePointAt(item.globalIndex)"
-                                    >
-                                        <Minus class="h-3.5 w-3.5" />
-                                    </button>
-                                </div>
-                                <div class="w-full space-y-3">
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Код поста и наименование СВХ</label>
-                                        <div class="grid gap-2 sm:grid-cols-2 sm:gap-3">
-                                            <input
-                                                v-model="form.customs_post_code"
-                                                type="text"
-                                                :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', form.errors.customs_post_code ? 'border-rose-500 dark:border-rose-500' : 'border-zinc-200 dark:border-zinc-700']"
-                                                placeholder="Код поста"
-                                            />
-                                            <input
-                                                v-model="form.svh_name"
-                                                type="text"
-                                                :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', form.errors.svh_name ? 'border-rose-500 dark:border-rose-500' : 'border-zinc-200 dark:border-zinc-700']"
-                                                placeholder="Наименование СВХ / таможенного склада"
-                                            />
-                                        </div>
-                                        <p v-if="form.errors.customs_post_code || form.errors.svh_name" class="text-xs text-rose-500">
-                                            {{ form.errors.customs_post_code || form.errors.svh_name }}
-                                        </p>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Адрес СВХ</label>
-                                        <input
-                                            v-model="form.svh_address"
-                                            type="text"
-                                            :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', form.errors.svh_address ? 'border-rose-500 dark:border-rose-500' : 'border-zinc-200 dark:border-zinc-700']"
-                                            placeholder="Почтовый или производственный адрес"
-                                        />
-                                        <p v-if="form.errors.svh_address" class="text-xs text-rose-500">{{ form.errors.svh_address }}</p>
-                                    </div>
-                                </div>
-                            </template>
-                            <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9rem_9.5rem_14rem] lg:items-end">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Адрес</label>
-                                    <div class="flex items-start gap-1.5">
-                                        <div class="relative min-w-0 flex-1">
-                                            <input
-                                                v-model="item.point.address"
-                                                type="text"
-                                                :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('route_point_address_' + item.globalIndex, routePointAddressHighlightValue(item.point))]"
-                                                placeholder="Начни вводить адрес"
-                                                @input="onRoutePointAddressInput(item.globalIndex)"
-                                                @blur="syncRoutePointCityFromAddress(item.point)"
-                                            />
-
-                                            <div
-                                                v-if="addressSuggestions[item.globalIndex]?.length"
-                                                class="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
-                                            >
-                                                <button
-                                                    v-for="suggestion in addressSuggestions[item.globalIndex]"
-                                                :key="suggestion.value"
-                                                type="button"
-                                                class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                                @click="selectAddress(item.globalIndex, suggestion)"
-                                            >
-                                                <span class="text-sm font-medium">{{ suggestion.value }}</span>
-                                                <span class="text-xs text-zinc-500">{{ suggestion.data?.region_with_type || suggestion.data?.region || '' }}</span>
-                                            </button>
-                                        </div>
-                                        </div>
-                                        <div class="flex shrink-0 gap-1 pt-0.5">
-                                            <button
-                                                type="button"
-                                                :class="routePointInlineBtn"
-                                                title="Добавить ещё одну точку этого типа"
-                                                @click="addRoutePointAfter(item.globalIndex)"
-                                            >
-                                                <Plus class="h-3.5 w-3.5" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                :class="routePointInlineBtn"
-                                                :disabled="!canRemoveRoutePoint(item.globalIndex)"
-                                                title="Удалить точку"
-                                                @click="removeRoutePointAt(item.globalIndex)"
-                                            >
-                                                <Minus class="h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Город</label>
-                                    <input
-                                        :value="routePointCityValue(item.point)"
-                                        type="text"
-                                        :class="crmFieldFluid"
-                                        placeholder="Нормализованное название"
-                                        @input="setRoutePointCity(item.point, $event.target.value)"
-                                    />
-                                </div>
-
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Плановая дата</label>
-                                    <input v-model="item.point.planned_date" type="date" :class="crmFieldFluid" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">{{ routePointTimeBlockHeading(item.point.type) }}</label>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <input v-model="item.point.planned_time_from" type="time" :class="crmFieldFluid" aria-label="Время с" />
-                                        <input v-model="item.point.planned_time_to" type="time" :class="crmFieldFluid" aria-label="Время до" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div v-if="item.point.type === 'loading'" class="grid gap-3 md:grid-cols-2">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Отправитель</label>
-                                    <input v-model="item.point.sender_name" type="text" :class="crmFieldFluid" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Контакт на загрузке</label>
-                                    <input
-                                        :value="routePointCombinedContact(item.point)"
-                                        type="text"
-                                        :class="crmFieldFluid"
-                                        placeholder="Имя и телефон"
-                                        @input="setRoutePointCombinedContact(item.point, $event.target.value)"
-                                    />
-                                </div>
-                            </div>
-
-                            <div v-if="item.point.type === 'unloading'" class="grid gap-3 md:grid-cols-2">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Получатель</label>
-                                    <input v-model="item.point.recipient_name" type="text" :class="crmFieldFluid" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Контакт на выгрузке</label>
-                                    <input
-                                        :value="routePointCombinedContact(item.point)"
-                                        type="text"
-                                        :class="crmFieldFluid"
-                                        placeholder="Имя и телефон"
-                                        @input="setRoutePointCombinedContact(item.point, $event.target.value)"
-                                    />
-                                </div>
-                            </div>
-
-                            <div v-if="form.performers.length > 1" class="border-t border-zinc-100 pt-3 dark:border-zinc-800">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium text-zinc-500">Отнести этап к плечу</label>
-                                    <select v-model="item.point.stage" class="w-full max-w-md rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" @change="onRoutePointLegChanged">
-                                        <option v-for="p in form.performers" :key="p.stage" :value="p.stage">
-                                            {{ stageLabel(p.stage) }}
-                                        </option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div v-else-if="activeTab === 'cargo'" class="space-y-4">
-                <h2 class="text-base font-semibold">Грузовые позиции</h2>
-
-                <div class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Объявленная стоимость груза</label>
-                        <input
-                            v-model="form.cargo_declared_sum"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            class="w-full max-w-xs rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                            placeholder="Сумма для таможни / страхования"
-                        />
-                        <p v-if="form.errors.cargo_declared_sum" class="text-xs text-rose-500">{{ form.errors.cargo_declared_sum }}</p>
-                    </div>
-                </div>
-
-                <div class="space-y-4">
-                    <div v-for="(item, index) in form.cargo_items" :key="`cargo-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                        <div class="flex items-center justify-between">
-                            <div class="text-sm font-medium">Груз {{ index + 1 }}</div>
-                            <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeItem(form.cargo_items, index)">
-                                Удалить
-                            </button>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-12 lg:gap-x-2 lg:gap-y-2">
-                            <div class="space-y-1 lg:col-span-4">
-                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Наименование</label>
-                                <input v-model="item.name" list="cargo-title-suggestions" type="text" :class="['w-full rounded-lg border px-2 py-1.5 text-sm dark:bg-zinc-950', highlightRequiredField('cargo_name_' + index, item.name)]" />
-                            </div>
-                            <div class="space-y-1 lg:col-span-2">
-                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Тип груза</label>
-                                <select
-                                    v-model.number="item.cargo_type_id"
-                                    :class="['w-full rounded-lg border px-2 py-1.5 text-sm dark:bg-zinc-950', highlightRequiredField('cargo_type_' + index, item.cargo_type_id)]"
-                                    @change="applyCargoTypeOption(item)"
-                                >
-                                    <option v-for="option in cargoTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                </select>
-                            </div>
-                            <div class="space-y-1 lg:col-span-2">
-                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Вес</label>
-                                <div class="flex gap-1.5">
-                                    <input
-                                        :value="item.weight_value ?? ''"
-                                        type="text"
-                                        inputmode="decimal"
-                                        class="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                        @input="onCargoDecimalInput(item, 'weight_value', $event)"
-                                    />
-                                    <select v-model="item.weight_unit" class="w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1.5 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option value="kg">кг</option>
-                                        <option value="t">т</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="space-y-1 lg:col-span-1">
-                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Мест</label>
-                                <input v-model="item.package_count" type="number" min="0" step="1" :class="crmFieldFluid" />
-                            </div>
-                            <div class="space-y-1 lg:col-span-1">
-                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Упаковка</label>
-                                <select v-model="item.pack_type_id" :class="crmFieldFluid" @change="applyPackageTypeOption(item)">
-                                    <option :value="null">—</option>
-                                    <option v-for="option in packageTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                </select>
-                            </div>
-                            <div class="space-y-1 lg:col-span-1">
-                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">ТН ВЭД</label>
-                                <input v-model="item.hs_code" type="text" :class="crmFieldFluid" />
-                            </div>
-                            <div class="space-y-1 lg:col-span-1">
-                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Класс опасн.</label>
-                                <input v-model="item.dangerous_class" type="text" :class="crmFieldFluid" />
-                            </div>
-                        </div>
-
-                        <div class="flex flex-wrap items-end gap-x-2 gap-y-2">
-                            <div class="grid min-w-[17rem] flex-1 gap-2 sm:grid-cols-3">
-                                <div class="space-y-1">
-                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">Погрузка</label>
-                                    <details class="relative">
-                                        <summary class="flex h-8 cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-2 text-xs dark:border-zinc-700 dark:bg-zinc-950">
-                                            <span class="truncate">{{ dictionarySelectionLabel(item.loading_type_items) }}</span>
-                                            <span class="text-zinc-400">▾</span>
-                                        </summary>
-                                        <div class="absolute z-30 mt-1 max-h-44 w-full space-y-1 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-2 text-xs shadow-lg dark:border-zinc-700 dark:bg-zinc-950">
-                                            <label v-for="option in loadingTypeOptions" :key="option.value" class="flex cursor-pointer items-center gap-1.5">
-                                                <input v-model="item.loading_type_ids" :value="option.value" type="checkbox" class="h-3.5 w-3.5 rounded border-zinc-300" @change="applyLoadingTypeOption(item)" />
-                                                <span class="leading-tight">{{ option.label }}</span>
-                                            </label>
-                                        </div>
-                                    </details>
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">Кузов</label>
-                                    <details class="relative">
-                                        <summary class="flex h-8 cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-2 text-xs dark:border-zinc-700 dark:bg-zinc-950">
-                                            <span class="truncate">{{ dictionarySelectionLabel(item.truck_body_type_items) }}</span>
-                                            <span class="text-zinc-400">▾</span>
-                                        </summary>
-                                        <div class="absolute z-30 mt-1 max-h-44 w-full space-y-1 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-2 text-xs shadow-lg dark:border-zinc-700 dark:bg-zinc-950">
-                                            <label v-for="option in truckBodyTypeOptions" :key="option.value" class="flex cursor-pointer items-center gap-1.5">
-                                                <input v-model="item.truck_body_type_ids" :value="option.value" type="checkbox" class="h-3.5 w-3.5 rounded border-zinc-300" @change="applyTruckBodyTypeOption(item)" />
-                                                <span class="leading-tight">{{ option.label }}</span>
-                                            </label>
-                                        </div>
-                                    </details>
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">Прицеп</label>
-                                    <details class="relative">
-                                        <summary class="flex h-8 cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-2 text-xs dark:border-zinc-700 dark:bg-zinc-950">
-                                            <span class="truncate">{{ dictionarySelectionLabel(item.trailer_type_items) }}</span>
-                                            <span class="text-zinc-400">▾</span>
-                                        </summary>
-                                        <div class="absolute z-30 mt-1 max-h-44 w-full space-y-1 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-2 text-xs shadow-lg dark:border-zinc-700 dark:bg-zinc-950">
-                                            <label v-for="option in trailerTypeOptions" :key="option.value" class="flex cursor-pointer items-center gap-1.5">
-                                                <input v-model="item.trailer_type_ids" :value="option.value" type="checkbox" class="h-3.5 w-3.5 rounded border-zinc-300" @change="applyTrailerTypeOption(item)" />
-                                                <span class="leading-tight">{{ option.label }}</span>
-                                            </label>
-                                        </div>
-                                    </details>
-                                </div>
-                            </div>
-                            <div class="flex min-w-0 flex-1 flex-wrap items-end gap-x-1.5 gap-y-1">
-                                <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
-                                    <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Д</label>
-                                    <input
-                                        :value="item.length_m ?? ''"
-                                        type="text"
-                                        inputmode="decimal"
-                                        class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                        @input="onCargoDecimalInput(item, 'length_m', $event)"
-                                    />
-                                </div>
-                                <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
-                                    <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Ш</label>
-                                    <input
-                                        :value="item.width_m ?? ''"
-                                        type="text"
-                                        inputmode="decimal"
-                                        class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                        @input="onCargoDecimalInput(item, 'width_m', $event)"
-                                    />
-                                </div>
-                                <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
-                                    <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">В</label>
-                                    <input
-                                        :value="item.height_m ?? ''"
-                                        type="text"
-                                        inputmode="decimal"
-                                        class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                        @input="onCargoDecimalInput(item, 'height_m', $event)"
-                                    />
-                                </div>
-                                <div class="flex w-[8.25rem] shrink-0 items-center gap-1">
-                                    <label class="w-12 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Объём</label>
-                                    <input
-                                        :value="item.volume_m3 ?? ''"
-                                        type="text"
-                                        inputmode="decimal"
-                                        :readonly="cargoComputedVolumeM3(item) !== null"
-                                        placeholder="—"
-                                        :class="[
-                                            'h-8 min-w-0 flex-1 rounded px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950',
-                                            cargoComputedVolumeM3(item) !== null
-                                                ? 'cursor-default border border-dashed border-zinc-200 bg-zinc-50 text-zinc-800 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-100'
-                                                : 'border border-zinc-200 bg-white dark:border-zinc-700',
-                                        ]"
-                                        @input="onCargoDecimalInput(item, 'volume_m3', $event)"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="grid gap-3 md:grid-cols-12">
-                            <div class="space-y-2 md:col-span-8">
-                                <label class="text-sm font-medium">Описание</label>
-                                <textarea v-model="item.description" rows="2" :class="crmFieldFluid" />
-                            </div>
-                            <div class="rounded-xl border border-zinc-200 bg-zinc-50/80 px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-900/40 md:col-span-4">
-                                <div class="font-medium text-zinc-700 dark:text-zinc-200">Сводка позиции</div>
-                                <div class="mt-1">
-                                    Вес: {{ cargoLineTotalWeightKg(item).toFixed(2) }} кг
-                                    <span v-if="cargoPackageCountFactor(item) > 1" class="text-zinc-500">({{ cargoWeightInKg(item).toFixed(2) }} кг × {{ cargoPackageCountFactor(item) }})</span>
-                                </div>
-                                <div>
-                                    Объём:
-                                    <template v-if="cargoLineTotalVolumeM3(item) > 0">{{ cargoLineTotalVolumeM3(item).toFixed(3) }} м³</template>
-                                    <template v-else>—</template>
-                                    <span v-if="cargoPackageCountFactor(item) > 1 && cargoLineTotalVolumeM3(item) > 0" class="text-zinc-500">({{ (cargoLineTotalVolumeM3(item) / cargoPackageCountFactor(item)).toFixed(3) }} м³ × {{ cargoPackageCountFactor(item) }})</span>
-                                </div>
-                                <div v-if="cargoHasDimensions(item)">Габариты (Д×Ш×В): {{ cargoDimensionsLabel(item) }}</div>
-                                <div>Мест: {{ Number(item.package_count || 0) }}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <datalist id="cargo-title-suggestions">
-                    <option v-for="title in cargoTitleSuggestions" :key="title" :value="title" />
-                </datalist>
-
-                <div class="flex flex-col gap-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="grid flex-1 gap-3 text-sm md:grid-cols-3">
-                        <div>Общий вес: <span class="font-medium">{{ cargoSummary.totalWeight.toFixed(2) }} кг</span></div>
-                        <div>Общий объём: <span class="font-medium">{{ cargoSummary.totalVolume.toFixed(2) }} м³</span></div>
-                        <div>Всего мест: <span class="font-medium">{{ cargoSummary.totalPackages }}</span></div>
-                    </div>
-                    <button
-                        type="button"
-                        class="shrink-0 rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                        @click="addCargoItem"
-                    >
-                        Добавить груз
-                    </button>
-                </div>
-
-                <div v-if="needsCargoPerformerAllocationUi" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                    <div>
-                        <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Распределение по исполнителям</h3>
-                        <p class="mt-0.5 text-xs text-zinc-500">
-                            Места и вес по каждой машине. Вес подставляется из позиции груза (вес места × кол-во), если не указан вручную.
-                            На плече с несколькими исполнителями сумма мест и веса должна совпадать с позицией.
-                        </p>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full border-separate border-spacing-0 text-sm">
-                            <thead>
-                                <tr class="text-left text-xs text-zinc-500">
-                                    <th class="sticky left-0 z-10 min-w-[10rem] border-b border-zinc-200 bg-white py-2 pr-3 dark:border-zinc-700 dark:bg-zinc-950">Груз</th>
-                                    <th
-                                        v-for="column in cargoPerformerAllocationColumns"
-                                        :key="`alloc-head-${column.key}`"
-                                        class="min-w-[8.5rem] border-b border-zinc-200 px-2 py-2 dark:border-zinc-700"
-                                    >
-                                        {{ column.label }}
-                                    </th>
-                                    <th class="min-w-[8rem] border-b border-zinc-200 px-2 py-2 dark:border-zinc-700">Проверка по плечам</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr
-                                    v-for="(item, cargoIndex) in form.cargo_items"
-                                    :key="`alloc-row-${cargoIndex}`"
-                                    :class="cargoAllocationRowStatuses[cargoIndex]?.isMismatch ? 'bg-rose-50/60 dark:bg-rose-950/20' : ''"
-                                >
-                                    <td class="sticky left-0 z-10 border-b border-zinc-100 bg-white py-2 pr-3 align-top dark:border-zinc-800 dark:bg-zinc-950">
-                                        <div class="font-medium text-zinc-800 dark:text-zinc-100">{{ item.name || `Груз ${cargoIndex + 1}` }}</div>
-                                        <div class="text-xs text-zinc-500">
-                                            {{ Number(item.package_count || 0) }} мест · {{ cargoLineTotalWeightKg(item).toFixed(0) }} кг
-                                        </div>
-                                    </td>
-                                    <td
-                                        v-for="column in cargoPerformerAllocationColumns"
-                                        :key="`alloc-cell-${cargoIndex}-${column.key}`"
-                                        class="border-b border-zinc-100 px-2 py-2 align-top dark:border-zinc-800"
-                                    >
-                                        <div class="flex flex-col gap-1">
-                                            <input
-                                                :value="findCargoAllocation(item, column.stage, column.carrier_slot)?.package_count ?? ''"
-                                                type="number"
-                                                min="0"
-                                                step="1"
-                                                :class="cargoAllocationFieldClass"
-                                                placeholder="Мест"
-                                                @input="onCargoAllocationPackagesInput(item, column, $event.target.value)"
-                                            />
-                                            <input
-                                                :value="findCargoAllocation(item, column.stage, column.carrier_slot)?.weight_value ?? ''"
-                                                type="number"
-                                                min="0"
-                                                step="0.01"
-                                                :class="cargoAllocationFieldClass"
-                                                :placeholder="allocationWeightFieldPlaceholder(item, column)"
-                                                @input="onCargoAllocationWeightInput(item, column, $event.target.value)"
-                                            />
-                                        </div>
-                                    </td>
-                                    <td class="border-b border-zinc-100 px-2 py-2 align-top text-xs dark:border-zinc-800">
-                                        <div
-                                            v-for="leg in cargoAllocationRowStatuses[cargoIndex]?.legStatuses ?? []"
-                                            :key="`alloc-status-${cargoIndex}-${leg.stage}`"
-                                            class="leading-relaxed"
-                                            :class="leg.packagesMismatch || leg.weightMismatch ? 'text-rose-600' : 'text-zinc-600 dark:text-zinc-400'"
-                                        >
-                                            <template v-if="leg.isSplitLeg">
-                                                {{ leg.stageLabel }}: {{ leg.stagePackages }}/{{ cargoAllocationRowStatuses[cargoIndex]?.expectedPackages }} мест,
-                                                {{ leg.stageWeightKg.toFixed(0) }}/{{ cargoAllocationRowStatuses[cargoIndex]?.expectedWeightKg.toFixed(0) }} кг
-                                            </template>
-                                            <template v-else>
-                                                {{ leg.stageLabel }}: {{ leg.stagePackages > 0 ? `${leg.stagePackages} мест` : '—' }}
-                                                <span v-if="leg.stageWeightKg > 0"> · {{ leg.stageWeightKg.toFixed(0) }} кг</span>
-                                            </template>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                            <tfoot>
-                                <tr class="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                                    <td class="sticky left-0 z-10 bg-zinc-50 py-2 pr-3 dark:bg-zinc-900/80">Сводка по машине</td>
-                                    <td
-                                        v-for="column in cargoPerformerAllocationColumnSummaries"
-                                        :key="`alloc-foot-${column.key}`"
-                                        class="px-2 py-2"
-                                    >
-                                        <template v-if="column.hasAny">
-                                            {{ column.totalPackages }} мест<br>
-                                            {{ column.totalWeightKg.toFixed(0) }} кг
-                                        </template>
-                                        <span v-else class="text-zinc-400">—</span>
-                                    </td>
-                                    <td />
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
-            </div>
+            <OrderWizardRouteTab v-else-if="activeTab === 'route'" />
+            <OrderWizardCargoTab v-else-if="activeTab === 'cargo'" />
 
             <div v-else-if="activeTab === 'lead_precalc' && leadPrecalculationSnapshot" class="space-y-4">
                 <OrderWizardLeadPrecalculationSnapshot
@@ -1401,467 +298,30 @@
                 />
             </div>
 
-            <div v-else-if="activeTab === 'finance'" class="space-y-3">
-                <div class="space-y-3">
-                    <div class="space-y-2.5 rounded-xl border border-zinc-200 p-2.5 dark:border-zinc-800">
-                        <div class="flex items-center justify-between gap-2">
-                            <h2 class="text-sm font-semibold">Оплата клиентом</h2>
-                            <div v-if="form.performers.length > 1" class="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                                {{ form.financial_term.client_request_mode === 'split_by_leg' ? 'Несколько заявок' : 'Одна заявка' }}
-                            </div>
-                        </div>
-                        <div class="grid gap-2 sm:grid-cols-3">
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Цена клиента</label>
-                                <input
-                                    v-model="form.financial_term.client_price"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    :disabled="!canEditFinancialFields"
-                                    :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('client_price', form.financial_term.client_price)]"
-                                />
-                                <p v-if="form.errors['financial_term.client_price']" class="text-xs text-rose-500">{{ form.errors['financial_term.client_price'] }}</p>
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Валюта</label>
-                                <select v-model="form.financial_term.client_currency" :disabled="!canEditFinancialFields" :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('client_currency', form.financial_term.client_currency, form.financial_term.client_price)]">
-                                    <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                </select>
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Форма оплаты</label>
-                                <select v-model="form.financial_term.client_payment_form" :disabled="!canEditFinancialFields" :class="crmFieldFluid">
-                                    <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                </select>
-                            </div>
-                        </div>
-                        <PaymentTermsWizardBlock
-                            :key="`client-pay-${props.order?.id ?? 'draft'}`"
-                            v-model:summary-text="form.financial_term.client_payment_terms"
-                            :schedule="form.financial_term.client_payment_schedule"
-                            :total-amount="form.financial_term.client_price"
-                            :currency="form.financial_term.client_currency"
-                            :route-points="form.route_points"
-                            :order-date="form.order_date"
-                            :editable-summary="canEditFinancialFields"
-                        />
-                    </div>
+            <OrderWizardFinanceTab v-else-if="activeTab === 'finance'" />
 
-                    <div class="space-y-2.5 rounded-xl border border-zinc-200 p-2.5 dark:border-zinc-800">
-                        <div class="flex items-center justify-between gap-2">
-                            <h2 class="text-sm font-semibold">Затраты по исполнителям</h2>
-                            <button type="button" class="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="syncContractorCostsFromPerformers">
-                                Подтянуть из этапов
-                            </button>
-                        </div>
+            <OrderWizardNormsPenaltiesTab
+                v-else-if="activeTab === 'norms_penalties'"
+                v-model:client-norms-penalties="form.financial_term.client_norms_penalties"
+                v-model:carrier-norms-by-leg="form.financial_term.carrier_norms_by_leg"
+                :currency-options="currencyOptions"
+                :is-order-form-editable="isOrderFormEditable"
+                :validation-messages="normsPenaltiesTabValidationMessages"
+                :stage-label="stageLabel"
+                @sync-carrier-norms="syncCarrierNormsByLegFromPerformers"
+            />
 
-                    <div class="space-y-2">
-                        <div v-for="(cost, index) in legContractorCosts" :key="`contractor-cost-${index}`" class="space-y-2 rounded-lg border border-zinc-200 p-2.5 dark:border-zinc-800">
-                            <div class="grid grid-cols-1 gap-2 md:grid-cols-12 md:items-end">
-                                <div class="min-w-0 md:col-span-5">
-                                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                                        {{ costRowTitle(cost) }}
-                                    </div>
-                                </div>
-                                <div class="min-w-0 space-y-2 md:col-span-2">
-                                    <label class="text-sm font-medium">
-                                        {{ contractorCostAmountLabel(cost) }}
-                                    </label>
-                                    <input v-model="cost.amount" type="number" min="0" step="0.01" :disabled="!canEditFinancialFields" :class="crmFieldFluid" placeholder="0" />
-                                </div>
-                                <div class="min-w-0 space-y-2 md:col-span-2">
-                                    <label class="text-sm font-medium">Валюта</label>
-                                    <select v-model="cost.currency" :disabled="!canEditFinancialFields" :class="crmFieldFluid">
-                                        <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                    </select>
-                                </div>
-                                <div class="min-w-0 space-y-2 md:col-span-3">
-                                    <label class="text-sm font-medium">Форма оплаты</label>
-                                    <select v-model="cost.payment_form" :disabled="!canEditFinancialFields" :class="crmFieldFluid">
-                                        <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <PaymentTermsWizardBlock
-                                :key="`carrier-pay-${props.order?.id ?? 'draft'}-${index}`"
-                                v-model:summary-text="cost.payment_terms"
-                                :schedule="cost.payment_schedule"
-                                :total-amount="cost.amount"
-                                :currency="cost.currency"
-                                :route-points="form.route_points"
-                                :order-date="contractorCostOrderDate(cost)"
-                                :editable-summary="canEditFinancialFields"
-                            />
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <OrderWizardMailTab
+                v-else-if="activeTab === 'mail' && order?.id && canAccessMail"
+                :order-id="order.id"
+                :threads="orderMailThreads"
+                :compose-url="mailComposeUrl"
+            />
 
-            <div class="space-y-2.5 rounded-xl border border-zinc-200 p-2.5 dark:border-zinc-800">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                    <h2 class="text-sm font-semibold">Дополнительные затраты</h2>
-                    <button
-                        type="button"
-                        class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                        @click="addAdditionalCostRow"
-                    >
-                        Добавить затрату
-                    </button>
-                </div>
-
-                <div v-if="form.financial_term.additional_costs.length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-3 text-sm text-zinc-500 dark:border-zinc-700">
-                    Нет дополнительных затрат.
-                </div>
-
-                <div
-                    v-for="(row, index) in form.financial_term.additional_costs"
-                    :key="`additional-cost-${row.id}`"
-                    class="space-y-2 border-b border-zinc-100 pb-4 last:border-b-0 last:pb-0 dark:border-zinc-800"
-                >
-                    <div class="grid grid-cols-1 gap-2 md:grid-cols-12 md:items-end">
-                        <div class="relative min-w-0 space-y-1 md:col-span-4">
-                            <label class="text-xs font-medium text-zinc-500">Подрядчик</label>
-                            <input
-                                :value="additionalCostSearchValue(row.id)"
-                                type="text"
-                                autocomplete="off"
-                                placeholder="Название или ИНН"
-                                :class="crmFieldFluid"
-                                @input="setAdditionalCostSearchValue(row.id, $event.target.value)"
-                                @focus="setAdditionalCostResultsVisible(row.id, true)"
-                                @blur="hideAdditionalCostResults(row.id)"
-                            />
-                            <div
-                                v-if="isAdditionalCostResultsVisible(row.id) && additionalCostCombinedResults(row.id).length > 0"
-                                class="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
-                            >
-                                <button
-                                    v-for="contractor in additionalCostCombinedResults(row.id)"
-                                    :key="`additional-cost-search-${row.id}-${contractor.id}`"
-                                    type="button"
-                                    class="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900"
-                                    @mousedown.prevent="selectAdditionalCostContractor(index, contractor)"
-                                >
-                                    <div class="font-medium">{{ contractor.name }}</div>
-                                    <div v-if="contractor.inn" class="text-xs text-zinc-500">ИНН {{ contractor.inn }}</div>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="min-w-0 space-y-1 md:col-span-2">
-                            <label class="text-xs font-medium text-zinc-500">Дата услуги</label>
-                            <input v-model="row.service_date" type="date" :class="crmFieldFluid" />
-                        </div>
-                        <div class="min-w-0 space-y-1 md:col-span-2">
-                            <label class="text-xs font-medium text-zinc-500">Стоимость</label>
-                            <input v-model="row.amount" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="0" />
-                        </div>
-                        <div class="min-w-0 space-y-1 md:col-span-1">
-                            <label class="text-xs font-medium text-zinc-500">Вал.</label>
-                            <select v-model="row.currency" :class="crmFieldFluid">
-                                <option v-for="option in currencyOptions" :key="`additional-currency-${row.id}-${option.value}`" :value="option.value">{{ option.value }}</option>
-                            </select>
-                        </div>
-                        <div class="min-w-0 space-y-1 md:col-span-2">
-                            <label class="text-xs font-medium text-zinc-500">Форма оплаты</label>
-                            <select v-model="row.payment_form" :class="crmFieldFluid">
-                                <option v-for="option in paymentFormOptions" :key="`additional-payform-${row.id}-${option.value}`" :value="option.value">{{ option.label }}</option>
-                            </select>
-                        </div>
-                        <div class="flex md:col-span-1 md:justify-end">
-                            <button
-                                type="button"
-                                class="mt-5 rounded-xl border border-rose-200 px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40 md:mt-0"
-                                @click="removeAdditionalCostRow(index)"
-                            >
-                                Удалить
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
-                    <div class="flex items-center gap-2">
-                        <span class="whitespace-nowrap text-sm font-medium">Страховка</span>
-                        <input v-model="form.insurance" type="number" min="0" step="0.01" :class="additionalExpenseAmountFieldClass" placeholder="0" />
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="whitespace-nowrap text-sm font-medium">Бонус</span>
-                        <input v-model="form.bonus" type="number" min="0" step="0.01" :class="additionalExpenseAmountFieldClass" placeholder="0" />
-                    </div>
-                </div>
-                <p class="text-xs text-zinc-500">
-                    В марже бонус учитывается с коэффициентом {{ Number(props.bonusMultiplier || 0).toFixed(2) }}.
-                </p>
-            </div>
-
-            </div>
-
-            <div v-else-if="activeTab === 'norms_penalties'" class="space-y-6">
-                <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                    Штрафы и нормативы по времени (часы) для заказчика и отдельно по каждому плечу перевозчика. Данные сохраняются в карточке заказа и доступны для дальнейших сопоставлений.
-                </p>
-                <div
-                    v-if="normsPenaltiesTabValidationMessages.length > 0"
-                    class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100"
-                    role="alert"
-                >
-                    <ul class="list-inside list-disc space-y-1">
-                        <li v-for="(msg, i) in normsPenaltiesTabValidationMessages" :key="`norms-err-${i}`">{{ msg }}</li>
-                    </ul>
-                </div>
-
-                <div class="rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
-                    <div class="-mx-1 flex min-h-9 min-w-0 flex-wrap items-center gap-x-3 gap-y-2 px-1 pb-0.5">
-                        <h2 class="shrink-0 text-base font-semibold">Заказчик</h2>
-                        <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2 gap-y-1 overflow-x-auto">
-                        <div class="flex shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Срыв</span>
-                            <input
-                                v-model.number="form.financial_term.client_norms_penalties.miss_amount"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!isOrderFormEditable"
-                            >
-                            <select v-model="form.financial_term.client_norms_penalties.miss_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
-                                <option v-for="option in currencyOptions" :key="`cn-miss-${option.value}`" :value="option.value">{{ option.value }}</option>
-                            </select>
-                        </div>
-                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
-                        <div class="flex shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Простой</span>
-                            <input
-                                v-model.number="form.financial_term.client_norms_penalties.downtime_amount"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!isOrderFormEditable"
-                            >
-                            <select v-model="form.financial_term.client_norms_penalties.downtime_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
-                                <option v-for="option in currencyOptions" :key="`cn-down-${option.value}`" :value="option.value">{{ option.value }}</option>
-                            </select>
-                        </div>
-                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
-                        <div class="flex shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Штраф</span>
-                            <input
-                                v-model.number="form.financial_term.client_norms_penalties.fine_amount"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!isOrderFormEditable"
-                            >
-                            <select v-model="form.financial_term.client_norms_penalties.fine_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
-                                <option v-for="option in currencyOptions" :key="`cn-fine-${option.value}`" :value="option.value">{{ option.value }}</option>
-                            </select>
-                        </div>
-                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
-                        <div class="flex min-w-0 shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Пеня</span>
-                            <input
-                                v-model="form.financial_term.client_norms_penalties.penalty_terms"
-                                type="text"
-                                class="h-8 min-w-[10rem] max-w-[28rem] flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
-                                placeholder="Условия пени…"
-                                :disabled="!isOrderFormEditable"
-                            >
-                        </div>
-                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
-                        <div class="flex shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Погрузка, ч">Погр.</span>
-                            <input
-                                v-model.number="form.financial_term.client_norms_penalties.norm_loading_hours"
-                                type="number"
-                                min="0"
-                                step="0.25"
-                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!isOrderFormEditable"
-                            >
-                        </div>
-                        <div class="flex shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Таможня, ч">Там.</span>
-                            <input
-                                v-model.number="form.financial_term.client_norms_penalties.norm_customs_hours"
-                                type="number"
-                                min="0"
-                                step="0.25"
-                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!isOrderFormEditable"
-                            >
-                        </div>
-                        <div class="flex shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Выгрузка, ч">Выгр.</span>
-                            <input
-                                v-model.number="form.financial_term.client_norms_penalties.norm_unloading_hours"
-                                type="number"
-                                min="0"
-                                step="0.25"
-                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!isOrderFormEditable"
-                            >
-                        </div>
-                    </div>
-                </div>
-                </div>
-
-                <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200 px-4 py-3 dark:border-zinc-800">
-                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Строки по плечам синхронизируются с вкладкой «Маршрут».</p>
-                    <button
-                        type="button"
-                        class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                        :disabled="!isOrderFormEditable"
-                        @click="syncCarrierNormsByLegFromPerformers"
-                    >
-                        Подтянуть плечи
-                    </button>
-                </div>
-
-                <div v-for="(normRow, legIndex) in form.financial_term.carrier_norms_by_leg" :key="`carrier-norms-${normRow.stage}-${legIndex}`" class="rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
-                    <div class="-mx-1 flex min-h-9 min-w-0 flex-wrap items-center gap-x-3 gap-y-2 px-1 pb-0.5">
-                        <h2 class="shrink-0 text-base font-semibold">Перевозчик · {{ stageLabel(normRow.stage) }}</h2>
-                        <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2 gap-y-1 overflow-x-auto">
-                        <div class="flex shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Срыв</span>
-                            <input
-                                v-model.number="normRow.miss_amount"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!isOrderFormEditable"
-                            >
-                            <select v-model="normRow.miss_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
-                                <option v-for="option in currencyOptions" :key="`leg-${legIndex}-miss-${option.value}`" :value="option.value">{{ option.value }}</option>
-                            </select>
-                        </div>
-                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
-                        <div class="flex shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Простой</span>
-                            <input
-                                v-model.number="normRow.downtime_amount"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!isOrderFormEditable"
-                            >
-                            <select v-model="normRow.downtime_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
-                                <option v-for="option in currencyOptions" :key="`leg-${legIndex}-down-${option.value}`" :value="option.value">{{ option.value }}</option>
-                            </select>
-                        </div>
-                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
-                        <div class="flex shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Штраф</span>
-                            <input
-                                v-model.number="normRow.fine_amount"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!isOrderFormEditable"
-                            >
-                            <select v-model="normRow.fine_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
-                                <option v-for="option in currencyOptions" :key="`leg-${legIndex}-fine-${option.value}`" :value="option.value">{{ option.value }}</option>
-                            </select>
-                        </div>
-                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
-                        <div class="flex min-w-0 shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Пеня</span>
-                            <input
-                                v-model="normRow.penalty_terms"
-                                type="text"
-                                class="h-8 min-w-[10rem] max-w-[28rem] flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
-                                placeholder="Условия пени…"
-                                :disabled="!isOrderFormEditable"
-                            >
-                        </div>
-                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
-                        <div class="flex shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Погрузка, ч">Погр.</span>
-                            <input
-                                v-model.number="normRow.norm_loading_hours"
-                                type="number"
-                                min="0"
-                                step="0.25"
-                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!isOrderFormEditable"
-                            >
-                        </div>
-                        <div class="flex shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Таможня, ч">Там.</span>
-                            <input
-                                v-model.number="normRow.norm_customs_hours"
-                                type="number"
-                                min="0"
-                                step="0.25"
-                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!isOrderFormEditable"
-                            >
-                        </div>
-                        <div class="flex shrink-0 items-center gap-1">
-                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Выгрузка, ч">Выгр.</span>
-                            <input
-                                v-model.number="normRow.norm_unloading_hours"
-                                type="number"
-                                min="0"
-                                step="0.25"
-                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!isOrderFormEditable"
-                            >
-                        </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div v-else-if="activeTab === 'mail' && order?.id && canAccessMail" class="space-y-4">
-                <div :class="`${crmPanel} space-y-3 p-4`">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Переписка</h3>
-                            <p class="text-sm text-zinc-500 dark:text-zinc-400">Письма, привязанные к этому заказу.</p>
-                        </div>
-                        <Link
-                            v-if="mailComposeUrl"
-                            :href="mailComposeUrl"
-                            :class="crmBtnSecondary"
-                        >
-                            <Mail class="h-4 w-4" />
-                            Написать клиенту
-                        </Link>
-                    </div>
-                    <div v-if="orderMailThreads.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">
-                        Писем по заказу пока нет.
-                    </div>
-                    <div v-else class="space-y-2">
-                        <Link
-                            v-for="thread in orderMailThreads"
-                            :key="thread.id"
-                            :href="route('mail.threads.show', thread.id)"
-                            class="block rounded-xl border border-zinc-200 p-3 text-sm transition hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700"
-                        >
-                            <div class="font-medium text-zinc-900 dark:text-zinc-50">{{ thread.subject }}</div>
-                            <div v-if="thread.last_message_at" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                {{ formatOrderMailWhen(thread.last_message_at) }}
-                            </div>
-                            <p v-if="thread.preview" class="mt-2 line-clamp-2 text-xs text-zinc-600 dark:text-zinc-300">
-                                {{ thread.preview }}
-                            </p>
-                        </Link>
-                    </div>
-                </div>
-            </div>
-
-            <div v-else-if="activeTab === 'timeline' && order?.id && canViewOrderTimeline" class="space-y-4">
-                <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                    Хронология по заказу: комментарии диспозиции, письма и другие события.
-                </p>
-                <ActivityTimeline :order-id="order.id" />
-            </div>
+            <OrderWizardTimelineTab
+                v-else-if="activeTab === 'timeline' && order?.id && canViewOrderTimeline"
+                :order-id="order.id"
+            />
 
             <OrderWizardDocumentsTab
                 v-else-if="activeTab === 'documents'"
@@ -2013,13 +473,15 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, toRaw, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { Calculator, ClipboardList, FileText, Gavel, History, Mail, MapPinned, Minus, OctagonAlert, Package, Paperclip, Plus, Save, ScrollText, Wallet, X } from 'lucide-vue-next';
-import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
-import CrmLayout from '@/Layouts/CrmLayout.vue';
-import PaymentTermsWizardBlock from '@/Pages/Orders/Components/PaymentTermsWizardBlock.vue';
-import OrderStatusIcon from '@/Components/Orders/OrderStatusIcon.vue';
+import OrderWizardCargoTab from '@/Components/Orders/OrderWizardCargoTab.vue';
+import OrderWizardDocumentsTab from '@/Components/Orders/OrderWizardDocumentsTab.vue';
+import OrderWizardFinanceTab from '@/Components/Orders/OrderWizardFinanceTab.vue';
+import OrderWizardLeadPrecalculationSnapshot from '@/Components/Orders/OrderWizardLeadPrecalculationSnapshot.vue';
+import OrderWizardMailTab from '@/Components/Orders/OrderWizardMailTab.vue';
+import OrderWizardMainTab from '@/Components/Orders/OrderWizardMainTab.vue';
 import { ORDER_STATUS_ICON_META, resolveOrderStatusIconKey } from '@/support/orderStatusDisplay.js';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import {
@@ -2030,9 +492,12 @@ import {
 import { parseLocaleDecimal, sanitizeDecimalInput } from '@/support/wizardDictionaryHelpers.js';
 import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
-import OrderWizardDocumentsTab from '@/Components/Orders/OrderWizardDocumentsTab.vue';
-import OrderWizardLeadPrecalculationSnapshot from '@/Components/Orders/OrderWizardLeadPrecalculationSnapshot.vue';
+import CrmLayout from '@/Layouts/CrmLayout.vue';
+import OrderStatusIcon from '@/Components/Orders/OrderStatusIcon.vue';
+import OrderWizardNormsPenaltiesTab from '@/Components/Orders/OrderWizardNormsPenaltiesTab.vue';
 import OrderWizardOrderNormsTab from '@/Components/Orders/OrderWizardOrderNormsTab.vue';
+import OrderWizardRouteTab from '@/Components/Orders/OrderWizardRouteTab.vue';
+import OrderWizardTimelineTab from '@/Components/Orders/OrderWizardTimelineTab.vue';
 import { basicTermsPartiesForTemplateSelection } from '@/support/printFormBasicTerms.js';
 import { EMPTY_ORDER_DOCUMENTS } from '@/support/emptyOrderDocuments.js';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
@@ -2089,6 +554,12 @@ import {
 } from '@/support/orderPerformers.js';
 import { clampActualDateToToday, todayIsoDate } from '@/support/orderActualDates.js';
 import { classifyDealType, paymentFormMetaFromOptions } from '@/support/paymentFormDealType.js';
+import { useOrderWizardRouteTab } from '@/composables/useOrderWizardRouteTab.js';
+import { ORDER_WIZARD_CARGO_TAB_KEY } from '@/support/orderWizardCargoTabKey.js';
+import { ORDER_WIZARD_FINANCE_TAB_KEY } from '@/support/orderWizardFinanceTabKey.js';
+import { ORDER_WIZARD_MAIN_TAB_KEY } from '@/support/orderWizardMainTabKey.js';
+import { ORDER_WIZARD_ROUTE_TAB_KEY } from '@/support/orderWizardRouteTabKey.js';
+import { stageLabel, stageMatches, toStageKey } from '@/support/orderWizardStageHelpers.js';
 import {
     allocationWeightPlaceholder,
     cargoAllocationRowStatus,
@@ -2201,14 +672,6 @@ const mailComposeUrl = computed(() => {
 
     return route('mail.index', { order_id: props.order.id });
 });
-
-function formatOrderMailWhen(iso) {
-    if (!iso) {
-        return '';
-    }
-
-    return new Date(iso).toLocaleString('ru-RU');
-}
 
 onMounted(() => {
     if (typeof window === 'undefined') {
@@ -4524,30 +2987,6 @@ function removePerformer(index) {
     syncCargoAllocationMatrixSlots({ pruneOrphans: true });
 }
 
-function stageLabel(stage) {
-    const match = String(stage ?? '').match(/^leg_(\d+)$/);
-
-    if (match) {
-        return `Плечо ${match[1]}`;
-    }
-
-    return String(stage ?? '');
-}
-
-function toStageKey(label) {
-    const match = String(label ?? '').match(/^Плечо (\d+)$/);
-
-    if (match) {
-        return `leg_${match[1]}`;
-    }
-
-    return String(label ?? '');
-}
-
-function stageMatches(left, right) {
-    return toStageKey(left) === toStageKey(right);
-}
-
 function remapStageReferences(fromStage, toStage) {
     if (stageMatches(fromStage, toStage)) {
         return;
@@ -6081,6 +4520,157 @@ function syncContractorCostsFromPerformers() {
         }
     });
 }
+
+const routeTab = useOrderWizardRouteTab({
+    form,
+    props,
+    contractors,
+    carrierOptions,
+    normalizeNullableNumber,
+    blankRoutePoint,
+    highlightRequiredField,
+    openCounterpartyModal,
+    onPerformerActualDateInput,
+    onSplitActualDateInput,
+    syncContractorCostsFromPerformers,
+    syncCargoAllocationMatrixSlots,
+    getContractorById,
+    ensureContractorInLocalList,
+    applyCarrierDefaultsByStage,
+    removeCarrierDocumentsForStage,
+    normalizeContractorCost,
+    normalizePaymentSchedule,
+    blankPaymentSchedule,
+    costMatchesPerformerSlot,
+    MIN_CONTRACTOR_QUERY_LENGTH,
+    stageLabel,
+    stageMatches,
+    toStageKey,
+    crmFieldFluid,
+    crmSegmented,
+    crmSegmentedBtn,
+    crmSegmentedBtnActive,
+    borderCrossingLegPicker,
+    carrierSearch,
+    showCarrierResults,
+    serverCarrierSearchResults,
+    isSearchingCarriers,
+    carrierSearchTimers,
+    carrierSearchAbortControllers,
+    carrierSearchFetchSeq,
+    fleetOptionsCache,
+    addressSuggestions,
+    addressTimers,
+    draggedRoutePointIndex,
+    dragOverRoutePointIndex,
+});
+
+routeTab.initRouteTabSideEffects();
+
+provide(ORDER_WIZARD_ROUTE_TAB_KEY, routeTab);
+
+const mainTabContext = {
+    form,
+    order: props.order,
+    isEditing,
+    isOrderFormEditable,
+    canAssignResponsible: props.canAssignResponsible,
+    ownCompanyOptions,
+    showOwnCompanyBankAccountPicker,
+    selectableOwnCompanyBankAccounts,
+    ownCompanyBankAccountLabel,
+    clientSearch,
+    showClientResults,
+    combinedClientResults,
+    isSearchingClients,
+    serverSearchResults,
+    customerDebtBlocked,
+    selectedClient,
+    highlightRequiredField,
+    openCounterpartyModal,
+    selectClient,
+    onOrderNumberManualInput,
+    suggestedOrderNumberCipher,
+    responsibleUsers: props.responsibleUsers,
+    onCompensationOwnerPercentInput,
+    onCompensationDispatcherPercentInput,
+    clientRequestModeOptions,
+    financialSummary,
+    showPaymentSettlementBlock,
+    paymentSettlementLines,
+    paymentSettlementLineTitle,
+    paymentSettlementLineValue,
+};
+
+provide(ORDER_WIZARD_MAIN_TAB_KEY, mainTabContext);
+
+const cargoTabContext = {
+    form,
+    highlightRequiredField,
+    cargoTypeOptions: props.cargoTypeOptions,
+    packageTypeOptions: props.packageTypeOptions,
+    loadingTypeOptions: props.loadingTypeOptions,
+    truckBodyTypeOptions: props.truckBodyTypeOptions,
+    trailerTypeOptions: props.trailerTypeOptions,
+    cargoTitleSuggestions: props.cargoTitleSuggestions,
+    crmFieldFluid,
+    removeItem,
+    addCargoItem,
+    applyCargoTypeOption,
+    applyPackageTypeOption,
+    applyLoadingTypeOption,
+    applyTruckBodyTypeOption,
+    applyTrailerTypeOption,
+    dictionarySelectionLabel,
+    onCargoDecimalInput,
+    cargoComputedVolumeM3,
+    cargoLineTotalWeightKg,
+    cargoPackageCountFactor,
+    cargoWeightInKg,
+    cargoLineTotalVolumeM3,
+    cargoHasDimensions,
+    cargoDimensionsLabel,
+    cargoSummary,
+    needsCargoPerformerAllocationUi,
+    cargoPerformerAllocationColumns,
+    cargoPerformerAllocationColumnSummaries,
+    cargoAllocationRowStatuses,
+    cargoAllocationFieldClass,
+    findCargoAllocation,
+    onCargoAllocationPackagesInput,
+    onCargoAllocationWeightInput,
+    allocationWeightFieldPlaceholder,
+};
+
+provide(ORDER_WIZARD_CARGO_TAB_KEY, cargoTabContext);
+
+const financeTabContext = {
+    form,
+    order: props.order,
+    canEditFinancialFields,
+    highlightRequiredField,
+    currencyOptions: props.currencyOptions,
+    paymentFormOptions: props.paymentFormOptions,
+    legContractorCosts,
+    costRowTitle,
+    contractorCostAmountLabel,
+    contractorCostOrderDate,
+    syncContractorCostsFromPerformers,
+    crmFieldFluid,
+    addAdditionalCostRow,
+    removeAdditionalCostRow,
+    additionalCostSearchValue,
+    setAdditionalCostSearchValue,
+    setAdditionalCostResultsVisible,
+    hideAdditionalCostResults,
+    isAdditionalCostResultsVisible,
+    additionalCostCombinedResults,
+    selectAdditionalCostContractor,
+    additionalExpenseAmountFieldClass,
+    bonusMultiplier: props.bonusMultiplier,
+};
+
+provide(ORDER_WIZARD_FINANCE_TAB_KEY, financeTabContext);
 
 function addAdditionalCostRow() {
     form.financial_term.additional_costs.push(blankAdditionalCostRow(form.order_date));

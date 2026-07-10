@@ -7,6 +7,7 @@ use App\Http\Requests\StoreOrderCarrierPortalInviteRequest;
 use App\Models\Order;
 use App\Services\OrderPortalInviteAccessService;
 use App\Services\OrderPortalInviteService;
+use App\Services\Orders\Wizard\OrderWizardOrderAuthorization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,6 +15,7 @@ class OrderPortalInviteController extends Controller
 {
     public function __construct(
         private readonly OrderPortalInviteService $inviteService,
+        private readonly OrderWizardOrderAuthorization $orderAuthorization,
     ) {}
 
     public function storeCarrier(
@@ -79,6 +81,6 @@ class OrderPortalInviteController extends Controller
 
     private function canManageOrder(Request $request, Order $order): bool
     {
-        return app(OrderWizardController::class)->canEditOrder($request, $order);
+        return $this->orderAuthorization->canEditOrder($request, $order);
     }
 }

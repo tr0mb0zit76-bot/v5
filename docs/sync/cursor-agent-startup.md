@@ -134,6 +134,37 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1
 
 ---
 
+## Протокол Аудит
+
+Read-only проверка проекта (механика + 3 субагента: архитектура, безопасность, качество).
+
+| Действие | Команда |
+| --- | --- |
+| Полный аудит в Cursor | Напишите **Протокол Аудит** или `/audit-protocol` |
+| Только скрипт | `pwsh -File scripts/audit-protocol.ps1` |
+| С PHPUnit | `pwsh -File scripts/audit-protocol.ps1 -RunTests` |
+
+Промпты: `agents/audit/` + vendor **`agents/rdudov/`** ([rdudov/agents](https://github.com/rdudov/agents): 05 architecture reviewer, 09 code reviewer, §7 безопасность).  
+Обновить rdudov: `pwsh -File scripts/sync-rdudov-agents.ps1`.  
+Subagent Cursor: **security-review** (полный протокол).  
+Skill: `.cursor/skills/audit-protocol/SKILL.md`.  
+Backlog: `docs/sync/v5-local-Components-Code-Audit-2026-07.md`.  
+Отчёты сессии: `docs/audit-reports/` (локально, в gitignore).
+
+## Протокол Архитектура
+
+Оценка **изящности**, границ модулей, дубли, автономность scripts (**offline**, без сети).
+
+| Действие | Команда |
+| --- | --- |
+| Полная оценка в Cursor | **Протокол Архитектура** или `/architecture-protocol` |
+| Только скрипт | `pwsh -File scripts/architecture-protocol.ps1` |
+
+Промпты: `agents/architecture/` + rdudov **04** + **05**. Skill: `.cursor/skills/architecture-protocol/SKILL.md`.  
+Отчёты: `docs/architecture-reports/` (gitignore). Шкала **A–D**.
+
+---
+
 ## Быстрая фраза для нового чата
 
 Скопируйте в Cursor:

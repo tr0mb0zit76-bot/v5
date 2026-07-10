@@ -80,6 +80,26 @@ class LeadManagementTest extends TestCase
         $this->assertSame('В очереди внимания', $queue['items'][0]['title']);
     }
 
+    public function test_lead_attention_queue_is_unavailable_without_leads_visibility_area(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'without-leads-'.uniqid(),
+            'display_name' => 'Without leads',
+            'visibility_areas' => json_encode(['dashboard'], JSON_THROW_ON_ERROR),
+            'visibility_scopes' => json_encode(['leads' => 'own'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $user = User::factory()->create(['role_id' => $roleId]);
+
+        $queue = app(LeadAttentionQueueService::class)
+            ->queueForUser($user, 10);
+
+        $this->assertFalse($queue['available']);
+        $this->assertSame(0, $queue['total']);
+        $this->assertSame([], $queue['items']);
+    }
+
     public function test_lead_show_includes_operational_brief(): void
     {
         $manager = $this->createUserWithRole('manager');
