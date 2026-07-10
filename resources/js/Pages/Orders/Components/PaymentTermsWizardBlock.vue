@@ -168,40 +168,38 @@ function onInstallmentAmountInput(index) {
 </script>
 
 <template>
-    <div :class="`${crmPanel} space-y-2.5 p-3`">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Сроки и условия оплаты</div>
+    <div :class="`${crmPanel} space-y-2 p-2.5`">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="text-xs font-medium text-zinc-800 dark:text-zinc-100">Сроки и условия оплаты</div>
+            <div :class="crmSegmented">
+                <button
+                    type="button"
+                    :class="installmentLayoutMode === 'single' ? crmSegmentedBtnActive : crmSegmentedBtn"
+                    class="text-[11px] px-2 py-0.5"
+                    @click="setInstallmentLayoutMode('single')"
+                >
+                    Один транш
+                </button>
+                <button
+                    type="button"
+                    :class="installmentLayoutMode === 'multiple' ? crmSegmentedBtnActive : crmSegmentedBtn"
+                    class="text-[11px] px-2 py-0.5"
+                    @click="setInstallmentLayoutMode('multiple')"
+                >
+                    Несколько траншей
+                </button>
+            </div>
         </div>
 
-        <div :class="crmSegmented">
-            <button
-                type="button"
-                :class="installmentLayoutMode === 'single' ? crmSegmentedBtnActive : crmSegmentedBtn"
-                class="text-xs"
-                @click="setInstallmentLayoutMode('single')"
-            >
-                Один транш
-            </button>
-            <button
-                type="button"
-                :class="installmentLayoutMode === 'multiple' ? crmSegmentedBtnActive : crmSegmentedBtn"
-                class="text-xs"
-                @click="setInstallmentLayoutMode('multiple')"
-            >
-                Несколько траншей
-            </button>
-        </div>
-
-        <div class="space-y-2">
+        <div class="space-y-1.5">
             <div
                 v-for="(inst, instIndex) in schedule.installments"
                 :key="'inst-' + instIndex"
-                class="rounded-lg border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950"
+                class="rounded-md border border-zinc-200 bg-white p-1.5 dark:border-zinc-700 dark:bg-zinc-950"
             >
-                <div class="mb-1.5 flex items-center justify-between gap-2">
+                <div v-if="schedule.installments.length > 1" class="mb-1 flex items-center justify-between gap-2">
                     <div class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Транш {{ instIndex + 1 }}</div>
                     <button
-                        v-if="schedule.installments.length > 1"
                         type="button"
                         class="text-[10px] text-red-600 hover:underline dark:text-red-400"
                         @click="removeInstallment(instIndex)"
@@ -209,7 +207,7 @@ function onInstallmentAmountInput(index) {
                         Удалить
                     </button>
                 </div>
-                <div class="grid grid-cols-2 gap-x-1.5 gap-y-1 sm:grid-cols-3 xl:grid-cols-6 xl:items-end">
+                <div class="grid grid-cols-2 gap-x-1 gap-y-1 sm:grid-cols-3 xl:grid-cols-6 xl:items-end">
                     <div class="min-w-0 space-y-0.5">
                         <label class="block text-[10px] font-medium leading-tight text-zinc-600 dark:text-zinc-400">%, доля</label>
                         <input
@@ -272,30 +270,27 @@ function onInstallmentAmountInput(index) {
         </div>
 
         <div v-if="installmentLayoutMode === 'multiple'" class="flex flex-wrap gap-2">
-            <button type="button" :class="crmBtnSecondary" :disabled="!canAddInstallment" @click="addInstallment">
+            <button type="button" :class="crmBtnSecondary" class="text-xs py-1" :disabled="!canAddInstallment" @click="addInstallment">
                 Добавить транш
             </button>
-            <span v-if="!canAddInstallment" class="self-center text-xs text-zinc-500 dark:text-zinc-400">Не более {{ ps.MAX_INSTALLMENTS }} траншей</span>
         </div>
 
-        <div class="rounded-xl border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-950">
-            <div class="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Сводка для договора и печати</div>
+        <div class="rounded-md border border-zinc-200 bg-zinc-50/80 px-2 py-1.5 dark:border-zinc-700 dark:bg-zinc-900/40">
+            <div class="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Сводка для договора</div>
             <textarea
                 v-if="editableSummary"
                 v-model="summaryText"
                 rows="2"
                 :maxlength="ps.PAYMENT_TERMS_SUMMARY_MAX_LENGTH"
-                class="mt-1 w-full resize-y rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-xs leading-snug text-zinc-800 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                class="mt-0.5 w-full resize-y rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs leading-snug text-zinc-800 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
                 @input="onSummaryTextInput"
             />
-            <textarea
+            <p
                 v-else
-                readonly
-                tabindex="-1"
-                rows="2"
-                :value="autoSummary"
-                class="mt-1 w-full resize-none cursor-default rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-xs leading-snug text-zinc-800 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
-            />
+                class="mt-0.5 text-xs leading-snug text-zinc-800 dark:text-zinc-100"
+            >
+                {{ autoSummary }}
+            </p>
         </div>
     </div>
 </template>

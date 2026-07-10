@@ -147,11 +147,7 @@
                 </div>
             </div>
 
-            <div v-if="order?.smart_links?.length" class="border-b border-zinc-200 px-5 py-2 dark:border-zinc-800">
-                <CardSmartLinksBar :links="order.smart_links" />
-            </div>
-
-            <div class="flex flex-col gap-2 border-b border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-x-3 sm:gap-y-2">
+            <div class="flex flex-col gap-2 border-b border-zinc-200 bg-white px-5 py-2 dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-x-3 sm:gap-y-2">
                 <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                     <button
                         v-for="tab in tabs"
@@ -1405,16 +1401,16 @@
                 />
             </div>
 
-            <div v-else-if="activeTab === 'finance'" class="space-y-4">
-                <div class="space-y-4">
-                    <div class="space-y-3 rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
-                        <div class="flex items-start justify-between gap-3">
-                            <h2 class="text-base font-semibold">Оплата клиентом</h2>
-                            <div v-if="form.performers.length > 1" class="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-right text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+            <div v-else-if="activeTab === 'finance'" class="space-y-3">
+                <div class="space-y-3">
+                    <div class="space-y-2.5 rounded-xl border border-zinc-200 p-2.5 dark:border-zinc-800">
+                        <div class="flex items-center justify-between gap-2">
+                            <h2 class="text-sm font-semibold">Оплата клиентом</h2>
+                            <div v-if="form.performers.length > 1" class="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
                                 {{ form.financial_term.client_request_mode === 'split_by_leg' ? 'Несколько заявок' : 'Одна заявка' }}
                             </div>
                         </div>
-                        <div class="grid gap-3 lg:grid-cols-3">
+                        <div class="grid gap-2 sm:grid-cols-3">
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Цена клиента</label>
                                 <input
@@ -1452,19 +1448,19 @@
                         />
                     </div>
 
-                    <div class="space-y-3 rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
-                        <div class="flex items-center justify-between gap-3">
-                            <h2 class="text-base font-semibold">Затраты по исполнителям</h2>
-                            <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="syncContractorCostsFromPerformers">
+                    <div class="space-y-2.5 rounded-xl border border-zinc-200 p-2.5 dark:border-zinc-800">
+                        <div class="flex items-center justify-between gap-2">
+                            <h2 class="text-sm font-semibold">Затраты по исполнителям</h2>
+                            <button type="button" class="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="syncContractorCostsFromPerformers">
                                 Подтянуть из этапов
                             </button>
                         </div>
 
-                    <div class="space-y-3">
-                        <div v-for="(cost, index) in legContractorCosts" :key="`contractor-cost-${index}`" class="space-y-3 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
-                            <div class="grid grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
+                    <div class="space-y-2">
+                        <div v-for="(cost, index) in legContractorCosts" :key="`contractor-cost-${index}`" class="space-y-2 rounded-lg border border-zinc-200 p-2.5 dark:border-zinc-800">
+                            <div class="grid grid-cols-1 gap-2 md:grid-cols-12 md:items-end">
                                 <div class="min-w-0 md:col-span-5">
-                                    <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                                         {{ costRowTitle(cost) }}
                                     </div>
                                 </div>
@@ -1502,9 +1498,9 @@
                 </div>
             </div>
 
-            <div class="space-y-3 rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h2 class="text-base font-semibold">Дополнительные затраты</h2>
+            <div class="space-y-2.5 rounded-xl border border-zinc-200 p-2.5 dark:border-zinc-800">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h2 class="text-sm font-semibold">Дополнительные затраты</h2>
                     <button
                         type="button"
                         class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
@@ -2021,7 +2017,6 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, w
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { Calculator, ClipboardList, FileText, Gavel, History, Mail, MapPinned, Minus, OctagonAlert, Package, Paperclip, Plus, Save, ScrollText, Wallet, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
-import CardSmartLinksBar from '@/Components/Crm/CardSmartLinksBar.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import PaymentTermsWizardBlock from '@/Pages/Orders/Components/PaymentTermsWizardBlock.vue';
 import OrderStatusIcon from '@/Components/Orders/OrderStatusIcon.vue';

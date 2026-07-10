@@ -908,7 +908,7 @@ class OrderWizardController extends Controller
                 'comment' => $log->comment,
                 'created_at' => optional($log->created_at)?->toIso8601String(),
             ])->values()->all(),
-            'smart_links' => app(CardSmartLinksResolver::class)->forOrder($order, $request->user()),
+            'smart_links' => [],
             'lead_precalculation_snapshot' => OrderLeadPrecalculationSnapshotResolver::forWizard($order),
         ];
     }
