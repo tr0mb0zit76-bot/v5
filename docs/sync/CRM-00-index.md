@@ -76,6 +76,7 @@
 | Мастер заказов | `docs/order-wizard-user-guide.md` |
 | **Лиды (механизм)** | `docs/leads-mechanism.md` |
 | **Лиды (краткая инструкция)** | `docs/lead-user-guide.md` |
+| **Лиды → Книга продаж (sync)** | `scripts/sync-leads-sales-book-article.php` → статья id=19 |
 | Синхрон vault ↔ git | `docs/sync/README.md` |
 
-*Обновлено: 2026-06-02.*
+*Обновлено: 2026-07-10.*

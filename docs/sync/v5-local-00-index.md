@@ -48,3 +48,11 @@
 | **Code audit 2026-07** | `v5-local-Components-Code-Audit-2026-07.md` |
 
 *Обновлено: 2026-07-10.*
+
+## Документация лидов (git, без отдельной component-карточки)
+
+| Файл | Назначение |
+| --- | --- |
+| `docs/lead-user-guide.md` | Краткая инструкция; источник для Книги продаж id=19 |
+| `docs/leads-mechanism.md` | Полный регламент (статусы, БП, nudges, предрасчёт, конвертация) |
+| `scripts/sync-leads-sales-book-article.php` | Push краткой инструкции в `sales_book_articles` |

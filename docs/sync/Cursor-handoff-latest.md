@@ -3,9 +3,31 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-10 15:30 (audit card + vault sync) · **HEAD:** `3f65026` · **Ветка:** `master`
+**Обновлено:** 2026-07-10 21:15 (лиды: документация + Книга продаж) · **HEAD:** `727f64e` · **Ветка:** `master`
 
 > **Полный backlog аудита:** [`docs/sync/v5-local-Components-Code-Audit-2026-07.md`](v5-local-Components-Code-Audit-2026-07.md) → vault: `v5-local/Components/Code Audit 2026-07`
+
+### Итог сессии 2026-07-10 (вечер) — документация лидов + UI модалок
+
+| Блок | Статус |
+| --- | --- |
+| **Модалки CRM:** компактные inline-лейблы, токены `crmModalFieldRow` / `crmModalFieldsWrap` | ✅ `0fc1ecc` (на `origin/master`) |
+| **Мастер заказа:** уплотнение вкладок Финансы / Документы | ✅ `b02a3b5` |
+| **Доки лидов:** `docs/lead-user-guide.md`, `docs/leads-mechanism.md` — предрасчёт, плечи, модальная карточка, grid views, шапка (биржа / «Сколько влезет?»), профиль `contract-signing`, квалификация ЛПР+бюджет, конвертация со snapshot | ✅ в этом коммите |
+| **Книга продаж:** статья **id=19** «Лиды — инструкция для пользователя» — синхрон из git; скрипт `scripts/sync-leads-sales-book-article.php` | ✅ локально; **на прод — запустить скрипт** |
+
+**На прод:** `git pull` → `php scripts/sync-leads-sales-book-article.php` (обновить статью 19 в БД). Миграций и `npm run build` в этом пакете нет.
+
+**Следующая сессия:**
+1. Audit backlog: `PaymentScheduleAutomaticStatus::refreshForOrdersScope`, `LeadAttentionQueueService` department scope
+2. Wizard UI: Нормативы, Документы, Переписка (заказ)
+3. Отдельная статья «Механизм лидов» в Книге продаж (опционально — сейчас только git `leads-mechanism.md`)
+
+**На большом ПК:** `git pull` → `sync-docs-to-yandex.ps1` → читать этот handoff.
+
+---
+
+**Обновлено (архив):** 2026-07-10 15:30 (audit card + vault sync) · **HEAD:** `3f65026`
 
 ### Итог сессии 2026-07-10 — audit hardening + UI мастера заказа
 
