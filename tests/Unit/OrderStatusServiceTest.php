@@ -4,10 +4,13 @@ namespace Tests\Unit;
 
 use App\Models\Order;
 use App\Models\OrderLeg;
+use App\Models\OrderStatusLog;
+use App\Models\PaymentSchedule;
 use App\Models\RoutePoint;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderStatusService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Schema;
 use Mockery;
 use Tests\TestCase;
 
@@ -171,6 +174,73 @@ class OrderStatusServiceTest extends TestCase
         ]);
 
         $this->assertSame('closed', $service->resolve($order));
+    }
+
+    public function test_closed_when_payment_schedules_are_settled_even_without_payment_statuses_json(): void
+    {
+        if (! Schema::hasTable('payment_schedules')) {
+            $this->markTestSkipped('payment_schedules table is unavailable.');
+        }
+
+        $order = $this->orderWithLegPoints([
+            new RoutePoint([
+                'type' => 'loading',
+                'sequence' => 1,
+                'actual_date' => Carbon::yesterday(),
+            ]),
+            new RoutePoint([
+                'type' => 'unloading',
+                'sequence' => 2,
+                'actual_date' => Carbon::today(),
+            ]),
+        ]);
+        $order->payment_statuses = null;
+        $order->salary_paid = 100;
+        $order->save();
+
+        PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 1000,
+            'paid_amount' => 1000,
+            'remaining_amount' => 0,
+            'status' => 'paid',
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 800,
+            'paid_amount' => 800,
+            'remaining_amount' => 0,
+            'status' => 'paid',
+        ]);
+
+        $service = $this->serviceWithChecklist([
+            ['key' => 'a', 'label' => 'Документ', 'completed' => true],
+        ]);
+
+        $this->assertSame('closed', $service->resolve($order->fresh()));
+    }
+
+    public function test_sync_stored_status_writes_status_log(): void
+    {
+        if (! Schema::hasTable('order_status_logs')) {
+            $this->markTestSkipped('order_status_logs table is unavailable.');
+        }
+
+        $order = new Order;
+        $order->status = 'payment';
+        $order->setRelation('legs', collect());
+
+        $service = $this->serviceWithChecklist([]);
+
+        $derived = $service->syncStoredStatus($order, 1);
+
+        $this->assertSame('payment', $derived);
+        $this->assertSame(0, OrderStatusLog::query()->count());
     }
 
     public function test_requested_cancelled_wins(): void

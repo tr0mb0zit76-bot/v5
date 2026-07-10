@@ -3,9 +3,12 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Models\OrderStatusLog;
+use App\Support\OrderPartyPaymentSettlementResolver;
 use App\Support\PerformerRouteActualDates;
 use App\Support\RoutePointActualMilestones;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\Schema;
 
 class OrderStatusService
 {
@@ -61,6 +64,37 @@ class OrderStatusService
     public function resolve(Order $order, ?string $requestedStatus = null): string
     {
         return $this->describe($order, $requestedStatus)['status'];
+    }
+
+    public function syncStoredStatus(Order $order, ?int $userId = null): string
+    {
+        $order->loadMissing(['legs.routePoints', 'documents', 'edoAcknowledgements']);
+
+        $previousStatus = (string) $order->status;
+        $derivedStatus = $this->resolve($order, $order->manual_status ?? null);
+
+        if ($previousStatus === $derivedStatus) {
+            return $derivedStatus;
+        }
+
+        $order->forceFill([
+            'status' => $derivedStatus,
+            'status_updated_by' => $userId,
+            'status_updated_at' => now(),
+            'is_active' => ! in_array($derivedStatus, ['closed', 'cancelled', 'disruption'], true),
+        ])->save();
+
+        if (Schema::hasTable('order_status_logs')) {
+            OrderStatusLog::query()->create([
+                'order_id' => $order->id,
+                'status_from' => $previousStatus,
+                'status_to' => $derivedStatus,
+                'comment' => null,
+                'created_by' => $userId,
+            ]);
+        }
+
+        return $derivedStatus;
     }
 
     public function label(string $status): string
@@ -212,7 +246,11 @@ class OrderStatusService
                 || $this->extractPaidMarker((array) ($order->payment_statuses ?? []), 'manager');
         }
 
-        return $this->extractPaidMarker((array) ($order->payment_statuses ?? []), $party);
+        if ($this->extractPaidMarker((array) ($order->payment_statuses ?? []), $party)) {
+            return true;
+        }
+
+        return OrderPartyPaymentSettlementResolver::isPartyFullyPaid($order, $party);
     }
 
     /**

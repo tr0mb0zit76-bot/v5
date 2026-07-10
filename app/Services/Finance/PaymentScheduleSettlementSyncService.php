@@ -2,8 +2,10 @@
 
 namespace App\Services\Finance;
 
+use App\Models\Order;
 use App\Models\PaymentSchedule;
 use App\Models\PaymentSchedulePaymentEvent;
+use App\Services\OrderStatusService;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PaymentScheduleSettlementStatus;
 use Illuminate\Support\Facades\Schema;
@@ -77,6 +79,7 @@ final class PaymentScheduleSettlementSyncService
 
         if ($schedule->order_id !== null) {
             PaymentScheduleAutomaticStatus::refreshForOrder((int) $schedule->order_id);
+            $this->syncOrderDerivedStatus((int) $schedule->order_id);
         }
 
         return true;
@@ -180,5 +183,16 @@ final class PaymentScheduleSettlementSyncService
             'carrier' => $schedule->order?->carrier_id ? (int) $schedule->order->carrier_id : null,
             default => null,
         };
+    }
+
+    private function syncOrderDerivedStatus(int $orderId): void
+    {
+        $order = Order::query()->find($orderId);
+
+        if ($order === null) {
+            return;
+        }
+
+        app(OrderStatusService::class)->syncStoredStatus($order);
     }
 }
