@@ -10,6 +10,7 @@ use App\Models\RoutePoint;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderStatusService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Mockery;
 use Tests\TestCase;
@@ -216,6 +217,81 @@ class OrderStatusServiceTest extends TestCase
             'paid_amount' => 800,
             'remaining_amount' => 0,
             'status' => 'paid',
+        ]);
+
+        $service = $this->serviceWithChecklist([
+            ['key' => 'a', 'label' => 'Документ', 'completed' => true],
+        ]);
+
+        $this->assertSame('closed', $service->resolve($order->fresh()));
+    }
+
+    public function test_closed_when_salary_accrual_fully_paid_via_payroll_module(): void
+    {
+        if (! Schema::hasTable('salary_accruals')) {
+            $this->markTestSkipped('salary_accruals table is unavailable.');
+        }
+
+        $order = $this->orderWithLegPoints([
+            new RoutePoint([
+                'type' => 'loading',
+                'sequence' => 1,
+                'actual_date' => Carbon::yesterday(),
+            ]),
+            new RoutePoint([
+                'type' => 'unloading',
+                'sequence' => 2,
+                'actual_date' => Carbon::today(),
+            ]),
+        ]);
+        $order->payment_statuses = null;
+        $order->salary_paid = 0;
+        $order->save();
+
+        PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 1000,
+            'paid_amount' => 1000,
+            'remaining_amount' => 0,
+            'status' => 'paid',
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 800,
+            'paid_amount' => 800,
+            'remaining_amount' => 0,
+            'status' => 'paid',
+        ]);
+
+        $periodId = DB::table('salary_periods')->insertGetId([
+            'period_start' => Carbon::today()->startOfMonth()->toDateString(),
+            'period_end' => Carbon::today()->endOfMonth()->toDateString(),
+            'period_type' => 'h2',
+            'status' => 'closed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('salary_accruals')->insert([
+            'period_id' => $periodId,
+            'user_id' => 1,
+            'order_id' => $order->id,
+            'order_date_snapshot' => Carbon::today()->toDateString(),
+            'delta_snapshot' => 1000,
+            'salary_amount' => 500,
+            'customer_rate_snapshot' => 1000,
+            'paid_customer_amount_at_accrual' => 1000,
+            'payable_amount_computed' => 500,
+            'paid_amount_fact' => 500,
+            'unpaid_amount' => 0,
+            'meta' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         $service = $this->serviceWithChecklist([

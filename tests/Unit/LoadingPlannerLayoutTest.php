@@ -30,7 +30,25 @@ class LoadingPlannerLayoutTest extends TestCase
         $this->assertStringContainsString('verticalStackGapMm', $contents);
         $this->assertStringContainsString('buildLengthRulerTicks', $contents);
         $this->assertStringContainsString('buildHeightRulerTicks', $contents);
-        $this->assertStringContainsString('footprintPositionAfterRotation', $contents);
+        $this->assertStringContainsString('calculateMultiVehicleLayout', $contents);
+        $this->assertStringContainsString('unitFitsTransportDimensions', $contents);
+    }
+
+    public function test_multi_vehicle_layout_splits_overflow_cargo(): void
+    {
+        $node = trim((string) shell_exec('where node 2>nul') ?: '');
+        if ($node === '') {
+            $this->markTestSkipped('Node.js is not available in PATH');
+        }
+
+        $entry = __DIR__.'/multi_vehicle_layout.test.mjs';
+        $this->assertFileExists($entry);
+
+        $output = [];
+        $exitCode = 0;
+        exec('node '.escapeshellarg($entry).' 2>&1', $output, $exitCode);
+
+        $this->assertSame(0, $exitCode, implode("\n", $output));
     }
 
     public function test_scene_paint_order_sorts_lower_stack_tier_before_upper(): void

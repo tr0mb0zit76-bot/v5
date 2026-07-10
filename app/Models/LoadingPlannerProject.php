@@ -13,6 +13,8 @@ class LoadingPlannerProject extends Model
      */
     protected $fillable = [
         'user_id',
+        'lead_id',
+        'order_id',
         'selected_transport_template_id',
         'name',
         'status',
@@ -28,6 +30,22 @@ class LoadingPlannerProject extends Model
         return [
             'calculation' => 'array',
         ];
+    }
+
+    /**
+     * @return BelongsTo<Lead, $this>
+     */
+    public function lead(): BelongsTo
+    {
+        return $this->belongsTo(Lead::class);
+    }
+
+    /**
+     * @return BelongsTo<Order, $this>
+     */
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
     }
 
     /**

@@ -22,6 +22,7 @@
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 <button v-if="canUseLoadBoard" type="button" :class="`${crmBtnSecondary} inline-flex items-center gap-2 !px-4 !py-2`" :disabled="!selectedLeadId" @click="openLoadBoardFromLead"><Package class="h-4 w-4" />На биржу</button>
+                <button v-if="canUseHowMuchFits" type="button" :class="`${crmBtnSecondary} inline-flex items-center gap-2 !px-4 !py-2`" :disabled="!selectedLeadId" @click="openHowMuchFitsFromLead"><Truck class="h-4 w-4" />Сколько влезет?</button>
                 <button type="button" :class="crmBtnPrimary" :disabled="!selectedLeadId || !form.counterparty_id" @click="convertLead"><ArrowRightLeft class="h-4 w-4" />Конвертировать в заказ</button>
                 <button type="button" :class="crmBtnCreate" @click="submit"><Save class="h-4 w-4" />Сохранить</button>
             </div>
@@ -448,7 +449,7 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowRightLeft, Banknote, Calculator, ClipboardList, FileText, History, MapPinned, Package, Paperclip, Plus, Save, Trash2, X } from 'lucide-vue-next';
+import { ArrowRightLeft, Banknote, Calculator, ClipboardList, FileText, History, MapPinned, Package, Paperclip, Plus, Save, Trash2, Truck, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CardSmartLinksBar from '@/Components/Crm/CardSmartLinksBar.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -695,6 +696,13 @@ const canUseLoadBoard = computed(() => {
     const areas = role.visibility_areas ?? [];
 
     return Boolean(role.is_admin) || role.name === 'admin' || areas.includes('load_board');
+});
+
+const canUseHowMuchFits = computed(() => {
+    const role = page.props.auth?.user?.role ?? {};
+    const areas = role.visibility_areas ?? [];
+
+    return Boolean(role.is_admin) || role.name === 'admin' || areas.includes('modules_how_much_fits') || areas.includes('modules');
 });
 
 watch(
@@ -1370,6 +1378,7 @@ function submitSendOffer() {
 }
 function convertLead() { if (selectedLeadId.value) router.post(route('leads.convert', selectedLeadId.value), {}); }
 function openLoadBoardFromLead() { if (selectedLeadId.value) router.get(route('load-board.index', { from_lead: selectedLeadId.value }), {}, { preserveScroll: true }); }
+function openHowMuchFitsFromLead() { if (selectedLeadId.value) router.get(route('modules.how-much-fits.index', { lead: selectedLeadId.value })); }
 function destroyLead() {
     if (!selectedLeadId.value) {
         return;

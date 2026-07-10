@@ -6,14 +6,21 @@
                 title="Сколько влезет?"
             />
             <div class="flex flex-wrap gap-2 sm:ml-auto">
-                <button type="button" :class="crmBtnPrimary" @click="createProject">Новый расчёт</button>
+                <Link v-if="linkContext?.url" :href="linkContext.url" :class="crmBtnSecondary">← {{ linkContext.label }}</Link>
+                <button type="button" :class="crmBtnPrimary" @click="createProject">{{ linkContext ? 'Новый расчёт по сделке' : 'Новый расчёт' }}</button>
                 <button type="button" :class="crmBtnSecondary" :disabled="!projectForm?.id" @click="saveProject">Сохранить</button>
             </div>
         </div>
 
+        <div v-if="linkContext" class="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100 print:hidden">
+            Расчёты привязаны к <strong>{{ linkContext.label }}</strong>. Их видят все, у кого есть доступ к этой сделке.
+        </div>
+
         <div :class="`${crmPanel} workspace flex min-h-0 flex-1 flex-col overflow-hidden`">
-            <div v-if="!projectForm" class="flex flex-1 items-center justify-center p-8 text-sm text-zinc-500">
-                Выберите или создайте проект на вкладке «Проекты».
+            <div v-if="!projectForm" class="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-sm text-zinc-500">
+                <p v-if="linkContext">Для {{ linkContext.label }} ещё нет расчёта загрузки.</p>
+                <p v-else>Выберите или создайте проект на вкладке «Проекты».</p>
+                <button v-if="linkContext" type="button" :class="crmBtnPrimary" @click="createProject">Создать расчёт</button>
             </div>
 
             <template v-else>
@@ -49,7 +56,9 @@
                                 <div class="min-w-0 flex-1">
                                     <div class="truncate text-sm font-semibold">{{ project.name }}</div>
                                     <div class="mt-1 text-xs text-zinc-500">добавлено {{ project.created_at }}, обновлено {{ project.updated_at }}</div>
-                                    <div v-if="project.transport_name" class="mt-1 truncate text-xs text-sky-700 dark:text-sky-300">{{ project.transport_name }}</div>
+                                    <div v-if="project.owner_name" class="mt-1 text-xs text-zinc-500">автор: {{ project.owner_name }}</div>
+                                    <div v-if="project.link_label" class="mt-1 truncate text-xs text-sky-700 dark:text-sky-300">{{ project.link_label }}</div>
+                                    <div v-else-if="project.transport_name" class="mt-1 truncate text-xs text-sky-700 dark:text-sky-300">{{ project.transport_name }}</div>
                                 </div>
                                 <div class="flex shrink-0 items-center gap-2">
                                     <button type="button" class="text-link" @click="openProject(project.id)">открыть</button>
@@ -197,7 +206,21 @@
                     <div v-else class="print-area grid h-full min-h-0 xl:grid-cols-[minmax(0,1fr),300px]">
                         <div class="print-area-scene flex min-h-0 flex-col overflow-hidden border-b border-zinc-200 xl:border-b-0 xl:border-r dark:border-zinc-800">
                             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800 print:hidden">
-                                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Расчёт загрузки</div>
+                                <div class="flex min-w-0 flex-col gap-2">
+                                    <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Расчёт загрузки</div>
+                                    <div v-if="multiVehicleSummary && multiVehicleSummary.truckCount > 1" class="flex flex-wrap gap-1">
+                                        <button
+                                            v-for="(truck, truckIndex) in multiVehicleSummary.trucks"
+                                            :key="`truck-${truck.truckIndex}`"
+                                            type="button"
+                                            class="group-tab"
+                                            :class="activeTruckIndex === truckIndex ? 'group-tab-active' : ''"
+                                            @click="activeTruckIndex = truckIndex"
+                                        >
+                                            {{ truck.truckLabel }} · {{ truck.placedInTrailer }} шт
+                                        </button>
+                                    </div>
+                                </div>
                                 <div class="flex flex-wrap items-center gap-1">
                                     <label class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2 py-1 text-[11px] font-semibold dark:border-zinc-700">
                                         <input v-model="manualMode" type="checkbox" class="rounded" /> Ручная раскладка
@@ -339,7 +362,14 @@
                                 <div class="summary-chip"><span>Занято</span><strong>{{ layoutResult.ldm.toFixed(2) }} LDM</strong><strong>{{ layoutResult.usedVolumePercent.toFixed(1) }}%</strong></div>
                                 <div class="summary-chip"><span>Свободно</span><strong>{{ formatMm(layoutResult.freeLengthMm) }}</strong><strong>{{ formatM3(layoutResult.freeVolumeM3) }}</strong></div>
                                 <div class="summary-chip" :class="layoutResult.fits ? 'summary-chip-ok' : 'summary-chip-bad'">
-                                    <span>Статус</span><strong>{{ layoutResult.fits ? 'Влезает' : 'Не влезает' }}</strong>
+                                    <span>Статус</span><strong>{{ layoutStatusLabel }}</strong>
+                                </div>
+                            </div>
+                            <div v-if="multiVehicleSummary && multiVehicleSummary.truckCount > 1" class="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+                                <div class="font-semibold">Несколько машин</div>
+                                <div class="mt-1">Всего {{ multiVehicleSummary.truckCount }} маш · размещено {{ multiVehicleSummary.placedUnits }} / {{ multiVehicleSummary.totalUnits }} мест</div>
+                                <div v-if="multiVehicleSummary.unplacedUnits > 0" class="mt-1 text-amber-800 dark:text-amber-200">
+                                    Не размещено: {{ multiVehicleSummary.unplacedUnits }} мест
                                 </div>
                             </div>
                             <div v-if="layoutResult.warnings.length" class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
@@ -493,7 +523,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import {
     ArrowLeftRight,
     Boxes,
@@ -521,6 +551,7 @@ import {
     blocksOverlapXY,
     buildSceneBounds,
     calculateLayout,
+    calculateMultiVehicleLayout,
     clientPointToSceneMm,
     blockCanBeLifted,
     buildHeightRulerTicks,
@@ -546,6 +577,8 @@ const props = defineProps({
     projects: { type: Array, default: () => [] },
     selectedProject: { type: Object, default: null },
     transportTemplates: { type: Array, default: () => [] },
+    linkContext: { type: Object, default: null },
+    initialStep: { type: String, default: null },
 });
 
 const steps = [
@@ -555,7 +588,8 @@ const steps = [
     { key: 'calculation', label: 'Расчёт', icon: Calculator },
 ];
 
-const activeStep = ref('projects');
+const activeStep = ref(props.initialStep && steps.some((step) => step.key === props.initialStep) ? props.initialStep : 'projects');
+const activeTruckIndex = ref(0);
 const projectSearch = ref('');
 const projectSortBy = ref('updated');
 const projectSortDir = ref('desc');
@@ -698,12 +732,40 @@ const autoLayoutResult = computed(() => calculateLayout(
     layoutOptions.value,
 ));
 
+const multiLayoutResult = computed(() => {
+    if (!selectedTransport.value || manualMode.value) {
+        return null;
+    }
+
+    return calculateMultiVehicleLayout(selectedTransport.value, cargoFlat.value, layoutOptions.value);
+});
+
 const layoutResult = computed(() => {
     if (!selectedTransport.value) {
         return autoLayoutResult.value;
     }
 
     if (!manualMode.value) {
+        const multi = multiLayoutResult.value;
+        if (multi) {
+            if (multi.truckCount > 0) {
+                const truck = multi.trucks[activeTruckIndex.value] ?? multi.trucks[0];
+
+                return {
+                    ...truck,
+                    fits: multi.fits,
+                    multiSummary: multi,
+                };
+            }
+
+            return {
+                ...autoLayoutResult.value,
+                fits: false,
+                warnings: multi.warnings,
+                multiSummary: multi,
+            };
+        }
+
         return autoLayoutResult.value;
     }
 
@@ -722,6 +784,21 @@ const layoutResult = computed(() => {
         placementGapMm: layoutOptions.value.placementGapMm,
     });
 });
+
+const multiVehicleSummary = computed(() => layoutResult.value?.multiSummary ?? multiLayoutResult.value ?? null);
+
+const layoutStatusLabel = computed(() => {
+    const multi = multiVehicleSummary.value;
+    if (!multi || multi.truckCount <= 1) {
+        return layoutResult.value?.fits ? 'Влезает' : 'Не влезает';
+    }
+
+    if (multi.fits) {
+        return `${multi.truckCount} маш · влезает`;
+    }
+
+    return `${multi.truckCount} маш · осталось ${multi.unplacedUnits} мест`;
+});
 const selectedBlock = computed(() => layoutResult.value.blocks.find((block) => block.key === selectedBlockKey.value) ?? null);
 
 const sceneBlocks = computed(() => {
@@ -738,6 +815,10 @@ watch(layoutResult, (result) => {
     if (selectedBlockKey.value && !result.blocks.some((block) => block.key === selectedBlockKey.value)) {
         selectedBlockKey.value = null;
     }
+});
+
+watch([multiLayoutResult, selectedTransport, cargoFlat], () => {
+    activeTruckIndex.value = 0;
 });
 
 const sceneBounds = computed(() => (selectedTransport.value ? buildSceneBounds(selectedTransport.value) : null));
@@ -992,12 +1073,32 @@ function blankCargoItem(color = '#60a5fa') {
     };
 }
 
+function indexQuery(extra = {}) {
+    const query = { ...extra };
+
+    if (props.linkContext?.order_id) {
+        query.order = props.linkContext.order_id;
+    } else if (props.linkContext?.lead_id) {
+        query.lead = props.linkContext.lead_id;
+    }
+
+    return query;
+}
+
 function createProject() {
-    router.post(route('modules.how-much-fits.projects.store'), { name: 'Новый расчёт' });
+    const payload = { name: props.linkContext ? undefined : 'Новый расчёт' };
+
+    if (props.linkContext?.order_id) {
+        payload.order_id = props.linkContext.order_id;
+    } else if (props.linkContext?.lead_id) {
+        payload.lead_id = props.linkContext.lead_id;
+    }
+
+    router.post(route('modules.how-much-fits.projects.store'), payload);
 }
 
 function selectProject(projectId) {
-    router.get(route('modules.how-much-fits.index'), { project: projectId }, { preserveState: false, preserveScroll: true });
+    router.get(route('modules.how-much-fits.index'), indexQuery({ project: projectId }), { preserveState: false, preserveScroll: true });
 }
 
 function openProject(projectId) {
@@ -1005,7 +1106,7 @@ function openProject(projectId) {
         activeStep.value = 'cargo';
         return;
     }
-    router.get(route('modules.how-much-fits.index'), { project: projectId, step: 'cargo' }, { preserveState: false, preserveScroll: true });
+    router.get(route('modules.how-much-fits.index'), indexQuery({ project: projectId, step: 'cargo' }), { preserveState: false, preserveScroll: true });
 }
 
 function setProjectSort(field) {
@@ -1209,10 +1310,12 @@ function projectPayload() {
         calculation: {
             fits: layoutResult.value.fits,
             ldm: layoutResult.value.ldm,
-            placed_units: layoutResult.value.placedUnits,
-            total_units: layoutResult.value.totalUnits,
-            used_volume_percent: layoutResult.value.usedVolumePercent,
-            used_payload_percent: layoutResult.value.usedPayloadPercent,
+            placed_units: multiVehicleSummary.value?.placedUnits ?? layoutResult.value.placedUnits,
+            total_units: multiVehicleSummary.value?.totalUnits ?? layoutResult.value.totalUnits,
+            truck_count: multiVehicleSummary.value?.truckCount ?? 1,
+            unplaced_units: multiVehicleSummary.value?.unplacedUnits ?? 0,
+            used_volume_percent: multiVehicleSummary.value?.usedVolumePercent ?? layoutResult.value.usedVolumePercent,
+            used_payload_percent: multiVehicleSummary.value?.usedPayloadPercent ?? layoutResult.value.usedPayloadPercent,
             warnings: layoutResult.value.warnings,
             manual_mode: manualMode.value,
             tight_packing: tightPacking.value,

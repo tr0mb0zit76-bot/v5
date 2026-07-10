@@ -78,6 +78,8 @@ class SalaryPayrollManagementTest extends TestCase
 
         $updatedAccrual = DB::table('salary_accruals')->where('id', $accrual->id)->first();
         $this->assertSame('100000.00', number_format((float) $updatedAccrual->paid_amount_fact, 2, '.', ''));
+
+        $this->assertSame('100000.00', number_format((float) DB::table('orders')->where('id', $orderId)->value('salary_paid'), 2, '.', ''));
     }
 
     public function test_advance_can_be_paid_before_customer_payment_and_settled_after_recalculation(): void
@@ -145,6 +147,8 @@ class SalaryPayrollManagementTest extends TestCase
 
         $updatedAccrual = DB::table('salary_accruals')->where('period_id', $periodId)->first();
         $this->assertSame('30000.00', number_format((float) $updatedAccrual->paid_amount_fact, 2, '.', ''));
+
+        $this->assertSame('30000.00', number_format((float) DB::table('orders')->where('id', $orderId)->value('salary_paid'), 2, '.', ''));
     }
 
     public function test_partial_customer_payment_is_reflected_in_accrual_snapshot(): void

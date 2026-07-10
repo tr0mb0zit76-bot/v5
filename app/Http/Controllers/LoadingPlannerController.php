@@ -2,49 +2,89 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Lead;
 use App\Models\LoadingCargoGroup;
 use App\Models\LoadingPlannerProject;
+use App\Models\Order;
 use App\Models\TransportTemplate;
+use App\Models\User;
+use App\Services\LoadingPlanner\LoadingPlannerCargoSeedService;
+use App\Support\LoadingPlannerAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class LoadingPlannerController extends Controller
 {
+    public function __construct(
+        private readonly LoadingPlannerCargoSeedService $cargoSeedService,
+    ) {}
+
     public function index(Request $request): Response
     {
         $this->ensureDefaultTransportTemplates();
 
-        $projects = LoadingPlannerProject::query()
-            ->where('user_id', $request->user()?->id)
-            ->with(['selectedTransportTemplate:id,name,category'])
-            ->orderByDesc('updated_at')
-            ->get();
+        $user = $request->user();
+        abort_if($user === null, 403);
 
-        if ($projects->isEmpty()) {
+        $linkContext = $this->resolveLinkContext($request);
+        $leadFilterId = $linkContext['lead_id'] ?? null;
+        $orderFilterId = $linkContext['order_id'] ?? null;
+
+        $projectsQuery = LoadingPlannerAccess::applyVisibleProjectsScope(
+            LoadingPlannerProject::query(),
+            $user,
+        )
+            ->with([
+                'selectedTransportTemplate:id,name,category',
+                'user:id,name',
+                'lead:id,number,title',
+                'order:id,order_number,lead_id',
+            ])
+            ->when($orderFilterId !== null, fn ($query) => $query->where('order_id', $orderFilterId))
+            ->when($leadFilterId !== null && $orderFilterId === null, fn ($query) => $query->where('lead_id', $leadFilterId))
+            ->orderByDesc('updated_at');
+
+        $projects = $projectsQuery->get();
+
+        if ($projects->isEmpty() && $linkContext === null) {
             $this->createStarterProject($request);
-            $projects = LoadingPlannerProject::query()
-                ->where('user_id', $request->user()?->id)
-                ->with(['selectedTransportTemplate:id,name,category'])
+            $projects = LoadingPlannerAccess::applyVisibleProjectsScope(
+                LoadingPlannerProject::query(),
+                $user,
+            )
+                ->with([
+                    'selectedTransportTemplate:id,name,category',
+                    'user:id,name',
+                    'lead:id,number,title',
+                    'order:id,order_number,lead_id',
+                ])
                 ->orderByDesc('updated_at')
                 ->get();
         }
 
         $selectedId = $request->integer('project');
-        $selectedProject = LoadingPlannerProject::query()
-            ->where('user_id', $request->user()?->id)
+        $selectedProject = LoadingPlannerAccess::applyVisibleProjectsScope(
+            LoadingPlannerProject::query(),
+            $user,
+        )
             ->when($selectedId > 0, fn ($query) => $query->whereKey($selectedId))
-            ->with(['cargoGroups.items', 'selectedTransportTemplate'])
+            ->when($orderFilterId !== null, fn ($query) => $query->where('order_id', $orderFilterId))
+            ->when($leadFilterId !== null && $orderFilterId === null, fn ($query) => $query->where('lead_id', $leadFilterId))
+            ->with(['cargoGroups.items', 'selectedTransportTemplate', 'user:id,name', 'lead:id,number,title', 'order:id,order_number,lead_id'])
             ->orderByDesc('updated_at')
             ->first();
 
         return Inertia::render('Modules/HowMuchFits', [
-            'projects' => $projects->map(fn (LoadingPlannerProject $project): array => $this->formatProjectSummary($project))->values(),
-            'selectedProject' => $selectedProject ? $this->formatProject($selectedProject) : null,
+            'projects' => $projects->map(fn (LoadingPlannerProject $project): array => $this->formatProjectSummary($project, (int) $user->id))->values(),
+            'selectedProject' => $selectedProject ? $this->formatProject($selectedProject, (int) $user->id) : null,
+            'linkContext' => $linkContext,
+            'initialStep' => $request->string('step')->toString() ?: null,
             'transportTemplates' => TransportTemplate::query()
                 ->orderBy('category')
                 ->orderBy('sort_order')
@@ -57,44 +97,55 @@ class LoadingPlannerController extends Controller
 
     public function storeProject(Request $request): RedirectResponse
     {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        $validated = $request->validate([
+            'name' => ['nullable', 'string', 'max:255'],
+            'lead_id' => ['nullable', 'integer', 'exists:leads,id'],
+            'order_id' => ['nullable', 'integer', 'exists:orders,id'],
+        ]);
+
+        $lead = $this->resolveLeadForLink($user, isset($validated['lead_id']) ? (int) $validated['lead_id'] : null);
+        $order = $this->resolveOrderForLink($user, isset($validated['order_id']) ? (int) $validated['order_id'] : null);
+
+        if ($lead === null && $order === null && $request->filled('lead')) {
+            $lead = $this->resolveLeadForLink($user, $request->integer('lead'));
+        }
+
+        if ($lead === null && $order === null && $request->filled('order')) {
+            $order = $this->resolveOrderForLink($user, $request->integer('order'));
+        }
+
         $template = TransportTemplate::query()->where('is_active', true)->orderBy('sort_order')->first();
-        $project = LoadingPlannerProject::query()->create([
-            'user_id' => $request->user()?->id,
-            'selected_transport_template_id' => $template?->id,
-            'name' => $request->string('name')->trim()->toString() ?: 'Новый расчёт',
-            'status' => 'draft',
-        ]);
 
-        $group = $project->cargoGroups()->create([
-            'name' => 'Грузовая группа #1',
-            'recipient_name' => 'Получатель без названия',
-            'color' => '#8b5cf6',
-            'sort_order' => 1,
-        ]);
+        $project = DB::transaction(function () use ($user, $validated, $lead, $order, $template): LoadingPlannerProject {
+            $project = LoadingPlannerProject::query()->create([
+                'user_id' => $user->id,
+                'lead_id' => $order?->lead_id ?? $lead?->id,
+                'order_id' => $order?->id,
+                'selected_transport_template_id' => $template?->id,
+                'name' => trim((string) ($validated['name'] ?? '')) ?: $this->defaultProjectName($lead, $order),
+                'status' => 'draft',
+            ]);
 
-        $group->items()->create([
-            'client_key' => (string) Str::uuid(),
-            'name' => 'Паллета EUR',
-            'package_type' => 'pallet',
-            'quantity' => 10,
-            'length_mm' => 1200,
-            'width_mm' => 800,
-            'height_mm' => 1200,
-            'weight_kg' => 350,
-            'can_rotate' => true,
-            'stackable' => false,
-            'max_stack' => 5,
-            'can_tilt' => false,
-            'color' => '#8b5cf6',
-            'sort_order' => 1,
-        ]);
+            if ($order instanceof Order) {
+                $this->cargoSeedService->seedFromOrder($project, $order);
+            } elseif ($lead instanceof Lead) {
+                $this->cargoSeedService->seedFromLead($project, $lead);
+            } else {
+                $this->seedDefaultDemoCargo($project);
+            }
 
-        return to_route('modules.how-much-fits.index', ['project' => $project->id]);
+            return $project;
+        });
+
+        return to_route('modules.how-much-fits.index', $this->indexRouteParams($project));
     }
 
     public function updateProject(Request $request, LoadingPlannerProject $loadingPlannerProject): RedirectResponse
     {
-        abort_unless($loadingPlannerProject->user_id === $request->user()?->id, 404);
+        abort_unless(LoadingPlannerAccess::canMutateProject($request->user(), $loadingPlannerProject), 404);
 
         $validated = $request->validate($this->projectRules());
 
@@ -139,16 +190,17 @@ class LoadingPlannerController extends Controller
             }
         });
 
-        return to_route('modules.how-much-fits.index', ['project' => $loadingPlannerProject->id]);
+        return to_route('modules.how-much-fits.index', $this->indexRouteParams($loadingPlannerProject));
     }
 
     public function destroyProject(Request $request, LoadingPlannerProject $loadingPlannerProject): RedirectResponse
     {
-        abort_unless($loadingPlannerProject->user_id === $request->user()?->id, 404);
+        abort_unless(LoadingPlannerAccess::canMutateProject($request->user(), $loadingPlannerProject), 404);
 
+        $redirectParams = $this->indexRouteParams($loadingPlannerProject);
         $loadingPlannerProject->delete();
 
-        return to_route('modules.how-much-fits.index');
+        return to_route('modules.how-much-fits.index', $redirectParams);
     }
 
     public function storeTransportTemplate(Request $request): RedirectResponse
@@ -176,6 +228,106 @@ class LoadingPlannerController extends Controller
         $transportTemplate->delete();
 
         return back();
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolveLinkContext(Request $request): ?array
+    {
+        $user = $request->user();
+        if ($user === null) {
+            return null;
+        }
+
+        if ($request->filled('order')) {
+            $order = Order::query()->find($request->integer('order'));
+            if ($order instanceof Order && LoadingPlannerAccess::canAccessOrder($user, $order)) {
+                return [
+                    'type' => 'order',
+                    'order_id' => $order->id,
+                    'lead_id' => $order->lead_id,
+                    'label' => 'Заказ '.($order->order_number ?? '#'.$order->id),
+                    'url' => route('orders.edit', $order),
+                ];
+            }
+        }
+
+        if ($request->filled('lead')) {
+            $lead = Lead::query()->find($request->integer('lead'));
+            if ($lead instanceof Lead && LoadingPlannerAccess::canAccessLead($user, $lead)) {
+                return [
+                    'type' => 'lead',
+                    'lead_id' => $lead->id,
+                    'order_id' => null,
+                    'label' => 'Лид #'.($lead->number ?? $lead->id),
+                    'url' => route('leads.show', $lead),
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveLeadForLink(User $user, ?int $leadId): ?Lead
+    {
+        if ($leadId === null || $leadId <= 0) {
+            return null;
+        }
+
+        $lead = Lead::query()->find($leadId);
+        if (! $lead instanceof Lead || ! LoadingPlannerAccess::canAccessLead($user, $lead)) {
+            throw ValidationException::withMessages([
+                'lead_id' => 'Нет доступа к выбранному лиду.',
+            ]);
+        }
+
+        return $lead;
+    }
+
+    private function resolveOrderForLink(User $user, ?int $orderId): ?Order
+    {
+        if ($orderId === null || $orderId <= 0) {
+            return null;
+        }
+
+        $order = Order::query()->find($orderId);
+        if (! $order instanceof Order || ! LoadingPlannerAccess::canAccessOrder($user, $order)) {
+            throw ValidationException::withMessages([
+                'order_id' => 'Нет доступа к выбранному заказу.',
+            ]);
+        }
+
+        return $order;
+    }
+
+    private function defaultProjectName(?Lead $lead, ?Order $order): string
+    {
+        if ($order instanceof Order) {
+            return 'Загрузка — заказ '.($order->order_number ?? '#'.$order->id);
+        }
+
+        if ($lead instanceof Lead) {
+            return 'Загрузка — лид #'.($lead->number ?? $lead->id);
+        }
+
+        return 'Новый расчёт';
+    }
+
+    /**
+     * @return array<string, int|string|null>
+     */
+    private function indexRouteParams(LoadingPlannerProject $project): array
+    {
+        $params = ['project' => $project->id];
+
+        if ($project->order_id !== null) {
+            $params['order'] = $project->order_id;
+        } elseif ($project->lead_id !== null) {
+            $params['lead'] = $project->lead_id;
+        }
+
+        return $params;
     }
 
     /**
@@ -252,6 +404,33 @@ class LoadingPlannerController extends Controller
         return $project;
     }
 
+    private function seedDefaultDemoCargo(LoadingPlannerProject $project): void
+    {
+        $group = $project->cargoGroups()->create([
+            'name' => 'Грузовая группа #1',
+            'recipient_name' => 'Получатель без названия',
+            'color' => '#8b5cf6',
+            'sort_order' => 1,
+        ]);
+
+        $group->items()->create([
+            'client_key' => (string) Str::uuid(),
+            'name' => 'Паллета EUR',
+            'package_type' => 'pallet',
+            'quantity' => 10,
+            'length_mm' => 1200,
+            'width_mm' => 800,
+            'height_mm' => 1200,
+            'weight_kg' => 350,
+            'can_rotate' => true,
+            'stackable' => false,
+            'max_stack' => 5,
+            'can_tilt' => false,
+            'color' => '#8b5cf6',
+            'sort_order' => 1,
+        ]);
+    }
+
     private function ensureDefaultTransportTemplates(): void
     {
         if (TransportTemplate::query()->exists()) {
@@ -292,7 +471,7 @@ class LoadingPlannerController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function formatProjectSummary(LoadingPlannerProject $project): array
+    private function formatProjectSummary(LoadingPlannerProject $project, ?int $viewerUserId = null): array
     {
         return [
             'id' => $project->id,
@@ -301,16 +480,34 @@ class LoadingPlannerController extends Controller
             'transport_name' => $project->selectedTransportTemplate?->name,
             'updated_at' => optional($project->updated_at)->format('d.m.Y'),
             'created_at' => optional($project->created_at)->format('d.m.Y'),
+            'owner_name' => $project->user?->name,
+            'lead_id' => $project->lead_id,
+            'order_id' => $project->order_id,
+            'link_label' => $this->projectLinkLabel($project),
+            'is_shared' => $viewerUserId !== null && (int) $project->user_id !== $viewerUserId,
         ];
+    }
+
+    private function projectLinkLabel(LoadingPlannerProject $project): ?string
+    {
+        if ($project->order_id !== null) {
+            return 'Заказ '.($project->order?->order_number ?? '#'.$project->order_id);
+        }
+
+        if ($project->lead_id !== null) {
+            return 'Лид #'.($project->lead?->number ?? $project->lead_id);
+        }
+
+        return null;
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function formatProject(LoadingPlannerProject $project): array
+    private function formatProject(LoadingPlannerProject $project, ?int $viewerUserId = null): array
     {
         return [
-            ...$this->formatProjectSummary($project),
+            ...$this->formatProjectSummary($project, $viewerUserId),
             'selected_transport_template_id' => $project->selected_transport_template_id,
             'notes' => $project->notes,
             'calculation' => $project->calculation ?? [],

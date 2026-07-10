@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\Order;
 use App\Models\SalaryAccrual;
 use App\Models\SalaryCoefficient;
 use App\Models\SalaryPayout;
 use App\Models\SalaryPeriod;
 use App\Models\User;
 use App\Support\CustomerPaymentAmountResolver;
+use App\Support\OrderManagerSalaryPaymentResolver;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -625,6 +627,27 @@ class SalaryPayrollService
             'paid_amount_fact' => $newPaidFact,
             'unpaid_amount' => round(max(0.0, (float) $accrual->salary_amount - $newPaidFact), 2),
         ]);
+
+        $this->syncOrderSalaryPaidFromAccruals((int) $accrual->order_id);
+    }
+
+    private function syncOrderSalaryPaidFromAccruals(int $orderId): void
+    {
+        if ($orderId <= 0 || ! Schema::hasColumn('orders', 'salary_paid')) {
+            return;
+        }
+
+        $paidTotal = OrderManagerSalaryPaymentResolver::paidAmountForOrder($orderId);
+
+        DB::table('orders')
+            ->where('id', $orderId)
+            ->update(['salary_paid' => $paidTotal]);
+
+        $order = Order::query()->find($orderId);
+
+        if ($order !== null) {
+            app(OrderStatusService::class)->syncStoredStatus($order->fresh());
+        }
     }
 
     private function fallbackSalaryAmount(float $delta, ?SalaryCoefficient $salaryCoefficient): float

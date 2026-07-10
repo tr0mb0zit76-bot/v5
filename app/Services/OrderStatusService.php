@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\OrderStatusLog;
+use App\Support\OrderManagerSalaryPaymentResolver;
 use App\Support\OrderPartyPaymentSettlementResolver;
 use App\Support\PerformerRouteActualDates;
 use App\Support\RoutePointActualMilestones;
@@ -242,8 +243,15 @@ class OrderStatusService
     private function isPaid(Order $order, string $party): bool
     {
         if ($party === 'manager') {
-            return (float) ($order->salary_paid ?? 0) > 0
-                || $this->extractPaidMarker((array) ($order->payment_statuses ?? []), 'manager');
+            if ((float) ($order->salary_paid ?? 0) > 0) {
+                return true;
+            }
+
+            if ($this->extractPaidMarker((array) ($order->payment_statuses ?? []), 'manager')) {
+                return true;
+            }
+
+            return OrderManagerSalaryPaymentResolver::isManagerSalaryPaid($order);
         }
 
         if ($this->extractPaidMarker((array) ($order->payment_statuses ?? []), $party)) {

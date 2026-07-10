@@ -994,6 +994,237 @@ export function calculateLayout(transport, items, manualOverrides = {}, options 
     return calculateAutoLayout(transport, items, { excludeSettleKeys, freezeSettleKeys, placementGapMm });
 }
 
+const DEFAULT_MAX_VEHICLES = 10;
+
+/**
+ * @param {object} item
+ * @param {object} transport
+ */
+export function unitFitsTransportDimensions(item, transport) {
+    if (!transport || !item) {
+        return false;
+    }
+
+    const length = Number(item.length_mm || 0);
+    const width = Number(item.width_mm || 0);
+    const height = Number(item.height_mm || 0);
+
+    if (length <= 0 || width <= 0 || height <= 0) {
+        return false;
+    }
+
+    const trailerLength = Number(transport.length_mm || 0);
+    const trailerWidth = Number(transport.width_mm || 0);
+    const trailerHeight = Number(transport.height_mm || 0);
+
+    const footprints = item.can_rotate && length !== width
+        ? [[length, width], [width, length]]
+        : [[length, width]];
+
+    return footprints.some(([footprintLength, footprintWidth]) => (
+        footprintLength <= trailerLength
+        && footprintWidth <= trailerWidth
+        && height <= trailerHeight
+    ));
+}
+
+/**
+ * @param {Array<object>} items
+ * @param {object} transport
+ * @param {{ maxVehicles?: number, placementGapMm?: number|null }} options
+ */
+export function calculateMultiVehicleLayout(transport, items, options = {}) {
+    if (!transport) {
+        return emptyMultiVehicleLayout();
+    }
+
+    const maxVehicles = Math.max(1, Number(options.maxVehicles ?? DEFAULT_MAX_VEHICLES));
+    const layoutOptions = {
+        excludeSettleKeys: options.excludeSettleKeys ?? new Set(),
+        freezeSettleKeys: options.freezeSettleKeys ?? new Set(),
+        placementGapMm: options.placementGapMm ?? null,
+    };
+
+    const itemsBySource = new Map(items.map((item) => [item.source_key, item]));
+    let remainingItems = cloneItemsForLayout(items);
+    const trucks = [];
+    const warnings = [];
+    const oversizedItems = [];
+
+    for (const item of remainingItems) {
+        if (!unitFitsTransportDimensions(item, transport)) {
+            oversizedItems.push(item.name || item.source_key);
+        }
+    }
+
+    if (oversizedItems.length > 0) {
+        const uniqueNames = [...new Set(oversizedItems)];
+
+        return {
+            fits: false,
+            truckCount: 0,
+            trucks: [],
+            totalUnits: sumItemUnits(items),
+            placedUnits: 0,
+            unplacedUnits: sumItemUnits(items),
+            warnings: [
+                ...uniqueNames.map((name) => `${name}: габарит больше кузова — нужен другой тип транспорта (платформа / негабарит).`),
+            ],
+            oversizedItems: uniqueNames,
+            usedPayloadPercent: 0,
+            usedVolumePercent: 0,
+        };
+    }
+
+    while (sumItemUnits(remainingItems) > 0 && trucks.length < maxVehicles) {
+        const layout = calculateAutoLayout(transport, remainingItems, layoutOptions);
+        const inTrailerBlocks = layout.blocks.filter((block) => block.in_trailer);
+        const trimmed = trimTrailerBlocksToPayload(inTrailerBlocks, transport, itemsBySource);
+        const placedKeys = new Set(trimmed.map((block) => block.key));
+
+        if (placedKeys.size === 0) {
+            warnings.push('Не удалось разместить оставшийся груз даже на дополнительной машине.');
+            break;
+        }
+
+        const truckLayout = finalizeLayoutMetrics({
+            blocks: [
+                ...trimmed,
+                ...layout.blocks.filter((block) => !block.in_trailer),
+            ],
+            bounds: layout.bounds,
+            warnings: [...layout.warnings],
+            fits: trimmed.length === layout.placedInTrailer,
+            totalUnits: layout.totalUnits,
+            placedUnits: trimmed.length,
+            placedInTrailer: trimmed.length,
+            totalWeightKg: trimmed.reduce((sum, block) => sum + blockWeightKg(block, itemsBySource), 0),
+            totalVolumeM3: trimmed.reduce((sum, block) => {
+                const item = itemsBySource.get(block.source_key);
+
+                return sum + (Number(item?.length_mm || 0) * Number(item?.width_mm || 0) * Number(item?.height_mm || 0) / 1_000_000_000);
+            }, 0),
+            usedLengthMm: trimmed.reduce((max, block) => Math.max(max, Number(block.x) + Number(block.length)), 0),
+            transport,
+            transportVolumeM3: layout.bounds
+                ? Number(transport.length_mm) * Number(transport.width_mm) * Number(transport.height_mm) / 1_000_000_000
+                : 0,
+        });
+
+        trucks.push({
+            ...truckLayout,
+            truckIndex: trucks.length + 1,
+            truckLabel: `Машина ${trucks.length + 1}`,
+            placedKeys: [...placedKeys],
+        });
+
+        remainingItems = remainingItemsAfterPlacement(remainingItems, placedKeys);
+
+        if (truckLayout.usedPayloadPercent > 100) {
+            warnings.push(`Машина ${trucks.length}: перевес ${formatKg(truckLayout.totalWeightKg)} при лимите ${formatKg(transport.max_payload_kg)}.`);
+        }
+    }
+
+    const totalUnits = sumItemUnits(items);
+    const placedUnits = trucks.reduce((sum, truck) => sum + truck.placedInTrailer, 0);
+    const unplacedUnits = Math.max(0, totalUnits - placedUnits);
+
+    if (unplacedUnits > 0 && trucks.length >= maxVehicles) {
+        warnings.push(`Не хватило лимита в ${maxVehicles} машин — осталось ${unplacedUnits} мест.`);
+    }
+
+    const aggregateWarnings = [...new Set([
+        ...warnings,
+        ...trucks.flatMap((truck) => truck.warnings),
+    ])];
+
+    return {
+        fits: unplacedUnits === 0,
+        truckCount: trucks.length,
+        trucks,
+        totalUnits,
+        placedUnits,
+        unplacedUnits,
+        warnings: aggregateWarnings,
+        oversizedItems: [],
+        usedPayloadPercent: averagePercent(trucks.map((truck) => truck.usedPayloadPercent)),
+        usedVolumePercent: averagePercent(trucks.map((truck) => truck.usedVolumePercent)),
+    };
+}
+
+function emptyMultiVehicleLayout() {
+    return {
+        fits: false,
+        truckCount: 0,
+        trucks: [],
+        totalUnits: 0,
+        placedUnits: 0,
+        unplacedUnits: 0,
+        warnings: [],
+        oversizedItems: [],
+        usedPayloadPercent: 0,
+        usedVolumePercent: 0,
+    };
+}
+
+function cloneItemsForLayout(items) {
+    return items
+        .map((item) => ({
+            ...item,
+            quantity: Math.max(0, Number(item.quantity || 0)),
+        }))
+        .filter((item) => item.quantity > 0);
+}
+
+function sumItemUnits(items) {
+    return items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity || 0)), 0);
+}
+
+function remainingItemsAfterPlacement(items, placedKeys) {
+    return items
+        .map((item) => {
+            const prefix = `${item.source_key}-`;
+            let placed = 0;
+
+            for (const key of placedKeys) {
+                if (key.startsWith(prefix)) {
+                    placed += 1;
+                }
+            }
+
+            return {
+                ...item,
+                quantity: Math.max(0, Number(item.quantity || 0) - placed),
+            };
+        })
+        .filter((item) => item.quantity > 0);
+}
+
+function blockWeightKg(block, itemsBySource) {
+    return Number(itemsBySource.get(block.source_key)?.weight_kg ?? 0);
+}
+
+function trimTrailerBlocksToPayload(blocks, transport, itemsBySource) {
+    const kept = [...blocks];
+    let totalWeight = kept.reduce((sum, block) => sum + blockWeightKg(block, itemsBySource), 0);
+    const payloadLimit = Number(transport.max_payload_kg || 0);
+
+    while (payloadLimit > 0 && totalWeight > payloadLimit + 0.009 && kept.length > 0) {
+        const removed = kept.pop();
+        totalWeight -= blockWeightKg(removed, itemsBySource);
+    }
+
+    return kept;
+}
+
+function averagePercent(values) {
+    if (values.length === 0) {
+        return 0;
+    }
+
+    return values.reduce((sum, value) => sum + Number(value || 0), 0) / values.length;
+}
+
 function emptyLayout() {
     return {
         blocks: [],

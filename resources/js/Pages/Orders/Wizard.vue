@@ -127,6 +127,15 @@
                         В документах есть новый файл — сохраните заказ.
                     </span>
                     <button
+                        v-if="canUseHowMuchFits && isEditing"
+                        type="button"
+                        :class="`${crmBtnSecondary} inline-flex items-center gap-2 !px-4 !py-2`"
+                        @click="openHowMuchFitsFromOrder"
+                    >
+                        <Package class="h-4 w-4" />
+                        Сколько влезет?
+                    </button>
+                    <button
                         type="button"
                         :class="crmBtnCreate"
                         :disabled="form.processing || customerDebtBlocked || !isOrderFormEditable"
@@ -3658,6 +3667,21 @@ watch(
 );
 
 const isEditing = computed(() => props.order !== null);
+
+const canUseHowMuchFits = computed(() => {
+    const role = page.props.auth?.user?.role ?? {};
+    const areas = role.visibility_areas ?? [];
+
+    return Boolean(role.is_admin) || role.name === 'admin' || areas.includes('modules_how_much_fits') || areas.includes('modules');
+});
+
+function openHowMuchFitsFromOrder() {
+    if (!props.order?.id) {
+        return;
+    }
+
+    router.get(route('modules.how-much-fits.index', { order: props.order.id }));
+}
 
 const intakeFileInput = ref(null);
 const intakeSelectedFile = ref(null);
