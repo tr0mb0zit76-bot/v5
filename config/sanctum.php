@@ -48,9 +48,14 @@ return [
     | considered expired. This will override any values set in the token's
     | "expires_at" attribute, but first-party sessions are not affected.
     |
+    | В этом приложении personal access tokens используются только для MCP.
+    | По умолчанию 90 суток; 0 в .env отключает глобальный лимит.
+    |
     */
 
-    'expiration' => null,
+    'expiration' => ($minutes = env('SANCTUM_EXPIRATION')) === null || $minutes === ''
+        ? 60 * 24 * 90
+        : (((int) $minutes) > 0 ? (int) $minutes : null),
 
     /*
     |--------------------------------------------------------------------------

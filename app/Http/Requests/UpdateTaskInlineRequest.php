@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Task;
 use App\Support\RoleAccess;
+use App\Support\TaskViewAuthorization;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -58,9 +59,7 @@ class UpdateTaskInlineRequest extends FormRequest
             return;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
-
-        if ($scope === 'own' && (int) $this->input('value') !== (int) $user->id) {
+        if (! TaskViewAuthorization::userCanAssignToUser($user, (int) $this->input('value'))) {
             abort(403);
         }
     }

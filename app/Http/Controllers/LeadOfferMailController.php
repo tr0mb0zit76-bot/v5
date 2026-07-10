@@ -7,7 +7,7 @@ use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\LeadOffer;
 use App\Services\CommercialMailService;
-use App\Support\RoleAccess;
+use App\Support\LeadViewAuthorization;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -80,8 +80,6 @@ class LeadOfferMailController extends Controller
             return true;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-
-        return $scope === 'all' || (int) $lead->responsible_id === (int) $user->id;
+        return LeadViewAuthorization::userCanViewLead($user, $lead);
     }
 }

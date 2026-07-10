@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
+use App\Support\TaskViewAuthorization;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -48,13 +49,7 @@ class StoreTaskRequest extends FormRequest
             return false;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
-
-        if ($scope === 'own' && (int) $this->input('responsible_id') !== (int) $user->id) {
-            return false;
-        }
-
-        return true;
+        return TaskViewAuthorization::userCanAssignToUser($user, (int) $this->input('responsible_id'));
     }
 
     /**

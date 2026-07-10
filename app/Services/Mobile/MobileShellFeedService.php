@@ -18,7 +18,6 @@ use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
 use App\Support\TaskViewAuthorization;
-use App\Support\UserDashboardDepartmentScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
@@ -746,29 +745,7 @@ class MobileShellFeedService
             return false;
         }
 
-        if ($user->isAdmin() || $user->isSupervisor()) {
-            return true;
-        }
-
-        if ($task->responsible_id === null) {
-            return false;
-        }
-
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
-
-        if ($scope === 'all') {
-            return true;
-        }
-
-        if ($scope === 'department') {
-            return in_array(
-                (int) $task->responsible_id,
-                UserDashboardDepartmentScope::departmentUserIds($user),
-                true,
-            );
-        }
-
-        return (int) $task->responsible_id === (int) $user->id;
+        return TaskViewAuthorization::userCanViewTask($user, $task);
     }
 
     private function userCanViewOrder(User $user, Order $order): bool

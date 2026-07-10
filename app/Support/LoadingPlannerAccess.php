@@ -45,9 +45,7 @@ final class LoadingPlannerAccess
             return false;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-
-        return $scope === 'all' || (int) $lead->responsible_id === (int) $user->id;
+        return LeadViewAuthorization::userCanViewLead($user, $lead);
     }
 
     public static function canAccessOrder(?User $user, Order $order): bool

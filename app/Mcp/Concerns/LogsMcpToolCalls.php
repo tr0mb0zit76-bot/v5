@@ -19,6 +19,7 @@ trait LogsMcpToolCalls
 
         try {
             $user = $gate->resolveUser($request);
+            $gate->enforceTokenAbilityForTool($user, $toolName);
             app(McpCrossDomainGuard::class)->enforce($toolName);
             $response = $callback($user);
             $audit->log($user, $toolName, $request->toArray(), ! $response->isError());

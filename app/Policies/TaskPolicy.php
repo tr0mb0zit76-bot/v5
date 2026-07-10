@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Models\Task;
 use App\Models\User;
 use App\Support\RoleAccess;
+use App\Support\TaskViewAuthorization;
 
 class TaskPolicy
 {
@@ -30,9 +31,7 @@ class TaskPolicy
             return false;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
-
-        return $scope === 'all' || (int) $task->responsible_id === (int) $user->id;
+        return TaskViewAuthorization::userCanViewTask($user, $task);
     }
 
     public function create(User $user): bool

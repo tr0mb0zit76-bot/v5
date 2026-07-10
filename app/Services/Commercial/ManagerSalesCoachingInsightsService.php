@@ -5,6 +5,7 @@ namespace App\Services\Commercial;
 use App\Models\Lead;
 use App\Models\User;
 use App\Support\LeadCloseOutcomeFlagCatalog;
+use App\Support\LeadViewAuthorization;
 use App\Support\RoleAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -112,7 +113,7 @@ final class ManagerSalesCoachingInsightsService
                 $query->where('responsible_id', $filterUserId);
             }
         } else {
-            $query->where('responsible_id', $user->id);
+            LeadViewAuthorization::applyLeadsVisibilityScope($query, $user);
         }
 
         return $query;

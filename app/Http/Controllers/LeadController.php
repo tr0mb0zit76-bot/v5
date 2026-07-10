@@ -63,9 +63,11 @@ use App\Support\LeadSource;
 use App\Support\LeadStatus;
 use App\Support\LeadStatusAutoAdvance;
 use App\Support\LeadTableColumns;
+use App\Support\LeadViewAuthorization;
 use App\Support\PaymentFormDictionary;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
+use App\Support\TaskViewAuthorization;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -721,7 +723,6 @@ class LeadController extends Controller
     private function leadRows(Request $request)
     {
         $user = $request->user();
-        $leadsScope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
 
         $processReady = $this->leadBusinessProcessService->tablesReady();
 
@@ -735,8 +736,8 @@ class LeadController extends Controller
             ->withoutTrashed()
             ->with($relations)
             ->when(
-                $user !== null && ! $user->isAdmin() && $leadsScope !== 'all',
-                fn ($query) => $query->where('responsible_id', $user->id)
+                $user !== null,
+                fn ($query) => LeadViewAuthorization::applyLeadsVisibilityScope($query, $user),
             )
             ->latest('id')
             ->get()
@@ -887,19 +888,7 @@ class LeadController extends Controller
 
     private function canAccessLead(Request $request, Lead $lead): bool
     {
-        $user = $request->user();
-
-        if ($user === null) {
-            return false;
-        }
-
-        if ($user->isAdmin()) {
-            return true;
-        }
-
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-
-        return $scope === 'all' || $lead->responsible_id === $user->id;
+        return LeadViewAuthorization::userCanViewLead($request->user(), $lead);
     }
 
     private function canAssignResponsible(Request $request): bool
@@ -1144,9 +1133,7 @@ class LeadController extends Controller
             return false;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
-
-        return $scope === 'all' || (int) $task->responsible_id === (int) $user->id;
+        return TaskViewAuthorization::userCanViewTask($user, $task);
     }
 
     private function linkCreatedLeadToTask(Request $request, Lead $lead, int $taskId): void

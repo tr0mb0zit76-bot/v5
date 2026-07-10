@@ -10,10 +10,11 @@ use App\Models\Order;
 use App\Models\Task;
 use App\Models\User;
 use App\Support\LeadViewAuthorization;
+use App\Support\McpTokenAbilities;
 use App\Support\OrderPrintWorkflowLock;
 use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
-use App\Support\UserDashboardDepartmentScope;
+use App\Support\TaskViewAuthorization;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -158,21 +159,7 @@ class McpAccessGate
     {
         $this->requireTasksArea($user);
 
-        if ($user->isAdmin()) {
-            return;
-        }
-
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
-
-        if ($scope === 'department') {
-            if (! in_array($responsibleId, UserDashboardDepartmentScope::departmentUserIds($user), true)) {
-                throw new AuthenticationException('Нельзя назначить задачу другому ответственному.');
-            }
-
-            return;
-        }
-
-        if ($scope !== 'all' && (int) $responsibleId !== (int) $user->id) {
+        if (! TaskViewAuthorization::userCanAssignToUser($user, $responsibleId)) {
             throw new AuthenticationException('Нельзя назначить задачу другому ответственному.');
         }
     }
@@ -294,5 +281,29 @@ class McpAccessGate
         }
 
         return OrderViewAuthorization::userCanViewOrderForArea($user, $order, 'documents');
+    }
+
+    public function enforceTokenAbilityForTool(User $user, string $toolName): void
+    {
+        $this->requireTokenAbility($user, McpTokenAbilities::requiredAbilityForTool($toolName));
+    }
+
+    public function requireTokenAbility(User $user, string $ability): void
+    {
+        $token = $user->currentAccessToken();
+
+        if ($token === null) {
+            return;
+        }
+
+        if ($token->can(McpTokenAbilities::FULL) || $token->can($ability)) {
+            return;
+        }
+
+        throw new AuthenticationException(
+            $ability === McpTokenAbilities::WRITE
+                ? 'Токен MCP не имеет права записи (mcp:write). Перевыпустите: php artisan mcp:issue-token {user} --write'
+                : 'Недостаточно прав токена MCP для этого инструмента.',
+        );
     }
 }

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Support\EdoProviderDictionary;
 use App\Support\OwnFleetCatalog;
 use App\Support\RoleAccess;
+use App\Support\UserDashboardDepartmentScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -300,16 +301,24 @@ class Contractor extends Model
             return $query;
         }
 
-        return $query->where(function ($outer) use ($user, $typeFilter, $alwaysIncludeIds): void {
+        $ownerUserIds = $scope === 'department'
+            ? UserDashboardDepartmentScope::departmentUserIds($user)
+            : [(int) $user->id];
+
+        if ($ownerUserIds === []) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where(function ($outer) use ($ownerUserIds, $typeFilter, $alwaysIncludeIds): void {
             if ($alwaysIncludeIds !== []) {
                 $outer->whereIn('id', $alwaysIncludeIds);
             }
 
-            $outer->orWhere(function ($visibility) use ($user, $typeFilter): void {
+            $outer->orWhere(function ($visibility) use ($ownerUserIds, $typeFilter): void {
                 if ($typeFilter === 'customer') {
-                    $visibility->where(function ($inner) use ($user): void {
+                    $visibility->where(function ($inner) use ($ownerUserIds): void {
                         $inner->whereIn('type', ['customer', 'both'])
-                            ->where('owner_id', $user->id);
+                            ->whereIn('owner_id', $ownerUserIds);
                     });
 
                     return;
@@ -334,9 +343,9 @@ class Contractor extends Model
                 }
 
                 $visibility->whereIn('type', ['carrier', 'both', 'contractor'])
-                    ->orWhere(function ($subQ) use ($user): void {
+                    ->orWhere(function ($subQ) use ($ownerUserIds): void {
                         $subQ->whereIn('type', ['customer', 'both'])
-                            ->where('owner_id', $user->id);
+                            ->whereIn('owner_id', $ownerUserIds);
                     });
             });
         });

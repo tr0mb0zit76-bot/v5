@@ -828,7 +828,19 @@ class RoleAccess
 
         $scope = static::resolveVisibilityScopeForUser($user, 'tasks');
 
-        return $scope === 'all' || (int) $task->responsible_id === (int) $user->id;
+        if ($scope === 'all') {
+            return true;
+        }
+
+        if ($scope === 'department') {
+            return in_array(
+                (int) $task->responsible_id,
+                UserDashboardDepartmentScope::departmentUserIds($user),
+                true,
+            );
+        }
+
+        return (int) $task->responsible_id === (int) $user->id;
     }
 
     /**

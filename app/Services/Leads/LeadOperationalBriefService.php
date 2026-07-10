@@ -14,6 +14,7 @@ use App\Support\LeadDataChecks;
 use App\Support\LeadGapCatalog;
 use App\Support\LeadStageRequirements;
 use App\Support\LeadStatus;
+use App\Support\LeadViewAuthorization;
 use App\Support\RoleAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -80,9 +81,7 @@ final class LeadOperationalBriefService
             return false;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-
-        return $scope === 'all' || $lead->responsible_id === $user->id;
+        return LeadViewAuthorization::userCanViewLead($user, $lead);
     }
 
     /**

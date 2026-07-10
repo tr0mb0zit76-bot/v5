@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\User;
+use App\Support\McpTokenAbilities;
 use Illuminate\Console\Command;
 
 class IssueMcpTokenCommand extends Command
@@ -10,8 +11,9 @@ class IssueMcpTokenCommand extends Command
     protected $signature = 'mcp:issue-token
                             {user : ID или email пользователя CRM}
                             {--name=mcp-cursor : Имя токена в personal_access_tokens}
-                            {--abilities= : Способности Sanctum (через запятую; пусто = все)}
-                            {--days=90 : Срок действия в днях (0 = без срока)}';
+                            {--abilities= : Способности Sanctum (через запятую; * = полный доступ; пусто = mcp:read)}
+                            {--write : Добавить mcp:write (запись в CRM)}
+                            {--days=90 : Срок действия в днях (0 = только глобальный лимит Sanctum)}';
 
     protected $description = 'Выпустить Sanctum-токен для MCP (Cursor, внешние агенты)';
 
@@ -35,13 +37,16 @@ class IssueMcpTokenCommand extends Command
             return self::FAILURE;
         }
 
+        $abilities = $this->resolveAbilities();
+
         $token = $user->createToken(
             (string) $this->option('name'),
-            $this->resolveAbilities(),
+            $abilities,
             $this->resolveExpiresAt(),
         );
 
         $this->info('Токен создан. Сохраните его сейчас — повторно он не показывается.');
+        $this->line('Способности: '.implode(', ', $abilities));
         $this->newLine();
         $this->line($token->plainTextToken);
         $this->newLine();
@@ -57,6 +62,11 @@ class IssueMcpTokenCommand extends Command
             ],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
+        if (! in_array(McpTokenAbilities::WRITE, $abilities, true) && ! in_array(McpTokenAbilities::FULL, $abilities, true)) {
+            $this->newLine();
+            $this->warn('Токен только для чтения (mcp:read). Для create/update/send добавьте --write или --abilities=mcp:read,mcp:write');
+        }
+
         return self::SUCCESS;
     }
 
@@ -66,23 +76,23 @@ class IssueMcpTokenCommand extends Command
     private function resolveAbilities(): array
     {
         $raw = $this->option('abilities');
+        $withWrite = (bool) $this->option('write');
 
-        if ($raw === null || $raw === '' || $raw === '*') {
-            return ['*'];
+        if ($raw === null) {
+            return McpTokenAbilities::defaultIssueAbilities($withWrite);
+        }
+
+        if ($raw === '' || $raw === '*') {
+            return $raw === '*' ? [McpTokenAbilities::FULL] : McpTokenAbilities::defaultIssueAbilities($withWrite);
         }
 
         if (is_array($raw)) {
-            $abilities = array_values(array_filter(array_map(
-                static fn (mixed $value): string => trim((string) $value),
-                $raw,
-            )));
-
-            return $abilities === [] ? ['*'] : $abilities;
+            return McpTokenAbilities::normalizeIssueAbilities($raw, $withWrite);
         }
 
-        $abilities = array_values(array_filter(array_map('trim', explode(',', (string) $raw))));
+        $parsed = array_values(array_filter(array_map('trim', explode(',', (string) $raw))));
 
-        return $abilities === [] ? ['*'] : $abilities;
+        return McpTokenAbilities::normalizeIssueAbilities($parsed, $withWrite);
     }
 
     private function resolveExpiresAt(): ?\DateTimeInterface

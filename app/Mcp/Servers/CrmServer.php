@@ -102,7 +102,7 @@ use Laravel\Mcp\Server\Tool;
           get_management_accounting_insights,
           list_management_expense_categories, remember_management_reconcile_rule, list_management_reconcile_rules
 
-        Аутентификация: Bearer Sanctum token.
+        Аутентификация: Bearer Sanctum token (`php artisan mcp:issue-token {user} --write` для записи; по умолчанию только mcp:read). Ротация: перевыпуск ~90 дней.
         MARKDOWN)]
 class CrmServer extends Server
 {

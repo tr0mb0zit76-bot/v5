@@ -24,8 +24,10 @@ use App\Services\CompanyPlanning\CompanyPlanningTaskSyncService;
 use App\Services\TaskSlaService;
 use App\Support\ActivityEventType;
 use App\Support\LeadStatus;
+use App\Support\LeadViewAuthorization;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
+use App\Support\TaskViewAuthorization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -742,13 +744,12 @@ class TaskController extends Controller
         }
 
         $user = $request->user();
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
 
         $taskQuery = Task::query()
             ->with($this->taskEagerLoads())
             ->when(
-                $user !== null && ! $user->isAdmin() && $scope !== 'all',
-                fn ($query) => $query->where('responsible_id', $user->id)
+                $user !== null,
+                fn ($query) => TaskViewAuthorization::applyTasksVisibilityScope($query, $user),
             )
             ->orderByRaw("case when status = 'done' then 1 else 0 end")
             ->orderBy('due_at')
@@ -827,12 +828,11 @@ class TaskController extends Controller
         }
 
         $user = $request->user();
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
 
         return Lead::query()
             ->when(
-                $user !== null && ! $user->isAdmin() && $scope !== 'all',
-                fn ($query) => $query->where('responsible_id', $user->id)
+                $user !== null,
+                fn ($query) => LeadViewAuthorization::applyLeadsVisibilityScope($query, $user),
             )
             ->latest('id')
             ->limit(200)
@@ -856,13 +856,9 @@ class TaskController extends Controller
         }
 
         $user = $request->user();
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'contractors');
 
         return Contractor::query()
-            ->when(
-                $user !== null && ! $user->isAdmin() && $scope !== 'all' && Schema::hasColumn('contractors', 'owner_id'),
-                fn ($query) => $query->where('owner_id', $user->id)
-            )
+            ->visibleTo($user)
             ->orderBy('name')
             ->limit(200)
             ->get(['id', 'name'])
@@ -946,7 +942,7 @@ class TaskController extends Controller
             return false;
         }
 
-        if ($user->isAdmin()) {
+        if ($user->isAdmin() || $user->isSupervisor()) {
             return true;
         }
 
@@ -955,9 +951,7 @@ class TaskController extends Controller
             return false;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
-
-        return $scope === 'all' || (int) $task->responsible_id === (int) $user->id;
+        return TaskViewAuthorization::userCanViewTask($user, $task);
     }
 
     private function logTaskEvent(

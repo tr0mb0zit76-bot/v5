@@ -10,6 +10,68 @@ use Illuminate\Database\Eloquent\Builder;
 
 final class TaskViewAuthorization
 {
+    public static function userCanViewTask(?User $user, Task $task): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            return true;
+        }
+
+        if (! RoleAccess::canAccessVisibilityArea($user, 'tasks')) {
+            return false;
+        }
+
+        if ($task->responsible_id === null) {
+            return false;
+        }
+
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
+
+        if ($scope === 'all') {
+            return true;
+        }
+
+        if ($scope === 'department') {
+            return in_array(
+                (int) $task->responsible_id,
+                UserDashboardDepartmentScope::departmentUserIds($user),
+                true,
+            );
+        }
+
+        return (int) $task->responsible_id === (int) $user->id;
+    }
+
+    public static function userCanAssignToUser(?User $user, int $responsibleId): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            return true;
+        }
+
+        if (! RoleAccess::canAccessVisibilityArea($user, 'tasks')) {
+            return false;
+        }
+
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
+
+        if ($scope === 'all') {
+            return true;
+        }
+
+        if ($scope === 'department') {
+            return in_array($responsibleId, UserDashboardDepartmentScope::departmentUserIds($user), true);
+        }
+
+        return $responsibleId === (int) $user->id;
+    }
+
     /**
      * @param  Builder<Task>  $query
      */

@@ -63,4 +63,16 @@ return [
 
     'dev_user_id' => env('MCP_DEV_USER_ID'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | MCP Sanctum token defaults
+    |--------------------------------------------------------------------------
+    |
+    | mcp:issue-token использует --days; здесь — подсказка для документации.
+    | Глобальный потолок — config/sanctum.php expiration (SANCTUM_EXPIRATION).
+    |
+    */
+
+    'token_default_days' => (int) env('MCP_TOKEN_DEFAULT_DAYS', 90),
+
 ];

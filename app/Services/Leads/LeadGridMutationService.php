@@ -8,6 +8,7 @@ use App\Models\Lead;
 use App\Models\User;
 use App\Support\LeadSource;
 use App\Support\LeadStatus;
+use App\Support\LeadViewAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Support\Facades\Schema;
 
@@ -162,9 +163,7 @@ final class LeadGridMutationService
             return true;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-
-        return $scope === 'all' || (int) $lead->responsible_id === (int) $user->id;
+        return LeadViewAuthorization::userCanViewLead($user, $lead);
     }
 
     /**

@@ -8,8 +8,8 @@ use App\Models\Lead;
 use App\Models\ProposalHtmlTemplate;
 use App\Models\ProposalHtmlTemplateVariable;
 use App\Services\Commercial\LeadProposalHtmlRenderer;
+use App\Support\LeadViewAuthorization;
 use App\Support\ProposalHtmlTemplateVariableCatalog;
-use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -233,8 +233,6 @@ class ProposalHtmlTemplateController extends Controller
             return true;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-
-        return $scope === 'all' || (int) $lead->responsible_id === (int) $user->id;
+        return LeadViewAuthorization::userCanViewLead($user, $lead);
     }
 }

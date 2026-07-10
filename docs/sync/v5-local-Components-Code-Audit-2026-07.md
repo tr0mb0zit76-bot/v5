@@ -29,7 +29,7 @@
 | 0.4 | **График оплат** `syncPaymentSchedules` без транзакции | ✅ | `911fb7b` · `OrderCompensationService` + `DB::transaction()` |
 | 0.5 | **Play → CRM** TOCTOU (два клика создают дубль) | ✅ | `911fb7b` · `SalesScriptCrmActionService` + `lockForUpdate()` |
 | 0.6 | Partial payment сбрасывал `overdue` → `pending` | ✅ | `4b7e9b7` · `PaymentScheduleSettlementSyncService` |
-| 0.7 | MCP-токены без срока | ✅ частично | `4b7e9b7` · `mcp:issue-token --days=90`; глобально `sanctum.expiration` всё ещё `null` |
+| 0.7 | MCP-токены без срока | ✅ | `mcp:issue-token --days=90`; глобально `sanctum.expiration` = 90 суток (`SANCTUM_EXPIRATION`, 0 = off) |
 | 0.8 | XSS agent markdown (`v-html` без sanitize) | ✅ | `4b7e9b7` · `dompurify` в `renderAgentMarkdown.js` |
 | 0.9 | System transport templates редактируемы всеми | ✅ | `4b7e9b7` · `LoadingPlannerController::ensureCanMutateTransportTemplate` |
 | 0.10 | **Остаточные IDOR / scope** — см. grep `manager_id` + `scope !== 'all'` | ⏳ | `FinanceOverviewService`, `ContractorReconciliationService`, `PeriodCalculator`, `DispositionInProgressOrderScope` (частично ✅), задачи/контрагенты |
@@ -43,7 +43,7 @@
 | 1.3 | Неиспользуемые permissions `create_orders` / `edit_orders` | ⏳ | Проверить `RoleAccess` / policies; либо wire-up, либо удалить из UI ролей |
 | 1.4 | Legacy статус заказа vs `hasFactOfLoadingOnRoute` | ⏳ | `OrderStatusService` — сверить чеклист закрытия и автостatus |
 | 1.5 | Activity timeline заказа — **только admin** на `showForOrder` | ❓ | Решить: фича для админов или открыть `OrderViewAuthorization` |
-| 1.6 | MCP `abilities: *` по умолчанию | ⏳ | Scope tokens (read-only vs write); документировать ротацию |
+| 1.6 | MCP `abilities: *` по умолчанию | ✅ | `mcp:read` по умолчанию, `--write` / `mcp:write`; gate в `McpAccessGate` + `McpTokenAbilities` |
 | 1.7 | Smart-link «Документы N» под номером заказа | ✅ убрано | `341c7dc` · bar удалён из Wizard, `smart_links` пустой |
 
 ### Phase 2 — поддерживаемость (крупные рефакторинги)

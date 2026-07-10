@@ -10,9 +10,9 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\Disposition\DispositionInProgressOrderScope;
 use App\Support\EndToEndOrderPipelineColumn;
+use App\Support\LeadViewAuthorization;
 use App\Support\OrderTransportTypeResolver;
 use App\Support\RoleAccess;
-use App\Support\UserDashboardDepartmentScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -227,13 +227,7 @@ final class PipelineBoardService
         }
 
         if (! RoleAccess::isAdminUser($user)) {
-            $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-
-            if ($scope === 'department') {
-                $builder->whereIn('responsible_id', UserDashboardDepartmentScope::departmentUserIds($user));
-            } elseif ($scope !== 'all') {
-                $builder->where('responsible_id', $user->id);
-            }
+            LeadViewAuthorization::applyLeadsVisibilityScope($builder, $user);
         }
 
         return $builder;

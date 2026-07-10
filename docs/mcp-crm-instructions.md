@@ -32,7 +32,7 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
   allocate_management_statement_line (`remember_keyword` — обучение правила), get_management_accounting_analytics,
   list_management_expense_categories, remember_management_reconcile_rule, list_management_reconcile_rules
 
-Аутентификация: Bearer Sanctum token.
+Аутентификация: Bearer Sanctum token (`php artisan mcp:issue-token {user} --write` для записи; по умолчанию только `mcp:read`). Ротация: перевыпуск каждые ~90 дней (`--days=90`, глобальный лимит `SANCTUM_EXPIRATION`).
 ```
 
 ## Новые tools (2026-06)
