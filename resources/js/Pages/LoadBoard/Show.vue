@@ -31,7 +31,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import CrmPageHeader from '@/Components/CrmPageHeader.vue';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import LoadBoardPostCard from '@/Components/LoadBoard/LoadBoardPostCard.vue';
 import { crmBtnNeutral } from '@/support/crmUi.js';
 
