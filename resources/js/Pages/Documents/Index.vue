@@ -60,59 +60,53 @@
                     @close="closeDocumentModal"
                 />
                 <form :class="`${crmModalFormBody} space-y-4 px-6 pb-6 pt-2`" @submit.prevent="submitDocument">
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Заказ</label>
-                            <select v-model="documentForm.order_id" :class="`mt-2 ${crmFieldFluid}`" required>
+                    <div :class="crmModalFieldsWrap">
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide flex-wrap`">
+                            <label :class="crmModalFieldLabel">Заказ</label>
+                            <select v-model="documentForm.order_id" :class="crmFieldFluid" required>
                                 <option :value="null" disabled>Выберите заказ</option>
                                 <option v-for="order in props.orders" :key="`ord-${order.id}`" :value="order.id">{{ orderLabel(order) }}</option>
                             </select>
-                            <p v-if="documentForm.errors.order_id" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.order_id }}</p>
+                            <p v-if="documentForm.errors.order_id" class="w-full text-xs text-rose-600">{{ documentForm.errors.order_id }}</p>
                         </div>
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Сторона</label>
-                            <select v-model="documentForm.party" :class="`mt-2 ${crmFieldFluid}`" required>
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide flex-wrap`">
+                            <label :class="crmModalFieldLabel">Сторона</label>
+                            <select v-model="documentForm.party" :class="crmFieldFluid" required>
                                 <option value="customer">Заказчик</option>
                                 <option value="carrier">Перевозчик</option>
                                 <option value="internal">Внутренний</option>
                             </select>
-                            <p v-if="documentForm.errors.party" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.party }}</p>
+                            <p v-if="documentForm.errors.party" class="w-full text-xs text-rose-600">{{ documentForm.errors.party }}</p>
                         </div>
-                    </div>
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Тип документа</label>
-                            <select v-model="documentForm.type" :class="`mt-2 ${crmFieldFluid}`" required>
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide flex-wrap`">
+                            <label :class="crmModalFieldLabel">Тип</label>
+                            <select v-model="documentForm.type" :class="crmFieldFluid" required>
                                 <option v-for="type in documentTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
                             </select>
-                            <p v-if="documentForm.errors.type" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.type }}</p>
+                            <p v-if="documentForm.errors.type" class="w-full text-xs text-rose-600">{{ documentForm.errors.type }}</p>
                         </div>
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Статус</label>
-                            <select v-model="documentForm.status" :class="`mt-2 ${crmFieldFluid}`" required>
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide flex-wrap`">
+                            <label :class="crmModalFieldLabel">Статус</label>
+                            <select v-model="documentForm.status" :class="crmFieldFluid" required>
                                 <option value="draft">Черновик</option>
                                 <option value="pending">Ожидает</option>
                                 <option value="signed">Подписан</option>
                                 <option value="sent">Отправлен</option>
                             </select>
-                            <p v-if="documentForm.errors.status" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.status }}</p>
+                            <p v-if="documentForm.errors.status" class="w-full text-xs text-rose-600">{{ documentForm.errors.status }}</p>
+                        </div>
+                        <div :class="`${crmModalFieldRow} flex-wrap`">
+                            <label :class="crmModalFieldLabel">Номер</label>
+                            <input v-model="documentForm.number" type="text" :class="crmFieldFluid">
+                            <p v-if="documentForm.errors.number" class="w-full text-xs text-rose-600">{{ documentForm.errors.number }}</p>
+                        </div>
+                        <div :class="`${crmModalFieldRow} flex-wrap`">
+                            <label :class="crmModalFieldLabel">Дата</label>
+                            <input v-model="documentForm.document_date" type="date" :class="crmFieldFluid">
+                            <p v-if="documentForm.errors.document_date" class="w-full text-xs text-rose-600">{{ documentForm.errors.document_date }}</p>
                         </div>
                     </div>
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Номер документа</label>
-                            <input v-model="documentForm.number" type="text" :class="`mt-2 ${crmFieldFluid}`">
-                            <p v-if="documentForm.errors.number" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.number }}</p>
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Дата документа</label>
-                            <input v-model="documentForm.document_date" type="date" :class="`mt-2 ${crmFieldFluid}`">
-                            <p v-if="documentForm.errors.document_date" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.document_date }}</p>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Файл</label>
-                        <p v-if="documentUploadHint" class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{{ documentUploadHint }}</p>
+                    <div class="w-full">
                         <div
                             class="mt-2 rounded-xl border border-dashed px-4 py-5 text-center transition-colors"
                             :class="documentFileDrop.active
@@ -175,6 +169,9 @@ import {
     crmBtnNeutral,
     crmFieldFluid,
     crmGridPanel,
+    crmModalFieldLabel,
+    crmModalFieldRow,
+    crmModalFieldsWrap,
     crmModalFormBody,
     crmModalFormShell,
     crmPill,
@@ -195,7 +192,6 @@ const page = usePage();
 const uploadGate = useDocumentUploadGate();
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
 const canEditTrackReceivedDates = computed(() => Boolean(props.can_edit_track_received_dates));
-const documentUploadHint = computed(() => page.props.document_upload_limits?.hint_ru ?? '');
 const documentUploadLimits = computed(() => mergeDocumentUploadLimits(
     page.props.document_upload_limits ?? {},
     page.props.document_optimize ?? {},

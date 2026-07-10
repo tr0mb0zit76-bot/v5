@@ -143,19 +143,19 @@
         </div>
 
         <Modal :show="assignOneTask !== null" max-width="sm" @close="assignOneTask = null">
-            <section class="bg-white p-6 dark:bg-zinc-900">
+            <section class="space-y-4 bg-white p-6 dark:bg-zinc-900">
                 <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Назначить ответственного</h2>
-                <p v-if="assignOneTask" class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                    Задача #{{ assignOneTask.number }} — {{ assignOneTask.title }}
-                </p>
-                <select
-                    v-model="assignOneUserId"
-                    class="mt-4 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                >
-                    <option :value="null" disabled>Выберите сотрудника</option>
-                    <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
-                </select>
-                <div class="mt-6 flex justify-end gap-2">
+                <div :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                    <label :class="crmModalFieldLabel">Сотрудник</label>
+                    <select
+                        v-model="assignOneUserId"
+                        :class="crmFieldFluid"
+                    >
+                        <option :value="null" disabled>Выберите</option>
+                        <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
                     <button type="button" :class="crmBtnNeutral" @click="assignOneTask = null">Отмена</button>
                     <button
                         type="button"
@@ -349,75 +349,66 @@
                 />
 
                 <form class="space-y-4 px-6 pb-6 pt-2" @submit.prevent="submitForm">
-                    <div>
-                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Название</label>
-                        <input v-model="form.title" type="text" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" required />
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                        <label :class="crmModalFieldLabel">Название</label>
+                        <input v-model="form.title" type="text" :class="crmFieldFluid" required />
                     </div>
 
-                    <div>
-                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Описание</label>
-                        <textarea v-model="form.description" rows="3" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" />
+                    <div :class="crmModalFieldStack">
+                        <label :class="crmModalFieldLabel">Описание</label>
+                        <textarea v-model="form.description" rows="3" :class="crmFieldFluid" />
                     </div>
 
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Статус</label>
-                            <select v-model="form.status" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50">
+                    <div :class="crmModalFieldsWrap">
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                            <label :class="crmModalFieldLabel">Статус</label>
+                            <select v-model="form.status" :class="crmFieldFluid">
                                 <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                             </select>
                         </div>
-
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Приоритет</label>
-                            <select v-model="form.priority" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50">
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                            <label :class="crmModalFieldLabel">Приоритет</label>
+                            <select v-model="form.priority" :class="crmFieldFluid">
                                 <option value="low">Низкий</option>
                                 <option value="medium">Средний</option>
                                 <option value="high">Высокий</option>
                                 <option value="critical">Критичный</option>
                             </select>
                         </div>
-                    </div>
-
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Срок</label>
-                            <input v-model="form.due_at" type="datetime-local" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" />
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                            <label :class="crmModalFieldLabel">Срок</label>
+                            <input v-model="form.due_at" type="datetime-local" :class="crmFieldFluid" />
                         </div>
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">SLA (если пусто — как срок)</label>
-                            <input v-model="form.sla_deadline_at" type="datetime-local" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" />
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                            <label :class="crmModalFieldLabel">SLA</label>
+                            <input v-model="form.sla_deadline_at" type="datetime-local" :class="crmFieldFluid" />
                         </div>
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Ответственный</label>
-                            <select v-model="form.responsible_id" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" required>
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                            <label :class="crmModalFieldLabel">Ответственный</label>
+                            <select v-model="form.responsible_id" :class="crmFieldFluid" required>
                                 <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
                             </select>
                         </div>
-                    </div>
-
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Связанный лид</label>
-                            <div class="mt-2 flex gap-2">
-                                <select v-model="form.lead_id" class="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50">
-                                    <option :value="null">Без привязки</option>
-                                    <option v-for="lead in leadOptions" :key="lead.id" :value="lead.id">{{ lead.number }} — {{ lead.title }}</option>
-                                </select>
-                                <button
-                                    v-if="canCreateLeads"
-                                    type="button"
-                                    :class="crmBtnSecondaryOutline"
-                                    class="shrink-0 !px-3"
-                                    title="Создать новый лид"
-                                    @click="openCreateLeadFromForm"
-                                >
-                                    <Plus class="h-4 w-4" />
-                                </button>
-                            </div>
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--full flex-wrap`">
+                            <label :class="crmModalFieldLabel">Лид</label>
+                            <select v-model="form.lead_id" :class="crmFieldFluid">
+                                <option :value="null">Без привязки</option>
+                                <option v-for="lead in leadOptions" :key="lead.id" :value="lead.id">{{ lead.number }} — {{ lead.title }}</option>
+                            </select>
+                            <button
+                                v-if="canCreateLeads"
+                                type="button"
+                                :class="crmBtnSecondaryOutline"
+                                class="shrink-0 !px-3"
+                                title="Создать новый лид"
+                                @click="openCreateLeadFromForm"
+                            >
+                                <Plus class="h-4 w-4" />
+                            </button>
                         </div>
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Контрагент</label>
-                            <select v-model="form.contractor_id" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50">
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                            <label :class="crmModalFieldLabel">Контрагент</label>
+                            <select v-model="form.contractor_id" :class="crmFieldFluid">
                                 <option :value="null">Без привязки</option>
                                 <option v-for="contractor in contractorOptions" :key="contractor.id" :value="contractor.id">{{ contractor.name }}</option>
                             </select>
@@ -444,12 +435,12 @@
                     @close="closeRescheduleModal"
                 />
                 <form class="space-y-4 px-6 pb-6 pt-2" @submit.prevent="submitReschedule">
-                    <div>
-                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Новый срок</label>
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                        <label :class="crmModalFieldLabel">Новый срок</label>
                         <input
                             v-model="rescheduleDueAt"
                             type="datetime-local"
-                            class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
+                            :class="crmFieldFluid"
                             required
                         />
                     </div>
@@ -473,7 +464,7 @@ import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
-import { crmBtnCreate, crmBtnDangerMuted, crmBtnNeutral, crmBtnSecondaryOutline, crmFieldWide, crmGridPanel } from '@/support/crmUi.js';
+import { crmBtnCreate, crmBtnDangerMuted, crmBtnNeutral, crmBtnSecondaryOutline, crmFieldFluid, crmFieldWide, crmGridPanel, crmModalFieldLabel, crmModalFieldRow, crmModalFieldsWrap, crmModalFieldStack } from '@/support/crmUi.js';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import TasksGrid from '@/Components/Tasks/TasksGrid.vue';

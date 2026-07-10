@@ -2,8 +2,13 @@
 import { Paperclip } from 'lucide-vue-next';
 import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
+import {
+    crmModalFieldLabel,
+    crmModalFieldRow,
+    crmModalFieldsWrap,
+} from '@/support/crmUi.js';
 
-const props = defineProps({
+defineProps({
     show: { type: Boolean, required: true },
     title: { type: String, required: true },
     presetSummary: { type: String, default: '' },
@@ -33,14 +38,7 @@ const emit = defineEmits([
 
 <template>
     <Modal :show="show" max-width="xl" @close="emit('close')">
-        <CrmModalHeader :title="title" @close="emit('close')">
-            <template v-if="presetIndex === null">
-                Укажите, чей это документ и тип. Форматы: PDF, Word, Excel, JPG, PNG, WebP.
-            </template>
-            <template v-else>
-                Выберите файл и подтвердите замену.
-            </template>
-        </CrmModalHeader>
+        <CrmModalHeader :title="title" @close="emit('close')" />
         <div class="space-y-4 border-t border-zinc-200 px-5 py-5 dark:border-zinc-800 sm:px-6">
             <div v-if="pendingFile" class="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-900/50">
                 <Paperclip class="h-4 w-4 shrink-0 text-zinc-500" />
@@ -63,22 +61,22 @@ const emit = defineEmits([
                 {{ presetSummary }}
             </div>
 
-            <div v-if="presetIndex === null" class="grid gap-4 sm:grid-cols-2">
-                <div class="space-y-2">
-                    <label class="text-sm font-medium">Чей документ</label>
+            <div v-if="presetIndex === null" :class="crmModalFieldsWrap">
+                <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                    <label :class="crmModalFieldLabel">Сторона</label>
                     <select :value="targetKind" :class="crmFieldFluid" @change="emit('update:targetKind', $event.target.value)">
                         <option value="customer">Заказчик</option>
                         <option value="carrier" :disabled="performers.length === 0">Плечо (перевозчик)</option>
                     </select>
                 </div>
-                <div v-if="targetKind === 'carrier'" class="space-y-2">
-                    <label class="text-sm font-medium">Плечо</label>
+                <div v-if="targetKind === 'carrier'" :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                    <label :class="crmModalFieldLabel">Плечо</label>
                     <select :value="stage" :class="crmFieldFluid" @change="emit('update:stage', $event.target.value)">
                         <option v-for="(p, idx) in performers" :key="`attach-leg-${idx}`" :value="p.stage">{{ stageLabel(p.stage) }}</option>
                     </select>
                 </div>
-                <div class="space-y-2 sm:col-span-2">
-                    <label class="text-sm font-medium">Тип документа</label>
+                <div :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                    <label :class="crmModalFieldLabel">Тип</label>
                     <select :value="newDocType" :class="crmFieldFluid" @change="emit('update:newDocType', $event.target.value)">
                         <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                     </select>

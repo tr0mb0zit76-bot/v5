@@ -20,6 +20,9 @@ import {
     crmBtnSecondary,
     crmFieldFluid,
     crmLabel,
+    crmModalFieldLabel,
+    crmModalFieldRow,
+    crmModalFieldsWrap,
     crmModalFormBody,
     crmModalFormShell,
     crmPanel,
@@ -35,7 +38,6 @@ const emit = defineEmits(['close']);
 
 const page = usePage();
 const uploadGate = useDocumentUploadGate();
-const documentUploadHint = computed(() => page.props.document_upload_limits?.hint_ru ?? '');
 const documentUploadLimits = computed(() => mergeDocumentUploadLimits(
     page.props.document_upload_limits ?? {},
     page.props.document_optimize ?? {},
@@ -331,32 +333,29 @@ function openWizardDocuments() {
 <template>
     <Modal :show="show" max-width="7xl" @close="closeModal">
         <section :class="crmModalFormShell">
-            <CrmModalHeader :title="modalTitle" @close="closeModal">
-                Добавление файлов и список документов по заказу. Печатные формы по шаблону можно открыть в мастере заказа.
-            </CrmModalHeader>
+            <CrmModalHeader :title="modalTitle" @close="closeModal" />
 
             <div :class="`${crmModalFormBody} border-t border-zinc-200 px-5 py-5 dark:border-zinc-800 sm:px-6`">
                 <form :class="`${crmPanel} space-y-4 p-4`" @submit.prevent="submitAdd">
                     <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Добавить документ</div>
-                    <p v-if="documentUploadHint" class="text-xs text-zinc-500 dark:text-zinc-400">{{ documentUploadHint }}</p>
 
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <div class="space-y-1">
-                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Сторона</label>
+                    <div :class="crmModalFieldsWrap">
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                            <label :class="crmModalFieldLabel">Сторона</label>
                             <select v-model="addForm.party" :class="crmFieldFluid">
                                 <option value="customer">Заказчик</option>
                                 <option value="carrier">Перевозчик</option>
                                 <option value="internal">Внутренний</option>
                             </select>
                         </div>
-                        <div class="space-y-1">
-                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Тип</label>
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                            <label :class="crmModalFieldLabel">Тип</label>
                             <select v-model="addForm.type" :class="crmFieldFluid">
                                 <option v-for="opt in documentTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                             </select>
                         </div>
-                        <div class="space-y-1">
-                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Статус</label>
+                        <div :class="crmModalFieldRow">
+                            <label :class="crmModalFieldLabel">Статус</label>
                             <select v-model="addForm.status" :class="crmFieldFluid">
                                 <option value="draft">Черновик</option>
                                 <option value="pending">Ожидает</option>
@@ -364,12 +363,12 @@ function openWizardDocuments() {
                                 <option value="sent">Отправлен</option>
                             </select>
                         </div>
-                        <div class="space-y-1">
-                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Номер</label>
+                        <div :class="crmModalFieldRow">
+                            <label :class="crmModalFieldLabel">Номер</label>
                             <input v-model="addForm.number" type="text" :class="crmFieldFluid" />
                         </div>
-                        <div class="space-y-1 sm:col-span-2">
-                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Дата документа</label>
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                            <label :class="crmModalFieldLabel">Дата</label>
                             <input v-model="addForm.document_date" type="date" :class="crmFieldFluid" />
                         </div>
                     </div>

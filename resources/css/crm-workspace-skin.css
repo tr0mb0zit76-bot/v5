@@ -669,6 +669,39 @@ html[data-crm-workspace-skin='sky'] .crm-grid-panel {
     @apply min-h-0 flex-1 overflow-y-auto;
 }
 
+.crm-modal-fields-wrap {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-2;
+}
+
+.crm-modal-field-row {
+    @apply flex min-h-8 min-w-[8rem] flex-[1_1_8rem] items-center gap-1.5;
+}
+
+.crm-modal-field-row--wide {
+    @apply min-w-[11rem] flex-[1_1_11rem];
+}
+
+.crm-modal-field-row--full {
+    @apply min-w-full flex-[1_1_100%];
+}
+
+.crm-modal-field-label {
+    @apply shrink-0 whitespace-nowrap text-xs font-medium text-zinc-600 dark:text-zinc-400;
+}
+
+.crm-modal-field-row .crm-field,
+.crm-modal-field-row .crm-field--fluid {
+    @apply min-w-0 flex-1 py-1.5;
+}
+
+.crm-modal-field-stack {
+    @apply w-full space-y-1;
+}
+
+.crm-modal-field-stack > .crm-modal-field-label {
+    @apply block whitespace-normal;
+}
+
 .crm-modal-panel .crm-field,
 .crm-modal-panel .crm-field--fluid,
 .crm-wizard-shell .crm-field,

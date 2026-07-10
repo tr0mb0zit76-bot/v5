@@ -18,66 +18,104 @@
                 :class="`${crmPanel} w-full max-w-lg space-y-4 p-5`"
                 @submit.prevent="submit"
             >
-                <div class="flex items-start justify-between gap-3">
-                    <div>
-                        <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">Ручная операция</h2>
-                        <p class="mt-1 text-xs text-zinc-500">Наличные и прочие движения без банковской выписки.</p>
-                    </div>
+                <div class="flex items-center justify-between gap-3">
+                    <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">Ручная операция</h2>
                     <button type="button" class="text-sm text-zinc-500 hover:text-zinc-800" @click="open = false">
                         Закрыть
                     </button>
                 </div>
 
-                <label class="block space-y-1">
-                    <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Счёт</span>
-                    <select
-                        v-model="form.bank_account_id"
-                        required
-                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
-                    >
-                        <option disabled value="">Выберите счёт</option>
-                        <option v-for="account in bankAccounts" :key="account.id" :value="account.id">
-                            {{ account.bank_name }} · {{ account.account_mask || account.currency }}
-                        </option>
-                    </select>
-                </label>
-
-                <div class="grid gap-3 sm:grid-cols-2">
-                    <label class="block space-y-1">
-                        <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Дата</span>
+                <div :class="crmModalFieldsWrap">
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                        <label :class="crmModalFieldLabel">Счёт</label>
+                        <select
+                            v-model="form.bank_account_id"
+                            required
+                            class="min-w-0 flex-1 rounded-lg border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                        >
+                            <option disabled value="">Выберите счёт</option>
+                            <option v-for="account in bankAccounts" :key="account.id" :value="account.id">
+                                {{ account.bank_name }} · {{ account.account_mask || account.currency }}
+                            </option>
+                        </select>
+                    </div>
+                    <div :class="crmModalFieldRow">
+                        <label :class="crmModalFieldLabel">Дата</label>
                         <input
                             v-model="form.operation_date"
                             type="date"
                             required
-                            class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                            class="min-w-0 flex-1 rounded-lg border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-950"
                         >
-                    </label>
-                    <label class="block space-y-1">
-                        <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Направление</span>
+                    </div>
+                    <div :class="crmModalFieldRow">
+                        <label :class="crmModalFieldLabel">Направление</label>
                         <select
                             v-model="form.direction"
-                            class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                            class="min-w-0 flex-1 rounded-lg border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-950"
                         >
                             <option value="in">Приход</option>
                             <option value="out">Расход</option>
                         </select>
-                    </label>
+                    </div>
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                        <label :class="crmModalFieldLabel">Сумма</label>
+                        <input
+                            v-model.number="form.amount"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            required
+                            class="min-w-0 flex-1 rounded-lg border border-zinc-300 px-2 py-1.5 text-sm tabular-nums dark:border-zinc-600 dark:bg-zinc-950"
+                        >
+                    </div>
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                        <label :class="crmModalFieldLabel">Разнесение</label>
+                        <select
+                            v-model="form.allocation_type"
+                            class="min-w-0 flex-1 rounded-lg border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                        >
+                            <option value="category">Статья</option>
+                            <option value="operational">Операционный</option>
+                            <option value="payroll">ФОТ</option>
+                        </select>
+                    </div>
+                    <div v-if="form.allocation_type === 'category'" :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                        <label :class="crmModalFieldLabel">Статья</label>
+                        <select
+                            v-model="form.category_id"
+                            required
+                            class="min-w-0 flex-1 rounded-lg border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                        >
+                            <option v-for="category in categories" :key="category.id" :value="category.id">
+                                {{ category.name }}
+                            </option>
+                        </select>
+                    </div>
+                    <div v-if="form.allocation_type === 'operational'" :class="crmModalFieldRow">
+                        <label :class="crmModalFieldLabel">ID графика</label>
+                        <input
+                            v-model.number="form.payment_schedule_id"
+                            type="number"
+                            min="1"
+                            required
+                            class="min-w-0 flex-1 rounded-lg border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                        >
+                    </div>
+                    <div v-if="form.allocation_type === 'payroll'" :class="crmModalFieldRow">
+                        <label :class="crmModalFieldLabel">ID сотрудника</label>
+                        <input
+                            v-model.number="form.user_id"
+                            type="number"
+                            min="1"
+                            required
+                            class="min-w-0 flex-1 rounded-lg border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                        >
+                    </div>
                 </div>
 
-                <label class="block space-y-1">
-                    <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Сумма</span>
-                    <input
-                        v-model.number="form.amount"
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        required
-                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm tabular-nums dark:border-zinc-600 dark:bg-zinc-950"
-                    >
-                </label>
-
-                <label class="block space-y-1">
-                    <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Описание</span>
+                <label class="block w-full space-y-1">
+                    <span :class="crmModalFieldLabel">Описание</span>
                     <textarea
                         v-model="form.description"
                         rows="2"
@@ -85,53 +123,6 @@
                         maxlength="2000"
                         class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
                     />
-                </label>
-
-                <label class="block space-y-1">
-                    <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Разнесение</span>
-                    <select
-                        v-model="form.allocation_type"
-                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
-                    >
-                        <option value="category">Статья</option>
-                        <option value="operational">Операционный</option>
-                        <option value="payroll">ФОТ</option>
-                    </select>
-                </label>
-
-                <label v-if="form.allocation_type === 'category'" class="block space-y-1">
-                    <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Статья</span>
-                    <select
-                        v-model="form.category_id"
-                        required
-                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
-                    >
-                        <option v-for="category in categories" :key="category.id" :value="category.id">
-                            {{ category.name }}
-                        </option>
-                    </select>
-                </label>
-
-                <label v-if="form.allocation_type === 'operational'" class="block space-y-1">
-                    <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">ID строки графика</span>
-                    <input
-                        v-model.number="form.payment_schedule_id"
-                        type="number"
-                        min="1"
-                        required
-                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
-                    >
-                </label>
-
-                <label v-if="form.allocation_type === 'payroll'" class="block space-y-1">
-                    <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">ID сотрудника</span>
-                    <input
-                        v-model.number="form.user_id"
-                        type="number"
-                        min="1"
-                        required
-                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
-                    >
                 </label>
 
                 <div class="flex justify-end gap-2">
@@ -169,7 +160,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useForm } from '@inertiajs/vue3';
-import { crmBtnNeutral, crmBtnPrimary, crmPanel } from '@/support/crmUi.js';
+import { crmBtnNeutral, crmBtnPrimary, crmModalFieldLabel, crmModalFieldRow, crmModalFieldsWrap, crmPanel } from '@/support/crmUi.js';
 
 const props = defineProps({
     bankAccounts: { type: Array, default: () => [] },

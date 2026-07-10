@@ -393,35 +393,35 @@
         <Modal :show="editMilestoneModal" max-width="lg" @close="closeEditMilestone">
             <form class="space-y-4 p-6" @submit.prevent="saveMilestone">
                 <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Этап</h3>
-                <label :class="crmFilterField">
-                    <span :class="crmLabelCompact">Название</span>
+                <div :class="`${crmModalFieldRow} crm-modal-field-row--full flex-wrap`">
+                    <label :class="crmModalFieldLabel">Название</label>
                     <input v-model="editMilestoneForm.title" :class="crmFieldFluid" />
-                    <InputError :message="editMilestoneForm.errors.title" />
-                </label>
-                <div class="grid gap-3 md:grid-cols-2">
-                    <label :class="crmFilterField">
-                        <span :class="crmLabelCompact">Статус</span>
+                    <InputError :message="editMilestoneForm.errors.title" class="w-full" />
+                </div>
+                <div :class="crmModalFieldsWrap">
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                        <label :class="crmModalFieldLabel">Статус</label>
                         <select v-model="editMilestoneForm.status" :class="crmFieldFluid">
                             <option v-for="(label, value) in milestoneStatusLabels" :key="value" :value="value">{{ label }}</option>
                         </select>
-                    </label>
-                    <label :class="crmFilterField">
-                        <span :class="crmLabelCompact">Прогресс, %</span>
+                    </div>
+                    <div :class="crmModalFieldRow">
+                        <label :class="crmModalFieldLabel">Прогресс</label>
                         <input v-model="editMilestoneForm.progress_percent" type="number" min="0" max="100" :class="crmFieldFluid" />
-                    </label>
-                    <label :class="crmFilterField">
-                        <span :class="crmLabelCompact">Начало</span>
+                    </div>
+                    <div :class="crmModalFieldRow">
+                        <label :class="crmModalFieldLabel">Начало</label>
                         <input v-model="editMilestoneForm.starts_on" type="date" :class="crmFieldFluid" />
-                    </label>
-                    <label :class="crmFilterField">
-                        <span :class="crmLabelCompact">Конец</span>
+                    </div>
+                    <div :class="crmModalFieldRow">
+                        <label :class="crmModalFieldLabel">Конец</label>
                         <input v-model="editMilestoneForm.ends_on" type="date" :class="crmFieldFluid" />
-                    </label>
+                    </div>
                 </div>
-                <label :class="crmFilterField">
-                    <span :class="crmLabelCompact">Критерий готовности</span>
+                <div :class="crmModalFieldStack">
+                    <label :class="crmModalFieldLabel">Критерий готовности</label>
                     <textarea v-model="editMilestoneForm.done_criteria" rows="3" :class="crmFieldFluid" />
-                </label>
+                </div>
                 <div class="flex justify-end gap-2">
                     <button type="button" :class="crmBtnNeutral" @click="closeEditMilestone">Отмена</button>
                     <button type="submit" :class="crmBtnPrimary" :disabled="editMilestoneForm.processing">Сохранить</button>
@@ -444,8 +444,10 @@ import {
     crmBtnNeutral,
     crmBtnPrimary,
     crmFieldFluid,
-    crmFilterField,
-    crmLabelCompact,
+    crmModalFieldLabel,
+    crmModalFieldRow,
+    crmModalFieldsWrap,
+    crmModalFieldStack,
     crmPanel,
 } from '@/support/crmUi.js';
 

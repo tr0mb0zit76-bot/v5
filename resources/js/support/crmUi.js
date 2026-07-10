@@ -132,5 +132,17 @@ export const crmModalFormShell = 'crm-modal-form-shell';
 
 export const crmModalFormBody = 'crm-modal-form-body';
 
+/** Компактная строка поля в модалке: подпись слева, control справа */
+export const crmModalFieldRow = 'crm-modal-field-row';
+
+/** Подпись inline-поля модалки */
+export const crmModalFieldLabel = 'crm-modal-field-label';
+
+/** Обёртка flex-wrap для нескольких inline-полей */
+export const crmModalFieldsWrap = 'crm-modal-fields-wrap';
+
+/** Поле с подписью сверху (textarea, списки чекбоксов) */
+export const crmModalFieldStack = 'crm-modal-field-stack';
+
 /** Чекбокс в формах CRM */
 export const crmCheckbox = 'crm-checkbox';

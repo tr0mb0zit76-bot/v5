@@ -9,6 +9,10 @@ import {
     crmFieldFluid,
     crmModalFormBody,
     crmModalFormShell,
+    crmModalFieldLabel,
+    crmModalFieldRow,
+    crmModalFieldsWrap,
+    crmModalFieldStack,
     crmPill,
 } from '@/support/crmUi.js';
 
@@ -119,52 +123,49 @@ async function submit() {
         <section :class="crmModalFormShell">
             <CrmModalHeader eyebrow="Контакт" title="Зафиксировать итог" @close="emit('close')" />
             <form :class="`${crmModalFormBody} space-y-4 px-6 pb-6 pt-2`" @submit.prevent="submit">
-                <div class="grid gap-4 md:grid-cols-2">
-                    <label class="block">
-                        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Дата и время</span>
-                        <input v-model="form.contacted_at" type="datetime-local" required :class="`mt-2 ${crmFieldFluid}`" />
-                    </label>
-                    <label class="block">
-                        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Канал</span>
-                        <select v-model="form.channel" required :class="`mt-2 ${crmFieldFluid}`">
+                <div :class="crmModalFieldsWrap">
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                        <label :class="crmModalFieldLabel">Дата</label>
+                        <input v-model="form.contacted_at" type="datetime-local" required :class="crmFieldFluid" />
+                    </div>
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                        <label :class="crmModalFieldLabel">Канал</label>
+                        <select v-model="form.channel" required :class="crmFieldFluid">
                             <option v-for="channel in interactionChannels" :key="channel.value" :value="channel.value">
                                 {{ channel.label }}
                             </option>
                         </select>
-                    </label>
+                    </div>
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                        <label :class="crmModalFieldLabel">С кем</label>
+                        <select v-model="form.contractor_contact_id" :class="crmFieldFluid">
+                            <option value="">Не указано</option>
+                            <option v-for="contact in contacts" :key="contact.id" :value="contact.id">
+                                {{ contact.full_name }}
+                            </option>
+                        </select>
+                    </div>
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                        <label :class="crmModalFieldLabel">Исход</label>
+                        <select v-model="form.outcome_code" required :class="crmFieldFluid">
+                            <option v-for="option in portraitOptions.outcome_code" :key="option.value" :value="option.value">
+                                {{ option.label }}
+                            </option>
+                        </select>
+                    </div>
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                        <label :class="crmModalFieldLabel">След. контакт</label>
+                        <input v-model="form.next_contact_at" type="datetime-local" :class="crmFieldFluid" />
+                    </div>
                 </div>
 
-                <label class="block">
-                    <span class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">С кем</span>
-                    <select v-model="form.contractor_contact_id" :class="`mt-2 ${crmFieldFluid}`">
-                        <option value="">Не указано</option>
-                        <option v-for="contact in contacts" :key="contact.id" :value="contact.id">
-                            {{ contact.full_name }}
-                        </option>
-                    </select>
-                </label>
-
-                <label class="block">
-                    <span class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Исход</span>
-                    <select v-model="form.outcome_code" required :class="`mt-2 ${crmFieldFluid}`">
-                        <option v-for="option in portraitOptions.outcome_code" :key="option.value" :value="option.value">
-                            {{ option.label }}
-                        </option>
-                    </select>
-                </label>
-
-                <label class="block">
-                    <span class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Краткий итог</span>
-                    <textarea v-model="form.summary" rows="4" required :class="`mt-2 ${crmFieldFluid}`" />
-                </label>
-
-                <label class="block">
-                    <span class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Следующий контакт</span>
-                    <input v-model="form.next_contact_at" type="datetime-local" :class="`mt-2 ${crmFieldFluid}`" />
-                </label>
+                <div :class="crmModalFieldStack">
+                    <label :class="crmModalFieldLabel">Краткий итог</label>
+                    <textarea v-model="form.summary" rows="4" required :class="crmFieldFluid" />
+                </div>
 
                 <div>
-                    <span class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Теги возражений</span>
+                    <span :class="crmModalFieldLabel">Теги возражений</span>
                     <div class="mt-2 flex flex-wrap gap-2">
                         <button
                             v-for="option in portraitOptions.objection_tag"

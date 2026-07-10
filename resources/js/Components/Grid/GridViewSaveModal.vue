@@ -1,6 +1,11 @@
 <script setup>
 import { computed, reactive, watch } from 'vue';
 import Modal from '@/Components/Modal.vue';
+import {
+    crmModalFieldLabel,
+    crmModalFieldRow,
+    crmModalFieldsWrap,
+} from '@/support/crmUi.js';
 
 const props = defineProps({
     show: { type: Boolean, default: false },
@@ -97,25 +102,26 @@ function submit() {
         <div class="crm-modal-body space-y-4 p-6">
             <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{{ title }}</h3>
 
-            <div>
-                <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Название</label>
-                <input
-                    v-model="form.name"
-                    type="text"
-                    maxlength="120"
-                    class="crm-input w-full"
-                    placeholder="Например: Мои активные"
-                    @keyup.enter="submit"
-                />
-            </div>
-
-            <div v-if="canShare">
-                <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Доступ</label>
-                <select v-model="form.visibility" class="crm-input w-full">
-                    <option v-for="option in visibilityOptions" :key="option.value" :value="option.value">
-                        {{ option.label }}
-                    </option>
-                </select>
+            <div :class="crmModalFieldsWrap">
+                <div :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                    <label :class="crmModalFieldLabel">Название</label>
+                    <input
+                        v-model="form.name"
+                        type="text"
+                        maxlength="120"
+                        class="crm-input min-w-0 flex-1"
+                        placeholder="Например: Мои активные"
+                        @keyup.enter="submit"
+                    />
+                </div>
+                <div v-if="canShare" :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                    <label :class="crmModalFieldLabel">Доступ</label>
+                    <select v-model="form.visibility" class="crm-input min-w-0 flex-1">
+                        <option v-for="option in visibilityOptions" :key="option.value" :value="option.value">
+                            {{ option.label }}
+                        </option>
+                    </select>
+                </div>
             </div>
 
             <div v-if="canShare && form.visibility === 'role'" class="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-zinc-200 p-2 dark:border-zinc-700">
@@ -150,7 +156,7 @@ function submit() {
                 <p v-if="(shareOptions.users ?? []).length === 0" class="px-2 py-1 text-xs text-zinc-500">Пользователи не найдены</p>
             </div>
 
-            <div class="flex justify-end gap-2 pt-2">
+            <div class="flex justify-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
                 <button type="button" class="crm-btn-secondary" :disabled="saving" @click="emit('close')">Отмена</button>
                 <button type="button" class="crm-btn-primary" :disabled="saving || form.name.trim() === ''" @click="submit">
                     {{ saving ? 'Сохранение…' : 'Сохранить' }}

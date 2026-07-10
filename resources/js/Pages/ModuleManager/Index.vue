@@ -124,19 +124,16 @@
             <section :class="crmModalFormShell">
                 <CrmModalHeader title="Установить модуль" @close="showInstallModal = false" />
                 <form :class="`${crmModalFormBody} space-y-4 px-6 py-5`" @submit.prevent="installModule">
-                    <div>
-                        <label :class="crmLabel" for="module-name">Название модуля</label>
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                        <label :class="crmModalFieldLabel" for="module-name">Название</label>
                         <input
                             id="module-name"
                             v-model="newModuleName"
                             type="text"
-                            :class="`${crmFieldFluid} mt-1`"
+                            :class="crmFieldFluid"
                             placeholder="Order, Contractor, Finance…"
                             @keyup.enter="installModule"
                         />
-                        <p :class="`${crmPageLead} mt-2`">
-                            Будет создана структура нового модуля на сервере.
-                        </p>
                     </div>
                     <p v-if="installError" class="text-sm text-rose-600 dark:text-rose-400">{{ installError }}</p>
                     <div class="flex justify-end gap-2">
@@ -197,6 +194,8 @@ import {
     crmBtnSecondary,
     crmFieldFluid,
     crmLabel,
+    crmModalFieldLabel,
+    crmModalFieldRow,
     crmModalFormBody,
     crmModalFormShell,
     crmPageLead,

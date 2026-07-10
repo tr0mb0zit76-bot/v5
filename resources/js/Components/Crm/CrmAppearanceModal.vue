@@ -95,9 +95,6 @@ const workspaceSkinOptions = [
         <section class="bg-white dark:bg-zinc-900">
             <div class="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
                 <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Внешний вид</h2>
-                <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                    Личные настройки интерфейса. Сохраняются в вашем профиле.
-                </p>
             </div>
 
             <div class="space-y-6 px-5 py-5">

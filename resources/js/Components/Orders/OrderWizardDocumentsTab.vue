@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { Paperclip } from 'lucide-vue-next';
 import Modal from '@/Components/Modal.vue';
+import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import OrderSignedDocumentsTable from '@/Components/Orders/OrderSignedDocumentsTable.vue';
 import PrintWorkflowDocList from '@/Components/Orders/PrintWorkflowDocList.vue';
 import { mergeDocumentUploadLimits } from '@/support/documentUploadClientCheck.js';
@@ -33,6 +34,14 @@ import {
     defaultTemplateForContext,
     filterPrintFormTemplates,
 } from '@/support/printFormTemplateMatching.js';
+import {
+    crmBtnCreate,
+    crmFieldFluid,
+    crmModalFieldLabel,
+    crmModalFieldRow,
+    crmModalFieldsWrap,
+    crmModalPanel,
+} from '@/support/crmUi.js';
 
 const signedDocuments = defineModel('signedDocuments', { type: Array, default: () => [] });
 const printFormTemplateSelection = defineModel('printFormTemplateSelection', { type: Object, default: () => ({}) });
@@ -65,7 +74,6 @@ const props = defineProps({
 
 const page = usePage();
 const uploadGate = useDocumentUploadGate();
-const documentUploadHint = computed(() => page.props.document_upload_limits?.hint_ru ?? '');
 const documentUploadLimits = computed(() => mergeDocumentUploadLimits(
     page.props.document_upload_limits ?? {},
     page.props.document_optimize ?? {},
@@ -925,28 +933,28 @@ async function onGlobalDrop(event) {
         </section>
 
         <Modal :show="showAttachModal" max-width="xl" @close="closeAttachModal">
-            <section :class="`${crmModalPanel} space-y-4 p-6`">
-                <h3 class="text-base font-semibold">Прикрепить подписанный документ</h3>
-                <p v-if="documentUploadHint" class="text-xs text-zinc-500">{{ documentUploadHint }}</p>
-                <div class="grid gap-3 sm:grid-cols-2">
-                    <div class="space-y-1">
-                        <label class="text-xs font-medium">Сторона</label>
-                        <select v-model="attachForm.party" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+            <section :class="crmModalPanel">
+                <CrmModalHeader title="Прикрепить подписанный документ" @close="closeAttachModal" />
+                <div class="space-y-4 border-t border-zinc-200 px-5 py-5 dark:border-zinc-800 sm:px-6">
+                <div :class="crmModalFieldsWrap">
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                        <label :class="crmModalFieldLabel">Сторона</label>
+                        <select v-model="attachForm.party" :class="crmFieldFluid">
                             <option value="customer">Заказчик</option>
                             <option value="carrier">Перевозчик</option>
                             <option value="contractor">Подрядчик</option>
                             <option value="internal">Внутренний</option>
                         </select>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-xs font-medium">Тип</label>
-                        <select v-model="attachForm.type" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                        <label :class="crmModalFieldLabel">Тип</label>
+                        <select v-model="attachForm.type" :class="crmFieldFluid">
                             <option v-for="opt in documentTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
                     </div>
-                    <div v-if="showAttachContractorPicker" class="space-y-1 sm:col-span-2">
-                        <label class="text-xs font-medium">Подрядчик (доп. затраты)</label>
-                        <select v-model="attachForm.contractor_id" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                    <div v-if="showAttachContractorPicker" :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                        <label :class="crmModalFieldLabel">Подрядчик</label>
+                        <select v-model="attachForm.contractor_id" :class="crmFieldFluid">
                             <option
                                 v-for="contractor in attachContractorOptions"
                                 :key="`attach-contractor-${contractor.id}-${contractor.slotKey}`"
@@ -956,9 +964,9 @@ async function onGlobalDrop(event) {
                             </option>
                         </select>
                     </div>
-                    <div v-if="showAttachCustomerLegPicker" class="space-y-1 sm:col-span-2">
-                        <label class="text-xs font-medium">Плечо маршрута (заказчик)</label>
-                        <select v-model="attachForm.stage" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                    <div v-if="showAttachCustomerLegPicker" :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                        <label :class="crmModalFieldLabel">Плечо</label>
+                        <select v-model="attachForm.stage" :class="crmFieldFluid">
                             <option
                                 v-for="leg in attachCustomerLegOptions"
                                 :key="`attach-customer-leg-${leg.stage}`"
@@ -968,9 +976,9 @@ async function onGlobalDrop(event) {
                             </option>
                         </select>
                     </div>
-                    <div v-if="showAttachCarrierTargetPicker" class="space-y-1 sm:col-span-2">
-                        <label class="text-xs font-medium">Перевозчик на плече</label>
-                        <select v-model="attachForm.carrier_target_key" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                    <div v-if="showAttachCarrierTargetPicker" :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                        <label :class="crmModalFieldLabel">Перевозчик</label>
+                        <select v-model="attachForm.carrier_target_key" :class="crmFieldFluid">
                             <option
                                 v-for="target in attachCarrierTargetOptions"
                                 :key="`attach-carrier-${target.key}`"
@@ -980,13 +988,13 @@ async function onGlobalDrop(event) {
                             </option>
                         </select>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-xs font-medium">Номер</label>
-                        <input v-model="attachForm.number" type="text" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                    <div :class="crmModalFieldRow">
+                        <label :class="crmModalFieldLabel">Номер</label>
+                        <input v-model="attachForm.number" type="text" :class="crmFieldFluid" />
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-xs font-medium">Дата</label>
-                        <input v-model="attachForm.document_date" type="date" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                    <div :class="crmModalFieldRow">
+                        <label :class="crmModalFieldLabel">Дата</label>
+                        <input v-model="attachForm.document_date" type="date" :class="crmFieldFluid" />
                     </div>
                 </div>
                 <input
@@ -1019,11 +1027,12 @@ async function onGlobalDrop(event) {
                     </button>
                 </div>
                 <p v-if="attachError" class="text-xs text-rose-600">{{ attachError }}</p>
-                <div class="flex justify-end gap-2">
+                <div class="flex justify-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
                     <button type="button" class="rounded-xl border px-4 py-2 text-sm" @click="closeAttachModal">Отмена</button>
                     <button type="button" :class="crmBtnCreate" :disabled="attachSubmitting || !attachForm.file" @click="submitAttach">
                         {{ attachSubmitting ? 'Загрузка…' : 'Сохранить' }}
                     </button>
+                </div>
                 </div>
             </section>
         </Modal>

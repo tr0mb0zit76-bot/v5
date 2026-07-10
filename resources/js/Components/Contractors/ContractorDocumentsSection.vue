@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue';
 import { Paperclip, Trash2 } from 'lucide-vue-next';
 import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
-import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
+import { crmBtnCreate, crmBtnNeutral, crmModalFieldLabel, crmModalFieldRow, crmModalFieldsWrap } from '@/support/crmUi.js';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import { usePage } from '@inertiajs/vue3';
 
@@ -311,9 +311,7 @@ onBeforeUnmount(() => {
     </div>
 
     <Modal :show="attachModalOpen" max-width="md" @close="closeAttachModal">
-        <CrmModalHeader title="Описание документа" @close="closeAttachModal">
-            Укажите название и дату документа. Форматы: PDF, Word, Excel, JPG, PNG, WebP.
-        </CrmModalHeader>
+        <CrmModalHeader title="Описание документа" @close="closeAttachModal" />
         <div class="space-y-4 border-t border-zinc-200 px-5 py-5 dark:border-zinc-800 sm:px-6">
             <div v-if="attachPendingFile" class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-900/50">
                 <Paperclip class="h-4 w-4 shrink-0 text-zinc-500" />
@@ -332,22 +330,23 @@ onBeforeUnmount(() => {
                 </label>
             </div>
 
-            <div class="space-y-2">
-                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Название документа</label>
-                <input
-                    v-model="attachTitle"
-                    type="text"
-                    class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                >
-            </div>
-
-            <div class="space-y-2">
-                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Дата документа</label>
-                <input
-                    v-model="attachDocumentDate"
-                    type="date"
-                    class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                >
+            <div :class="crmModalFieldsWrap">
+                <div :class="`${crmModalFieldRow} crm-modal-field-row--full`">
+                    <label :class="crmModalFieldLabel">Название</label>
+                    <input
+                        v-model="attachTitle"
+                        type="text"
+                        class="crm-field crm-field--fluid min-w-0 flex-1 py-1.5"
+                    >
+                </div>
+                <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                    <label :class="crmModalFieldLabel">Дата</label>
+                    <input
+                        v-model="attachDocumentDate"
+                        type="date"
+                        class="crm-field crm-field--fluid min-w-0 flex-1 py-1.5"
+                    >
+                </div>
             </div>
 
             <div class="flex justify-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">

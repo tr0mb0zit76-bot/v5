@@ -159,9 +159,6 @@ const withinBudgetAfter = computed(() => {
                     <p class="text-sm text-zinc-700 dark:text-zinc-300">
                         CRM может сжать PDF на сервере (без изменения текста). После оптимизации вы увидите предпросмотр и решите, сохранять ли файл.
                     </p>
-                    <p class="text-xs text-zinc-500">
-                        Если качество не устроит — отмените и подготовьте PDF вручную по регламенту.
-                    </p>
                     <div class="flex flex-wrap justify-end gap-2">
                         <button type="button" :class="crmBtnNeutral" @click="cancelFlow">
                             Отмена — подготовлю сам

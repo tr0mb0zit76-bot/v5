@@ -135,52 +135,44 @@
                     eyebrow="Пользователи"
                     :title="editingUser === null ? 'Новый пользователь' : 'Редактирование пользователя'"
                     @close="closeModal"
-                >
-                    {{ editingUser === null ? 'Создание учётной записи и назначение роли' : 'Изменение роли, статуса и базовых данных' }}
-                </CrmModalHeader>
+                />
 
                 <form :class="`${crmModalFormBody} space-y-4 px-6 py-5`" @submit.prevent="submit">
-                    <div>
-                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Имя</label>
-                        <input
-                            v-model="form.name"
-                            type="text"
-                            :class="`mt-2 ${crmFieldFluid}`"
-                        />
-                        <div v-if="form.errors.name" class="mt-1 text-sm text-rose-600">{{ form.errors.name }}</div>
-                    </div>
-
-                    <div>
-                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Email</label>
-                        <input
-                            v-model="form.email"
-                            type="email"
-                            :class="`mt-2 ${crmFieldFluid}`"
-                        />
-                        <div v-if="form.errors.email" class="mt-1 text-sm text-rose-600">{{ form.errors.email }}</div>
-                    </div>
-
-                    <div>
-                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Телефон</label>
-                        <input
-                            v-model="form.phone"
-                            type="tel"
-                            autocomplete="tel"
-                            :class="`mt-2 ${crmFieldFluid}`"
-                        />
-                        <div v-if="form.errors.phone" class="mt-1 text-sm text-rose-600">{{ form.errors.phone }}</div>
-                        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                            Номер используется для сопоставления с телефоном менеджера, указанным в перевозке заказа.
-                        </p>
+                    <div :class="crmModalFieldsWrap">
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide flex-wrap`">
+                            <label :class="crmModalFieldLabel">Имя</label>
+                            <input
+                                v-model="form.name"
+                                type="text"
+                                :class="crmFieldFluid"
+                            />
+                            <div v-if="form.errors.name" class="w-full text-sm text-rose-600">{{ form.errors.name }}</div>
+                        </div>
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide flex-wrap`">
+                            <label :class="crmModalFieldLabel">Email</label>
+                            <input
+                                v-model="form.email"
+                                type="email"
+                                :class="crmFieldFluid"
+                            />
+                            <div v-if="form.errors.email" class="w-full text-sm text-rose-600">{{ form.errors.email }}</div>
+                        </div>
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide flex-wrap`">
+                            <label :class="crmModalFieldLabel">Телефон</label>
+                            <input
+                                v-model="form.phone"
+                                type="tel"
+                                autocomplete="tel"
+                                :class="crmFieldFluid"
+                            />
+                            <div v-if="form.errors.phone" class="w-full text-sm text-rose-600">{{ form.errors.phone }}</div>
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div class="md:col-span-2">
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Роли</label>
-                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                Можно выбрать несколько — права и области видимости объединяются (например, менеджер + диспетчер).
-                            </p>
-                            <div class="mt-2 max-h-44 space-y-2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950">
+                            <label :class="crmModalFieldLabel">Роли</label>
+                            <div class="mt-1 max-h-44 space-y-2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950">
                                 <label
                                     v-for="role in roles"
                                     :key="`user-role-${role.id}`"
@@ -211,15 +203,10 @@
 
                     <div v-if="departments.length > 0" class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
-                                Основное подразделение
-                            </label>
-                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                Используется для маршрутизации согласований (заявки, лимиты контрагентов).
-                            </p>
+                            <label :class="crmModalFieldLabel">Подразделение</label>
                             <select
                                 v-model="form.primary_department_id"
-                                :class="`mt-2 ${crmFieldFluid}`"
+                                :class="`mt-1 ${crmFieldFluid}`"
                             >
                                 <option :value="null">Не выбрано</option>
                                 <option
@@ -236,13 +223,8 @@
                         </div>
 
                         <div v-if="showApprovalDepartmentsField">
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
-                                Согласования за подразделения
-                            </label>
-                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                Для руководителя подразделения — одно; для главного руководителя — несколько.
-                            </p>
-                            <div class="mt-2 max-h-44 space-y-2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950">
+                            <label :class="crmModalFieldLabel">Согласования</label>
+                            <div class="mt-1 max-h-44 space-y-2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950">
                                 <label
                                     v-for="department in departments"
                                     :key="`dept-approval-${department.id}`"
@@ -524,6 +506,9 @@ import {
     crmCheckbox,
     crmFieldFluid,
     crmGridPanel,
+    crmModalFieldLabel,
+    crmModalFieldRow,
+    crmModalFieldsWrap,
     crmModalFormBody,
     crmModalFormShell,
     crmPageTitleSm,
