@@ -25,6 +25,30 @@ export default defineConfig({
             mermaid: path.resolve(__dirname, 'node_modules/mermaid/dist/mermaid.core.mjs'),
         },
     },
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (id.includes('ag-grid-community') || id.includes('ag-grid-vue3')) {
+                        return 'vendor-ag-grid'
+                    }
+
+                    if (id.includes('grapesjs')) {
+                        return 'vendor-grapesjs'
+                    }
+
+                    if (id.includes('node_modules/mermaid')) {
+                        return 'vendor-mermaid'
+                    }
+
+                    if (id.includes('@tiptap/')) {
+                        return 'vendor-tiptap'
+                    }
+                },
+            },
+        },
+        chunkSizeWarningLimit: 1000,
+    },
     optimizeDeps: {
         include: [
             'ag-grid-community',
@@ -33,6 +57,8 @@ export default defineConfig({
             'grapesjs',
             'grapesjs-preset-newsletter',
             'mermaid',
+            '@tiptap/vue-3',
+            '@tiptap/starter-kit',
         ],
     },
 })
