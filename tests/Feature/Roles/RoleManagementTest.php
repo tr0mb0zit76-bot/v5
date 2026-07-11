@@ -31,7 +31,7 @@ class RoleManagementTest extends TestCase
 
     public function test_non_admin_cannot_open_role_management_page(): void
     {
-        $managerRoleId = $this->createRole('manager', 'Менеджер', ['view_orders'], ['dashboard', 'orders']);
+        $managerRoleId = $this->createRole('manager', 'Менеджер', ['view_documents'], ['dashboard', 'orders']);
         $manager = User::factory()->create(['role_id' => $managerRoleId]);
 
         $response = $this->actingAs($manager)->get(route('settings.roles.index'));
@@ -41,7 +41,7 @@ class RoleManagementTest extends TestCase
 
     public function test_visibility_area_blocks_hidden_section(): void
     {
-        $viewerRoleId = $this->createRole('viewer', 'Только просмотр', ['view_orders'], ['dashboard']);
+        $viewerRoleId = $this->createRole('viewer', 'Только просмотр', ['view_documents'], ['dashboard']);
         $viewer = User::factory()->create(['role_id' => $viewerRoleId]);
 
         $response = $this->actingAs($viewer)->get(route('documents.index'));
@@ -79,14 +79,14 @@ class RoleManagementTest extends TestCase
     public function test_admin_can_update_role_visibility_areas(): void
     {
         $adminRoleId = $this->createRole('admin', 'Администратор', ['manage_roles'], ['dashboard', 'roles']);
-        $roleId = $this->createRole('viewer', 'Только просмотр', ['view_orders'], ['dashboard', 'orders']);
+        $roleId = $this->createRole('viewer', 'Только просмотр', ['view_documents'], ['dashboard', 'orders']);
         $admin = User::factory()->create(['role_id' => $adminRoleId]);
 
         $response = $this->actingAs($admin)->patch(route('roles.update', $roleId), [
             'name' => 'viewer',
             'display_name' => 'Только просмотр',
             'description' => 'Обновленное описание',
-            'permissions' => ['view_orders', 'view_documents'],
+            'permissions' => ['view_documents'],
             'visibility_areas' => ['dashboard', 'orders', 'documents'],
             'visibility_scopes' => [
                 'dashboard' => ['mode' => 'all'],
@@ -109,7 +109,7 @@ class RoleManagementTest extends TestCase
     public function test_admin_can_update_role_when_visibility_scopes_column_is_missing(): void
     {
         $adminRoleId = $this->createRole('admin', 'Администратор', ['manage_roles'], ['dashboard', 'roles']);
-        $roleId = $this->createRole('clerk', 'Делопроизводитель', ['view_orders'], ['dashboard', 'orders']);
+        $roleId = $this->createRole('clerk', 'Делопроизводитель', ['view_documents'], ['dashboard', 'orders']);
         $admin = User::factory()->create(['role_id' => $adminRoleId]);
 
         Schema::table('roles', function (Blueprint $table) {
@@ -120,7 +120,7 @@ class RoleManagementTest extends TestCase
             'name' => 'clerk',
             'display_name' => 'Делопроизводитель',
             'description' => 'Обновлено без колонки scopes',
-            'permissions' => ['view_orders'],
+            'permissions' => ['view_documents'],
             'visibility_areas' => ['dashboard', 'orders', 'documents'],
             'visibility_scopes' => [
                 'orders' => ['mode' => 'all'],
@@ -139,7 +139,7 @@ class RoleManagementTest extends TestCase
     public function test_admin_cannot_delete_role_assigned_to_users(): void
     {
         $adminRoleId = $this->createRole('admin', 'Администратор', ['manage_roles'], ['dashboard', 'roles']);
-        $managerRoleId = $this->createRole('manager', 'Менеджер', ['view_orders'], ['dashboard', 'orders']);
+        $managerRoleId = $this->createRole('manager', 'Менеджер', ['view_documents'], ['dashboard', 'orders']);
         $admin = User::factory()->create(['role_id' => $adminRoleId]);
         User::factory()->create(['role_id' => $managerRoleId]);
 

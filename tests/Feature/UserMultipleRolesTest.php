@@ -14,7 +14,7 @@ class UserMultipleRolesTest extends TestCase
         $managerRole = Role::query()->create([
             'name' => 'manager_multi',
             'display_name' => 'Менеджер',
-            'permissions' => ['view_orders'],
+            'permissions' => ['view_documents'],
             'visibility_areas' => ['orders', 'contractors', 'leads'],
             'visibility_scopes' => [
                 'contractors' => 'own',
@@ -47,7 +47,7 @@ class UserMultipleRolesTest extends TestCase
         $this->assertSame('own', $scopes['contractors']);
 
         $permissions = RoleAccess::userPermissions($user->fresh());
-        $this->assertContains('view_orders', $permissions);
+        $this->assertContains('view_documents', $permissions);
         $this->assertContains('assign_drivers', $permissions);
     }
 }

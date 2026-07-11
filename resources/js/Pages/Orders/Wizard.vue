@@ -206,7 +206,6 @@ import {
 } from '@/support/normsPenalties.js';
 import {
     buildDocumentRequirementRules,
-    documentMatchesRequirementRule,
 } from '@/support/orderDocumentRequirementSlots.js';
 import {
     blankAdditionalCostRow,
@@ -1720,128 +1719,6 @@ watch(clientSearch, (newQuery) => {
         }
     }
 
-// Watch for carrier search input changes
-watch(carrierSearch, (newSearchValues, oldSearchValues) => {
-    // Find changed fields
-    for (const [key, value] of Object.entries(newSearchValues)) {
-        const oldValue = oldSearchValues[key] || '';
-        if (value !== oldValue) {
-            // Parse kind and index from key
-            const match = key.match(/^(\w+)-(\d+)$/);
-            if (match) {
-                const [, kind, indexStr] = match;
-                const index = parseInt(indexStr, 10);
-                queueCarrierSearch(kind, index, value);
-            }
-        }
-    }
-}, { deep: true });
-
-function queueCarrierSearch(kind, index, query) {
-    const key = carrierSearchKey(kind, index);
-
-    // Clear existing timer
-    if (carrierSearchTimers.value[key]) {
-        clearTimeout(carrierSearchTimers.value[key]);
-    }
-
-    // Clear results for empty query
-    if (query.trim().length < MIN_CONTRACTOR_QUERY_LENGTH) {
-        carrierSearchAbortControllers.value[key]?.abort();
-        carrierSearchFetchSeq.value = {
-            ...carrierSearchFetchSeq.value,
-            [key]: (carrierSearchFetchSeq.value[key] ?? 0) + 1,
-        };
-        serverCarrierSearchResults.value = {
-            ...serverCarrierSearchResults.value,
-            [key]: [],
-        };
-        isSearchingCarriers.value = {
-            ...isSearchingCarriers.value,
-            [key]: false,
-        };
-        return;
-    }
-
-    // Set new timer
-    carrierSearchTimers.value[key] = setTimeout(async () => {
-        await searchCarriers(kind, index, query.trim());
-    }, 550);
-}
-
-async function searchCarriers(kind, index, query) {
-    if (query.length < MIN_CONTRACTOR_QUERY_LENGTH) {
-        const keyEmpty = carrierSearchKey(kind, index);
-        serverCarrierSearchResults.value = {
-            ...serverCarrierSearchResults.value,
-            [keyEmpty]: [],
-        };
-        return;
-    }
-
-    const key = carrierSearchKey(kind, index);
-    carrierSearchAbortControllers.value[key]?.abort();
-    const ac = new AbortController();
-    carrierSearchAbortControllers.value = {
-        ...carrierSearchAbortControllers.value,
-        [key]: ac,
-    };
-    const seq = (carrierSearchFetchSeq.value[key] ?? 0) + 1;
-    carrierSearchFetchSeq.value = {
-        ...carrierSearchFetchSeq.value,
-        [key]: seq,
-    };
-
-    isSearchingCarriers.value = {
-        ...isSearchingCarriers.value,
-        [key]: true,
-    };
-
-    try {
-        const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&type=carrier&limit=100`, {
-            headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            credentials: 'include',
-            signal: ac.signal,
-        });
-
-        if (!response.ok) {
-            throw new Error(`Carrier search failed with status ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (seq !== carrierSearchFetchSeq.value[key]) {
-            return;
-        }
-
-        serverCarrierSearchResults.value = {
-            ...serverCarrierSearchResults.value,
-            [key]: data.contractors || [],
-        };
-    } catch (error) {
-        if (error?.name === 'AbortError') {
-            return;
-        }
-
-        console.error('Carrier search error', error);
-        if (seq === carrierSearchFetchSeq.value[key]) {
-            serverCarrierSearchResults.value = {
-                ...serverCarrierSearchResults.value,
-                [key]: [],
-            };
-        }
-    } finally {
-        if (seq === carrierSearchFetchSeq.value[key]) {
-            isSearchingCarriers.value = {
-                ...isSearchingCarriers.value,
-                [key]: false,
-            };
-        }
-    }
-}
-
 // Combined results: server search results + local preloaded results
 const combinedClientResults = computed(() => {
     const query = clientSearch.value.trim().toLowerCase();
@@ -2967,50 +2844,6 @@ const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRu
     form.financial_term.client_request_mode,
     form.financial_term.additional_costs,
 ));
-
-const documentChecklist = computed(() => {
-    const rules = effectiveRequiredDocumentRules.value;
-    const documents = Array.isArray(form.documents) ? form.documents : [];
-    const usedIds = new Set();
-
-    return rules.map((rule) => {
-        const matchedDocument = documents.find((document) => {
-            if (document?.id && usedIds.has(document.id)) {
-                return false;
-            }
-
-            const status = String(document.status ?? '');
-
-            if (!['sent', 'signed'].includes(status)) {
-                return false;
-            }
-
-            return documentMatchesRequirementRule(document, rule);
-        });
-
-        if (matchedDocument?.id && !rule.allows_multiple) {
-            usedIds.add(matchedDocument.id);
-        }
-
-        return {
-            ...rule,
-            completed: matchedDocument !== undefined,
-            matched_document_id: matchedDocument?.id ?? null,
-        };
-    });
-});
-
-const customerDocuments = computed(() => {
-    return form.documents
-        .map((document, index) => ({ document, index }))
-        .filter((item) => item.document.party === 'customer');
-});
-
-function carrierDocumentsForStage(stage) {
-    return form.documents
-        .map((document, index) => ({ document, index }))
-        .filter((item) => item.document.party === 'carrier' && stageMatches(item.document.stage, stage));
-}
 
 function addRoutePoint(type) {
     form.route_points.push(blankRoutePoint(
