@@ -1,0 +1,110 @@
+[
+  {
+    "parent_title": "🌪️ Воронка продаж",
+    "title": "Карта этапов продажи",
+    "markdown_path": "storage/sales-practice-book/01-karta-etapov.md",
+    "create_parent_if_missing": false
+  },
+  {
+    "parent_title": "4️⃣День 4: Клиентская база",
+    "title": "Источники клиентов и «спящие»",
+    "markdown_path": "storage/sales-practice-book/02-istochniki-spyashchie.md",
+    "create_parent_if_missing": false
+  },
+  {
+    "parent_title": "4️⃣День 4: Клиентская база",
+    "title": "Холодный звонок: 5 шагов",
+    "markdown_path": "storage/sales-practice-book/03-holodnyy-zvonok.md",
+    "create_parent_if_missing": false
+  },
+  {
+    "parent_title": "🌪️ Воронка продаж",
+    "title": "Вопросы на выявление потребностей",
+    "markdown_path": "storage/sales-practice-book/04-voprosy-potrebnosti.md",
+    "create_parent_if_missing": false
+  },
+  {
+    "parent_title": "🌪️ Воронка продаж",
+    "title": "Презентация: техника СВ",
+    "markdown_path": "storage/sales-practice-book/05-prezentaciya-sv.md",
+    "create_parent_if_missing": false
+  },
+  {
+    "parent_title": "🌪️ Воронка продаж",
+    "title": "Просчёт запроса и конверсия",
+    "markdown_path": "storage/sales-practice-book/06-proschet-konversiya.md",
+    "create_parent_if_missing": false
+  },
+  {
+    "parent_title": "🌪️ Воронка продаж",
+    "title": "Вопросы закрытия сделки",
+    "markdown_path": "storage/sales-practice-book/07-voprosy-zakrytiya.md",
+    "create_parent_if_missing": false
+  },
+  {
+    "parent_title": "5️⃣ День 5: Цена",
+    "title": "Шпаргалка: «дорого»",
+    "markdown_path": "storage/sales-practice-book/08-shpargalka-den5.md",
+    "create_parent_if_missing": false
+  },
+  {
+    "parent_title": "7️⃣ День 7: \"Трубопровод\"",
+    "title": "Шпаргалка: просчёт и конверсия",
+    "markdown_path": "storage/sales-practice-book/09-shpargalka-den7.md",
+    "create_parent_if_missing": false
+  },
+  {
+    "parent_title": "🎯 Работа с возражениями",
+    "title": "О разделе и принципы",
+    "markdown_path": "storage/sales-practice-book/10-vozrazheniya-hub.md",
+    "create_parent_if_missing": true
+  },
+  {
+    "parent_title": "🎯 Работа с возражениями",
+    "title": "Секретарь и выход на ЛПР",
+    "markdown_path": "storage/sales-practice-book/11-sekretar-lpr.md",
+    "create_parent_if_missing": true
+  },
+  {
+    "parent_title": "🎯 Работа с возражениями",
+    "title": "Возражения по цене и условиям",
+    "markdown_path": "storage/sales-practice-book/12-cena-usloviya.md",
+    "create_parent_if_missing": true
+  },
+  {
+    "parent_title": "🎯 Работа с возражениями",
+    "title": "Возражения по конкурентам",
+    "markdown_path": "storage/sales-practice-book/13-konkurenty.md",
+    "create_parent_if_missing": true
+  },
+  {
+    "parent_title": "🎯 Работа с возражениями",
+    "title": "«Я подумаю» и принятие решений",
+    "markdown_path": "storage/sales-practice-book/14-podumayu-resheniya.md",
+    "create_parent_if_missing": true
+  },
+  {
+    "parent_title": "🎯 Работа с возражениями",
+    "title": "Нет потребности",
+    "markdown_path": "storage/sales-practice-book/15-net-potrebnosti.md",
+    "create_parent_if_missing": true
+  },
+  {
+    "parent_title": "🎯 Работа с возражениями",
+    "title": "Недоверие и сомнение",
+    "markdown_path": "storage/sales-practice-book/16-nedoverie.md",
+    "create_parent_if_missing": true
+  },
+  {
+    "parent_title": "9️⃣ День 9: Возражения",
+    "title": "Практика дня: банк возражений",
+    "markdown_path": "storage/sales-practice-book/17-praktika-den9.md",
+    "create_parent_if_missing": false
+  },
+  {
+    "parent_title": "Регламенты работы",
+    "title": "Регламент сопровождения клиента после первой перевозки",
+    "markdown_path": "storage/sales-practice-book/18-reglament-soprovozhdenie.md",
+    "create_parent_if_missing": false
+  }
+]

@@ -1,0 +1,39 @@
+
+async function extractPath(path) {
+  return new Promise((resolve) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;opacity:0';
+    iframe.src = path;
+    const timeout = setTimeout(() => {
+      try { iframe.remove(); } catch (_) {}
+      resolve({ path, error: 'timeout' });
+    }, 15000);
+    iframe.onload = async () => {
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        const doc = iframe.contentDocument;
+        const uuidRe = /^\/[0-9a-f-]{36}$/i;
+        const links = [...new Set([...doc.querySelectorAll('a[href^="/"]')]
+          .map((a) => a.getAttribute('href'))
+          .filter((h) => h && uuidRe.test(h)))];
+        const bodyEls = [...doc.querySelectorAll('[class*="is_BodyText"]')];
+        let contentText = bodyEls.map((el) => el.innerText.trim()).filter(Boolean).join('\n\n');
+        if (!contentText.trim()) {
+          const skip = ['Логистические решения', 'Спросите Collabis AI', 'Достигнут лимит'];
+          contentText = doc.body.innerText.split('\n')
+            .map((l) => l.trim())
+            .filter((l) => l && !skip.some((p) => l.includes(p)))
+            .join('\n');
+        }
+        resolve({ path, title: doc.title || 'Untitled', links, contentText });
+      } catch (e) {
+        resolve({ path, error: String(e) });
+      } finally {
+        clearTimeout(timeout);
+        try { iframe.remove(); } catch (_) {}
+      }
+    };
+    document.body.appendChild(iframe);
+  });
+}
+(async () => { const paths = ["/fa60d7c5-020b-452e-a340-41f053e6eb65", "/9bb1a01b-4d80-4347-886b-a3fabd4453f2", "/70a17da8-9638-473a-a5f2-cff58e6ef93a", "/715c177a-31e9-4c5a-a31b-df4e65d95fe5", "/4f676a0b-2989-41bd-b91f-7f94e5db3bc5", "/1a7f30f9-37fc-4962-8a99-b91f9478fa00", "/f0f6a446-964e-41ec-afc1-e7707616b708", "/68913cff-f1e3-482c-8cac-a2f7a1e6f6b8", "/c0e31491-2d11-4843-9617-3368d1e4370d", "/c46c2787-8b3b-4485-a03d-102c9e274ae4", "/a4aa745c-f186-46f5-a5e3-819adfa2e77f", "/4feed659-5f85-4971-9cba-d7ae0911cb74", "/4db6bca7-c6a8-44cc-968c-e4c8b76957fc", "/16a197b6-81ba-4678-a36e-152fae1c2cae", "/6d4fadab-9e94-46ca-82d2-c283a2b25135"]; const results = []; for (const p of paths) { results.push(await extractPath(p)); } return JSON.stringify(results); })()

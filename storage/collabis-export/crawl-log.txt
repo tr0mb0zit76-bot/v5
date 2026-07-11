@@ -1,0 +1,7 @@
+Total pages crawled: 143
+Manifest entries excluding root: 142
+Errors: 0
+
+Crawl method: BFS from https://collabis.ru/fa60d7c5-020b-452e-a340-41f053e6eb65
+Content extracted via authenticated browser session (Collabis blocks API + element metadata).
+Root page fa60d7c5-020b-452e-a340-41f053e6eb65 skipped from manifest.

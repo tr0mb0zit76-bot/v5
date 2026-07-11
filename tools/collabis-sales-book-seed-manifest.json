@@ -1,0 +1,48 @@
+{
+  "source": "collabis",
+  "root_title": "Корпоративная книга продаж",
+  "root_url": "https://collabis.ru/fa60d7c5-020b-452e-a340-41f053e6eb65",
+  "crm_parent_map": {
+    "🧮CRM": "🧮Руководство по CRM",
+    "Регламенты компании": "Регламенты работы",
+    "✈️Экспресс-введении в профессию": "✈️Экспресс-введении в профессию",
+    "🌪️Воронка продаж": "🌪️ Воронка продаж",
+    "📖Библиотека": "👨‍🎓Глоссарий"
+  },
+  "sections": [
+    {
+      "title": "📖Библиотека",
+      "url": "https://collabis.ru/1a7f30f9-37fc-4962-8a99-b91f9478fa00",
+      "children": [
+        {"title": "Просто почитать", "path": "/b02a588d-5e48-4b46-8921-1de166b29e4e"},
+        {"title": "📦Виды тары", "path": "/935860e5-ca19-493a-b7d8-69be9b74a270"},
+        {"title": "🛣️Виды транспорта", "path": "/8e966316-608d-4788-a3e0-2d0d32e19665"},
+        {"title": "🚂Виды перевозок и регламентирующие их документы", "path": "/8f2d106e-485a-4014-8df0-33d1abb80616"},
+        {"title": "🚢Порты Китая", "path": "/39cc7458-6ebd-44db-8481-1fb980db7815"},
+        {"title": "📑Сертификаты и декларации", "path": "/8db1d551-5efb-4fe3-b27d-99f06483c964"},
+        {"title": "🏗️Типы перевозок", "path": "/c886182d-4598-4c8c-95d3-fd2cada13a46"},
+        {"title": "📑Транспортные документы", "path": "/c2e6ad73-de23-4f0e-8bda-ca314d1a6280"},
+        {"title": "📚Терминология", "path": "/2d45c9e4-3863-4eb4-bd29-0204d3b0b2fd"}
+      ]
+    }
+  ],
+  "terminology_children": [
+    {"title": "📒Инкотермс", "path": "/18ba221a-eb22-45f5-8c27-2d01c77e3bcd"},
+    {"title": "⚓Термины морских перевозок", "path": "/5f538013-07b7-45ac-b8bb-1ae2ce8b3bfb"},
+    {"title": "💵Сборы к базовой ставке морского фрахта", "path": "/61508eb5-263f-4e2f-be10-b101e010f31b"},
+    {"title": "⏰ETA", "path": "/efe58696-3e50-4f5f-ab4f-c4688b79ee37"},
+    {"title": "⏱️ETD", "path": "/3266833c-ad6d-474f-ab97-db2c4458f3e1"},
+    {"title": "🔥ADR", "path": "/0df7bef3-6426-4ebf-9787-7eb9bcecbb18"},
+    {"title": "👍GDP", "path": "/73634166-7c79-42d7-ac83-003bc95ca972"},
+    {"title": "💊GMP", "path": "/ee58e0e5-bf1e-44fa-a095-0e6a9d377c74"},
+    {"title": "🩻ДОПОГ", "path": "/6c07bbf5-33d2-4798-8670-e68b14fb1477"},
+    {"title": "👮Код ТН ВЭД", "path": "/7112c4c3-d3dd-4092-9d44-be9d4fbe21b2"},
+    {"title": "🔢KPI", "path": "/b8eb8311-537f-40eb-ba5c-0c3365c640bf"},
+    {"title": "🧑‍🎓СМАРТ", "path": "/2ddf1e2c-29d3-41b2-bffe-3e873b883716"}
+  ],
+  "notes": [
+    "Manifest is partial — crawl remaining Collabis sections before bulk import.",
+    "Prod import pattern: scripts/mcp-prod-upsert-*.php → upsert_sales_book_article.",
+    "Collabis workspace is read-only (500-block limit); extraction via browser innerText works."
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "mcpServers": {
+    "laravel-boost": {
+      "command": "C:/OSPanel/modules/PHP-8.3/php.exe",
+      "args": [
+        "C:/OSPanel/home/v5.local/artisan",
+        "boost:mcp"
+      ],
+      "cwd": "C:/OSPanel/home/v5.local"
+    },
+    "tailwindcss": {
+      "command": "C:/Program Files/nodejs/npx.cmd",
+      "args": ["-y", "tailwindcss-mcp"],
+      "env": {
+        "TAILWIND_CONFIG_PATH": "C:/OSPanel/home/v5.local",
+        "TAILWIND_VERSION": "3"
+      }
+    },
+    "ag-grid": {
+      "command": "C:/Program Files/nodejs/npx.cmd",
+      "args": ["-y", "ag-mcp"]
+    },
+    "codegraph": {
+      "command": "C:/Program Files/nodejs/npx.cmd",
+      "args": [
+        "-y",
+        "@colbymchenry/codegraph",
+        "serve",
+        "--mcp",
+        "--path",
+        "C:/OSPanel/home/v5.local"
+      ]
+    },
+    "hive-mind": {
+      "command": "C:/Program Files/nodejs/node.exe",
+      "args": ["C:/OSPanel/home/v5.local/tools/hivemind-mcp-start.mjs"],
+      "env": {
+        "HIVEMIND_VAULT_PATH": "C:/Sync/Yandex.Disk/Exchange"
+      }
+    },
+    "memento": {
+      "command": "C:/Program Files/nodejs/node.exe",
+      "args": ["C:/OSPanel/home/v5.local/tools/memento-mcp-start.mjs"],
+      "env": {
+        "MEMORY_DB_PATH": "C:/Sync/Yandex.Disk/Exchange/memento.db"
+      }
+    }
+  }
+}
