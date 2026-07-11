@@ -69,6 +69,7 @@ Thumbs.db
 /public/change/*.xls
 /public/change/*.xlsx
 /public/downloads/*.apk
+/public/downloads/*.idsig
 
 # Android release signing secrets
 /android/traklo-release.properties
