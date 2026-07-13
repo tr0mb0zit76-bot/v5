@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-13 16:15 (мастер заказов: инструкция маршрута + Книга продаж) · **HEAD:** `8da34fb` · **Ветка:** `master`
+**Обновлено:** 2026-07-13 16:15 (мастер заказов: инструкция маршрута + Книга продаж) · **HEAD:** `e6a2f12` · **Ветка:** `master`
 
 > **Полный backlog аудита:** [`docs/sync/v5-local-Components-Code-Audit-2026-07.md`](v5-local-Components-Code-Audit-2026-07.md) → vault: `v5-local/Components/Code Audit 2026-07`
 
