@@ -3,11 +3,30 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-10 21:15 (лиды: документация + Книга продаж) · **HEAD:** `3083070` · **Ветка:** `master`
+**Обновлено:** 2026-07-13 16:15 (мастер заказов: инструкция маршрута + Книга продаж) · **HEAD:** `8da34fb` · **Ветка:** `master`
 
 > **Полный backlog аудита:** [`docs/sync/v5-local-Components-Code-Audit-2026-07.md`](v5-local-Components-Code-Audit-2026-07.md) → vault: `v5-local/Components/Code Audit 2026-07`
 
-### Итог сессии 2026-07-10 (вечер) — документация лидов + UI модалок
+### Итог сессии 2026-07-13 — инструкция «Мастер заказов» (маршрут +/−)
+
+| Блок | Статус |
+| --- | --- |
+| **`docs/order-wizard-user-guide.md`:** §5 «Маршрут» — кнопки **+** / **−** у точек, нумерация Погрузка/Выгрузка, drag **⋮⋮**, «Отнести этап к плечу», граница, FAQ | ✅ в этом коммите |
+| **`scripts/mcp-prod-upsert-order-wizard.php`:** публикация основной инструкции + финансовой; `create_parent_if_missing`; обработка `isError` MCP | ✅ в этом коммите |
+| **Книга продаж (prod):** статья **id=255** «Мастер заказов — инструкция для пользователя» под «Руководство по CRM» (id=254) | ✅ создана через MCP; **опубликовать в UI** (сейчас черновик) |
+
+**На прод:** миграций и `npm run build` нет. Повторная синхронизация текста: `MCP_UPSERT_ONLY='Мастер заказов' php scripts/mcp-prod-upsert-order-wizard.php`.
+
+**Следующая сессия:**
+1. Опубликовать статью id=255 в Книге продаж (если ещё черновик)
+2. Audit backlog: `PaymentScheduleAutomaticStatus::refreshForOrdersScope`, `LeadAttentionQueueService` department scope
+3. Wizard UI: Нормативы, Документы, Переписка (заказ)
+
+**На большом ПК:** `git pull` → `sync-docs-to-yandex.ps1` → читать этот handoff.
+
+---
+
+**Обновлено (архив):** 2026-07-10 21:15 (лиды: документация + Книга продаж) · **HEAD:** `3083070` · **Ветка:** `master`
 
 | Блок | Статус |
 | --- | --- |

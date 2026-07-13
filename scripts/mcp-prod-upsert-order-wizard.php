@@ -90,7 +90,17 @@ function mcpCall(string $url, string $auth, int $id, string $tool, array $argume
 
     $content = $data['result']['content'] ?? null;
     if (is_array($content) && isset($content[0]['text'])) {
-        return json_decode($content[0]['text'], true, 512, JSON_THROW_ON_ERROR);
+        $text = $content[0]['text'];
+        if (($data['result']['isError'] ?? false) === true) {
+            throw new RuntimeException((string) $text);
+        }
+
+        $decoded = json_decode($text, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            return $decoded;
+        }
+
+        return ['message' => $text];
     }
 
     return $data['result'] ?? $data;
@@ -117,6 +127,11 @@ function prepareBookMarkdown(string $path): string
 }
 
 $articles = array_values(array_filter([
+    [
+        'parent_title' => 'Руководство по CRM',
+        'title' => 'Мастер заказов — инструкция для пользователя',
+        'path' => dirname(__DIR__).'/docs/order-wizard-user-guide.md',
+    ],
     [
         'parent_title' => 'Руководство по CRM',
         'title' => 'Финансовые условия в мастере заказов',
@@ -174,6 +189,7 @@ foreach ($articles as $spec) {
             'parent_title' => $spec['parent_title'],
             'title' => $spec['title'],
             'markdown_content' => $markdown,
+            'create_parent_if_missing' => true,
         ]);
         echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)."\n";
     } catch (Throwable $e) {
