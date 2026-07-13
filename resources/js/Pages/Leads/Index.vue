@@ -1,36 +1,48 @@
 <template>
-    <div class="flex min-h-0 flex-1 flex-col gap-2">
+    <div class="flex min-h-0 flex-1 flex-col gap-1.5">
         <div v-if="featureUnavailable" class="border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200">
             Модуль лидов отключен для текущей схемы БД: таблицы лидов еще не развернуты.
         </div>
 
-        <CrmPageHeader
+        <div
             v-if="!featureUnavailable"
-            :lead="`Всего лидов: ${rows.length}`"
-            title="Лиды"
+            class="flex shrink-0 flex-wrap items-center justify-between gap-2"
         >
-            <template #actions>
-                <button
-                    type="button"
-                    :class="crmBtnCreate"
-                    @click="openCreateLead"
-                >
-                    <Plus class="h-4 w-4" />
-                    Добавить
-                </button>
-            </template>
-        </CrmPageHeader>
+            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                <h1 :class="crmPageTitleSm">Лиды</h1>
+                <span class="text-xs text-zinc-500 dark:text-zinc-400">Всего лидов: {{ rows.length }}</span>
+            </div>
+            <button
+                type="button"
+                :class="crmBtnCreate"
+                @click="openCreateLead"
+            >
+                <Plus class="h-4 w-4" />
+                Добавить
+            </button>
+        </div>
 
-        <LeadSalesCoachingPanel v-if="!featureUnavailable && !isLeadModalOpen" :insights="salesCoachingInsights" />
-
-        <LeadAttentionPanel
-            v-if="!featureUnavailable && !isLeadModalOpen"
-            :queue="leadAttentionQueue"
-            @open-lead="handleRowDblClick"
-        />
+        <div
+            v-if="showLeadSummaries"
+            ref="leadSummariesRef"
+            class="grid shrink-0 gap-2 lg:grid-cols-2 lg:items-stretch"
+        >
+            <LeadSalesCoachingPanel
+                v-if="hasSalesCoachingInsights"
+                compact
+                :insights="salesCoachingInsights"
+            />
+            <LeadAttentionPanel
+                v-if="hasLeadAttentionQueue"
+                compact
+                :queue="leadAttentionQueue"
+                @open-lead="handleRowDblClick"
+            />
+        </div>
 
         <div :class="crmGridPanel">
             <LeadsGrid
+                ref="leadsGridRef"
                 :rows="rows"
                 :available-columns="availableColumns"
                 :role-columns-config="roleColumnsConfig"
@@ -86,11 +98,10 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { Plus } from 'lucide-vue-next';
-import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
-import { crmBtnCreate, crmGridPanel } from '@/support/crmUi.js';
+import { crmBtnCreate, crmGridPanel, crmPageTitleSm } from '@/support/crmUi.js';
 import LeadsGrid from '@/Components/Leads/LeadsGrid.vue';
 import LeadSalesCoachingPanel from '@/Components/Leads/LeadSalesCoachingPanel.vue';
 import LeadAttentionPanel from '@/Components/Leads/LeadAttentionPanel.vue';
@@ -103,6 +114,8 @@ defineOptions({
 });
 
 const page = usePage();
+const leadSummariesRef = ref(null);
+const leadsGridRef = ref(null);
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
 const rows = computed(() => page.props.leads ?? []);
 const salesCoachingInsights = computed(() => page.props.salesCoachingInsights ?? null);
@@ -117,6 +130,62 @@ const isCreateModalOpen = ref(false);
 const isLeadModalDismissed = ref(false);
 const isLeadModalOpen = computed(() => !featureUnavailable.value
     && (isCreateModalOpen.value || (isCreateRoute.value && !isLeadModalDismissed.value) || (selectedLead.value !== null && !isLeadModalDismissed.value)));
+
+const hasSalesCoachingInsights = computed(() => Boolean(salesCoachingInsights.value?.available));
+const hasLeadAttentionQueue = computed(() => Boolean(leadAttentionQueue.value?.available && leadAttentionQueue.value?.total > 0));
+const showLeadSummaries = computed(() => !featureUnavailable.value
+    && !isLeadModalOpen.value
+    && (hasSalesCoachingInsights.value || hasLeadAttentionQueue.value));
+
+let summariesResizeObserver = null;
+
+function refreshLeadsGridLayout() {
+    nextTick(() => {
+        leadsGridRef.value?.refreshAgGridPanelLayout?.();
+    });
+}
+
+function bindSummariesResizeObserver() {
+    if (typeof ResizeObserver === 'undefined' || !leadSummariesRef.value) {
+        return;
+    }
+
+    summariesResizeObserver?.disconnect();
+    summariesResizeObserver = new ResizeObserver(() => {
+        refreshLeadsGridLayout();
+    });
+    summariesResizeObserver.observe(leadSummariesRef.value);
+}
+
+watch(showLeadSummaries, (visible) => {
+    if (visible) {
+        nextTick(() => {
+            bindSummariesResizeObserver();
+            refreshLeadsGridLayout();
+        });
+
+        return;
+    }
+
+    summariesResizeObserver?.disconnect();
+    summariesResizeObserver = null;
+    refreshLeadsGridLayout();
+}, { immediate: true });
+
+watch(isLeadModalOpen, (open) => {
+    if (!open) {
+        refreshLeadsGridLayout();
+    }
+});
+
+onMounted(() => {
+    refreshLeadsGridLayout();
+});
+
+onUnmounted(() => {
+    summariesResizeObserver?.disconnect();
+    summariesResizeObserver = null;
+});
 
 const modalPropKeys = [
     'selectedLead',

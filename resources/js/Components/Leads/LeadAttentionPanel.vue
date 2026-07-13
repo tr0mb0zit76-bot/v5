@@ -3,7 +3,9 @@
         v-if="queue?.available && queue.total > 0"
         :class="variant === 'summary'
             ? 'crm-stat-card border-amber-200 bg-amber-50/80 p-4 dark:border-amber-900/50 dark:bg-amber-950/20'
-            : 'border border-amber-200 bg-amber-50/80 p-3 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/20 md:p-4'"
+            : compact
+                ? 'h-full border border-amber-200 bg-amber-50/80 p-2 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/20'
+                : 'border border-amber-200 bg-amber-50/80 p-3 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/20 md:p-4'"
     >
         <div v-if="variant === 'summary'" class="flex items-center justify-between gap-4">
             <div class="min-w-0">
@@ -25,12 +27,20 @@
             </Link>
         </div>
 
-        <div v-else class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <h2 class="text-sm font-semibold uppercase tracking-[0.2em] text-amber-900 dark:text-amber-200">
+        <div v-else class="flex flex-wrap items-start justify-between gap-2">
+            <div class="min-w-0">
+                <h2
+                    :class="compact
+                        ? 'text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-900 dark:text-amber-200'
+                        : 'text-sm font-semibold uppercase tracking-[0.2em] text-amber-900 dark:text-amber-200'"
+                >
                     Требует внимания
                 </h2>
-                <p class="mt-1 text-xs text-amber-900/80 dark:text-amber-200/80">
+                <p
+                    :class="compact
+                        ? 'mt-0.5 text-[11px] leading-snug text-amber-900/80 dark:text-amber-200/80'
+                        : 'mt-1 text-xs text-amber-900/80 dark:text-amber-200/80'"
+                >
                     {{ queue.total }} {{ leadWord(queue.total) }} с просроченным этапом, пропущенным контактом или без ответа на письмо.
                 </p>
             </div>
@@ -55,13 +65,17 @@
 
         <ul
             v-if="variant !== 'summary'"
-            class="mt-3 space-y-2"
-            :class="expanded ? 'max-h-80 overflow-y-auto pr-1' : ''"
+            :class="[
+                compact ? 'mt-2 space-y-1.5' : 'mt-3 space-y-2',
+                expanded ? (compact ? 'max-h-40 overflow-y-auto pr-1' : 'max-h-80 overflow-y-auto pr-1') : '',
+            ]"
         >
             <li
                 v-for="item in visibleItems"
                 :key="item.lead_id"
-                class="border border-amber-200/80 bg-white/80 p-2.5 dark:border-amber-900/40 dark:bg-zinc-950/50"
+                :class="compact
+                    ? 'border border-amber-200/80 bg-white/80 p-2 dark:border-amber-900/40 dark:bg-zinc-950/50'
+                    : 'border border-amber-200/80 bg-white/80 p-2.5 dark:border-amber-900/40 dark:bg-zinc-950/50'"
             >
                 <button
                     type="button"
@@ -115,6 +129,10 @@ const props = defineProps({
     collapsedLimit: {
         type: Number,
         default: 2,
+    },
+    compact: {
+        type: Boolean,
+        default: false,
     },
 });
 

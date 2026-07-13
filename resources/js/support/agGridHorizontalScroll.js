@@ -70,20 +70,33 @@ export function resolveAgGridViewportHeight(panelElement, bottomScrollbarElement
     }
 
     const bottomScrollbarHeight = bottomScrollbarElement?.offsetHeight ?? 18;
-    const panelHeight = panelElement.getBoundingClientRect().height;
+    const panelClientHeight = panelElement.clientHeight;
+    const panelBoundingHeight = panelElement.getBoundingClientRect().height;
+    const panelHeight = Math.max(panelClientHeight, panelBoundingHeight);
+
+    let viewportHeight = minHeight;
 
     if (panelHeight > 0) {
-        return Math.max(minHeight, Math.floor(panelHeight - bottomScrollbarHeight));
+        viewportHeight = Math.max(minHeight, Math.floor(panelHeight - bottomScrollbarHeight));
+    } else {
+        const panelTop = panelElement.getBoundingClientRect().top;
+        const commandBarFooter = document.querySelector('.crm-layout-footer') ?? document.querySelector('footer');
+        const footerTop = commandBarFooter?.getBoundingClientRect().top ?? window.innerHeight;
+
+        viewportHeight = Math.max(
+            minHeight,
+            Math.floor(footerTop - panelTop - bottomScrollbarHeight - footerGap),
+        );
     }
 
-    const panelTop = panelElement.getBoundingClientRect().top;
-    const commandBarFooter = document.querySelector('.crm-layout-footer') ?? document.querySelector('footer');
-    const footerTop = commandBarFooter?.getBoundingClientRect().top ?? window.innerHeight;
+    if (panelClientHeight > 0) {
+        viewportHeight = Math.min(
+            viewportHeight,
+            Math.max(minHeight, Math.floor(panelClientHeight - bottomScrollbarHeight)),
+        );
+    }
 
-    return Math.max(
-        minHeight,
-        Math.floor(footerTop - panelTop - bottomScrollbarHeight - footerGap),
-    );
+    return viewportHeight;
 }
 
 /**

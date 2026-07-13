@@ -627,6 +627,7 @@ const gridPanel = ref(null);
 const bottomScrollbar = ref(null);
 
 const { bottomScrollbarWidth, gridContainerStyle, onBottomScrollbarScroll, refreshAgGridPanelLayout } = useAgGridHorizontalPanel({
+  gridSection,
   gridPanel,
   bottomScrollbar,
   agGrid,
@@ -1587,4 +1588,9 @@ function formatValue(value, type, field, row) {
 
   return value;
 }
+
+defineExpose({
+  refreshAgGridPanelLayout,
+  refreshGrid,
+});
 </script>

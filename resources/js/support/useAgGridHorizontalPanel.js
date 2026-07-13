@@ -12,11 +12,12 @@ import {
  *
  * @param {object} options
  * @param {import('vue').Ref<HTMLElement | null | undefined>} options.gridPanel
+ * @param {import('vue').Ref<HTMLElement | null | undefined>} [options.gridSection]
  * @param {import('vue').Ref<HTMLElement | null | undefined>} options.bottomScrollbar
  * @param {import('vue').Ref<{ $el?: HTMLElement } | null | undefined>} options.agGrid
  * @param {import('vue').Ref<import('ag-grid-community').GridApi | null | undefined>} options.gridApi
  */
-export function useAgGridHorizontalPanel({ gridPanel, bottomScrollbar, agGrid, gridApi }) {
+export function useAgGridHorizontalPanel({ gridPanel, gridSection, bottomScrollbar, agGrid, gridApi }) {
     const bottomScrollbarWidth = ref(0);
     const gridViewportHeight = ref(280);
 
@@ -124,10 +125,22 @@ export function useAgGridHorizontalPanel({ gridPanel, bottomScrollbar, agGrid, g
     onMounted(() => {
         nextTick(() => {
             refreshAgGridPanelLayout();
-            disposePanelResizeObserver = observeAgGridPanelLayout(gridPanel.value, () => {
+
+            const onPanelResize = () => {
                 updateGridViewportHeight();
                 syncBottomScrollbar();
-            });
+            };
+
+            const disposers = [
+                observeAgGridPanelLayout(gridPanel.value, onPanelResize),
+                observeAgGridPanelLayout(gridSection?.value, onPanelResize),
+            ].filter((dispose) => typeof dispose === 'function');
+
+            disposePanelResizeObserver = () => {
+                for (const dispose of disposers) {
+                    dispose();
+                }
+            };
         });
         window.addEventListener('resize', refreshAgGridPanelLayout);
     });
