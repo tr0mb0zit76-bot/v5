@@ -178,6 +178,14 @@ class Lead extends Model
     }
 
     /**
+     * @return BelongsTo<User, $this>
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
      * @return HasMany<LeadCargoItem, $this>
      */
     public function cargoItems(): HasMany

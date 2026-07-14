@@ -577,6 +577,7 @@ const fallbackColumns = [
   { field: 'source', label: 'Источник', width: 150, minWidth: 130, type: null },
   { field: 'counterparty_name', label: 'Контрагент', width: 200, minWidth: 160, type: null },
   { field: 'responsible_name', label: 'Ответственный', width: 180, minWidth: 150, type: null },
+  { field: 'creator_name', label: 'Создатель лида', width: 180, minWidth: 150, type: null },
   { field: 'planned_shipping_date', label: 'План отгрузки', width: 140, minWidth: 120, type: 'date' },
   { field: 'target_price', label: 'Цена', width: 130, minWidth: 120, type: 'numeric' },
   { field: 'target_currency', label: 'Валюта', width: 100, minWidth: 90, type: null },
@@ -596,6 +597,7 @@ const defaultVisibleFields = [
   'source',
   'counterparty_name',
   'responsible_name',
+  'creator_name',
   'planned_shipping_date',
   'target_price',
   'target_currency',
@@ -608,6 +610,7 @@ const LEADS_SET_FILTER_FIELDS = new Set([
   'status',
   'source',
   'responsible_name',
+  'creator_name',
   'has_offer',
   'process_name',
 ]);

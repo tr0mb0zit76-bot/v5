@@ -726,7 +726,7 @@ class LeadController extends Controller
 
         $processReady = $this->leadBusinessProcessService->tablesReady();
 
-        $relations = ['counterparty:id,name', 'responsible:id,name', 'offers:id,lead_id,status,number,offer_date'];
+        $relations = ['counterparty:id,name', 'responsible:id,name', 'creator:id,name', 'offers:id,lead_id,status,number,offer_date'];
         if ($processReady) {
             $relations[] = 'businessProcess:id,name';
             $relations[] = 'businessProcessStage:id,name,is_terminal';
@@ -751,6 +751,7 @@ class LeadController extends Controller
                     'counterparty_name' => $lead->counterparty?->name,
                     'responsible_id' => $lead->responsible_id,
                     'responsible_name' => $lead->responsible?->name,
+                    'creator_name' => $lead->creator?->name,
                     'business_process_id' => Schema::hasColumn('leads', 'business_process_id')
                         ? $lead->business_process_id
                         : null,

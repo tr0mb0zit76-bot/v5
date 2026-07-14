@@ -191,6 +191,31 @@ class LeadManagementTest extends TestCase
         );
     }
 
+    public function test_leads_grid_exposes_creator_after_responsible_is_reassigned(): void
+    {
+        $creator = $this->createUserWithRole('manager');
+        $responsible = $this->createUserWithRole('manager');
+        $lead = Lead::factory()->create([
+            'created_by' => $creator->id,
+            'responsible_id' => $responsible->id,
+            'title' => 'Переданный лид',
+        ]);
+
+        $response = $this->actingAs($responsible)->get(route('leads.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Leads/Index')
+            ->where('leads.0.id', $lead->id)
+            ->where('leads.0.responsible_name', $responsible->name)
+            ->where('leads.0.creator_name', $creator->name)
+            ->where('leadColumns', fn ($columns): bool => $columns->contains(
+                fn (array $column): bool => $column['field'] === 'creator_name'
+                    && $column['label'] === 'Создатель лида',
+            ))
+        );
+    }
+
     public function test_manager_can_create_lead_with_nested_data(): void
     {
         $manager = $this->createUserWithRole('manager');
