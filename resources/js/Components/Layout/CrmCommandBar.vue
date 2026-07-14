@@ -265,6 +265,7 @@
                                 <div
                                     v-for="m in threadMessages"
                                     :key="m.id"
+                                    :data-message-id="m.id"
                                     class="flex"
                                     :class="m.user_id === currentUserId ? 'justify-end' : 'justify-start'"
                                 >
@@ -286,7 +287,16 @@
                                         >
                                             Для {{ m.recipient_name }}
                                         </div>
-                                        <div class="whitespace-pre-wrap break-words">
+                                        <button
+                                            v-if="m.reply_to"
+                                            type="button"
+                                            class="mb-2 block w-full rounded-lg border-l-2 border-sky-500 bg-black/5 px-2 py-1 text-left text-[11px] dark:bg-white/5"
+                                            @click="scrollToQuotedMessage(m.reply_to.id)"
+                                        >
+                                            <span class="block font-semibold text-sky-700 dark:text-sky-300">{{ m.reply_to.author_name || 'Сообщение' }}</span>
+                                            <span class="block truncate opacity-75">{{ m.reply_to.body }}</span>
+                                        </button>
+                                        <div v-if="m.body" class="whitespace-pre-wrap break-words">
                                             <template v-for="(part, pi) in messagePartsWithMentions(m.body, activeConversation?.group_members)" :key="`${m.id}-${pi}`">
                                                 <a
                                                     v-if="part.type === 'link'"
@@ -306,10 +316,38 @@
                                                 <span v-else>{{ part.text }}</span>
                                             </template>
                                         </div>
+                                        <div v-if="m.attachments?.length" class="mt-2 space-y-1.5">
+                                            <a
+                                                v-for="attachment in m.attachments"
+                                                :key="attachment.id"
+                                                :href="attachment.download_url"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                class="block overflow-hidden rounded-lg border border-black/10 bg-white/60 dark:border-white/10 dark:bg-black/20"
+                                                @click.stop
+                                            >
+                                                <img
+                                                    v-if="attachment.is_image"
+                                                    :src="attachment.preview_url"
+                                                    :alt="attachment.name"
+                                                    class="max-h-64 w-full object-contain"
+                                                    loading="lazy"
+                                                >
+                                                <span class="flex items-center gap-2 px-2 py-1.5 text-[11px]">
+                                                    <Paperclip class="h-3.5 w-3.5 shrink-0" />
+                                                    <span class="min-w-0 flex-1 truncate">{{ attachment.name }}</span>
+                                                    <span class="shrink-0 opacity-60">{{ formatMessengerFileSize(attachment.size) }}</span>
+                                                </span>
+                                            </a>
+                                        </div>
                                         <div
-                                            class="mt-1 text-[10px] opacity-70"
+                                            class="mt-1 flex items-center justify-end gap-2 text-[10px] opacity-70"
                                         >
-                                            {{ formatMsgTime(m.created_at) }}
+                                            <button type="button" class="inline-flex items-center gap-1 hover:opacity-100" @click="startReply(m)">
+                                                <Reply class="h-3 w-3" />
+                                                Ответить
+                                            </button>
+                                            <span>{{ formatMsgTime(m.created_at) }}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -351,6 +389,19 @@
                             </p>
                         </div>
                         <div class="relative flex flex-wrap items-center gap-1">
+                            <label
+                                class="inline-flex cursor-pointer items-center gap-1 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                            >
+                                <Paperclip class="h-3.5 w-3.5" />
+                                Файл
+                                <input
+                                    type="file"
+                                    class="hidden"
+                                    multiple
+                                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.rtf,.csv,.txt,.zip,.rar,.7z"
+                                    @change="handleChatFiles"
+                                >
+                            </label>
                             <button
                                 type="button"
                                 class="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
@@ -398,6 +449,31 @@
                                         {{ documentChipSearch.trim() ? 'Ничего не найдено. Уточните номер заказа, id или тип документа.' : 'Нет доступных документов заказов.' }}
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                        <div
+                            v-if="replyingTo"
+                            class="flex items-center gap-2 rounded-xl border-l-2 border-sky-500 bg-sky-50 px-3 py-2 text-xs dark:bg-sky-950/30"
+                        >
+                            <Reply class="h-4 w-4 shrink-0 text-sky-600" />
+                            <div class="min-w-0 flex-1">
+                                <div class="font-semibold text-sky-700 dark:text-sky-300">{{ replyingTo.author_name || 'Сообщение' }}</div>
+                                <div class="truncate text-zinc-600 dark:text-zinc-300">{{ replyingTo.body || '📎 Вложение' }}</div>
+                            </div>
+                            <button type="button" class="rounded p-1 text-zinc-500 hover:bg-black/5" aria-label="Отменить ответ" @click="replyingTo = null">
+                                <X class="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                        <div v-if="chatAttachmentFiles.length" class="flex flex-wrap gap-1">
+                            <div
+                                v-for="(file, fileIndex) in chatAttachmentFiles"
+                                :key="`${file.name}-${file.size}-${fileIndex}`"
+                                class="inline-flex max-w-full items-center gap-1 rounded-full bg-zinc-200 px-2 py-1 text-[11px] dark:bg-zinc-700"
+                            >
+                                <Paperclip class="h-3 w-3 shrink-0" />
+                                <span class="max-w-48 truncate">{{ file.name }}</span>
+                                <span class="opacity-60">{{ formatMessengerFileSize(file.size) }}</span>
+                                <button type="button" class="ml-0.5" aria-label="Убрать файл" @click="removeChatFile(fileIndex)">×</button>
                             </div>
                         </div>
                         <div class="relative flex items-end gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-600 dark:bg-zinc-800">
@@ -640,7 +716,7 @@ import { router, usePage } from '@inertiajs/vue3';
 import CrmNotificationBell from '@/Components/Layout/CrmNotificationBell.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import { formatConversationPreview } from '@/support/messengerConversationText.js';
-import { appendUniqueMessage, createClientMessageId } from '@/support/messengerMessages.js';
+import { appendUniqueMessage, createClientMessageId, formatMessengerFileSize } from '@/support/messengerMessages.js';
 import { crmBtnCreate, crmBtnPrimary, crmFieldFluid } from '@/support/crmUi.js';
 import {
     ClipboardList,
@@ -649,6 +725,7 @@ import {
     Package,
     Paperclip,
     Receipt,
+    Reply,
     ScrollText,
     Search,
     SendHorizontal,
@@ -720,6 +797,8 @@ const messengerSending = ref(false);
 const messengerUnread = ref(0);
 const messengerSearch = ref('');
 const messengerSendError = ref('');
+const replyingTo = ref(null);
+const chatAttachmentFiles = ref([]);
 const groupRecipientId = ref('');
 const showGroupSettings = ref(false);
 const groupSettingsTitle = ref('');
@@ -862,7 +941,7 @@ const isDisabled = computed(() => {
     if (isChatInputMode.value) {
         return messengerSending.value
             || activeConversation.value?.can_post === false
-            || !message.value.trim();
+            || (!message.value.trim() && chatAttachmentFiles.value.length === 0);
     }
 
     return !message.value.trim() && attachedFiles.value.length === 0;
@@ -1000,6 +1079,8 @@ async function openWithUser(u) {
 async function loadThread(conversationId) {
     threadLoading.value = true;
     threadMessages.value = [];
+    replyingTo.value = null;
+    chatAttachmentFiles.value = [];
     try {
         const { data } = await axios.get(
             route('messenger.conversations.messages', conversationRouteParams(conversationId)),
@@ -1056,7 +1137,7 @@ async function sendChatMessage() {
     const text = message.value.trim();
     const cid = activeConversationId.value;
     if (
-        !text
+        (!text && chatAttachmentFiles.value.length === 0)
         || cid === null
         || messengerSending.value
         || activeConversation.value?.can_post === false
@@ -1069,12 +1150,18 @@ async function sendChatMessage() {
     syncRecipientFromAtMention();
     mentionState.value = null;
     try {
-        const payload = {
-            body: text,
-            client_message_id: createClientMessageId(),
-        };
+        const payload = new FormData();
+        payload.append('body', text);
+        payload.append('client_message_id', createClientMessageId());
+
         if (activeConversation.value?.type === 'group' && groupRecipientId.value !== '') {
-            payload.recipient_user_id = Number(groupRecipientId.value);
+            payload.append('recipient_user_id', groupRecipientId.value);
+        }
+        if (replyingTo.value?.id) {
+            payload.append('reply_to_message_id', String(replyingTo.value.id));
+        }
+        for (const file of chatAttachmentFiles.value) {
+            payload.append('attachments[]', file);
         }
 
         const { data } = await axios.post(
@@ -1086,6 +1173,8 @@ async function sendChatMessage() {
             threadMessages.value = appendUniqueMessage(threadMessages.value, data.message);
         }
         message.value = '';
+        replyingTo.value = null;
+        chatAttachmentFiles.value = [];
         nextTick(() => {
             if (textareaRef.value) {
                 textareaRef.value.style.height = 'auto';
@@ -1095,11 +1184,41 @@ async function sendChatMessage() {
         await fetchMessengerUnread();
         await loadConversations();
     } catch (error) {
-        const msg = error.response?.data?.message ?? error.response?.data?.errors?.body?.[0];
+        const msg = error.response?.data?.message
+            ?? error.response?.data?.errors?.body?.[0]
+            ?? error.response?.data?.errors?.attachments?.[0]
+            ?? error.response?.data?.errors?.['attachments.0']?.[0];
         messengerSendError.value = typeof msg === 'string' ? msg : 'Не удалось отправить сообщение.';
     } finally {
         messengerSending.value = false;
     }
+}
+
+function startReply(chatMessage) {
+    replyingTo.value = chatMessage;
+    nextTick(() => textareaRef.value?.focus());
+}
+
+function scrollToQuotedMessage(messageId) {
+    const element = threadRef.value?.querySelector(`[data-message-id="${Number(messageId)}"]`);
+    element?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+function handleChatFiles(event) {
+    const selected = Array.from(event.target.files ?? []);
+    const accepted = selected.filter((file) => file.size <= 20 * 1024 * 1024);
+    const rejectedCount = selected.length - accepted.length;
+    const exceedsCount = chatAttachmentFiles.value.length + accepted.length > 10;
+
+    chatAttachmentFiles.value = [...chatAttachmentFiles.value, ...accepted].slice(0, 10);
+    if (rejectedCount > 0 || exceedsCount) {
+        messengerSendError.value = 'Можно отправить до 10 файлов, каждый — не более 20 МБ.';
+    }
+    event.target.value = '';
+}
+
+function removeChatFile(index) {
+    chatAttachmentFiles.value.splice(index, 1);
 }
 
 async function loadDocumentChips() {
@@ -1329,6 +1448,8 @@ function invokeCommandBar() {
 
 function closeChatPanel() {
     messengerSendError.value = '';
+    replyingTo.value = null;
+    chatAttachmentFiles.value = [];
     chatPanelOpen.value = false;
     showColleaguePicker.value = false;
     showGroupForm.value = false;

@@ -6,6 +6,8 @@ final class ContractorWorkStatus
 {
     public const ACTIVE = 'active';
 
+    public const IN_DEVELOPMENT = 'in_development';
+
     public const WORK_BAN = 'work_ban';
 
     public const WORK_PAUSE = 'work_pause';
@@ -17,6 +19,7 @@ final class ContractorWorkStatus
     {
         return [
             self::ACTIVE,
+            self::IN_DEVELOPMENT,
             self::WORK_BAN,
             self::WORK_PAUSE,
         ];
@@ -29,6 +32,7 @@ final class ContractorWorkStatus
     {
         return [
             self::ACTIVE,
+            self::IN_DEVELOPMENT,
             self::WORK_BAN,
         ];
     }
@@ -36,6 +40,7 @@ final class ContractorWorkStatus
     public static function label(?string $status): string
     {
         return match ($status) {
+            self::IN_DEVELOPMENT => 'В разработке',
             self::WORK_BAN => 'Запрет на работу',
             self::WORK_PAUSE => 'Пауза в работе',
             default => 'Активен',
@@ -55,6 +60,10 @@ final class ContractorWorkStatus
         }
 
         return match ($status) {
+            self::IN_DEVELOPMENT => [
+                'badge' => 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200',
+                'text' => self::label($status),
+            ],
             self::WORK_BAN => [
                 'badge' => 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300',
                 'text' => self::label($status),

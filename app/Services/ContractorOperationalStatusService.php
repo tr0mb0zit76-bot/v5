@@ -190,22 +190,32 @@ class ContractorOperationalStatusService
             return;
         }
 
+        if ($contractor->work_status === ContractorWorkStatus::WORK_BAN) {
+            return;
+        }
+
+        if ($lastOrderDate === null) {
+            $contractor->work_status = ContractorWorkStatus::IN_DEVELOPMENT;
+            $contractor->work_pause_is_automatic = false;
+
+            return;
+        }
+
         $inactiveThreshold = now()->subMonths(self::INACTIVITY_PAUSE_MONTHS)->startOfDay();
-        $hasRecentOrder = $lastOrderDate !== null && $lastOrderDate->gte($inactiveThreshold);
+        $hasRecentOrder = $lastOrderDate->gte($inactiveThreshold);
 
         if ($hasRecentOrder) {
             if (
-                $contractor->work_status === ContractorWorkStatus::WORK_PAUSE
-                && $contractor->work_pause_is_automatic
+                $contractor->work_status === ContractorWorkStatus::IN_DEVELOPMENT
+                || (
+                    $contractor->work_status === ContractorWorkStatus::WORK_PAUSE
+                    && $contractor->work_pause_is_automatic
+                )
             ) {
                 $contractor->work_status = ContractorWorkStatus::ACTIVE;
                 $contractor->work_pause_is_automatic = false;
             }
 
-            return;
-        }
-
-        if ($contractor->work_status === ContractorWorkStatus::WORK_BAN) {
             return;
         }
 

@@ -49,6 +49,10 @@ class ContractorManagementTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        $this->assertDatabaseHas('contractors', [
+            'name' => 'ООО Тест',
+            'work_status' => 'in_development',
+        ]);
 
         $response = $this->actingAs($admin)->get(route('contractors.index'));
 
@@ -60,11 +64,15 @@ class ContractorManagementTest extends TestCase
             ->where('contractorColumns', fn ($columns) => collect($columns)->contains(
                 fn ($column) => ($column['field'] ?? null) === 'name'
             ))
-            ->where('contractors.0.status_text', 'Пауза в работе')
+            ->where('contractors.0.status_text', 'В разработке')
             ->where('contractors.0.primary_contact', '—')
             ->has('legalFormOptions')
             ->where('legalFormOptions.0.label', 'ООО')
             ->has('paymentFormOptions')
+            ->where('workStatusOptions', fn ($options) => collect($options)->contains(
+                fn ($option) => ($option['value'] ?? null) === 'in_development'
+                    && ($option['label'] ?? null) === 'В разработке'
+            ))
         );
     }
 

@@ -236,9 +236,10 @@ export function useMessenger({ scrollTarget = null } = {}) {
 
     async function sendMessage(body, payload = {}) {
         const text = String(body ?? '').trim();
+        const attachments = Array.isArray(payload.attachments) ? payload.attachments : [];
         if (
             !activeConversation.value
-            || text === ''
+            || (text === '' && attachments.length === 0)
             || sending.value
             || activeConversation.value.can_post === false
         ) {
@@ -249,13 +250,34 @@ export function useMessenger({ scrollTarget = null } = {}) {
         error.value = '';
 
         try {
+            const clientMessageId = createClientMessageId();
+            let requestPayload;
+
+            if (attachments.length > 0) {
+                requestPayload = new FormData();
+                requestPayload.append('body', text);
+                requestPayload.append('client_message_id', clientMessageId);
+
+                for (const file of attachments) {
+                    requestPayload.append('attachments[]', file);
+                }
+
+                for (const [key, value] of Object.entries(payload)) {
+                    if (key !== 'attachments' && value !== null && value !== undefined && value !== '') {
+                        requestPayload.append(key, String(value));
+                    }
+                }
+            } else {
+                requestPayload = {
+                    body: text,
+                    client_message_id: clientMessageId,
+                    ...payload,
+                };
+            }
+
             const { data } = await axios.post(route('messenger.conversations.messages.store', {
                 conversation: activeConversation.value.id,
-            }), {
-                body: text,
-                client_message_id: createClientMessageId(),
-                ...payload,
-            }, {
+            }), requestPayload, {
                 headers: { Accept: 'application/json' },
             });
 
@@ -268,7 +290,10 @@ export function useMessenger({ scrollTarget = null } = {}) {
 
             return data.message ?? null;
         } catch (exception) {
-            const message = exception.response?.data?.message ?? exception.response?.data?.errors?.body?.[0];
+            const message = exception.response?.data?.message
+                ?? exception.response?.data?.errors?.body?.[0]
+                ?? exception.response?.data?.errors?.attachments?.[0]
+                ?? exception.response?.data?.errors?.['attachments.0']?.[0];
             error.value = typeof message === 'string' ? message : 'Не удалось отправить сообщение.';
             throw exception;
         } finally {

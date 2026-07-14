@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ContractorWorkStatus;
 use App\Support\EdoProviderDictionary;
 use App\Support\OwnFleetCatalog;
 use App\Support\RoleAccess;
@@ -16,6 +17,13 @@ use Illuminate\Support\Facades\Schema;
 
 class Contractor extends Model
 {
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'work_status' => ContractorWorkStatus::IN_DEVELOPMENT,
+    ];
+
     /**
      * @var list<string>
      */

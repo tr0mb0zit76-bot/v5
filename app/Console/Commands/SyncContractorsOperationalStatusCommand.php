@@ -10,7 +10,7 @@ class SyncContractorsOperationalStatusCommand extends Command
 {
     protected $signature = 'contractors:sync-operational-status {--chunk=200 : Размер пакета}';
 
-    protected $description = 'Синхронизирует паузу в работе и срок действия проверки контрагентов';
+    protected $description = 'Синхронизирует статус работы и срок действия проверки контрагентов';
 
     public function handle(ContractorOperationalStatusService $statusService): int
     {

@@ -382,7 +382,7 @@ function blankForm() {
         default_carrier_norms_penalties: blankPartyNormsPenalties(),
         cooperation_terms_notes: '',
         is_active: true,
-        work_status: 'active',
+        work_status: 'in_development',
         is_own_company: false,
         is_non_resident: false,
         has_english_requisites: false,
@@ -798,7 +798,7 @@ watch(() => form.is_own_company, (isOwnCompany) => {
     }
 
     form.is_active = true;
-    form.work_status = 'active';
+    form.work_status = 'in_development';
     form.stop_on_limit = false;
 });
 
@@ -2361,6 +2361,9 @@ function goToPage(pageNumber) {
                                                     <p v-if="form.work_status === 'work_pause'" class="text-xs text-amber-700 dark:text-amber-300">
                                                         Пауза назначается автоматически, если заказов не было более 3 месяцев.
                                                     </p>
+                                                    <p v-else-if="form.work_status === 'in_development'" class="text-xs text-indigo-700 dark:text-indigo-300">
+                                                        Перевозок с контрагентом ещё не было. После первой перевозки статус станет «Активен».
+                                                    </p>
                                                 </div>
                                                 <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
                                                     <input
@@ -2703,6 +2706,9 @@ function goToPage(pageNumber) {
                                                 </select>
                                                 <p v-if="form.work_status === 'work_pause'" class="text-xs text-amber-700 dark:text-amber-300">
                                                     Пауза назначается автоматически, если заказов не было более 3 месяцев.
+                                                </p>
+                                                <p v-else-if="form.work_status === 'in_development'" class="text-xs text-indigo-700 dark:text-indigo-300">
+                                                    Перевозок с контрагентом ещё не было. После первой перевозки статус станет «Активен».
                                                 </p>
                                                 <div v-if="form.errors.work_status" class="text-sm text-rose-600">{{ form.errors.work_status }}</div>
                                             </div>

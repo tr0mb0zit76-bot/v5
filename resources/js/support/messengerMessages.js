@@ -23,3 +23,17 @@ export function appendUniqueMessage(messages, message) {
 
     return exists ? messages : [...messages, message];
 }
+
+export function formatMessengerFileSize(bytes) {
+    const size = Number(bytes ?? 0);
+
+    if (size < 1024) {
+        return `${size} Б`;
+    }
+
+    if (size < 1024 * 1024) {
+        return `${Math.round(size / 1024)} КБ`;
+    }
+
+    return `${(size / (1024 * 1024)).toFixed(size >= 10 * 1024 * 1024 ? 0 : 1)} МБ`;
+}

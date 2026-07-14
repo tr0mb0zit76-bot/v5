@@ -35,6 +35,7 @@ use App\Http\Controllers\MailMailboxController;
 use App\Http\Controllers\MailThreadAnalysisController;
 use App\Http\Controllers\ManagementAccountingController;
 use App\Http\Controllers\ManagementAccountingImportController;
+use App\Http\Controllers\MessengerAttachmentController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\Mobile\MobileAppUpdateController;
 use App\Http\Controllers\Mobile\MobileCounterpartyShellController;
@@ -90,6 +91,9 @@ Route::get('/transport-request', [PublicTransportRequestController::class, 'crea
 Route::post('/transport-request', [PublicTransportRequestController::class, 'store'])
     ->middleware('throttle:10,1')
     ->name('public.transport-request.store');
+Route::get('/messenger/attachments/{attachment}', [MessengerAttachmentController::class, 'show'])
+    ->middleware('signed')
+    ->name('messenger.attachments.show');
 
 if ($sameShowcaseAndCrmHost) {
     // Один хост: лендинг и кабинет на одном origin (без редиректа витрина→CRM).

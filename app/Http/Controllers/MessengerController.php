@@ -4,14 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Enums\ConversationParticipantRole;
 use App\Enums\ConversationPostingPolicy;
+use App\Http\Requests\StoreChatMessageRequest;
 use App\Http\Requests\UpdateConversationGroupSettingsRequest;
 use App\Http\Requests\UpdateConversationParticipantRoleRequest;
 use App\Models\ChatMessage;
+use App\Models\ChatMessageAttachment;
 use App\Models\Contractor;
 use App\Models\Conversation;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\CabinetNotifier;
+use App\Services\ChatMessageAttachmentService;
 use App\Services\ExternalUsers\CounterpartyConversationService;
 use App\Services\MessengerGroupAccessService;
 use App\Services\MessengerService;
@@ -20,7 +23,9 @@ use App\Support\CounterpartyPartyResolver;
 use App\Support\ExternalParty;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -33,6 +38,7 @@ class MessengerController extends Controller
         private readonly CounterpartyConversationService $counterpartyConversationService,
         private readonly CounterpartyOrderAccess $counterpartyOrderAccess,
         private readonly CabinetNotifier $cabinetNotifier,
+        private readonly ChatMessageAttachmentService $chatMessageAttachments,
     ) {}
 
     public function unreadCount(Request $request): JsonResponse
@@ -353,7 +359,12 @@ class MessengerController extends Controller
 
         $query = ChatMessage::query()
             ->where('conversation_id', $conversation->id)
-            ->with(['author:id,name', 'recipient:id,name']);
+            ->with([
+                'author:id,name',
+                'recipient:id,name',
+                'replyTo.author:id,name',
+                'attachments',
+            ]);
 
         if ($afterId > 0) {
             $messages = $query
@@ -380,8 +391,10 @@ class MessengerController extends Controller
         ]);
     }
 
-    public function storeMessage(Request $request, Conversation $conversation): JsonResponse
-    {
+    public function storeMessage(
+        StoreChatMessageRequest $request,
+        Conversation $conversation,
+    ): JsonResponse {
         $user = $request->user();
         abort_if($user === null, 403);
         $this->authorizeParticipant($user, $conversation);
@@ -391,12 +404,7 @@ class MessengerController extends Controller
             'В этой группе отправлять сообщения могут только пользователи с разрешённой ролью.',
         );
 
-        $validated = $request->validate([
-            'body' => ['required', 'string', 'max:8000'],
-            'client_message_id' => ['nullable', 'uuid'],
-            'recipient_user_id' => ['nullable', 'integer', 'exists:users,id'],
-            'order_id' => ['nullable', 'integer', 'exists:orders,id'],
-        ]);
+        $validated = $request->validated();
 
         $recipientId = $validated['recipient_user_id'] ?? null;
         if ($conversation->type !== 'group') {
@@ -412,13 +420,16 @@ class MessengerController extends Controller
         $payload = [
             'conversation_id' => $conversation->id,
             'user_id' => $user->id,
-            'body' => $validated['body'],
+            'body' => (string) ($validated['body'] ?? ''),
         ];
         if (Schema::hasColumn('chat_messages', 'client_message_id')) {
             $payload['client_message_id'] = $validated['client_message_id'] ?? null;
         }
         if (Schema::hasColumn('chat_messages', 'recipient_user_id')) {
             $payload['recipient_user_id'] = $recipientId;
+        }
+        if (Schema::hasColumn('chat_messages', 'reply_to_message_id')) {
+            $payload['reply_to_message_id'] = $validated['reply_to_message_id'] ?? null;
         }
 
         if (
@@ -430,31 +441,58 @@ class MessengerController extends Controller
         }
 
         if (Schema::hasColumn('chat_messages', 'message_type')) {
-            $payload['message_type'] = 'text';
+            $payload['message_type'] = $request->hasFile('attachments') ? 'attachment' : 'text';
         }
 
         $clientMessageId = $payload['client_message_id'] ?? null;
-        if (is_string($clientMessageId) && $clientMessageId !== '') {
-            $message = ChatMessage::query()->firstOrCreate(
-                [
-                    'conversation_id' => $conversation->id,
-                    'user_id' => $user->id,
-                    'client_message_id' => $clientMessageId,
-                ],
-                collect($payload)
-                    ->except(['conversation_id', 'user_id', 'client_message_id'])
-                    ->all(),
-            );
-        } else {
-            $message = ChatMessage::query()->create($payload);
-        }
+        $message = DB::transaction(function () use (
+            $clientMessageId,
+            $conversation,
+            $payload,
+            $request,
+            $user,
+        ): ChatMessage {
+            if (is_string($clientMessageId) && $clientMessageId !== '') {
+                $message = ChatMessage::query()->firstOrCreate(
+                    [
+                        'conversation_id' => $conversation->id,
+                        'user_id' => $user->id,
+                        'client_message_id' => $clientMessageId,
+                    ],
+                    collect($payload)
+                        ->except(['conversation_id', 'user_id', 'client_message_id'])
+                        ->all(),
+                );
+            } else {
+                $message = ChatMessage::query()->create($payload);
+            }
+
+            if (
+                $message->wasRecentlyCreated
+                && Schema::hasTable('chat_message_attachments')
+                && $request->hasFile('attachments')
+            ) {
+                $this->chatMessageAttachments->storeForMessage(
+                    $message,
+                    $user,
+                    array_values($request->file('attachments', [])),
+                );
+            }
+
+            return $message;
+        });
 
         if ($message->wasRecentlyCreated) {
             $conversation->touch();
             $this->cabinetNotifier->notifyChatMessage($message, $user);
         }
 
-        $message->load(['author:id,name', 'recipient:id,name']);
+        $message->load([
+            'author:id,name',
+            'recipient:id,name',
+            'replyTo.author:id,name',
+            'attachments',
+        ]);
 
         return response()->json([
             'message' => $this->serializeMessage($message),
@@ -621,7 +659,9 @@ class MessengerController extends Controller
             ],
             'last_message' => $latest === null ? null : [
                 'user_id' => $latest->user_id,
-                'body' => Str::limit((string) $latest->body, 120),
+                'body' => filled($latest->body)
+                    ? Str::limit((string) $latest->body, 120)
+                    : '📎 Вложение',
                 'created_at' => $latest->created_at?->toIso8601String(),
                 'author_name' => $latest->author?->name,
                 'message_type' => Schema::hasColumn('chat_messages', 'message_type') ? $latest->message_type : 'text',
@@ -636,6 +676,13 @@ class MessengerController extends Controller
      */
     private function serializeMessage(ChatMessage $message): array
     {
+        $message->loadMissing([
+            'author:id,name',
+            'recipient:id,name',
+            'replyTo.author:id,name',
+            'attachments',
+        ]);
+
         return [
             'id' => $message->id,
             'user_id' => $message->user_id,
@@ -646,6 +693,36 @@ class MessengerController extends Controller
             'body' => $message->body,
             'order_id' => Schema::hasColumn('chat_messages', 'order_id') ? $message->order_id : null,
             'message_type' => Schema::hasColumn('chat_messages', 'message_type') ? ($message->message_type ?? 'text') : 'text',
+            'reply_to' => $message->replyTo === null ? null : [
+                'id' => $message->replyTo->id,
+                'user_id' => $message->replyTo->user_id,
+                'author_name' => $message->replyTo->author?->name,
+                'body' => filled($message->replyTo->body)
+                    ? Str::limit((string) $message->replyTo->body, 240)
+                    : '📎 Вложение',
+            ],
+            'attachments' => $message->attachments
+                ->map(fn (ChatMessageAttachment $attachment): array => [
+                    'id' => $attachment->id,
+                    'name' => $attachment->original_name,
+                    'mime_type' => $attachment->mime_type,
+                    'size' => $attachment->size,
+                    'width' => $attachment->width,
+                    'height' => $attachment->height,
+                    'is_image' => $attachment->isImage(),
+                    'preview_url' => URL::temporarySignedRoute(
+                        'messenger.attachments.show',
+                        now()->addHours(12),
+                        ['attachment' => $attachment->id],
+                    ),
+                    'download_url' => URL::temporarySignedRoute(
+                        'messenger.attachments.show',
+                        now()->addHours(12),
+                        ['attachment' => $attachment->id, 'download' => 1],
+                    ),
+                ])
+                ->values()
+                ->all(),
             'created_at' => $message->created_at?->toIso8601String(),
         ];
     }

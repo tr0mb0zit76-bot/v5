@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\Contractor\ContractorContextBuilder;
 use App\Services\DaDataService;
 use App\Support\ContractorIdentity;
+use App\Support\ContractorWorkStatus;
 use App\Support\MailSync\MailContractorAllowlist;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
@@ -154,7 +155,7 @@ class ContractorMcpService
         ];
 
         if (Schema::hasColumn('contractors', 'work_status')) {
-            $createAttributes['work_status'] = 'active';
+            $createAttributes['work_status'] = ContractorWorkStatus::IN_DEVELOPMENT;
         }
 
         $contractor = Contractor::query()->create($createAttributes);

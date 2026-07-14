@@ -235,7 +235,8 @@ class CabinetNotifier
                 $conversationTitle = $conversation->type === 'group'
                     ? ($conversation->title ?: 'Групповой чат')
                     : $author->name;
-                $body = sprintf('%s: %s', $author->name, mb_strimwidth((string) $message->body, 0, 160, '…'));
+                $messagePreview = filled($message->body) ? (string) $message->body : '📎 Вложение';
+                $body = sprintf('%s: %s', $author->name, mb_strimwidth($messagePreview, 0, 160, '…'));
                 $actionUrl = '/?messenger_conversation='.$conversation->id;
 
                 $this->mobilePushService->notifyUsers(

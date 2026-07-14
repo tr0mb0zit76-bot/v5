@@ -45,6 +45,7 @@
                     </div>
                     <div
                         v-else
+                        :data-message-id="message.id"
                         class="flex gap-2"
                         :class="message.user_id === currentUserId ? 'justify-end' : 'justify-start'"
                     >
@@ -63,7 +64,16 @@
                         >
                             {{ message.author_name ?? 'Пользователь' }}
                         </div>
-                        <p class="whitespace-pre-wrap break-words">
+                        <button
+                            v-if="message.reply_to"
+                            type="button"
+                            class="mb-2 block w-full rounded-lg border-l-2 border-sky-300 bg-black/15 px-2 py-1 text-left text-[11px]"
+                            @click="scrollToQuotedMessage(message.reply_to.id)"
+                        >
+                            <span class="block font-semibold text-sky-200">{{ message.reply_to.author_name || 'Сообщение' }}</span>
+                            <span class="block truncate opacity-75">{{ message.reply_to.body }}</span>
+                        </button>
+                        <p v-if="message.body" class="whitespace-pre-wrap break-words">
                             <template v-for="(segment, segmentIndex) in splitMessageSegments(message.body)" :key="`${message.id}-${segmentIndex}`">
                                 <template v-if="segment.type === 'url'">
                                     <MobileCrmLinkPreview
@@ -77,7 +87,36 @@
                                 <span v-else>{{ segment.value }}</span>
                             </template>
                         </p>
-                        <div class="mt-1 text-right text-[10px] opacity-70">{{ formatMessageTime(message.created_at) }}</div>
+                        <div v-if="message.attachments?.length" class="mt-2 space-y-2">
+                            <a
+                                v-for="attachment in message.attachments"
+                                :key="attachment.id"
+                                :href="attachment.download_url"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="block overflow-hidden rounded-xl border border-white/10 bg-black/15"
+                            >
+                                <img
+                                    v-if="attachment.is_image"
+                                    :src="attachment.preview_url"
+                                    :alt="attachment.name"
+                                    class="max-h-72 w-full object-contain"
+                                    loading="lazy"
+                                >
+                                <span class="flex items-center gap-2 px-2 py-2 text-xs">
+                                    <Paperclip class="h-3.5 w-3.5 shrink-0" />
+                                    <span class="min-w-0 flex-1 truncate">{{ attachment.name }}</span>
+                                    <span class="shrink-0 opacity-60">{{ formatMessengerFileSize(attachment.size) }}</span>
+                                </span>
+                            </a>
+                        </div>
+                        <div class="mt-1 flex items-center justify-end gap-2 text-[10px] opacity-70">
+                            <button type="button" class="inline-flex items-center gap-1" @click="startReply(message)">
+                                <Reply class="h-3 w-3" />
+                                Ответить
+                            </button>
+                            <span>{{ formatMessageTime(message.created_at) }}</span>
+                        </div>
                     </div>
                     </div>
                 </template>
@@ -88,6 +127,30 @@
                 class="shrink-0 border-t border-amber-400/20 bg-amber-500/10 px-4 py-2 text-xs text-amber-200"
             >
                 В этой группе отправка сообщений ограничена владельцем.
+            </div>
+            <div
+                v-if="replyingTo"
+                class="flex shrink-0 items-center gap-2 border-t border-white/10 bg-sky-500/10 px-4 py-2 text-xs"
+            >
+                <Reply class="h-4 w-4 shrink-0 text-sky-300" />
+                <div class="min-w-0 flex-1">
+                    <div class="font-semibold text-sky-200">{{ replyingTo.author_name || 'Сообщение' }}</div>
+                    <div class="truncate text-zinc-300">{{ replyingTo.body || '📎 Вложение' }}</div>
+                </div>
+                <button type="button" class="rounded-full p-1 text-zinc-400 active:bg-white/10" @click="replyingTo = null">
+                    <X class="h-4 w-4" />
+                </button>
+            </div>
+            <div v-if="chatFiles.length" class="flex shrink-0 gap-2 overflow-x-auto border-t border-white/10 px-3 py-2">
+                <div
+                    v-for="(file, fileIndex) in chatFiles"
+                    :key="`${file.name}-${file.size}-${fileIndex}`"
+                    class="flex max-w-56 shrink-0 items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[11px]"
+                >
+                    <Paperclip class="h-3 w-3 shrink-0" />
+                    <span class="truncate">{{ file.name }}</span>
+                    <button type="button" aria-label="Убрать файл" @click="removeChatFile(fileIndex)">×</button>
+                </div>
             </div>
             <form class="flex shrink-0 gap-2 border-t border-white/10 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]" @submit.prevent="submitMessage">
                 <button
@@ -111,7 +174,7 @@
                     class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-600 text-white disabled:opacity-50"
                     aria-label="Отправить"
                     title="Отправить"
-                    :disabled="!activeConversation || sending || activeConversation?.can_post === false || messageBody.trim() === ''"
+                    :disabled="!activeConversation || sending || activeConversation?.can_post === false || (messageBody.trim() === '' && chatFiles.length === 0)"
                 >
                     <Send class="h-5 w-5" />
                 </button>
@@ -123,6 +186,18 @@
                 @click.self="showThreadMenu = false"
             >
                 <div class="rounded-t-3xl border border-white/10 bg-zinc-900 p-3">
+                    <label
+                        class="flex w-full cursor-pointer rounded-2xl px-4 py-3 text-left text-sm font-medium text-zinc-100 active:bg-white/10"
+                    >
+                        Фото или файл в чат
+                        <input
+                            type="file"
+                            class="hidden"
+                            multiple
+                            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.rtf,.csv,.txt,.zip,.rar,.7z"
+                            @change="handleChatFiles"
+                        >
+                    </label>
                     <button
                         v-if="!isExternalUser"
                         type="button"
@@ -850,7 +925,7 @@
 import axios from 'axios';
 import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
-import { ArrowLeft, CheckSquare, FileText, Inbox, MessageCircle, Package, Phone, Plus, Search, Send, Upload, Users, X } from 'lucide-vue-next';
+import { ArrowLeft, CheckSquare, FileText, Inbox, MessageCircle, Package, Paperclip, Phone, Plus, Reply, Search, Send, Upload, Users, X } from 'lucide-vue-next';
 import { useMessenger } from '@/composables/useMessenger.js';
 import { useMessengerPolling } from '@/composables/useMessengerPolling.js';
 import { useMobileShell } from '@/composables/useMobileShell.js';
@@ -864,6 +939,7 @@ import MobileShareToChatPicker from '@/Components/Mobile/MobileShareToChatPicker
 import MobileShellEntityCard from '@/Components/Mobile/MobileShellEntityCard.vue';
 import { entityKindLabel, previewForCrmUrl, splitMessageSegments } from '@/support/mobileMessageLinks.js';
 import { buildDirectUnreadByUserId, formatConversationPreview } from '@/support/messengerConversationText.js';
+import { formatMessengerFileSize } from '@/support/messengerMessages.js';
 import { registerMobilePushIfAvailable } from '@/support/mobilePush.js';
 import { pushMobileRecent, readMobileRecents } from '@/support/mobileShellRecents.js';
 
@@ -902,6 +978,8 @@ const screen = ref('list');
 const activeTab = ref('chats');
 const search = ref('');
 const messageBody = ref('');
+const replyingTo = ref(null);
+const chatFiles = ref([]);
 const showGroupComposer = ref(false);
 const groupTitle = ref('');
 const groupMemberIds = ref([]);
@@ -1860,6 +1938,8 @@ async function refreshCounterpartyOrders() {
 }
 
 async function openConversationThread(conversation) {
+    replyingTo.value = null;
+    chatFiles.value = [];
     await selectConversation(conversation);
     screen.value = 'thread';
     await refreshCounterpartyOrders();
@@ -1943,6 +2023,8 @@ function backToChats() {
     screen.value = 'list';
     activeTab.value = 'chats';
     messageBody.value = '';
+    replyingTo.value = null;
+    chatFiles.value = [];
     clearActiveConversation();
     reloadAll();
 }
@@ -1986,8 +2068,43 @@ async function refreshActiveTab() {
 }
 
 async function submitMessage() {
-    await sendMessage(messageBody.value);
-    messageBody.value = '';
+    const sent = await sendMessage(messageBody.value, {
+        reply_to_message_id: replyingTo.value?.id ?? null,
+        attachments: chatFiles.value,
+    });
+
+    if (sent) {
+        messageBody.value = '';
+        replyingTo.value = null;
+        chatFiles.value = [];
+    }
+}
+
+function startReply(message) {
+    replyingTo.value = message;
+}
+
+function scrollToQuotedMessage(messageId) {
+    const element = messagesPanel.value?.querySelector(`[data-message-id="${Number(messageId)}"]`);
+    element?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+function handleChatFiles(event) {
+    const selected = Array.from(event.target.files ?? []);
+    const accepted = selected.filter((file) => file.size <= 20 * 1024 * 1024);
+    const exceedsCount = chatFiles.value.length + accepted.length > 10;
+
+    chatFiles.value = [...chatFiles.value, ...accepted].slice(0, 10);
+    if (accepted.length !== selected.length || exceedsCount) {
+        messengerError.value = 'Можно отправить до 10 файлов, каждый — не более 20 МБ.';
+    }
+
+    showThreadMenu.value = false;
+    event.target.value = '';
+}
+
+function removeChatFile(index) {
+    chatFiles.value.splice(index, 1);
 }
 
 async function submitGroup() {

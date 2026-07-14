@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ChatMessage extends Model
 {
@@ -17,6 +18,7 @@ class ChatMessage extends Model
         'user_id',
         'client_message_id',
         'recipient_user_id',
+        'reply_to_message_id',
         'body',
         'order_id',
         'message_type',
@@ -44,5 +46,21 @@ class ChatMessage extends Model
     public function recipient(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recipient_user_id');
+    }
+
+    /**
+     * @return BelongsTo<ChatMessage, $this>
+     */
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'reply_to_message_id');
+    }
+
+    /**
+     * @return HasMany<ChatMessageAttachment, $this>
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(ChatMessageAttachment::class);
     }
 }

@@ -4,7 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Models\UserMobileDevice;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -271,6 +274,108 @@ class MessengerTest extends TestCase
             'user_id' => $sender->id,
             'client_message_id' => $clientMessageId,
         ]);
+    }
+
+    public function test_message_can_quote_another_message_in_same_conversation(): void
+    {
+        $sender = User::factory()->create(['name' => 'Отправитель']);
+        $recipient = User::factory()->create();
+        $conversationId = (int) $this->actingAs($sender)
+            ->postJson(route('messenger.conversations.open'), ['user_id' => $recipient->id])
+            ->assertOk()
+            ->json('conversation.id');
+
+        $originalId = (int) $this->actingAs($sender)
+            ->postJson(route('messenger.conversations.messages.store', $conversationId), [
+                'body' => 'Исходное сообщение',
+            ])
+            ->assertOk()
+            ->json('message.id');
+
+        $this->actingAs($recipient)
+            ->postJson(route('messenger.conversations.messages.store', $conversationId), [
+                'body' => 'Ответ с цитатой',
+                'reply_to_message_id' => $originalId,
+            ])
+            ->assertOk()
+            ->assertJsonPath('message.reply_to.id', $originalId)
+            ->assertJsonPath('message.reply_to.author_name', 'Отправитель')
+            ->assertJsonPath('message.reply_to.body', 'Исходное сообщение');
+    }
+
+    public function test_message_cannot_quote_message_from_another_conversation(): void
+    {
+        $sender = User::factory()->create();
+        $firstRecipient = User::factory()->create();
+        $secondRecipient = User::factory()->create();
+        $firstConversationId = (int) $this->actingAs($sender)
+            ->postJson(route('messenger.conversations.open'), ['user_id' => $firstRecipient->id])
+            ->assertOk()
+            ->json('conversation.id');
+        $secondConversationId = (int) $this->actingAs($sender)
+            ->postJson(route('messenger.conversations.open'), ['user_id' => $secondRecipient->id])
+            ->assertOk()
+            ->json('conversation.id');
+        $foreignMessageId = (int) $this->actingAs($sender)
+            ->postJson(route('messenger.conversations.messages.store', $firstConversationId), [
+                'body' => 'Сообщение другого чата',
+            ])
+            ->assertOk()
+            ->json('message.id');
+
+        $this->actingAs($sender)
+            ->postJson(route('messenger.conversations.messages.store', $secondConversationId), [
+                'body' => 'Недопустимая цитата',
+                'reply_to_message_id' => $foreignMessageId,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['reply_to_message_id']);
+    }
+
+    public function test_attachment_only_message_is_private_and_idempotent(): void
+    {
+        Storage::fake('local');
+
+        $sender = User::factory()->create();
+        $recipient = User::factory()->create();
+        $conversationId = (int) $this->actingAs($sender)
+            ->postJson(route('messenger.conversations.open'), ['user_id' => $recipient->id])
+            ->assertOk()
+            ->json('conversation.id');
+        $clientMessageId = 'ac4ca84d-a04b-4af5-b8de-751e9c16bd71';
+
+        $first = $this->actingAs($sender)->post(
+            route('messenger.conversations.messages.store', $conversationId),
+            [
+                'body' => '',
+                'client_message_id' => $clientMessageId,
+                'attachments' => [UploadedFile::fake()->image('photo.jpg', 320, 200)],
+            ],
+            ['Accept' => 'application/json'],
+        )->assertOk()
+            ->assertJsonPath('message.body', '')
+            ->assertJsonPath('message.attachments.0.name', 'photo.jpg')
+            ->assertJsonPath('message.attachments.0.is_image', true);
+
+        $second = $this->actingAs($sender)->post(
+            route('messenger.conversations.messages.store', $conversationId),
+            [
+                'body' => '',
+                'client_message_id' => $clientMessageId,
+                'attachments' => [UploadedFile::fake()->image('duplicate.jpg')],
+            ],
+            ['Accept' => 'application/json'],
+        )->assertOk();
+
+        $this->assertSame($first->json('message.id'), $second->json('message.id'));
+        $this->assertDatabaseCount('chat_message_attachments', 1);
+
+        $path = (string) DB::table('chat_message_attachments')->value('path');
+        Storage::disk('local')->assertExists($path);
+
+        $this->get((string) $first->json('message.attachments.0.preview_url'))
+            ->assertOk()
+            ->assertHeader('content-type', 'image/jpeg');
     }
 
     public function test_group_owner_can_restrict_posting_to_owner(): void

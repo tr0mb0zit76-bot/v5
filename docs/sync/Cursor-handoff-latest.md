@@ -3,11 +3,11 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-14 12:20 (мессенджер: защита от дублей, права групп, единый поиск) · **HEAD:** `b9a9b81` + рабочее дерево · **Ветка:** `master`
+**Обновлено:** 2026-07-14 15:08 (контрагенты: статус «В разработке») · **HEAD:** `f028c4c` + рабочее дерево · **Ветка:** `master`
 
 > **Полный backlog аудита:** [`docs/sync/v5-local-Components-Code-Audit-2026-07.md`](v5-local-Components-Code-Audit-2026-07.md) → vault: `v5-local/Components/Code Audit 2026-07`
 
-### Итог сессии 2026-07-14 — надёжность и управление группами мессенджера
+### Итог сессии 2026-07-14 — мессенджер и статус новых контрагентов
 
 | Блок | Статус |
 | --- | --- |
@@ -15,9 +15,14 @@
 | **Защита отправки:** блокировка повторного submit, `client_message_id`, уникальность в БД, дедупликация ответа, rate limit | ✅ локально |
 | **Права групп:** owner/admin/member; режимы «все / владелец+админы / только владелец»; серверная проверка; desktop-настройки | ✅ локально |
 | **Поиск desktop:** поле «Поиск чатов и коллег» теперь объединяет начатые диалоги и контакты без нажатия «Новый чат» | ✅ локально |
-| **Проверки:** Messenger/Counterparty/Polling — 26 tests, 126 assertions; `npm run build` | ✅ |
+| **Ответы:** цитата исходного сообщения, переход к нему и отмена ответа в desktop/mobile | ✅ локально |
+| **Файлы и изображения:** до 10 × 20 МБ; приватный `local` storage; временные подписанные ссылки; preview изображений и скачивание файлов | ✅ локально |
+| **Безопасность вложений:** whitelist типов, цитата только внутри того же чата, attachment-only сообщения, идемпотентность повторной отправки | ✅ локально |
+| **Проверки:** Messenger/Counterparty/Polling — 29 tests, 150 assertions; `npm run build`; mobile UI открыт локально | ✅ |
+| **Контрагенты без перевозок:** новый статус `in_development` / «В разработке» в гриде и карточке; первая перевозка → «Активен»; перевозки были, но последняя старше 3 месяцев → «Пауза в работе» | ✅ локально |
+| **Проверки статуса:** 28 tests, 147 assertions (1 существующий skip); `npm run build`; карточка и подсказка проверены в браузере | ✅ |
 
-**На прод после commit/push:** `git pull` → `php artisan migrate --force` → `npm run build` → `php artisan optimize:clear`. Существующие дубли группы id=21 пока не удалять автоматически; сначала dry-run по одинаковым author/body в окне 5 секунд.
+**На прод после commit/push:** `git pull` → `php artisan migrate --force` → `php artisan contractors:sync-operational-status` → `npm run build` → `php artisan optimize:clear`. Директория `storage/app/private/chat-attachments/` должна быть доступна на запись PHP. Существующие дубли группы id=21 пока не удалять автоматически; сначала dry-run по одинаковым author/body в окне 5 секунд.
 
 ---
 
