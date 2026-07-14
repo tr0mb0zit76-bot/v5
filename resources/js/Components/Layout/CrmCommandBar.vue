@@ -147,7 +147,30 @@
                                     </div>
                                 </div>
                             </button>
-                            <div v-if="!conversationsLoading && filteredPanelConversations.length === 0" class="p-4 text-center text-xs text-zinc-500">
+                            <template v-if="messengerSearch.trim() && filteredSearchColleagues.length > 0">
+                                <div class="border-y border-zinc-100 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400 dark:border-zinc-800">
+                                    Коллеги
+                                </div>
+                                <button
+                                    v-for="u in filteredSearchColleagues"
+                                    :key="`search-colleague-${u.id}`"
+                                    type="button"
+                                    class="flex w-full items-center gap-3 border-b border-zinc-100 px-3 py-3 text-left text-xs hover:bg-white dark:border-zinc-800/80 dark:hover:bg-zinc-800/60"
+                                    @click="openWithUser(u)"
+                                >
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-sm font-bold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-100">
+                                        {{ String(u.name || '?').slice(0, 1).toUpperCase() }}
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="truncate font-medium text-zinc-900 dark:text-zinc-100">{{ u.name }}</div>
+                                        <div class="truncate text-[11px] text-zinc-500">{{ u.phone || u.email || 'Новый диалог' }}</div>
+                                    </div>
+                                </button>
+                            </template>
+                            <div
+                                v-if="!conversationsLoading && !colleaguesLoading && filteredPanelConversations.length === 0 && filteredSearchColleagues.length === 0"
+                                class="p-4 text-center text-xs text-zinc-500"
+                            >
                                 {{ messengerSearch.trim() ? 'Ничего не найдено.' : 'Нет диалогов. Нажмите «Новый чат».' }}
                             </div>
                             </div>
@@ -159,6 +182,65 @@
                                     <div class="truncate font-semibold text-zinc-900 dark:text-zinc-50">{{ activeConversationTitle }}</div>
                                     <div class="text-xs text-zinc-500 dark:text-zinc-400">
                                         {{ activeConversation?.type === 'group' ? `${activeConversation.member_count} участников` : 'Личный чат' }}
+                                    </div>
+                                </div>
+                                <button
+                                    v-if="activeConversation?.type === 'group' && activeConversation?.can_manage"
+                                    type="button"
+                                    class="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                    @click="toggleGroupSettings"
+                                >
+                                    {{ showGroupSettings ? 'Закрыть настройки' : 'Настройки группы' }}
+                                </button>
+                            </div>
+
+                            <div
+                                v-if="showGroupSettings && activeConversation?.type === 'group' && activeConversation?.can_manage"
+                                class="shrink-0 space-y-3 border-b border-zinc-200 bg-zinc-50 px-5 py-3 text-xs dark:border-zinc-800 dark:bg-zinc-950/50"
+                            >
+                                <div class="grid gap-3 md:grid-cols-2">
+                                    <label class="space-y-1">
+                                        <span class="font-medium text-zinc-600 dark:text-zinc-300">Название</span>
+                                        <input v-model="groupSettingsTitle" type="text" maxlength="255" :class="crmFieldFluid">
+                                    </label>
+                                    <label class="space-y-1">
+                                        <span class="font-medium text-zinc-600 dark:text-zinc-300">Кто может писать</span>
+                                        <select v-model="groupSettingsPostingPolicy" :class="crmFieldFluid">
+                                            <option value="members">Все участники</option>
+                                            <option value="admins">Владелец и администраторы</option>
+                                            <option value="owner">Только владелец</option>
+                                        </select>
+                                    </label>
+                                </div>
+                                <div class="flex justify-end">
+                                    <button
+                                        type="button"
+                                        :class="crmBtnPrimary"
+                                        :disabled="groupSettingsSaving || !groupSettingsTitle.trim()"
+                                        @click="saveGroupSettings"
+                                    >
+                                        {{ groupSettingsSaving ? 'Сохранение…' : 'Сохранить настройки' }}
+                                    </button>
+                                </div>
+                                <div class="space-y-1">
+                                    <div class="font-medium text-zinc-600 dark:text-zinc-300">Роли участников</div>
+                                    <div
+                                        v-for="member in activeConversation.group_members"
+                                        :key="`group-role-${member.id}`"
+                                        class="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 dark:bg-zinc-900"
+                                    >
+                                        <span class="truncate text-zinc-800 dark:text-zinc-100">{{ member.name }}</span>
+                                        <span v-if="member.role === 'owner'" class="text-zinc-500">Владелец</span>
+                                        <select
+                                            v-else
+                                            :value="member.role"
+                                            class="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-900"
+                                            :disabled="groupRoleSavingUserId === Number(member.id)"
+                                            @change="changeGroupMemberRole(member, $event.target.value)"
+                                        >
+                                            <option value="member">Участник</option>
+                                            <option value="admin">Администратор</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -240,6 +322,12 @@
                         v-if="activeConversationId"
                         class="ml-80 shrink-0 space-y-2 border-t border-zinc-200 bg-zinc-50/95 p-3 dark:border-zinc-800 dark:bg-zinc-900/95"
                     >
+                        <p
+                            v-if="activeConversation?.can_post === false"
+                            class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
+                        >
+                            В этой группе отправка сообщений ограничена владельцем.
+                        </p>
                         <div
                             v-if="activeConversation?.type === 'group'"
                             class="flex items-center gap-2"
@@ -340,6 +428,7 @@
                                 rows="1"
                                 class="w-full resize-none bg-transparent text-sm outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
                                 :placeholder="inputPlaceholder"
+                                :disabled="messengerSending || activeConversation?.can_post === false"
                                 @keydown="handleKeydown"
                                 @input="onComposerInput"
                             />
@@ -551,6 +640,7 @@ import { router, usePage } from '@inertiajs/vue3';
 import CrmNotificationBell from '@/Components/Layout/CrmNotificationBell.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import { formatConversationPreview } from '@/support/messengerConversationText.js';
+import { appendUniqueMessage, createClientMessageId } from '@/support/messengerMessages.js';
 import { crmBtnCreate, crmBtnPrimary, crmFieldFluid } from '@/support/crmUi.js';
 import {
     ClipboardList,
@@ -626,10 +716,16 @@ const activeConversationId = ref(null);
 const activeConversation = ref(null);
 const threadMessages = ref([]);
 const threadLoading = ref(false);
+const messengerSending = ref(false);
 const messengerUnread = ref(0);
 const messengerSearch = ref('');
 const messengerSendError = ref('');
 const groupRecipientId = ref('');
+const showGroupSettings = ref(false);
+const groupSettingsTitle = ref('');
+const groupSettingsPostingPolicy = ref('members');
+const groupSettingsSaving = ref(false);
+const groupRoleSavingUserId = ref(null);
 const showDocumentChips = ref(false);
 const documentChips = ref([]);
 const documentChipsLoading = ref(false);
@@ -707,6 +803,24 @@ const filteredPanelColleagues = computed(() => {
     );
 });
 
+const filteredSearchColleagues = computed(() => {
+    const needle = messengerSearch.value.trim().toLowerCase();
+    if (needle === '') {
+        return [];
+    }
+
+    const directUserIds = new Set(
+        conversations.value
+            .filter((conversation) => conversation.type === 'direct')
+            .map((conversation) => Number(conversation.other_user?.id))
+            .filter((id) => Number.isFinite(id)),
+    );
+
+    return filteredPanelColleagues.value.filter(
+        (user) => !directUserIds.has(Number(user.id)),
+    );
+});
+
 const groupMemberOptions = computed(() => {
     const list = activeConversation.value?.group_members;
     return Array.isArray(list) ? list : [];
@@ -746,7 +860,9 @@ const inputPlaceholder = computed(() => {
 
 const isDisabled = computed(() => {
     if (isChatInputMode.value) {
-        return !message.value.trim();
+        return messengerSending.value
+            || activeConversation.value?.can_post === false
+            || !message.value.trim();
     }
 
     return !message.value.trim() && attachedFiles.value.length === 0;
@@ -816,6 +932,9 @@ function syncActiveConversationFromList() {
     const found = conversations.value.find((x) => Number(x.id) === Number(id));
     if (found) {
         activeConversation.value = found;
+        if (showGroupSettings.value) {
+            syncGroupSettingsForm(found);
+        }
     }
 }
 
@@ -851,6 +970,8 @@ async function selectConversation(c) {
     activeConversationId.value = Number(c.id);
     showColleaguePicker.value = false;
     showGroupForm.value = false;
+    showGroupSettings.value = false;
+    syncGroupSettingsForm(c);
     await loadThread(Number(c.id));
 }
 
@@ -934,15 +1055,24 @@ function syncRecipientFromAtMention() {
 async function sendChatMessage() {
     const text = message.value.trim();
     const cid = activeConversationId.value;
-    if (!text || cid === null) {
+    if (
+        !text
+        || cid === null
+        || messengerSending.value
+        || activeConversation.value?.can_post === false
+    ) {
         return;
     }
 
+    messengerSending.value = true;
     messengerSendError.value = '';
     syncRecipientFromAtMention();
     mentionState.value = null;
     try {
-        const payload = { body: text };
+        const payload = {
+            body: text,
+            client_message_id: createClientMessageId(),
+        };
         if (activeConversation.value?.type === 'group' && groupRecipientId.value !== '') {
             payload.recipient_user_id = Number(groupRecipientId.value);
         }
@@ -953,7 +1083,7 @@ async function sendChatMessage() {
             { headers: { Accept: 'application/json' } },
         );
         if (data.message) {
-            threadMessages.value = [...threadMessages.value, data.message];
+            threadMessages.value = appendUniqueMessage(threadMessages.value, data.message);
         }
         message.value = '';
         nextTick(() => {
@@ -967,6 +1097,8 @@ async function sendChatMessage() {
     } catch (error) {
         const msg = error.response?.data?.message ?? error.response?.data?.errors?.body?.[0];
         messengerSendError.value = typeof msg === 'string' ? msg : 'Не удалось отправить сообщение.';
+    } finally {
+        messengerSending.value = false;
     }
 }
 
@@ -1072,15 +1204,98 @@ async function createGroup() {
     }
 }
 
+function syncGroupSettingsForm(conversation = activeConversation.value) {
+    groupSettingsTitle.value = conversation?.title ?? '';
+    groupSettingsPostingPolicy.value = conversation?.posting_policy ?? 'members';
+}
+
+function applyConversationUpdate(conversation) {
+    if (!conversation) {
+        return;
+    }
+
+    conversations.value = conversations.value.map((candidate) =>
+        Number(candidate.id) === Number(conversation.id) ? conversation : candidate,
+    );
+    activeConversation.value = conversation;
+    activeConversationId.value = Number(conversation.id);
+    syncGroupSettingsForm(conversation);
+}
+
+function toggleGroupSettings() {
+    showGroupSettings.value = !showGroupSettings.value;
+    if (showGroupSettings.value) {
+        syncGroupSettingsForm();
+    }
+}
+
+async function saveGroupSettings() {
+    if (!activeConversation.value?.can_manage || groupSettingsSaving.value) {
+        return;
+    }
+
+    groupSettingsSaving.value = true;
+    messengerSendError.value = '';
+
+    try {
+        const { data } = await axios.patch(route('messenger.conversations.group-settings.update', {
+            conversation: activeConversation.value.id,
+        }), {
+            title: groupSettingsTitle.value.trim(),
+            posting_policy: groupSettingsPostingPolicy.value,
+        }, {
+            headers: { Accept: 'application/json' },
+        });
+
+        applyConversationUpdate(data.conversation);
+    } catch (error) {
+        const msg = error.response?.data?.message
+            ?? error.response?.data?.errors?.title?.[0]
+            ?? error.response?.data?.errors?.posting_policy?.[0];
+        messengerSendError.value = typeof msg === 'string' ? msg : 'Не удалось сохранить настройки группы.';
+    } finally {
+        groupSettingsSaving.value = false;
+    }
+}
+
+async function changeGroupMemberRole(member, role) {
+    if (!activeConversation.value?.can_manage || groupRoleSavingUserId.value !== null) {
+        return;
+    }
+
+    groupRoleSavingUserId.value = Number(member.id);
+    messengerSendError.value = '';
+
+    try {
+        const { data } = await axios.patch(route('messenger.conversations.participants.role.update', {
+            conversation: activeConversation.value.id,
+            participant: member.id,
+        }), {
+            role,
+        }, {
+            headers: { Accept: 'application/json' },
+        });
+
+        applyConversationUpdate(data.conversation);
+    } catch (error) {
+        const msg = error.response?.data?.message ?? error.response?.data?.errors?.role?.[0];
+        messengerSendError.value = typeof msg === 'string' ? msg : 'Не удалось изменить роль участника.';
+    } finally {
+        groupRoleSavingUserId.value = null;
+    }
+}
+
 function toggleChatPanel() {
     messengerSendError.value = '';
     chatPanelOpen.value = !chatPanelOpen.value;
     if (chatPanelOpen.value) {
         loadConversations();
+        loadColleagues();
         fetchMessengerUnread();
     } else {
         showColleaguePicker.value = false;
         showGroupForm.value = false;
+        showGroupSettings.value = false;
         showDocumentChips.value = false;
         documentChipSearch.value = '';
     }
@@ -1117,6 +1332,7 @@ function closeChatPanel() {
     chatPanelOpen.value = false;
     showColleaguePicker.value = false;
     showGroupForm.value = false;
+    showGroupSettings.value = false;
     showDocumentChips.value = false;
     documentChipSearch.value = '';
 }

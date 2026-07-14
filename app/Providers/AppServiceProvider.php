@@ -101,6 +101,18 @@ class AppServiceProvider extends ServiceProvider
                 : Limit::perMinute(5)->by('agent-cmd-ip-'.($request->ip() ?? 'unknown'));
         });
 
+        RateLimiter::for('messenger-send', function (Request $request) {
+            $userKey = $request->user()?->id ?? $request->ip() ?? 'unknown';
+            $conversationKey = $request->route('conversation');
+
+            if (is_object($conversationKey) && isset($conversationKey->id)) {
+                $conversationKey = $conversationKey->id;
+            }
+
+            return Limit::perMinute(60)
+                ->by('messenger-send-'.$userKey.'-'.$conversationKey);
+        });
+
         RateLimiter::for('order-intake', function (Request $request) {
             $user = $request->user();
 

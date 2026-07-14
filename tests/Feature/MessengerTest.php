@@ -238,6 +238,137 @@ class MessengerTest extends TestCase
             ->assertJsonValidationErrors(['recipient_user_id']);
     }
 
+    public function test_repeated_client_message_id_creates_only_one_message(): void
+    {
+        $sender = User::factory()->create();
+        $recipient = User::factory()->create();
+        $conversationId = (int) $this->actingAs($sender)
+            ->postJson(route('messenger.conversations.open'), ['user_id' => $recipient->id])
+            ->assertOk()
+            ->json('conversation.id');
+        $clientMessageId = '8cf458c4-13c8-4c13-a824-d1ef279dd17e';
+
+        $first = $this->actingAs($sender)->postJson(
+            route('messenger.conversations.messages.store', $conversationId),
+            [
+                'body' => 'Отправить только один раз',
+                'client_message_id' => $clientMessageId,
+            ],
+        )->assertOk();
+
+        $second = $this->actingAs($sender)->postJson(
+            route('messenger.conversations.messages.store', $conversationId),
+            [
+                'body' => 'Отправить только один раз',
+                'client_message_id' => $clientMessageId,
+            ],
+        )->assertOk();
+
+        $this->assertSame($first->json('message.id'), $second->json('message.id'));
+        $this->assertDatabaseCount('chat_messages', 1);
+        $this->assertDatabaseHas('chat_messages', [
+            'conversation_id' => $conversationId,
+            'user_id' => $sender->id,
+            'client_message_id' => $clientMessageId,
+        ]);
+    }
+
+    public function test_group_owner_can_restrict_posting_to_owner(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+        $conversationId = (int) $this->actingAs($owner)
+            ->postJson(route('messenger.conversations.groups.store'), [
+                'title' => 'Объявления',
+                'user_ids' => [$member->id],
+            ])
+            ->assertOk()
+            ->assertJsonPath('conversation.viewer_role', 'owner')
+            ->assertJsonPath('conversation.can_manage', true)
+            ->json('conversation.id');
+
+        $this->actingAs($owner)->patchJson(
+            route('messenger.conversations.group-settings.update', $conversationId),
+            [
+                'title' => 'Важные объявления',
+                'posting_policy' => 'owner',
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath('conversation.title', 'Важные объявления')
+            ->assertJsonPath('conversation.posting_policy', 'owner');
+
+        $this->actingAs($member)->postJson(
+            route('messenger.conversations.messages.store', $conversationId),
+            ['body' => 'Участник не должен отправить'],
+        )->assertForbidden();
+
+        $this->actingAs($owner)->postJson(
+            route('messenger.conversations.messages.store', $conversationId),
+            ['body' => 'Сообщение владельца'],
+        )->assertOk();
+    }
+
+    public function test_group_owner_can_promote_admin_for_admin_only_posting(): void
+    {
+        $owner = User::factory()->create();
+        $admin = User::factory()->create();
+        $member = User::factory()->create();
+        $conversationId = (int) $this->actingAs($owner)
+            ->postJson(route('messenger.conversations.groups.store'), [
+                'title' => 'Руководители',
+                'user_ids' => [$admin->id, $member->id],
+            ])
+            ->assertOk()
+            ->json('conversation.id');
+
+        $this->actingAs($owner)->patchJson(
+            route('messenger.conversations.participants.role.update', [
+                'conversation' => $conversationId,
+                'participant' => $admin->id,
+            ]),
+            ['role' => 'admin'],
+        )
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $admin->id,
+                'role' => 'admin',
+            ]);
+
+        $this->actingAs($owner)->patchJson(
+            route('messenger.conversations.group-settings.update', $conversationId),
+            ['posting_policy' => 'admins'],
+        )->assertOk();
+
+        $this->actingAs($admin)->postJson(
+            route('messenger.conversations.messages.store', $conversationId),
+            ['body' => 'Сообщение администратора'],
+        )->assertOk();
+
+        $this->actingAs($member)->postJson(
+            route('messenger.conversations.messages.store', $conversationId),
+            ['body' => 'Сообщение участника'],
+        )->assertForbidden();
+    }
+
+    public function test_group_member_cannot_change_group_settings(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+        $conversationId = (int) $this->actingAs($owner)
+            ->postJson(route('messenger.conversations.groups.store'), [
+                'title' => 'Закрытая группа',
+                'user_ids' => [$member->id],
+            ])
+            ->assertOk()
+            ->json('conversation.id');
+
+        $this->actingAs($member)->patchJson(
+            route('messenger.conversations.group-settings.update', $conversationId),
+            ['posting_policy' => 'owner'],
+        )->assertForbidden();
+    }
+
     public function test_document_chips_endpoint_returns_json(): void
     {
         $user = User::factory()->create();

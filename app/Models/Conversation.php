@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ConversationPostingPolicy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -17,11 +18,22 @@ class Conversation extends Model
         'type',
         'title',
         'created_by',
+        'posting_policy',
         'channel',
         'contractor_id',
         'external_party',
         'primary_staff_user_id',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'posting_policy' => ConversationPostingPolicy::class,
+        ];
+    }
 
     /**
      * @return BelongsTo<User, $this>
@@ -53,7 +65,7 @@ class Conversation extends Model
     public function participants(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'conversation_participants')
-            ->withPivot('last_read_at')
+            ->withPivot(['last_read_at', 'role'])
             ->withTimestamps();
     }
 

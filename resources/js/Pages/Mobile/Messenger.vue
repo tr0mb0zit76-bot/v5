@@ -83,6 +83,12 @@
                 </template>
             </main>
 
+            <div
+                v-if="activeConversation?.can_post === false"
+                class="shrink-0 border-t border-amber-400/20 bg-amber-500/10 px-4 py-2 text-xs text-amber-200"
+            >
+                В этой группе отправка сообщений ограничена владельцем.
+            </div>
             <form class="flex shrink-0 gap-2 border-t border-white/10 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]" @submit.prevent="submitMessage">
                 <button
                     type="button"
@@ -96,7 +102,7 @@
                     v-model="messageBody"
                     rows="1"
                     class="min-h-11 flex-1 resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-sky-500"
-                    :disabled="!activeConversation || sending"
+                    :disabled="!activeConversation || sending || activeConversation?.can_post === false"
                     placeholder="Сообщение"
                     @keydown.enter.exact.prevent="submitMessage"
                 />
@@ -105,7 +111,7 @@
                     class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-600 text-white disabled:opacity-50"
                     aria-label="Отправить"
                     title="Отправить"
-                    :disabled="!activeConversation || sending || messageBody.trim() === ''"
+                    :disabled="!activeConversation || sending || activeConversation?.can_post === false || messageBody.trim() === ''"
                 >
                     <Send class="h-5 w-5" />
                 </button>

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ConversationParticipantRole;
 use App\Models\ChatMessage;
 use App\Models\Conversation;
 use App\Models\User;
@@ -104,9 +105,11 @@ class MessengerService
 
             $conversation = Conversation::query()->create($payload);
 
-            $attach = [$creator->id => []];
+            $attach = [
+                $creator->id => ['role' => ConversationParticipantRole::Owner->value],
+            ];
             foreach ($ids as $userId) {
-                $attach[$userId] = [];
+                $attach[$userId] = ['role' => ConversationParticipantRole::Member->value];
             }
             $conversation->participants()->attach($attach);
 

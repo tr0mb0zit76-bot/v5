@@ -13,7 +13,11 @@ Route::middleware(['auth:sanctum'])
         Route::get('/conversations', [MessengerController::class, 'conversations'])->name('conversations.index');
         Route::post('/conversations/open', [MessengerController::class, 'openDirect'])->name('conversations.open');
         Route::post('/conversations/groups', [MessengerController::class, 'storeGroup'])->name('conversations.groups.store');
+        Route::patch('/conversations/{conversation}/group-settings', [MessengerController::class, 'updateGroupSettings'])->name('conversations.group-settings.update');
+        Route::patch('/conversations/{conversation}/participants/{participant}/role', [MessengerController::class, 'updateParticipantRole'])->name('conversations.participants.role.update');
         Route::get('/conversations/{conversation}/messages', [MessengerController::class, 'messages'])->name('conversations.messages');
-        Route::post('/conversations/{conversation}/messages', [MessengerController::class, 'storeMessage'])->name('conversations.messages.store');
+        Route::post('/conversations/{conversation}/messages', [MessengerController::class, 'storeMessage'])
+            ->middleware('throttle:messenger-send')
+            ->name('conversations.messages.store');
         Route::post('/conversations/{conversation}/read', [MessengerController::class, 'markRead'])->name('conversations.read');
     });

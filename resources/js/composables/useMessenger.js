@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { nextTick, ref } from 'vue';
+import { appendUniqueMessage, createClientMessageId } from '@/support/messengerMessages.js';
 
 export function useMessenger({ scrollTarget = null } = {}) {
     const conversations = ref([]);
@@ -235,7 +236,12 @@ export function useMessenger({ scrollTarget = null } = {}) {
 
     async function sendMessage(body, payload = {}) {
         const text = String(body ?? '').trim();
-        if (!activeConversation.value || text === '') {
+        if (
+            !activeConversation.value
+            || text === ''
+            || sending.value
+            || activeConversation.value.can_post === false
+        ) {
             return null;
         }
 
@@ -247,13 +253,14 @@ export function useMessenger({ scrollTarget = null } = {}) {
                 conversation: activeConversation.value.id,
             }), {
                 body: text,
+                client_message_id: createClientMessageId(),
                 ...payload,
             }, {
                 headers: { Accept: 'application/json' },
             });
 
             if (data.message) {
-                messages.value = [...messages.value, data.message];
+                messages.value = appendUniqueMessage(messages.value, data.message);
             }
 
             await loadConversations();

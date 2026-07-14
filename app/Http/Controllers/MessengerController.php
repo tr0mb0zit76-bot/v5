@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ConversationParticipantRole;
+use App\Enums\ConversationPostingPolicy;
+use App\Http\Requests\UpdateConversationGroupSettingsRequest;
+use App\Http\Requests\UpdateConversationParticipantRoleRequest;
 use App\Models\ChatMessage;
 use App\Models\Contractor;
 use App\Models\Conversation;
@@ -9,6 +13,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\CabinetNotifier;
 use App\Services\ExternalUsers\CounterpartyConversationService;
+use App\Services\MessengerGroupAccessService;
 use App\Services\MessengerService;
 use App\Support\CounterpartyOrderAccess;
 use App\Support\CounterpartyPartyResolver;
@@ -24,6 +29,7 @@ class MessengerController extends Controller
 {
     public function __construct(
         private readonly MessengerService $messengerService,
+        private readonly MessengerGroupAccessService $messengerGroupAccess,
         private readonly CounterpartyConversationService $counterpartyConversationService,
         private readonly CounterpartyOrderAccess $counterpartyOrderAccess,
         private readonly CabinetNotifier $cabinetNotifier,
@@ -295,6 +301,47 @@ class MessengerController extends Controller
         ]);
     }
 
+    public function updateGroupSettings(
+        UpdateConversationGroupSettingsRequest $request,
+        Conversation $conversation,
+    ): JsonResponse {
+        $user = $request->user();
+        abort_if($user === null, 403);
+        abort_unless($this->messengerGroupAccess->canManage($conversation, $user), 403);
+
+        $conversation->update($request->validated());
+        $conversation->load(['latestMessage.author:id,name', 'participants', 'contractor:id,name']);
+
+        return response()->json([
+            'conversation' => $this->serializeConversation($conversation, $user),
+        ]);
+    }
+
+    public function updateParticipantRole(
+        UpdateConversationParticipantRoleRequest $request,
+        Conversation $conversation,
+        User $participant,
+    ): JsonResponse {
+        $user = $request->user();
+        abort_if($user === null, 403);
+        abort_unless($this->messengerGroupAccess->canManage($conversation, $user), 403);
+        abort_if((int) $participant->id === (int) $conversation->created_by, 422);
+        abort_unless(
+            $conversation->participants()->where('users.id', $participant->id)->exists(),
+            404,
+        );
+
+        $role = ConversationParticipantRole::from($request->validated('role'));
+        $conversation->participants()->updateExistingPivot($participant->id, [
+            'role' => $role->value,
+        ]);
+        $conversation->load(['latestMessage.author:id,name', 'participants', 'contractor:id,name']);
+
+        return response()->json([
+            'conversation' => $this->serializeConversation($conversation, $user),
+        ]);
+    }
+
     public function messages(Request $request, Conversation $conversation): JsonResponse
     {
         $user = $request->user();
@@ -338,9 +385,15 @@ class MessengerController extends Controller
         $user = $request->user();
         abort_if($user === null, 403);
         $this->authorizeParticipant($user, $conversation);
+        abort_unless(
+            $this->messengerGroupAccess->canPost($conversation, $user),
+            403,
+            'В этой группе отправлять сообщения могут только пользователи с разрешённой ролью.',
+        );
 
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:8000'],
+            'client_message_id' => ['nullable', 'uuid'],
             'recipient_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'order_id' => ['nullable', 'integer', 'exists:orders,id'],
         ]);
@@ -361,6 +414,9 @@ class MessengerController extends Controller
             'user_id' => $user->id,
             'body' => $validated['body'],
         ];
+        if (Schema::hasColumn('chat_messages', 'client_message_id')) {
+            $payload['client_message_id'] = $validated['client_message_id'] ?? null;
+        }
         if (Schema::hasColumn('chat_messages', 'recipient_user_id')) {
             $payload['recipient_user_id'] = $recipientId;
         }
@@ -377,12 +433,28 @@ class MessengerController extends Controller
             $payload['message_type'] = 'text';
         }
 
-        $message = ChatMessage::query()->create($payload);
+        $clientMessageId = $payload['client_message_id'] ?? null;
+        if (is_string($clientMessageId) && $clientMessageId !== '') {
+            $message = ChatMessage::query()->firstOrCreate(
+                [
+                    'conversation_id' => $conversation->id,
+                    'user_id' => $user->id,
+                    'client_message_id' => $clientMessageId,
+                ],
+                collect($payload)
+                    ->except(['conversation_id', 'user_id', 'client_message_id'])
+                    ->all(),
+            );
+        } else {
+            $message = ChatMessage::query()->create($payload);
+        }
 
-        $conversation->touch();
+        if ($message->wasRecentlyCreated) {
+            $conversation->touch();
+            $this->cabinetNotifier->notifyChatMessage($message, $user);
+        }
 
         $message->load(['author:id,name', 'recipient:id,name']);
-        $this->cabinetNotifier->notifyChatMessage($message, $user);
 
         return response()->json([
             'message' => $this->serializeMessage($message),
@@ -512,8 +584,18 @@ class MessengerController extends Controller
             ? $conversation->participants->sortBy('name')->map(fn (User $u): array => [
                 'id' => $u->id,
                 'name' => $u->name,
+                'role' => (int) $u->id === (int) $conversation->created_by
+                    ? ConversationParticipantRole::Owner->value
+                    : (ConversationParticipantRole::tryFrom((string) $u->pivot?->role)
+                        ?? ConversationParticipantRole::Member)->value,
             ])->values()->all()
             : [];
+        $postingPolicy = $conversation->posting_policy instanceof ConversationPostingPolicy
+            ? $conversation->posting_policy
+            : ConversationPostingPolicy::tryFrom((string) $conversation->posting_policy);
+        $viewerRole = $conversation->type === 'group'
+            ? $this->messengerGroupAccess->roleFor($conversation, $viewer)
+            : null;
 
         return [
             'id' => $conversation->id,
@@ -523,6 +605,11 @@ class MessengerController extends Controller
             'contractor_name' => $conversation->contractor?->name,
             'external_party' => $conversation->external_party,
             'title' => $conversation->type === 'group' ? $conversation->title : null,
+            'created_by' => $conversation->created_by,
+            'posting_policy' => ($postingPolicy ?? ConversationPostingPolicy::Members)->value,
+            'viewer_role' => $viewerRole?->value,
+            'can_post' => $this->messengerGroupAccess->canPost($conversation, $viewer),
+            'can_manage' => $this->messengerGroupAccess->canManage($conversation, $viewer),
             'member_count' => $memberCount,
             'members_preview' => $membersPreview,
             'group_members' => $groupMembers,
@@ -552,6 +639,7 @@ class MessengerController extends Controller
         return [
             'id' => $message->id,
             'user_id' => $message->user_id,
+            'client_message_id' => $message->client_message_id,
             'author_name' => $message->author?->name,
             'recipient_user_id' => $message->recipient_user_id,
             'recipient_name' => $message->recipient?->name,
