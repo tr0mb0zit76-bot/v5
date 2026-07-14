@@ -80,6 +80,72 @@
             </div>
 
             <div v-if="activeTab === 'main'" class="space-y-5">
+                <section class="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+                    <div class="flex items-center justify-between gap-2">
+                        <h3 class="text-base font-semibold">Клиент</h3>
+                        <button
+                            type="button"
+                            class="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                            @mousedown.prevent
+                            @click.stop="openLeadCounterpartyModal"
+                        >
+                            Новый контрагент
+                        </button>
+                    </div>
+                    <div class="relative">
+                            <input
+                                v-model="counterpartySearch"
+                                type="text"
+                                :class="crmFieldFluid"
+                                placeholder="Поиск по названию, ИНН, телефону, email"
+                                @focus="showCounterpartyResults = true"
+                                @blur="hideCounterpartyResultsWithDelay"
+                            />
+                            <button
+                                v-if="form.counterparty_id"
+                                type="button"
+                                class="absolute right-2 top-2 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+                                @click="clearCounterparty"
+                            >
+                                <X class="h-4 w-4" />
+                            </button>
+                            <div
+                                v-if="showCounterpartyResults && (combinedCounterpartyResults.length > 0 || counterpartySearch.trim().length >= MIN_CONTRACTOR_QUERY_LENGTH)"
+                                class="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+                            >
+                                <div v-if="isSearchingCounterparties" class="px-3 py-2 text-center text-xs text-zinc-500">Поиск…</div>
+                                <button
+                                    v-for="contractor in combinedCounterpartyResults"
+                                    :key="contractor.id"
+                                    type="button"
+                                    class="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                    @click="selectCounterparty(contractor)"
+                                >
+                                    <span class="text-sm font-medium">{{ contractor.name }}</span>
+                                    <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                </button>
+                                <button
+                                    v-if="counterpartySearch.trim().length >= MIN_CONTRACTOR_QUERY_LENGTH && combinedCounterpartyResults.length === 0 && !isSearchingCounterparties"
+                                    type="button"
+                                    class="w-full border-t border-zinc-100 px-3 py-2 text-left text-sm font-medium text-sky-700 hover:bg-sky-50 dark:border-zinc-800 dark:text-sky-300 dark:hover:bg-sky-950/30"
+                                    @mousedown.prevent="openLeadCounterpartyModal"
+                                >
+                                    Не найдено — создать «{{ counterpartySearch.trim() }}»
+                                </button>
+                            </div>
+                    </div>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <input
+                            v-model="form.qualification.authority"
+                            type="text"
+                            :class="crmFieldFluid"
+                            placeholder="ЛПР — кто принимает решение"
+                            @input="onAuthorityManualInput"
+                        />
+                        <input v-model="form.qualification.budget" type="text" :class="crmFieldFluid" placeholder="Ориентир по бюджету" />
+                    </div>
+                </section>
+
                 <LeadStatusPipeline
                     v-model="form.status"
                     v-model:close-outcome-primary-flag="form.close_outcome_primary_flag"
@@ -188,72 +254,6 @@
                                 <option v-for="option in transportTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                             </select>
                         </div>
-                    </div>
-                </section>
-
-                <section class="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-                    <div class="flex items-center justify-between gap-2">
-                        <h3 class="text-base font-semibold">Клиент</h3>
-                        <button
-                            type="button"
-                            class="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                            @mousedown.prevent
-                            @click.stop="openLeadCounterpartyModal"
-                        >
-                            Новый контрагент
-                        </button>
-                    </div>
-                    <div class="relative">
-                            <input
-                                v-model="counterpartySearch"
-                                type="text"
-                                :class="crmFieldFluid"
-                                placeholder="Поиск по названию, ИНН, телефону, email"
-                                @focus="showCounterpartyResults = true"
-                                @blur="hideCounterpartyResultsWithDelay"
-                            />
-                            <button
-                                v-if="form.counterparty_id"
-                                type="button"
-                                class="absolute right-2 top-2 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
-                                @click="clearCounterparty"
-                            >
-                                <X class="h-4 w-4" />
-                            </button>
-                            <div
-                                v-if="showCounterpartyResults && (combinedCounterpartyResults.length > 0 || counterpartySearch.trim().length >= MIN_CONTRACTOR_QUERY_LENGTH)"
-                                class="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
-                            >
-                                <div v-if="isSearchingCounterparties" class="px-3 py-2 text-center text-xs text-zinc-500">Поиск…</div>
-                                <button
-                                    v-for="contractor in combinedCounterpartyResults"
-                                    :key="contractor.id"
-                                    type="button"
-                                    class="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                    @click="selectCounterparty(contractor)"
-                                >
-                                    <span class="text-sm font-medium">{{ contractor.name }}</span>
-                                    <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
-                                </button>
-                                <button
-                                    v-if="counterpartySearch.trim().length >= MIN_CONTRACTOR_QUERY_LENGTH && combinedCounterpartyResults.length === 0 && !isSearchingCounterparties"
-                                    type="button"
-                                    class="w-full border-t border-zinc-100 px-3 py-2 text-left text-sm font-medium text-sky-700 hover:bg-sky-50 dark:border-zinc-800 dark:text-sky-300 dark:hover:bg-sky-950/30"
-                                    @mousedown.prevent="openLeadCounterpartyModal"
-                                >
-                                    Не найдено — создать «{{ counterpartySearch.trim() }}»
-                                </button>
-                            </div>
-                    </div>
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <input
-                            v-model="form.qualification.authority"
-                            type="text"
-                            :class="crmFieldFluid"
-                            placeholder="ЛПР — кто принимает решение"
-                            @input="onAuthorityManualInput"
-                        />
-                        <input v-model="form.qualification.budget" type="text" :class="crmFieldFluid" placeholder="Ориентир по бюджету" />
                     </div>
                 </section>
 
