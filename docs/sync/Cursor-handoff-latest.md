@@ -3,9 +3,32 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-14 15:08 (контрагенты: статус «В разработке») · **HEAD:** `f028c4c` + рабочее дерево · **Ветка:** `master`
+**Обновлено:** 2026-07-15 10:43 (security remediation + локальные атакующие проверки) · **HEAD:** `2b9836b` + рабочее дерево · **Ветка:** `master`
 
 > **Полный backlog аудита:** [`docs/sync/v5-local-Components-Code-Audit-2026-07.md`](v5-local-Components-Code-Audit-2026-07.md) → vault: `v5-local/Components/Code Audit 2026-07`
+
+### Итог сессии 2026-07-15 — security review и руководство CRM
+
+| Блок | Статус |
+| --- | --- |
+| **Пентест:** white-box OWASP review + безопасные production HTTP/config checks | ✅ |
+| **P0:** contractor IDOR cluster; Composer advisories | ✅ исправлено локально: единый scope; Laravel 13.20/Guzzle 7.14/PSR-7 2.12/Symfony 7.4.13+ |
+| **P1:** MCP bearer-only; management allocation; attachment membership; portal TTL; mobile/finance scope | ✅ исправлено локально |
+| **1С:** HMAC/timestamp/IP allowlist/rate limit готовы; обязательный HMAC требует обновления клиента 1С | 🟡 rollout |
+| **Production config:** `APP_ENV=production`; wildcard MCP token отозван; новый token id=4, read/write, 90 дней | ✅ применено |
+| **HTTP hardening:** loopback trusted proxies, MCP redirect allowlist, CSP/base headers, Mermaid DOMPurify | ✅ локально, нужен deploy |
+| **Проверки:** focused 66 passed / 368 assertions; build; composer/npm audit без advisory; local brute/load/upload spoof | ✅ |
+| **Полный suite:** 1425 passed, 21 skipped, 22 failures; 3 исправлены/перепроверены отдельно, 19 старых schema/assertion/domain failures остались без второго полного прогона | 🟡 backlog тестов |
+| **Отчёт:** `docs/audit-reports/2026-07-15-crm-pentest-report.md` (локальный, gitignored) + Canvas | ✅ |
+| **Руководство:** master guide + 7 тематических файлов в `docs/*-user-guide.md` | ✅ |
+| **Книга продаж prod:** ids=256–263 под «Руководство по CRM», все опубликованы и проверены в UI | ✅ |
+| **Синхронизация:** `scripts/mcp-prod-upsert-crm-user-guide.php` | ✅ |
+
+**Следующий шаг:** commit/push → production deploy (`composer install --no-dev --optimize-autoloader`, frontend build, `optimize:clear`) → production audit/headers smoke test. Отдельно согласовать HMAC/IP с 1С и окно для host-only session cookie; старые portal invites массово не отзывались.
+
+---
+
+**Обновлено (архив):** 2026-07-14 15:08 (контрагенты: статус «В разработке») · **HEAD:** `f028c4c` + рабочее дерево · **Ветка:** `master`
 
 ### Итог сессии 2026-07-14 — мессенджер и статус новых контрагентов
 

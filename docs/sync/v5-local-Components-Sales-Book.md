@@ -38,7 +38,10 @@ UX редактора: toolbar уплотнён; есть одна скрепк�
 | --- | --- | --- |
 | Лиды — инструкция | id=19 «Лиды — инструкция для пользователя» | `php scripts/sync-leads-sales-book-article.php` |
 | Документы (runbook) | см. `scripts/mcp-prod-upsert-documents.php` | отдельный сценарий |
+| Полное руководство CRM + 7 тематических руководств | ids=256–263 под «Руководство по CRM» | `php scripts/mcp-prod-upsert-crm-user-guide.php` |
 
 Источник правды для лидов: `docs/lead-user-guide.md` (краткая) + `docs/leads-mechanism.md` (полный регламент). После правок в git — скрипт на каждой среде (local/prod), т.к. контент статьи в БД.
 
-*Обновлено: 2026-07-10.*
+Канон полного руководства: `docs/crm-user-guide.md`; тематические статьи — `crm-basics-user-guide.md`, `contractors-user-guide.md`, `messenger-user-guide.md`, `finance-user-guide.md`, `fleet-user-guide.md`, `sales-assistant-modules-user-guide.md`, `crm-admin-user-guide.md`. На production статьи ids=256–263 опубликованы.
+
+*Обновлено: 2026-07-15.*
