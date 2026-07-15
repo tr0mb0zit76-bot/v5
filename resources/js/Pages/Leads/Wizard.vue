@@ -32,14 +32,14 @@
             <CardSmartLinksBar :links="selectedLead.smart_links" />
         </div>
 
-        <div class="border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <div class="flex flex-wrap gap-2">
+        <div class="border-b border-zinc-200 px-5 py-2 dark:border-zinc-800">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap gap-1.5">
                     <button
                         v-for="tab in visibleTabs"
                         :key="tab.key"
                         type="button"
-                        class="inline-flex items-center gap-2 text-sm transition-colors"
+                        class="inline-flex items-center gap-1.5 text-sm transition-colors"
                         :class="crmTabButtonClasses(activeTab === tab.key)"
                         @click="activeTab = tab.key"
                     >
@@ -64,7 +64,7 @@
 
         <LeadSalesCoachingPanel
             v-if="salesCoachingInsights?.available"
-            class="shrink-0 border-b border-zinc-200 px-5 py-3 dark:border-zinc-800"
+            class="shrink-0 border-b border-zinc-200 px-5 py-2 dark:border-zinc-800"
             :insights="salesCoachingInsights"
         />
 
@@ -79,10 +79,10 @@
                 </ul>
             </div>
 
-            <div v-if="activeTab === 'main'" class="space-y-5">
-                <section class="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+            <div v-if="activeTab === 'main'" class="space-y-3">
+                <section class="space-y-3 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
                     <div class="flex items-center justify-between gap-2">
-                        <h3 class="text-base font-semibold">Клиент</h3>
+                        <h3 class="text-sm font-semibold">Клиент</h3>
                         <button
                             type="button"
                             class="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
@@ -134,7 +134,7 @@
                                 </button>
                             </div>
                     </div>
-                    <div class="grid gap-4 md:grid-cols-2">
+                    <div class="grid gap-3 md:grid-cols-2">
                         <input
                             v-model="form.qualification.authority"
                             type="text"
@@ -229,25 +229,26 @@
                     </Link>
                 </div>
 
-                <section class="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-                    <h3 class="text-base font-semibold">Суть сделки</h3>
-                    <div class="space-y-2">
+                <section class="space-y-3 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+                    <h3 class="text-sm font-semibold">Суть сделки</h3>
+                    <div class="space-y-1.5">
                         <label :class="crmLabel">Тема</label>
                         <input v-model="form.title" type="text" :class="crmFieldFluid" required />
+                        <p class="text-[11px] text-zinc-500 dark:text-zinc-400">Можно совпадать с другими лидами — уникальность не требуется.</p>
                         <p v-if="form.errors.title" class="text-sm text-rose-600 dark:text-rose-300">{{ form.errors.title }}</p>
                     </div>
-                    <div class="space-y-2">
-                        <textarea v-model="form.description" rows="4" :class="crmFieldFluid" placeholder="Суть запроса, ограничения, особенности груза или клиента" />
+                    <div class="space-y-1.5">
+                        <textarea v-model="form.description" rows="3" :class="crmFieldFluid" placeholder="Суть запроса, ограничения, особенности груза или клиента" />
                     </div>
-                    <div class="grid gap-4" :class="isContractSigningCard ? 'md:grid-cols-1' : 'md:grid-cols-2'">
-                        <div class="space-y-2">
+                    <div class="grid gap-3" :class="isContractSigningCard ? 'md:grid-cols-1' : 'md:grid-cols-2'">
+                        <div class="space-y-1.5">
                             <label :class="crmLabel">Источник</label>
                             <select v-model="form.source" :class="crmFieldFluid">
                                 <option value="">Не выбрано</option>
                                 <option v-for="option in sourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                             </select>
                         </div>
-                        <div v-if="!isContractSigningCard" class="space-y-2">
+                        <div v-if="!isContractSigningCard" class="space-y-1.5">
                             <label :class="crmLabel">Тип перевозки</label>
                             <select v-model="form.transport_type" :class="crmFieldFluid">
                                 <option value="">Не выбрано</option>
@@ -257,13 +258,13 @@
                     </div>
                 </section>
 
-                <div class="grid gap-4 md:grid-cols-2">
+                <div class="grid gap-3 md:grid-cols-2">
                     <input v-model="form.next_contact_at" type="datetime-local" :class="crmFieldFluid" placeholder="Следующий контакт" />
                 </div>
 
                 <div
                     v-if="selectedLeadId && form.counterparty_id && hasQualificationForPortraitMerge"
-                    class="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-950/40"
+                    class="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950/40"
                 >
                     <button
                         type="button"
@@ -436,7 +437,16 @@
                 <div class="text-lg font-semibold">Отправить КП по e-mail</div>
                 <input v-model="sendOfferForm.to_raw" type="text" :class="crmFieldFluid" placeholder="Кому (через запятую)" />
                 <input v-model="sendOfferForm.subject" type="text" :class="crmFieldFluid" placeholder="Тема" />
-                <textarea v-model="sendOfferForm.body" rows="5" :class="crmFieldFluid" placeholder="Текст письма" />
+                <textarea v-model="sendOfferForm.body" rows="5" :class="crmFieldFluid" placeholder="Текст письма (plain-text запасной)" />
+                <label
+                    v-if="sendOfferTarget?.has_html_teaser"
+                    class="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100"
+                >
+                    <input v-model="sendOfferForm.use_html_teaser" type="checkbox" class="mt-0.5 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500" />
+                    <span>
+                        HTML-затравка в теле письма (картинки встроены CID). PDF останется вложением.
+                    </span>
+                </label>
                 <div class="flex justify-end gap-2">
                     <button type="button" :class="crmBtnSecondary" @click="closeSendOfferModal">Отмена</button>
                     <button type="submit" :class="crmBtnPrimary" :disabled="sendOfferForm.processing">Отправить</button>
@@ -1339,6 +1349,7 @@ const sendOfferForm = useForm({
     to_raw: '',
     subject: '',
     body: '',
+    use_html_teaser: true,
 });
 
 function openSendOfferModal(offer) {
@@ -1348,6 +1359,7 @@ function openSendOfferModal(offer) {
     sendOfferForm.to_raw = [...new Set(emails)].join(', ');
     sendOfferForm.subject = `Коммерческое предложение ${offer.number || ''}`.trim();
     sendOfferForm.body = `Добрый день!\n\nНаправляем коммерческое предложение по перевозке «${form.title}».`;
+    sendOfferForm.use_html_teaser = Boolean(offer?.has_html_teaser);
     showSendOfferModal.value = true;
 }
 

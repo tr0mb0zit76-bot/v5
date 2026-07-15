@@ -23,6 +23,7 @@ class SendLeadOfferMailRequest extends FormRequest
             'cc.*' => ['email'],
             'subject' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string', 'max:20000'],
+            'use_html_teaser' => ['sometimes', 'boolean'],
         ];
     }
 

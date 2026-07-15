@@ -187,19 +187,7 @@ class StoreLeadRequest extends FormRequest
      */
     protected function leadTitleRules(): array
     {
-        $rules = ['required', 'string', 'max:255'];
-
-        if (! Schema::hasTable('leads')) {
-            return $rules;
-        }
-
-        $unique = Rule::unique('leads', 'title');
-        if (Schema::hasColumn('leads', 'deleted_at')) {
-            $unique = $unique->whereNull('deleted_at');
-        }
-        $rules[] = $unique;
-
-        return $rules;
+        return ['required', 'string', 'max:255'];
     }
 
     public function withValidator(Validator $validator): void

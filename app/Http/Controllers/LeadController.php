@@ -33,6 +33,7 @@ use App\Services\Commercial\LeadPrecalculationDocumentService;
 use App\Services\Commercial\LeadProposalHtmlRenderer;
 use App\Services\Commercial\LeadProposalPdfService;
 use App\Services\Commercial\ManagerSalesCoachingInsightsService;
+use App\Services\Commercial\ProposalHtmlCidMailPreparer;
 use App\Services\Contractor\ContractorPortraitService;
 use App\Services\DaDataService;
 use App\Services\ImportCostCalculatorService;
@@ -517,6 +518,7 @@ class LeadController extends Controller
         Lead $lead,
         LeadProposalHtmlRenderer $htmlRenderer,
         LeadProposalPdfService $pdfService,
+        ProposalHtmlCidMailPreparer $cidMailPreparer,
     ): RedirectResponse {
         abort_unless($this->hasLeadsFeatureTables(), 404);
         abort_unless($this->canAccessLead($request, $lead), 403);
@@ -531,8 +533,12 @@ class LeadController extends Controller
             ->findOrFail($validated['proposal_html_template_id']);
 
         $rendered = $htmlRenderer->render($template, $lead);
+        $emailAssets = is_array($template->email_assets) ? $template->email_assets : [];
+        $htmlForPdf = $emailAssets !== []
+            ? $cidMailPreparer->inlineAsDataUris($rendered['html'], $emailAssets)
+            : $rendered['html'];
         $downloadName = Str::slug($template->slug ?: 'proposal').'-lead-'.$lead->id.'.pdf';
-        $pdfContents = $pdfService->convertHtmlToPdf($rendered['html'], $downloadName);
+        $pdfContents = $pdfService->convertHtmlToPdf($htmlForPdf, $downloadName);
 
         abort_if($pdfContents === null || $pdfContents === '', 503, 'Не удалось сформировать PDF (Gotenberg).');
 
@@ -547,6 +553,8 @@ class LeadController extends Controller
                 'proposal_html_template_id' => $template->id,
                 'proposal_html_template_name' => $template->name,
                 'rendered_html' => $rendered['html'],
+                'email_assets' => $emailAssets,
+                'has_html_teaser' => true,
                 'generated_disk' => 'local',
                 'content_type' => 'application/pdf',
             ]),
@@ -1475,6 +1483,8 @@ class LeadController extends Controller
                     ? ($offer->payload['print_form_template_name'] ?? $offer->payload['proposal_html_template_name'] ?? null)
                     : null,
                 'proposal_source' => is_array($offer->payload) ? ($offer->payload['source'] ?? null) : null,
+                'has_html_teaser' => is_array($offer->payload)
+                    && filled($offer->payload['rendered_html'] ?? null),
                 'sent_at' => optional($offer->sent_at)?->toIso8601String(),
             ])->values()->all(),
             'orders' => $lead->orders->map(fn ($order): array => [

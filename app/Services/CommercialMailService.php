@@ -33,6 +33,7 @@ class CommercialMailService
      * @param  list<string>  $toEmails
      * @param  list<string>  $ccEmails
      * @param  list<array{path: string, name: string, driver: string|null, mime_type: string|null, file_size?: int}>  $attachments
+     * @param  list<array{path: string, cid: string, mime: string}>  $inlineImages
      * @return array{thread: MailThread, message: MailMessage}
      */
     public function sendOutbound(
@@ -48,6 +49,8 @@ class CommercialMailService
         ?MailMessage $inReplyToMessage = null,
         ?int $orderId = null,
         ?int $contractorId = null,
+        ?string $bodyHtml = null,
+        array $inlineImages = [],
     ): array {
         abort_unless($this->tablesReady(), 503, 'Почтовый модуль не развёрнут (нет таблиц).');
 
@@ -116,6 +119,10 @@ class CommercialMailService
             'mailbox_user_id' => $sender->id,
         ];
 
+        if (Schema::hasColumn('mail_messages', 'body_html') && $bodyHtml !== null && trim($bodyHtml) !== '') {
+            $messageAttributes['body_html'] = $bodyHtml;
+        }
+
         if (Schema::hasColumn('mail_messages', 'internet_message_id')) {
             $messageAttributes['internet_message_id'] = $internetMessageId;
         }
@@ -135,6 +142,8 @@ class CommercialMailService
             inReplyTo: $inReplyToHeader,
             references: $referencesHeader,
             outboundAttachments: $this->normalizeAttachmentsForMailable($attachments),
+            bodyHtml: $bodyHtml,
+            inlineImages: $inlineImages,
         );
 
         Mail::to($toEmails)->cc($ccEmails)->send($mailable);

@@ -97,7 +97,7 @@ function stepClasses(step, index) {
 </script>
 
 <template>
-    <section class="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+    <section class="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
         <div class="flex flex-wrap items-center justify-between gap-2">
             <h3 class="text-sm font-semibold uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">Статус</h3>
             <p

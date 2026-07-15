@@ -6,6 +6,7 @@ use App\Http\Requests\SendLeadOfferMailRequest;
 use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\LeadOffer;
+use App\Services\Commercial\ProposalHtmlCidMailPreparer;
 use App\Services\CommercialMailService;
 use App\Support\LeadViewAuthorization;
 use Illuminate\Http\RedirectResponse;
@@ -15,6 +16,7 @@ class LeadOfferMailController extends Controller
 {
     public function __construct(
         private readonly CommercialMailService $commercialMail,
+        private readonly ProposalHtmlCidMailPreparer $cidMailPreparer,
     ) {}
 
     public function send(SendLeadOfferMailRequest $request, Lead $lead, LeadOffer $offer): RedirectResponse
@@ -34,6 +36,19 @@ class LeadOfferMailController extends Controller
             ];
         }
 
+        $bodyHtml = null;
+        $inlineImages = [];
+        $payload = is_array($offer->payload) ? $offer->payload : [];
+        $useHtmlTeaser = $request->boolean('use_html_teaser', true);
+        $renderedHtml = trim((string) ($payload['rendered_html'] ?? ''));
+        $emailAssets = is_array($payload['email_assets'] ?? null) ? $payload['email_assets'] : [];
+
+        if ($useHtmlTeaser && $renderedHtml !== '') {
+            $prepared = $this->cidMailPreparer->prepare($renderedHtml, $emailAssets);
+            $bodyHtml = $prepared['html'];
+            $inlineImages = $prepared['embeds'];
+        }
+
         $this->commercialMail->sendOutbound(
             subject: $request->string('subject')->toString(),
             bodyText: $request->string('body')->toString(),
@@ -43,11 +58,17 @@ class LeadOfferMailController extends Controller
             offer: $offer,
             ccEmails: $request->input('cc', []),
             attachments: $attachments,
+            bodyHtml: $bodyHtml,
+            inlineImages: $inlineImages,
         );
+
+        $message = $bodyHtml !== null
+            ? 'КП отправлено: HTML-затравка в письме'.($attachments !== [] ? ' + PDF во вложении' : '').'.'
+            : 'Коммерческое предложение отправлено.';
 
         return back()->with('flash', [
             'type' => 'success',
-            'message' => 'Коммерческое предложение отправлено.',
+            'message' => $message,
         ]);
     }
 

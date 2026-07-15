@@ -616,16 +616,16 @@ html[data-crm-workspace-skin='sky'] .crm-pill--active {
 }
 
 .crm-wizard-header {
-    @apply flex items-center justify-between gap-4 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800;
+    @apply flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800;
 }
 
 .crm-wizard-back {
-    @apply inline-flex h-11 w-11 items-center justify-center border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100;
+    @apply inline-flex h-9 w-9 items-center justify-center border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100;
     @apply dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60;
 }
 
 .crm-wizard-body {
-    @apply min-h-0 flex-1 overflow-y-auto px-5 py-5;
+    @apply min-h-0 flex-1 overflow-y-auto px-4 py-3;
 }
 
 html[data-crm-workspace-skin='sky'] .crm-wizard-shell {

@@ -1058,6 +1058,29 @@ class LeadManagementTest extends TestCase
         $this->assertDatabaseCount('leads', 0);
     }
 
+    public function test_can_create_leads_with_duplicate_titles(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $title = 'Познакомиться с контрагентом';
+
+        Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'title' => $title,
+            'target_currency' => 'RUB',
+            'business_process_id' => $this->defaultBusinessProcessId(),
+        ]);
+
+        $response = $this->actingAs($manager)->post(route('leads.store'), [
+            ...$this->leadStoreDefaults($manager),
+            'status' => 'new',
+            'title' => $title,
+            'target_currency' => 'RUB',
+        ]);
+
+        $response->assertRedirect();
+        $this->assertSame(2, Lead::query()->where('title', $title)->count());
+    }
+
     public function test_update_lead_without_business_process_id_uses_existing_value(): void
     {
         $manager = $this->createUserWithRole('manager');

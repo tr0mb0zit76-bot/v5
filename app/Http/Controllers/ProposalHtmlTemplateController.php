@@ -197,6 +197,7 @@ class ProposalHtmlTemplateController extends Controller
             'is_active' => $template->is_active,
             'html_body' => $template->html_body,
             'css_inline' => $template->css_inline,
+            'email_assets_count' => is_array($template->email_assets) ? count($template->email_assets) : 0,
             'version' => $template->version,
             'published_at' => optional($template->published_at)?->toIso8601String(),
             'visibility' => $template->visibility,

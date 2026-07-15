@@ -21,6 +21,7 @@ class ProposalHtmlTemplate extends Model
         'is_active',
         'html_body',
         'css_inline',
+        'email_assets',
         'version',
         'published_at',
         'owner_user_id',
@@ -35,6 +36,7 @@ class ProposalHtmlTemplate extends Model
         return [
             'is_active' => 'boolean',
             'published_at' => 'datetime',
+            'email_assets' => 'array',
         ];
     }
 

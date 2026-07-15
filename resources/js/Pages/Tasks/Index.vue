@@ -406,12 +406,12 @@
                                 <Plus class="h-4 w-4" />
                             </button>
                         </div>
-                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--full`">
                             <label :class="crmModalFieldLabel">Контрагент</label>
-                            <select v-model="form.contractor_id" :class="crmFieldFluid">
-                                <option :value="null">Без привязки</option>
-                                <option v-for="contractor in contractorOptions" :key="contractor.id" :value="contractor.id">{{ contractor.name }}</option>
-                            </select>
+                            <ContractorAsyncSearchSelect
+                                v-model="form.contractor_id"
+                                :selected-label="selectedContractorLabel"
+                            />
                         </div>
                     </div>
 
@@ -466,6 +466,7 @@ import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import { crmBtnCreate, crmBtnDangerMuted, crmBtnNeutral, crmBtnSecondaryOutline, crmFieldFluid, crmFieldWide, crmGridPanel, crmModalFieldLabel, crmModalFieldRow, crmModalFieldsWrap, crmModalFieldStack } from '@/support/crmUi.js';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
+import ContractorAsyncSearchSelect from '@/Components/Crm/ContractorAsyncSearchSelect.vue';
 import Modal from '@/Components/Modal.vue';
 import TasksGrid from '@/Components/Tasks/TasksGrid.vue';
 import { ChevronDown, Plus } from 'lucide-vue-next';
@@ -812,6 +813,24 @@ const form = useForm({
     responsible_id: null,
     lead_id: null,
     contractor_id: null,
+});
+
+const selectedContractorLabel = computed(() => {
+    const id = form.contractor_id;
+    if (id === null || id === undefined || id === '') {
+        return '';
+    }
+
+    const fromOptions = contractorOptions.value.find((row) => Number(row.id) === Number(id));
+    if (fromOptions?.name) {
+        return fromOptions.name;
+    }
+
+    if (editingTask.value && Number(editingTask.value.contractor_id) === Number(id)) {
+        return editingTask.value.contractor_name ?? '';
+    }
+
+    return '';
 });
 
 const completeMenuOpen = ref(false);

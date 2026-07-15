@@ -19,6 +19,7 @@ class CommercialOutboundMail extends Mailable
 
     /**
      * @param  list<array{path: string, name: string, driver: string|null, mime_type: string|null}>  $outboundAttachments
+     * @param  list<array{path: string, cid: string, mime: string}>  $inlineImages
      */
     public function __construct(
         public string $subjectLine,
@@ -29,6 +30,8 @@ class CommercialOutboundMail extends Mailable
         public ?string $inReplyTo = null,
         public ?string $references = null,
         public array $outboundAttachments = [],
+        public ?string $bodyHtml = null,
+        public array $inlineImages = [],
     ) {}
 
     public function envelope(): Envelope
@@ -50,6 +53,20 @@ class CommercialOutboundMail extends Mailable
                     if ($this->references !== null && $this->references !== '') {
                         $email->getHeaders()->addTextHeader('References', $this->references);
                     }
+
+                    foreach ($this->inlineImages as $image) {
+                        $path = (string) ($image['path'] ?? '');
+                        $cid = (string) ($image['cid'] ?? '');
+                        if ($path === '' || $cid === '' || ! is_file($path)) {
+                            continue;
+                        }
+
+                        $email->embedFromPath(
+                            $path,
+                            $cid,
+                            (string) ($image['mime'] ?? 'image/png') ?: 'image/png',
+                        );
+                    }
                 },
             ],
         );
@@ -57,6 +74,16 @@ class CommercialOutboundMail extends Mailable
 
     public function content(): Content
     {
+        if ($this->bodyHtml !== null && trim($this->bodyHtml) !== '') {
+            return new Content(
+                htmlString: $this->bodyHtml,
+                text: 'mail.commercial-outbound',
+                with: [
+                    'bodyText' => $this->bodyText,
+                ],
+            );
+        }
+
         return new Content(
             text: 'mail.commercial-outbound',
             with: [
