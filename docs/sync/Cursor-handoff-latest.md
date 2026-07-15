@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-15 10:43 (security remediation + локальные атакующие проверки) · **HEAD:** `2b9836b` + рабочее дерево · **Ветка:** `master`
+**Обновлено:** 2026-07-15 11:02 (security remediation задеплоен) · **HEAD:** `6f4eddb` · **Ветка:** `master`
 
 > **Полный backlog аудита:** [`docs/sync/v5-local-Components-Code-Audit-2026-07.md`](v5-local-Components-Code-Audit-2026-07.md) → vault: `v5-local/Components/Code Audit 2026-07`
 
@@ -16,7 +16,8 @@
 | **P1:** MCP bearer-only; management allocation; attachment membership; portal TTL; mobile/finance scope | ✅ исправлено локально |
 | **1С:** HMAC/timestamp/IP allowlist/rate limit готовы; обязательный HMAC требует обновления клиента 1С | 🟡 rollout |
 | **Production config:** `APP_ENV=production`; wildcard MCP token отозван; новый token id=4, read/write, 90 дней | ✅ применено |
-| **HTTP hardening:** loopback trusted proxies, MCP redirect allowlist, CSP/base headers, Mermaid DOMPurify | ✅ локально, нужен deploy |
+| **HTTP hardening:** loopback trusted proxies, MCP redirect allowlist, CSP/base headers, Mermaid DOMPurify | ✅ production |
+| **Production deploy:** Laravel 13.20, frontend build, миграции, cache clear; security headers и MCP 401/valid-token проверены | ✅ `6f4eddb` |
 | **Проверки:** focused 66 passed / 368 assertions; build; composer/npm audit без advisory; local brute/load/upload spoof | ✅ |
 | **Полный suite:** 1425 passed, 21 skipped, 22 failures; 3 исправлены/перепроверены отдельно, 19 старых schema/assertion/domain failures остались без второго полного прогона | 🟡 backlog тестов |
 | **Отчёт:** `docs/audit-reports/2026-07-15-crm-pentest-report.md` (локальный, gitignored) + Canvas | ✅ |
@@ -24,7 +25,7 @@
 | **Книга продаж prod:** ids=256–263 под «Руководство по CRM», все опубликованы и проверены в UI | ✅ |
 | **Синхронизация:** `scripts/mcp-prod-upsert-crm-user-guide.php` | ✅ |
 
-**Следующий шаг:** commit/push → production deploy (`composer install --no-dev --optimize-autoloader`, frontend build, `optimize:clear`) → production audit/headers smoke test. Отдельно согласовать HMAC/IP с 1С и окно для host-only session cookie; старые portal invites массово не отзывались.
+**Следующий шаг:** согласовать HMAC/IP с 1С и окно для host-only session cookie; старые portal invites массово не отзывались. На production остались прежние локальные артефакты (`traklo-icon.png`, ntfy config, SLA PDF) — деплой их не изменял.
 
 ---
 
