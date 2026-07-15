@@ -160,6 +160,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Legacy Domain Cookie Transition
+    |--------------------------------------------------------------------------
+    |
+    | During a move to host-only cookies, these values let middleware expire
+    | the former parent-domain cookies without invalidating server sessions.
+    |
+    */
+
+    'legacy_domain' => env('SESSION_LEGACY_DOMAIN'),
+
+    'legacy_cookie' => env('SESSION_LEGACY_COOKIE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | HTTPS Only Cookies
     |--------------------------------------------------------------------------
     |

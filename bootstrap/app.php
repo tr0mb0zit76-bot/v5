@@ -10,6 +10,7 @@ use App\Http\Middleware\EnsureCompanyPlanningAccess;
 use App\Http\Middleware\EnsureSettingsVisibilityAccess;
 use App\Http\Middleware\EnsureVisibilityAnyAreaAccess;
 use App\Http\Middleware\EnsureVisibilityAreaAccess;
+use App\Http\Middleware\ExpireLegacyDomainCookies;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ReconnectOnPreparedStatementError;
 use App\Http\Middleware\RejectExternalFromInternalRoutes;
@@ -35,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: ['127.0.0.1', '::1']);
         $middleware->append(AddSecurityHeaders::class);
+        $middleware->append(ExpireLegacyDomainCookies::class);
         $middleware->redirectGuestsTo(fn (Request $request): string => $request->is('mobile/*') ? '/mobile/login' : '/login');
 
         $middleware->alias([
