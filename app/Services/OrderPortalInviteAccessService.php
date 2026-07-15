@@ -43,7 +43,7 @@ final class OrderPortalInviteAccessService
 
     public function linkValidityHint(): string
     {
-        return 'Ссылка действует до проставления фактической даты выгрузки по заказу.';
+        return 'Ссылка действует до истечения срока или проставления фактической даты выгрузки по заказу.';
     }
 
     public function unloadingActualForInvite(Order $order, OrderPortalInvite $invite): ?string

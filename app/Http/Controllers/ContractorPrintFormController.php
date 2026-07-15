@@ -9,6 +9,7 @@ use App\Models\Contractor;
 use App\Models\ContractorPrintFormChangeRequest;
 use App\Models\PrintFormBasicTerm;
 use App\Services\PrintForm\ContractorPrintFormChangeRequestService;
+use App\Support\ContractorViewAuthorization;
 use Illuminate\Http\RedirectResponse;
 
 class ContractorPrintFormController extends Controller
@@ -19,6 +20,7 @@ class ContractorPrintFormController extends Controller
 
     public function updateBasicTerms(UpdateContractorPrintFormBasicTermsRequest $request, Contractor $contractor): RedirectResponse
     {
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
         abort_if($contractor->isOwnCompanyProfile(), 403);
 
         $user = $request->user();
@@ -47,6 +49,7 @@ class ContractorPrintFormController extends Controller
 
     public function submitChange(SubmitContractorPrintFormChangeRequest $request, Contractor $contractor): RedirectResponse
     {
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
         abort_if($contractor->isOwnCompanyProfile(), 403);
 
         $user = $request->user();
@@ -78,6 +81,7 @@ class ContractorPrintFormController extends Controller
         Contractor $contractor,
         ContractorPrintFormChangeRequest $printFormChange,
     ): RedirectResponse {
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
         abort_if((int) $printFormChange->contractor_id !== (int) $contractor->id, 404);
 
         $user = $request->user();

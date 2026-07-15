@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Models\ManagementStatementLineSplit;
 use App\Models\PaymentSchedule;
 use App\Models\PaymentSchedulePaymentEvent;
+use App\Models\Role;
 use App\Models\User;
 use App\Services\ManagementAccounting\ManagementAccountingAllocationService;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +15,7 @@ class ManagementAccountingAllocationSplitTest extends TestCase
 {
     public function test_split_allocation_records_two_payments_on_one_line(): void
     {
-        $user = User::factory()->create();
+        $user = $this->makeAuthorizedAllocator();
 
         $customerId = DB::table('contractors')->insertGetId([
             'name' => 'Заказчик',
@@ -68,5 +69,15 @@ class ManagementAccountingAllocationSplitTest extends TestCase
             ->where('transaction_reference', 'like', 'mgmt:'.$line->id.':%')
             ->count();
         $this->assertSame(2, $events);
+    }
+
+    private function makeAuthorizedAllocator(): User
+    {
+        $role = Role::query()->firstOrCreate(
+            ['name' => 'admin'],
+            ['display_name' => 'Administrator'],
+        );
+
+        return User::factory()->create(['role_id' => $role->id]);
     }
 }

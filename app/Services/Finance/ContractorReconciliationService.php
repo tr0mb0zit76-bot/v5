@@ -29,7 +29,9 @@ class ContractorReconciliationService
         ?string $dateTo,
         ?User $user = null,
     ): array {
-        $contractor = Contractor::query()->findOrFail($contractorId);
+        $contractor = Contractor::query()
+            ->when($user !== null, fn (Builder $query) => $query->visibleTo($user))
+            ->findOrFail($contractorId);
         $contractorType = strtolower(trim((string) ($contractor->type ?? 'both')));
 
         $from = $dateFrom ? Carbon::parse($dateFrom)->startOfDay() : null;
@@ -514,9 +516,10 @@ class ContractorReconciliationService
     /**
      * @return Collection<int, array{id: int, label: string, inn: ?string}>
      */
-    public function contractorOptions(): Collection
+    public function contractorOptions(?User $user = null): Collection
     {
         return Contractor::query()
+            ->when($user !== null, fn (Builder $query) => $query->visibleTo($user))
             ->orderByRaw("COALESCE(NULLIF(TRIM(name), ''), full_name)")
             ->limit(500)
             ->get(['id', 'name', 'full_name', 'inn'])

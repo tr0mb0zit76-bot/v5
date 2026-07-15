@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\MessengerService;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\TaskSlaService;
+use App\Support\ContractorViewAuthorization;
 use App\Support\LeadStatus;
 use App\Support\LeadViewAuthorization;
 use App\Support\OrderDocumentAccessAuthorization;
@@ -174,6 +175,7 @@ class MobileShellFeedService
         $pairsQuery = $customerPairs->unionAll($carrierPairs);
 
         $contractors = Contractor::query()
+            ->visibleTo($user)
             ->joinSub($pairsQuery, 'pairs', function ($join): void {
                 $join->on('contractors.id', '=', 'pairs.contractor_id');
             })
@@ -217,6 +219,7 @@ class MobileShellFeedService
             && RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'orders'),
             403,
         );
+        ContractorViewAuthorization::authorize($user, $contractor);
 
         $needle = trim((string) $search);
 
@@ -736,7 +739,7 @@ class MobileShellFeedService
             return false;
         }
 
-        return true;
+        return ContractorViewAuthorization::userCanViewContractor($user, $contractor);
     }
 
     private function userCanViewTask(User $user, Task $task): bool

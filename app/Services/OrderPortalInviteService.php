@@ -26,7 +26,7 @@ class OrderPortalInviteService
 
         $token = $this->generateToken();
         $tokenHash = $this->hashToken($token);
-        $expiresAt = now()->addYears(5);
+        $expiresAt = now()->addDays(max(1, (int) config('portal.invite_ttl_days', 90)));
 
         $invite = DB::transaction(function () use ($order, $contractorId, $normalizedStage, $carrierSlot, $user, $tokenHash, $expiresAt): OrderPortalInvite {
             OrderPortalInvite::query()
@@ -70,8 +70,9 @@ class OrderPortalInviteService
 
         $token = $this->generateToken();
         $tokenHash = $this->hashToken($token);
+        $expiresAt = now()->addDays(max(1, (int) config('portal.invite_ttl_days', 90)));
 
-        $invite = DB::transaction(function () use ($order, $contractorId, $user, $tokenHash): OrderPortalInvite {
+        $invite = DB::transaction(function () use ($order, $contractorId, $user, $tokenHash, $expiresAt): OrderPortalInvite {
             OrderPortalInvite::query()
                 ->where('order_id', $order->id)
                 ->where('contractor_id', $contractorId)
@@ -88,7 +89,7 @@ class OrderPortalInviteService
                 'purpose' => OrderPortalInvite::PURPOSE_CUSTOMER_DOCUMENTS,
                 'token_hash' => $tokenHash,
                 'created_by' => $user->id,
-                'expires_at' => now()->addYears(5),
+                'expires_at' => $expiresAt,
             ]);
         });
 

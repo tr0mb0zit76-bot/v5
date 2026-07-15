@@ -3,6 +3,7 @@
 namespace Tests\Feature\Integrations;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
 
 class EpdIntegrationEndpointsTest extends TestCase
@@ -240,5 +241,79 @@ class EpdIntegrationEndpointsTest extends TestCase
         $response->assertJsonPath('journal.0.number', 'ETRN-2');
         $response->assertJsonPath('journal.0.order_id', $orderIdTwo);
         $response->assertJsonPath('journal.1.order_id', $orderIdOne);
+    }
+
+    public function test_one_c_fresh_requires_hmac_when_enabled(): void
+    {
+        config()->set('epd.integration.one_c_fresh_token', 'one-c-token');
+        config()->set('epd.integration.one_c_fresh_hmac_secret', 'hmac-secret');
+        config()->set('epd.integration.one_c_fresh_require_hmac', true);
+
+        $this->withHeader('X-Integration-Token', 'one-c-token')
+            ->get('/integrations/1c-fresh/etrn-journal')
+            ->assertUnauthorized();
+    }
+
+    public function test_one_c_fresh_accepts_valid_hmac_and_rejects_replay_and_stale_hmac(): void
+    {
+        config()->set('epd.integration.one_c_fresh_token', 'one-c-token');
+        config()->set('epd.integration.one_c_fresh_hmac_secret', 'hmac-secret');
+        config()->set('epd.integration.one_c_fresh_require_hmac', true);
+
+        $path = '/integrations/1c-fresh/etrn-journal';
+        $timestamp = (string) now()->timestamp;
+        $nonce = 'phpunit-fresh-nonce-01';
+        $headers = [
+            'X-Integration-Token' => 'one-c-token',
+            'X-Integration-Timestamp' => $timestamp,
+            'X-Integration-Nonce' => $nonce,
+            'X-Integration-Signature' => $this->oneCSignature('GET', $path, '', $timestamp, $nonce),
+        ];
+
+        $this->withHeaders($headers)->get($path)->assertOk();
+        $this->withHeaders($headers)->get($path)->assertConflict();
+
+        $staleTimestamp = (string) now()->subMinutes(10)->timestamp;
+        $staleNonce = 'phpunit-stale-nonce-01';
+
+        $this->withHeaders([
+            'X-Integration-Token' => 'one-c-token',
+            'X-Integration-Timestamp' => $staleTimestamp,
+            'X-Integration-Nonce' => $staleNonce,
+            'X-Integration-Signature' => $this->oneCSignature('GET', $path, '', $staleTimestamp, $staleNonce),
+        ])->get($path)->assertUnauthorized();
+    }
+
+    public function test_one_c_fresh_invalid_token_attempts_are_rate_limited(): void
+    {
+        config()->set('epd.integration.one_c_fresh_token', 'one-c-token');
+        RateLimiter::clear('onec-minute-127.0.0.1');
+        RateLimiter::clear('onec-hour-127.0.0.1');
+
+        foreach (range(1, 60) as $attempt) {
+            $this->withHeader('X-Integration-Token', 'invalid-'.$attempt)
+                ->get('/integrations/1c-fresh/etrn-journal')
+                ->assertUnauthorized();
+        }
+
+        $this->withHeader('X-Integration-Token', 'invalid-final')
+            ->get('/integrations/1c-fresh/etrn-journal')
+            ->assertTooManyRequests();
+    }
+
+    private function oneCSignature(
+        string $method,
+        string $path,
+        string $body,
+        string $timestamp,
+        string $nonce,
+    ): string {
+        return hash_hmac('sha256', implode("\n", [
+            $timestamp,
+            $nonce,
+            strtoupper($method),
+            $path,
+            hash('sha256', $body),
+        ]), 'hmac-secret');
     }
 }

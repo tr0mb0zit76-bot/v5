@@ -10,6 +10,7 @@ use App\Models\ProposalHtmlTemplateVariable;
 use App\Services\Commercial\LeadProposalHtmlRenderer;
 use App\Support\LeadViewAuthorization;
 use App\Support\ProposalHtmlTemplateVariableCatalog;
+use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;

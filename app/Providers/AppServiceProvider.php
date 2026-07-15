@@ -121,6 +121,15 @@ class AppServiceProvider extends ServiceProvider
                 : Limit::perMinute(2)->by('order-intake-ip-'.($request->ip() ?? 'unknown'));
         });
 
+        RateLimiter::for('integration-onec', function (Request $request): array {
+            $ip = $request->ip() ?? 'unknown';
+
+            return [
+                Limit::perMinute(60)->by('onec-minute-'.$ip),
+                Limit::perHour(1000)->by('onec-hour-'.$ip),
+            ];
+        });
+
         Vite::prefetch(concurrency: 3);
 
         View::composer('app', function ($view): void {

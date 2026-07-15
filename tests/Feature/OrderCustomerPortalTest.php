@@ -25,6 +25,8 @@ class OrderCustomerPortalTest extends TestCase
             $this->markTestSkipped('order_portal_invites migration is not applied.');
         }
 
+        config(['portal.invite_ttl_days' => 90]);
+
         $staff = $this->createManagerUser();
         $customer = Contractor::query()->create([
             'type' => 'customer',
@@ -50,6 +52,10 @@ class OrderCustomerPortalTest extends TestCase
             'purpose' => OrderPortalInvite::PURPOSE_CUSTOMER_DOCUMENTS,
             'stage' => 'customer',
         ]);
+
+        $invite = OrderPortalInvite::query()->where('order_id', $order->id)->sole();
+        $this->assertSame(90, (int) config('portal.invite_ttl_days'));
+        $this->assertTrue($invite->expires_at->between(now()->addDays(89), now()->addDays(91)));
     }
 
     public function test_customer_portal_page_renders_for_valid_token(): void
@@ -66,6 +72,32 @@ class OrderCustomerPortalTest extends TestCase
                 ->component('Portal/CustomerDocuments')
                 ->where('status', 'open')
                 ->where('customer.name', 'ООО Заказчик'));
+    }
+
+    public function test_customer_portal_page_rejects_expired_invite(): void
+    {
+        if (! Schema::hasTable('order_portal_invites')) {
+            $this->markTestSkipped('order_portal_invites migration is not applied.');
+        }
+
+        [$invite, $token] = $this->createCustomerInvite();
+        $invite->forceFill(['expires_at' => now()->subMinute()])->save();
+
+        $this->get(route('portal.customer.show', ['token' => $token]))
+            ->assertStatus(410);
+    }
+
+    public function test_customer_portal_page_rejects_revoked_invite(): void
+    {
+        if (! Schema::hasTable('order_portal_invites')) {
+            $this->markTestSkipped('order_portal_invites migration is not applied.');
+        }
+
+        [$invite, $token] = $this->createCustomerInvite();
+        $invite->forceFill(['revoked_at' => now()])->save();
+
+        $this->get(route('portal.customer.show', ['token' => $token]))
+            ->assertStatus(410);
     }
 
     public function test_customer_portal_can_upload_document(): void

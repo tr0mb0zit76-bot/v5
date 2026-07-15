@@ -115,6 +115,7 @@ class OrderCarrierPortalController extends Controller
 
         abort_if($invite === null, 404, 'Ссылка не найдена.');
         abort_if($invite->isRevoked(), 410, 'Ссылка отозвана.');
+        abort_if($invite->isExpired(), 410, 'Ссылка истекла.');
 
         $invite->loadMissing(['order.documents', 'order.legs.routePoints', 'contractor']);
 

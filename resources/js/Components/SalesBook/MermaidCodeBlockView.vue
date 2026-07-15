@@ -21,6 +21,7 @@
 </template>
 
 <script setup>
+import DOMPurify from 'dompurify';
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { isMermaidLanguage, renderMermaidDiagram } from '@/support/mermaidRender.js';
@@ -68,7 +69,9 @@ async function renderDiagram() {
             return;
         }
 
-        diagramSvg.value = svg;
+        diagramSvg.value = DOMPurify.sanitize(svg, {
+            USE_PROFILES: { html: true, svg: true, svgFilters: true },
+        });
         renderError.value = '';
     } catch (error) {
         if (generation !== renderGeneration) {

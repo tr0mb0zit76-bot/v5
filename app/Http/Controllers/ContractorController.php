@@ -27,10 +27,12 @@ use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\ContractorDuplicateGuard;
 use App\Support\ContractorPortraitDictionary;
 use App\Support\ContractorTableColumns;
+use App\Support\ContractorViewAuthorization;
 use App\Support\ContractorWorkStatus;
 use App\Support\CurrencyDictionary;
 use App\Support\EdoProviderDictionary;
 use App\Support\MailSync\MailContractorAllowlist;
+use App\Support\OrderViewAuthorization;
 use App\Support\OwnFleetCatalog;
 use App\Support\PartyNormsPenalties;
 use App\Support\PaymentFormDictionary;
@@ -102,6 +104,8 @@ class ContractorController extends Controller
 
     public function update(UpdateContractorRequest $request, Contractor $contractor): RedirectResponse
     {
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
+
         DB::transaction(function () use ($request, $contractor): void {
             $validated = $request->validated();
 
@@ -123,8 +127,10 @@ class ContractorController extends Controller
         ]);
     }
 
-    public function destroy(Contractor $contractor): RedirectResponse
+    public function destroy(Request $request, Contractor $contractor): RedirectResponse
     {
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
+
         abort_if(
             $this->contractorHasOrders($contractor),
             422,
@@ -270,6 +276,8 @@ class ContractorController extends Controller
         ContractorScoringService $scoringService,
         ContractorOperationalStatusService $statusService,
     ): JsonResponse {
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
+
         if ($contractor->isOwnCompanyProfile()) {
             return response()->json([
                 'ok' => false,
@@ -293,6 +301,8 @@ class ContractorController extends Controller
         Contractor $contractor,
         ContractorRiskAssessmentService $assessmentService,
     ): JsonResponse {
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
+
         if ($contractor->isOwnCompanyProfile()) {
             return response()->json([
                 'ok' => false,
@@ -329,6 +339,8 @@ class ContractorController extends Controller
         Contractor $contractor,
         ContractorLimitApprovalService $approvalService,
     ): JsonResponse {
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
+
         if ($contractor->isOwnCompanyProfile()) {
             return response()->json([
                 'ok' => false,
@@ -415,6 +427,10 @@ class ContractorController extends Controller
 
     private function renderPage(Request $request, ?Contractor $selectedContractor = null): Response
     {
+        if ($selectedContractor !== null) {
+            ContractorViewAuthorization::authorize($request->user(), $selectedContractor);
+        }
+
         /** @var ContractorCreditService $creditService */
         $creditService = app(ContractorCreditService::class);
         $hasContactsTable = Schema::hasTable('contractor_contacts');
@@ -477,6 +493,7 @@ class ContractorController extends Controller
         } catch (QueryException $exception) {
             if ($this->isMissingTableException($exception, 'contractor_contacts')) {
                 $fallbackQuery = Contractor::query()
+                    ->visibleTo($request->user(), $type)
                     ->withCount(['customerOrders', 'carrierOrders']);
 
                 if (Schema::hasColumn('contractors', 'owner_id')) {
@@ -591,12 +608,19 @@ class ContractorController extends Controller
                 $orderSelect[] = 'carrier_rate';
             }
 
-            $orderRows = DB::table('orders')
+            $orderRowsQuery = DB::table('orders')
                 ->select($orderSelect)
                 ->where(function ($query) use ($selectedContractor): void {
                     $query->where('customer_id', $selectedContractor->id)
                         ->orWhere('carrier_id', $selectedContractor->id);
-                })
+                });
+
+            OrderViewAuthorization::applyOrdersVisibilityScopeToQuery(
+                $orderRowsQuery,
+                $request->user(),
+            );
+
+            $orderRows = $orderRowsQuery
                 ->orderByDesc('order_date')
                 ->limit(20)
                 ->get();
@@ -633,7 +657,7 @@ class ContractorController extends Controller
             if ($hasOrderDocumentsTable) {
                 $documentDateColumn = Schema::hasColumn('order_documents', 'document_date');
 
-                $relatedOrderDocuments = DB::table('order_documents')
+                $relatedOrderDocumentsQuery = DB::table('order_documents')
                     ->join('orders', 'orders.id', '=', 'order_documents.order_id')
                     ->select(
                         'order_documents.id',
@@ -660,7 +684,14 @@ class ContractorController extends Controller
                     ->when(
                         Schema::hasColumn('orders', 'deleted_at'),
                         fn ($query) => $query->whereNull('orders.deleted_at')
-                    )
+                    );
+
+                OrderViewAuthorization::applyOrdersVisibilityScopeToQuery(
+                    $relatedOrderDocumentsQuery,
+                    $request->user(),
+                );
+
+                $relatedOrderDocuments = $relatedOrderDocumentsQuery
                     ->when(
                         $documentDateColumn,
                         fn ($query) => $query->orderByDesc('order_documents.document_date')
@@ -1398,8 +1429,12 @@ class ContractorController extends Controller
         }
     }
 
-    public function downloadPartnerCard(Contractor $contractor, ContractorPartnerCardService $partnerCardService): BinaryFileResponse
-    {
+    public function downloadPartnerCard(
+        Request $request,
+        Contractor $contractor,
+        ContractorPartnerCardService $partnerCardService,
+    ): BinaryFileResponse {
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
         abort_unless($contractor->is_own_company, 404);
 
         $generated = $partnerCardService->generate($contractor);
@@ -1414,6 +1449,7 @@ class ContractorController extends Controller
 
     public function previewDocument(Request $request, Contractor $contractor, ContractorDocument $contractorDocument): HttpResponse
     {
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
         abort_unless($contractorDocument->contractor_id === $contractor->id, 404);
         abort_unless(
             Schema::hasTable('contractor_documents') && Schema::hasColumn('contractor_documents', 'file_path'),

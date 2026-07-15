@@ -9,6 +9,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
 
@@ -30,7 +31,8 @@ class ChatMessageAttachmentService
                 $uploader,
                 &$storedPaths,
             ): ChatMessageAttachment {
-                $extension = strtolower($file->guessExtension() ?: $file->getClientOriginalExtension());
+                $extension = strtolower($file->getClientOriginalExtension() ?: (string) $file->guessExtension());
+                [$width, $height] = $this->validatedImageDimensions($file, $extension);
                 $storedName = (string) Str::uuid().($extension !== '' ? '.'.$extension : '');
                 $directory = sprintf(
                     'chat-attachments/%d/%d',
@@ -44,7 +46,6 @@ class ChatMessageAttachmentService
                 }
 
                 $storedPaths[] = $path;
-                [$width, $height] = $this->imageDimensions($file);
                 $hash = hash_file('sha256', $file->getRealPath());
 
                 if (! is_string($hash)) {
@@ -73,16 +74,27 @@ class ChatMessageAttachmentService
     /**
      * @return array{0: int|null, 1: int|null}
      */
-    private function imageDimensions(UploadedFile $file): array
+    private function validatedImageDimensions(UploadedFile $file, string $extension): array
     {
-        if (! str_starts_with((string) $file->getMimeType(), 'image/')) {
+        $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'];
+
+        if (! in_array($extension, $imageExtensions, true)) {
             return [null, null];
         }
 
         $dimensions = @getimagesize($file->getRealPath());
 
         if (! is_array($dimensions)) {
-            return [null, null];
+            $mimeType = strtolower((string) $file->getMimeType());
+
+            if (in_array($extension, ['heic', 'heif'], true)
+                && in_array($mimeType, ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'], true)) {
+                return [null, null];
+            }
+
+            throw ValidationException::withMessages([
+                'attachments' => 'Файл изображения повреждён или его содержимое не соответствует расширению.',
+            ]);
         }
 
         return [(int) $dimensions[0], (int) $dimensions[1]];

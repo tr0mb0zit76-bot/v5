@@ -37,7 +37,7 @@ class FinanceReconciliationController extends Controller
         }
 
         return Inertia::render('Finance/Reconciliation', [
-            'contractorOptions' => $reconciliationService->contractorOptions(),
+            'contractorOptions' => $reconciliationService->contractorOptions($request->user()),
             'filters' => $filters,
             'report' => $report,
             'ledgerAvailable' => app(PaymentSchedulePaymentLedgerService::class)->ledgerTableExists(),

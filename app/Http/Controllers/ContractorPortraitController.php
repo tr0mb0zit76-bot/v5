@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateContractorPortraitRequest;
 use App\Models\Contractor;
 use App\Services\Contractor\ContractorPortraitService;
 use App\Support\ContractorPortraitDictionary;
+use App\Support\ContractorViewAuthorization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 
@@ -18,6 +19,8 @@ class ContractorPortraitController extends Controller
 
     public function update(UpdateContractorPortraitRequest $request, Contractor $contractor): RedirectResponse
     {
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
+
         $this->portraitService->updatePortrait(
             $contractor,
             $request->validated(),
@@ -34,6 +37,8 @@ class ContractorPortraitController extends Controller
 
     public function storeInteraction(StoreContractorInteractionRequest $request, Contractor $contractor): JsonResponse
     {
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
+
         $validated = $request->validated();
 
         if (filled($validated['contractor_contact_id'] ?? null)) {

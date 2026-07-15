@@ -34,37 +34,7 @@ class OrderCarrierPortalTest extends TestCase
             $this->markTestSkipped('order_portal_invites migration is not applied.');
         }
 
-        $user = User::factory()->create();
-        $carrier = Contractor::query()->create([
-            'type' => 'carrier',
-            'name' => 'Тестовый перевозчик',
-            'is_active' => true,
-        ]);
-        $order = Order::factory()->create([
-            'manager_id' => $user->id,
-            'carrier_id' => $carrier->id,
-            'performers' => [
-                [
-                    'stage' => 'leg_1',
-                    'carrier_mode' => 'single',
-                    'contractor_id' => $carrier->id,
-                    'contractor_name' => $carrier->name,
-                    'split_carriers' => [],
-                ],
-            ],
-        ]);
-
-        $token = 'test-portal-token-'.uniqid('', true);
-        $invite = OrderPortalInvite::query()->create([
-            'order_id' => $order->id,
-            'contractor_id' => $carrier->id,
-            'stage' => 'leg_1',
-            'carrier_slot' => 1,
-            'purpose' => OrderPortalInvite::PURPOSE_CARRIER_FLEET,
-            'token_hash' => app(OrderPortalInviteService::class)->hashToken($token),
-            'created_by' => $user->id,
-            'expires_at' => now()->addDays(7),
-        ]);
+        [$user, $carrier, $order, $invite, $token] = $this->createCarrierInvite();
 
         $this->get(route('portal.carrier.show', ['token' => $token]))
             ->assertOk()
@@ -91,6 +61,32 @@ class OrderCarrierPortalTest extends TestCase
         $this->assertNotNull($performer['fleet_vehicle_id'] ?? null);
         $this->assertNotNull($performer['fleet_driver_id'] ?? null);
         $this->assertSame('Иванов Иван Иванович', data_get($performer, 'carrier_portal_submission.driver_full_name'));
+    }
+
+    public function test_carrier_portal_page_rejects_expired_invite(): void
+    {
+        if (! Schema::hasTable('order_portal_invites')) {
+            $this->markTestSkipped('order_portal_invites migration is not applied.');
+        }
+
+        [, , , $invite, $token] = $this->createCarrierInvite();
+        $invite->forceFill(['expires_at' => now()->subMinute()])->save();
+
+        $this->get(route('portal.carrier.show', ['token' => $token]))
+            ->assertStatus(410);
+    }
+
+    public function test_carrier_portal_page_rejects_revoked_invite(): void
+    {
+        if (! Schema::hasTable('order_portal_invites')) {
+            $this->markTestSkipped('order_portal_invites migration is not applied.');
+        }
+
+        [, , , $invite, $token] = $this->createCarrierInvite();
+        $invite->forceFill(['revoked_at' => now()])->save();
+
+        $this->get(route('portal.carrier.show', ['token' => $token]))
+            ->assertStatus(410);
     }
 
     public function test_store_carrier_invite_accepts_localized_stage_name(): void
@@ -131,5 +127,44 @@ class OrderCarrierPortalTest extends TestCase
         $response
             ->assertOk()
             ->assertJsonStructure(['url', 'expires_at', 'invite_id']);
+    }
+
+    /**
+     * @return array{0: User, 1: Contractor, 2: Order, 3: OrderPortalInvite, 4: string}
+     */
+    private function createCarrierInvite(): array
+    {
+        $user = User::factory()->create();
+        $carrier = Contractor::query()->create([
+            'type' => 'carrier',
+            'name' => 'Тестовый перевозчик',
+            'is_active' => true,
+        ]);
+        $order = Order::factory()->create([
+            'manager_id' => $user->id,
+            'carrier_id' => $carrier->id,
+            'performers' => [
+                [
+                    'stage' => 'leg_1',
+                    'carrier_mode' => 'single',
+                    'contractor_id' => $carrier->id,
+                    'contractor_name' => $carrier->name,
+                    'split_carriers' => [],
+                ],
+            ],
+        ]);
+        $token = 'test-portal-token-'.uniqid('', true);
+        $invite = OrderPortalInvite::query()->create([
+            'order_id' => $order->id,
+            'contractor_id' => $carrier->id,
+            'stage' => 'leg_1',
+            'carrier_slot' => 1,
+            'purpose' => OrderPortalInvite::PURPOSE_CARRIER_FLEET,
+            'token_hash' => app(OrderPortalInviteService::class)->hashToken($token),
+            'created_by' => $user->id,
+            'expires_at' => now()->addDays(7),
+        ]);
+
+        return [$user, $carrier, $order, $invite, $token];
     }
 }

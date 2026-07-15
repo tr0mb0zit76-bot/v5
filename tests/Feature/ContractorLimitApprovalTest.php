@@ -52,6 +52,7 @@ class ContractorLimitApprovalTest extends TestCase
             'inn' => '7707083893',
             'debt_limit' => 0,
             'is_verified' => false,
+            'owner_id' => $manager->id,
         ]);
 
         $response = $this->actingAs($manager)->postJson(

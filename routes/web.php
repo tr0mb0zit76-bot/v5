@@ -92,7 +92,7 @@ Route::post('/transport-request', [PublicTransportRequestController::class, 'sto
     ->middleware('throttle:10,1')
     ->name('public.transport-request.store');
 Route::get('/messenger/attachments/{attachment}', [MessengerAttachmentController::class, 'show'])
-    ->middleware('signed')
+    ->middleware(['auth:sanctum', 'signed'])
     ->name('messenger.attachments.show');
 
 if ($sameShowcaseAndCrmHost) {
@@ -896,7 +896,7 @@ Route::prefix('integrations')->group(function () {
         ->middleware('verify.astral.epd.signature')
         ->name('integrations.astral.epd.webhook');
 
-    Route::middleware('verify.onec.token')->group(function () {
+    Route::middleware(['throttle:integration-onec', 'verify.onec.token'])->group(function () {
         Route::post('/1c-fresh/etrn/create-from-order', [OneCFreshEtrnController::class, 'createFromOrder'])
             ->name('integrations.onec-fresh.etrn.create-from-order');
         Route::get('/1c-fresh/etrn-journal', [OneCFreshEtrnController::class, 'journal'])

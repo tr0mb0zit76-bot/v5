@@ -3,6 +3,7 @@
 namespace Tests\Feature\Mcp;
 
 use App\Mcp\Servers\CrmServer;
+use App\Mcp\Tools\AllocateManagementStatementLineTool;
 use App\Mcp\Tools\GetManagementAccountingAnalyticsTool;
 use App\Mcp\Tools\GetManagementAccountingInsightsTool;
 use App\Mcp\Tools\GetUserContextTool;
@@ -15,8 +16,11 @@ use App\Models\ManagementBankAccount;
 use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementStatementImport;
 use App\Models\ManagementStatementLine;
+use App\Models\PaymentSchedule;
+use App\Models\PaymentSchedulePaymentEvent;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ManagementAccountingMcpToolsTest extends TestCase
@@ -112,6 +116,52 @@ class ManagementAccountingMcpToolsTest extends TestCase
         ]);
 
         $otherResponse->assertHasErrors();
+    }
+
+    public function test_allocate_tool_rejects_foreign_payment_schedule_without_side_effects(): void
+    {
+        $user = $this->makeManagementUser();
+        $foreignManager = User::factory()->create();
+        $orderId = $this->insertOrderRow([
+            'order_number' => 'MCP-AUTH-'.uniqid(),
+            'manager_id' => $foreignManager->id,
+        ]);
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 1000,
+            'paid_amount' => 0,
+            'remaining_amount' => 1000,
+            'status' => 'pending',
+            'planned_date' => '2026-07-15',
+        ]);
+        $line = $this->createManagementStatementLine([
+            'amount' => 1000,
+            'created_by' => $user->id,
+        ]);
+
+        CrmServer::actingAs($user)->tool(AllocateManagementStatementLineTool::class, [
+            'line_id' => $line->id,
+            'allocation_type' => 'operational',
+            'payment_schedule_id' => $schedule->id,
+            'amount' => 1000,
+        ])->assertHasErrors();
+
+        $this->assertSame('pending', $line->fresh()->status);
+        $this->assertSame(0.0, (float) $schedule->fresh()->paid_amount);
+        $this->assertSame(
+            0,
+            PaymentSchedulePaymentEvent::query()
+                ->where('transaction_reference', 'mgmt:'.$line->id)
+                ->count(),
+        );
+        $this->assertSame(
+            0,
+            DB::table('management_statement_line_splits')
+                ->where('management_statement_line_id', $line->id)
+                ->count(),
+        );
     }
 
     public function test_remembered_rule_is_used_in_suggestion(): void

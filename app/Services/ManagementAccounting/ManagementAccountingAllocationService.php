@@ -12,9 +12,12 @@ use App\Models\User;
 use App\Services\Finance\PaymentSchedulePaymentLedgerService;
 use App\Services\Finance\PaymentSchedulePaymentReversalService;
 use App\Services\Finance\PaymentScheduleSettlementSyncService;
+use App\Support\OrderViewAuthorization;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PaymentScheduleSettlementStatus;
+use App\Support\RoleAccess;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
@@ -48,21 +51,29 @@ class ManagementAccountingAllocationService
         }
 
         return DB::transaction(function () use ($line, $payload, $allocator): ManagementStatementLine {
+            $schedule = null;
+            $allocationType = (string) ($payload['allocation_type'] ?? 'category');
+
+            if ($allocationType === 'operational' && ! empty($payload['payment_schedule_id'])) {
+                $schedule = PaymentSchedule::query()
+                    ->with('order')
+                    ->findOrFail((int) $payload['payment_schedule_id']);
+                $this->authorizeOperationalSchedule($allocator, $schedule);
+            }
+
             if ($line->status === 'allocated') {
                 $this->reverseAllocatedLine($line, $allocator, 'Переразнесение на другую строку графика');
                 $line->refresh();
             }
 
             $amount = round((float) ($payload['amount'] ?? $line->amount), 2);
-            $allocationType = (string) ($payload['allocation_type'] ?? 'category');
 
             $line->allocation_amount = $amount;
             $line->allocated_by = $allocator->id;
             $line->allocated_at = now();
             $line->status = 'allocated';
 
-            if ($allocationType === 'operational' && ! empty($payload['payment_schedule_id'])) {
-                $schedule = PaymentSchedule::query()->findOrFail((int) $payload['payment_schedule_id']);
+            if ($schedule !== null) {
                 $this->recordOperationalPayment($schedule, $line, $amount, $allocator);
 
                 $line->allocation_payment_schedule_id = $schedule->id;
@@ -138,6 +149,17 @@ class ManagementAccountingAllocationService
                 throw new InvalidArgumentException('Сумма разнесения должна совпадать с суммой операции.');
             }
 
+            /** @var array<int, PaymentSchedule> $schedules */
+            $schedules = [];
+            foreach ($allocations as $allocation) {
+                $scheduleId = $allocation['payment_schedule_id'];
+                if (! isset($schedules[$scheduleId])) {
+                    $schedule = PaymentSchedule::query()->with('order')->findOrFail($scheduleId);
+                    $this->authorizeOperationalSchedule($allocator, $schedule);
+                    $schedules[$scheduleId] = $schedule;
+                }
+            }
+
             if ($line->status === 'allocated') {
                 $this->reverseAllocatedLine($line, $allocator, 'Переразнесение на несколько заявок');
                 $line->refresh();
@@ -159,7 +181,7 @@ class ManagementAccountingAllocationService
             $line->save();
 
             foreach ($allocations as $allocation) {
-                $schedule = PaymentSchedule::query()->findOrFail($allocation['payment_schedule_id']);
+                $schedule = $schedules[$allocation['payment_schedule_id']];
                 $split = ManagementStatementLineSplit::query()->create([
                     'management_statement_line_id' => $line->id,
                     'allocation_type' => 'operational',
@@ -400,6 +422,15 @@ class ManagementAccountingAllocationService
         $this->settlementSync->syncRootSchedule($schedule);
 
         PaymentScheduleAutomaticStatus::refreshForOrder((int) $schedule->order_id);
+    }
+
+    private function authorizeOperationalSchedule(User $actor, PaymentSchedule $schedule): void
+    {
+        if (! RoleAccess::canManageStatementImport($actor)
+            || $schedule->order === null
+            || ! OrderViewAuthorization::userCanMutateOrder($actor, $schedule->order)) {
+            throw new AuthorizationException('Нет доступа к графику оплат этой заявки.');
+        }
     }
 
     private function refreshImportCounters(?int $importId): void

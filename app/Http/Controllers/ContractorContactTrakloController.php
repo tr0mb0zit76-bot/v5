@@ -6,6 +6,7 @@ use App\Http\Requests\External\ProvisionExternalUserInviteRequest;
 use App\Models\Contractor;
 use App\Models\ContractorContact;
 use App\Services\ExternalUsers\ExternalUserProvisionService;
+use App\Support\ContractorViewAuthorization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,6 +19,7 @@ class ContractorContactTrakloController extends Controller
     public function setPrimary(Request $request, Contractor $contractor, ContractorContact $contact): JsonResponse
     {
         abort_unless($request->user() !== null, 403);
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
 
         $this->assertContactBelongs($contractor, $contact);
 
@@ -31,6 +33,7 @@ class ContractorContactTrakloController extends Controller
 
     public function invite(ProvisionExternalUserInviteRequest $request, Contractor $contractor, ContractorContact $contact): JsonResponse
     {
+        ContractorViewAuthorization::authorize($request->user(), $contractor);
         $this->assertContactBelongs($contractor, $contact);
 
         $payload = $this->provisionService->provisionInvite(

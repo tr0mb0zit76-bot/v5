@@ -4,14 +4,16 @@ require_once __DIR__.'/temp-dir.php';
 
 configure_phpword_temp_dir(dirname(__DIR__));
 
+use App\Http\Middleware\AddSecurityHeaders;
 use App\Http\Middleware\EnsureCanManageSalesScripts;
 use App\Http\Middleware\EnsureCompanyPlanningAccess;
 use App\Http\Middleware\EnsureSettingsVisibilityAccess;
-use App\Http\Middleware\EnsureVisibilityAreaAccess;
 use App\Http\Middleware\EnsureVisibilityAnyAreaAccess;
+use App\Http\Middleware\EnsureVisibilityAreaAccess;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ReconnectOnPreparedStatementError;
 use App\Http\Middleware\RejectExternalFromInternalRoutes;
+use App\Http\Middleware\RequireMcpBearerToken;
 use App\Http\Middleware\VerifyAstralEpdWebhookSignature;
 use App\Http\Middleware\VerifyOneCFreshToken;
 use App\Support\UserFacingDatabaseMessageResolver;
@@ -31,7 +33,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->trustProxies(at: '*');
+        $middleware->trustProxies(at: ['127.0.0.1', '::1']);
+        $middleware->append(AddSecurityHeaders::class);
         $middleware->redirectGuestsTo(fn (Request $request): string => $request->is('mobile/*') ? '/mobile/login' : '/login');
 
         $middleware->alias([
@@ -40,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'company.planning' => EnsureCompanyPlanningAccess::class,
             'visibility.settings' => EnsureSettingsVisibilityAccess::class,
             'can.manage.sales.scripts' => EnsureCanManageSalesScripts::class,
+            'mcp.bearer' => RequireMcpBearerToken::class,
             'verify.astral.epd.signature' => VerifyAstralEpdWebhookSignature::class,
             'verify.onec.token' => VerifyOneCFreshToken::class,
         ]);

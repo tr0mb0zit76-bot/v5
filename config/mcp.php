@@ -1,5 +1,14 @@
 <?php
 
+$redirectDomains = array_values(array_filter(array_map(
+    'trim',
+    explode(',', (string) env('MCP_REDIRECT_DOMAINS', env('APP_URL', 'http://localhost'))),
+)));
+$customSchemes = array_values(array_filter(array_map(
+    'trim',
+    explode(',', (string) env('MCP_CUSTOM_SCHEMES', '')),
+)));
+
 return [
 
     /*
@@ -15,11 +24,7 @@ return [
     |
     */
 
-    'redirect_domains' => [
-        '*',
-        // 'https://example.com',
-        // 'http://localhost',
-    ],
+    'redirect_domains' => $redirectDomains,
 
     /*
     |--------------------------------------------------------------------------
@@ -32,11 +37,7 @@ return [
     |
     */
 
-    'custom_schemes' => [
-        // 'claude',
-        // 'cursor',
-        // 'vscode',
-    ],
+    'custom_schemes' => $customSchemes,
 
     /*
     |--------------------------------------------------------------------------

@@ -37,7 +37,7 @@ class McpAccessGate
 
         $devUserId = config('mcp.dev_user_id');
 
-        if ($devUserId !== null && $devUserId !== '') {
+        if ($devUserId !== null && $devUserId !== '' && $this->canUseDevUserFallback()) {
             $devUser = User::query()->whereKey((int) $devUserId)->first();
 
             if ($devUser instanceof User && $devUser->is_active) {
@@ -48,6 +48,31 @@ class McpAccessGate
         }
 
         throw new AuthenticationException('Требуется Bearer-токен Sanctum (Authorization: Bearer …) или MCP_DEV_USER_ID для локального stdio.');
+    }
+
+    private function canUseDevUserFallback(): bool
+    {
+        if (! app()->runningInConsole()) {
+            return false;
+        }
+
+        $environment = (string) config('app.env');
+
+        if ($environment === 'testing') {
+            return true;
+        }
+
+        if ($environment !== 'local' || ! config('app.debug')) {
+            return false;
+        }
+
+        $host = strtolower((string) parse_url((string) config('app.url'), PHP_URL_HOST));
+
+        return $host === 'localhost'
+            || $host === '::1'
+            || str_starts_with($host, '127.')
+            || str_ends_with($host, '.local')
+            || str_ends_with($host, '.test');
     }
 
     public function requireOrdersArea(User $user): void

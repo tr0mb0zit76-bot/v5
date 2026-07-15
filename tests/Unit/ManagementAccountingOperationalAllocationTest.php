@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\PaymentSchedule;
 use App\Models\PaymentSchedulePaymentEvent;
+use App\Models\Role;
 use App\Models\User;
 use App\Services\Finance\FinanceOverviewService;
 use App\Services\Finance\PaymentScheduleSettlementSyncService;
@@ -15,7 +16,7 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
 {
     public function test_partial_allocation_keeps_open_row_with_correct_remaining(): void
     {
-        $user = User::factory()->create();
+        $user = $this->makeAuthorizedAllocator();
         $carrierId = DB::table('contractors')->insertGetId([
             'name' => 'ООО Камион',
             'created_at' => now(),
@@ -73,7 +74,7 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
 
     public function test_full_prepayment_allocation_hides_row_from_cash_flow_journal(): void
     {
-        $user = User::factory()->create();
+        $user = $this->makeAuthorizedAllocator();
         $customerId = DB::table('contractors')->insertGetId([
             'name' => 'ООО Дайтона моторс',
             'created_at' => now(),
@@ -172,7 +173,7 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
 
     public function test_reallocate_operational_payment_moves_settlement_to_another_schedule(): void
     {
-        $user = User::factory()->create();
+        $user = $this->makeAuthorizedAllocator();
         $carrierId = DB::table('contractors')->insertGetId([
             'name' => 'ООО Камион',
             'created_at' => now(),
@@ -246,5 +247,15 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
         $journal = app(FinanceOverviewService::class)->cashFlowJournal(null);
         $this->assertNotNull($journal->firstWhere('id', $prepaymentId));
         $this->assertNull($journal->firstWhere('id', $finalId));
+    }
+
+    private function makeAuthorizedAllocator(): User
+    {
+        $role = Role::query()->firstOrCreate(
+            ['name' => 'admin'],
+            ['display_name' => 'Administrator'],
+        );
+
+        return User::factory()->create(['role_id' => $role->id]);
     }
 }
