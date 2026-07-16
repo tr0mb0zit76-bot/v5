@@ -258,6 +258,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/leads/{lead}/commercial/from-template', 'storeCommercialFromTemplate')->name('leads.commercial.from-template');
         Route::post('/leads/{lead}/proposal/from-html-template', 'storeCommercialFromHtmlTemplate')->name('leads.proposal.from-html-template');
         Route::get('/leads/{lead}/proposal/html-preview', 'previewHtmlProposal')->name('leads.proposal.html-preview');
+        Route::post('/leads/{lead}/proposal/send-html-email', [LeadOfferMailController::class, 'sendHtml'])->name('leads.proposal.send-html-email');
         Route::get('/leads/{lead}/offers/{offer}/draft', 'downloadOfferDraft')->name('leads.offers.draft');
         Route::post('/leads/{lead}/next-step', 'storeNextStep')->name('leads.next-step.store');
         Route::patch('/leads/{lead}/process-stage', 'advanceProcessStage')->name('leads.process-stage');

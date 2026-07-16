@@ -15,7 +15,7 @@ const props = defineProps({
     proposalHtmlTemplateOptions: { type: Array, default: () => [] },
 });
 
-const emit = defineEmits(['send-offer']);
+const emit = defineEmits(['send-offer', 'send-html-template']);
 
 const commercialPrintDocs = computed(() => (
     (props.offers ?? [])
@@ -34,6 +34,12 @@ const commercialPrintDocs = computed(() => (
                 offer: offer.id,
             }),
         }))
+));
+
+const selectedHtmlTemplate = computed(() => (
+    (props.proposalHtmlTemplateOptions ?? []).find(
+        (template) => String(template.id) === String(selectedHtmlTemplateId.value),
+    ) ?? null
 ));
 
 function templateOptionLabel(template) {
@@ -71,14 +77,16 @@ function previewHtmlProposal() {
     window.open(url, '_blank', 'noopener,noreferrer');
 }
 
-function createHtmlCommercialInCard() {
-    if (!props.leadId || !selectedHtmlTemplateId.value) {
+function openSendHtmlEmail() {
+    if (!props.leadId || !selectedHtmlTemplate.value) {
         return;
     }
 
-    router.post(route('leads.proposal.from-html-template', props.leadId), {
-        proposal_html_template_id: Number(selectedHtmlTemplateId.value),
-    }, { preserveScroll: true });
+    emit('send-html-template', selectedHtmlTemplate.value);
+}
+
+function canResendOffer(offer) {
+    return !offer.sent_at && (offer.generated_file_path || offer.has_html_teaser);
 }
 
 function formatMoney(value, currency = 'RUB') {
@@ -152,12 +160,12 @@ function formatMoney(value, currency = 'RUB') {
                 <div>
                     <div class="text-sm font-semibold text-sky-950 dark:text-sky-100">HTML-шаблон КП</div>
                     <p class="mt-1 text-xs text-sky-900/80 dark:text-sky-200/80">
-                        Конструктор шаблонов — в «Модули → Шаблоны КП». Здесь: preview → PDF в карточке → отправка по e-mail.
+                        Конструктор — «Модули → Шаблоны КП». Выберите шаблон и отправьте письмо клиенту; в истории появится отметка «отправлено».
                     </p>
                 </div>
 
                 <template v-if="!leadId">
-                    <p class="text-xs text-sky-900/80">Сохраните лид, чтобы сформировать HTML-КП.</p>
+                    <p class="text-xs text-sky-900/80">Сохраните лид, чтобы отправить HTML-КП.</p>
                 </template>
                 <template v-else>
                     <div class="flex flex-wrap items-end gap-3">
@@ -186,9 +194,9 @@ function formatMoney(value, currency = 'RUB') {
                             type="button"
                             class="rounded-xl bg-sky-700 px-4 py-2 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-50 dark:bg-sky-600"
                             :disabled="!selectedHtmlTemplateId"
-                            @click="createHtmlCommercialInCard"
+                            @click="openSendHtmlEmail"
                         >
-                            Сохранить PDF в карточке
+                            Отправить по e-mail
                         </button>
                     </div>
                 </template>
@@ -204,13 +212,15 @@ function formatMoney(value, currency = 'RUB') {
             >
                 <div class="flex items-center justify-between gap-3">
                     <div class="font-medium">{{ offer.number || 'Черновик КП' }}</div>
-                    <span class="text-xs text-zinc-500 dark:text-zinc-400">{{ offer.sent_at ? 'отправлено' : offer.offer_date || '—' }}</span>
+                    <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                        {{ offer.sent_at ? 'письмо отправлено' : offer.offer_date || '—' }}
+                    </span>
                 </div>
                 <div class="mt-2 text-zinc-500 dark:text-zinc-400">
-                    {{ offer.price ? formatMoney(offer.price, offer.currency) : 'Без цены' }}
+                    {{ offer.print_template_name || (offer.price ? formatMoney(offer.price, offer.currency) : 'Без цены') }}
                 </div>
                 <button
-                    v-if="!offer.sent_at && offer.generated_file_path"
+                    v-if="canResendOffer(offer)"
                     type="button"
                     class="mt-3 inline-flex items-center rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
                     @click="emit('send-offer', offer)"

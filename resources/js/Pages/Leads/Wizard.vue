@@ -369,6 +369,7 @@
                 :print-form-template-options="printFormTemplateOptions"
                 :proposal-html-template-options="proposalHtmlTemplateOptions"
                 @send-offer="openSendOfferModal"
+                @send-html-template="openSendHtmlTemplateModal"
             />
         </div>
 
@@ -434,17 +435,25 @@
             @click.self="closeSendOfferModal"
         >
             <form :class="`${crmModalPanel} w-full max-w-lg space-y-3 p-5 shadow-2xl`" @submit.prevent="submitSendOffer">
-                <div class="text-lg font-semibold">Отправить КП по e-mail</div>
+                <div class="text-lg font-semibold">
+                    {{ sendHtmlTemplateTarget ? 'Отправить HTML-КП по e-mail' : 'Отправить КП по e-mail' }}
+                </div>
+                <p
+                    v-if="sendHtmlTemplateTarget"
+                    class="text-sm text-zinc-500 dark:text-zinc-400"
+                >
+                    Шаблон: {{ sendHtmlTemplateTarget.name }}. Письмо уйдёт как HTML (без PDF).
+                </p>
                 <input v-model="sendOfferForm.to_raw" type="text" :class="crmFieldFluid" placeholder="Кому (через запятую)" />
                 <input v-model="sendOfferForm.subject" type="text" :class="crmFieldFluid" placeholder="Тема" />
                 <textarea v-model="sendOfferForm.body" rows="5" :class="crmFieldFluid" placeholder="Текст письма (plain-text запасной)" />
                 <label
-                    v-if="sendOfferTarget?.has_html_teaser"
+                    v-if="sendOfferTarget?.has_html_teaser && !sendHtmlTemplateTarget"
                     class="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100"
                 >
                     <input v-model="sendOfferForm.use_html_teaser" type="checkbox" class="mt-0.5 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500" />
                     <span>
-                        HTML-затравка в теле письма (картинки встроены CID). PDF останется вложением.
+                        HTML в теле письма (картинки CID). Файл останется вложением, если он есть.
                     </span>
                 </label>
                 <div class="flex justify-end gap-2">
@@ -1344,32 +1353,53 @@ function submit() {
 
 const showSendOfferModal = ref(false);
 const sendOfferTarget = ref(null);
+const sendHtmlTemplateTarget = ref(null);
 const activityTimelineRef = ref(null);
 const sendOfferForm = useForm({
     to_raw: '',
     subject: '',
     body: '',
     use_html_teaser: true,
+    proposal_html_template_id: null,
 });
+
+function defaultSendOfferEmails() {
+    const counterparty = contractors.value.find((c) => c.id === form.counterparty_id);
+    const emails = [counterparty?.contact_person_email, counterparty?.email].filter(Boolean);
+
+    return [...new Set(emails)].join(', ');
+}
 
 function openSendOfferModal(offer) {
     sendOfferTarget.value = offer;
-    const counterparty = contractors.value.find((c) => c.id === form.counterparty_id);
-    const emails = [counterparty?.contact_person_email, counterparty?.email].filter(Boolean);
-    sendOfferForm.to_raw = [...new Set(emails)].join(', ');
+    sendHtmlTemplateTarget.value = null;
+    sendOfferForm.to_raw = defaultSendOfferEmails();
     sendOfferForm.subject = `Коммерческое предложение ${offer.number || ''}`.trim();
     sendOfferForm.body = `Добрый день!\n\nНаправляем коммерческое предложение по перевозке «${form.title}».`;
     sendOfferForm.use_html_teaser = Boolean(offer?.has_html_teaser);
+    sendOfferForm.proposal_html_template_id = null;
+    showSendOfferModal.value = true;
+}
+
+function openSendHtmlTemplateModal(template) {
+    sendOfferTarget.value = null;
+    sendHtmlTemplateTarget.value = template;
+    sendOfferForm.to_raw = defaultSendOfferEmails();
+    sendOfferForm.subject = `Коммерческое предложение: ${template.name || ''}`.trim();
+    sendOfferForm.body = `Добрый день!\n\nНаправляем коммерческое предложение по перевозке «${form.title}».`;
+    sendOfferForm.use_html_teaser = true;
+    sendOfferForm.proposal_html_template_id = Number(template.id);
     showSendOfferModal.value = true;
 }
 
 function closeSendOfferModal() {
     showSendOfferModal.value = false;
     sendOfferTarget.value = null;
+    sendHtmlTemplateTarget.value = null;
 }
 
 function submitSendOffer() {
-    if (!selectedLeadId.value || !sendOfferTarget.value) {
+    if (!selectedLeadId.value) {
         return;
     }
 
@@ -1377,6 +1407,29 @@ function submitSendOffer() {
         .split(/[,;]/)
         .map((s) => s.trim())
         .filter(Boolean);
+
+    if (sendHtmlTemplateTarget.value) {
+        sendOfferForm
+            .transform((data) => ({
+                to,
+                subject: data.subject,
+                body: data.body,
+                proposal_html_template_id: Number(data.proposal_html_template_id || sendHtmlTemplateTarget.value.id),
+            }))
+            .post(route('leads.proposal.send-html-email', selectedLeadId.value), {
+                preserveScroll: true,
+                onSuccess: () => {
+                    closeSendOfferModal();
+                    activityTimelineRef.value?.reload?.();
+                },
+            });
+
+        return;
+    }
+
+    if (!sendOfferTarget.value) {
+        return;
+    }
 
     sendOfferForm
         .transform((data) => ({ ...data, to }))
