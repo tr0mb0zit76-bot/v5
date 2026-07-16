@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Services\OrderDocumentEdoAcknowledgementService;
 use App\Services\OrderDocumentRequirementService;
+use App\Support\OrderDocumentDirection;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
@@ -53,6 +54,7 @@ class OrderDocumentsModalController extends Controller
     {
         $metadata = (array) ($document->metadata ?? []);
         $party = (string) ($metadata['party'] ?? 'internal');
+        $direction = OrderDocumentDirection::fromDocument($document);
         $isPrintWorkflow = $this->isPrintWorkflow($document);
         $previewUrl = $this->previewUrl($order, $document, $isPrintWorkflow);
 
@@ -62,6 +64,8 @@ class OrderDocumentsModalController extends Controller
             'type_label' => $this->typeLabel((string) $document->type),
             'party' => $party,
             'party_label' => $this->partyLabel($party),
+            'direction' => $direction,
+            'direction_label' => OrderDocumentDirection::label($direction),
             'stage' => $metadata['stage'] ?? null,
             'order_leg_stage' => $metadata['order_leg_stage'] ?? null,
             'carrier_contractor_id' => isset($metadata['carrier_contractor_id']) ? (int) $metadata['carrier_contractor_id'] : null,

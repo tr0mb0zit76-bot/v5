@@ -9,6 +9,7 @@ use App\Models\OrderDocumentEdoAcknowledgement;
 use App\Models\PrintFormTemplate;
 use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderDocumentClosingFulfillment;
+use App\Support\OrderDocumentDirection;
 use App\Support\OrderDocumentRequirementSlotBuilder;
 use App\Support\OrderDocumentTransportTypes;
 use App\Support\OrderDocumentWorkflowStatus;
@@ -167,15 +168,15 @@ class OrderDocumentRequirementService
             ? $order->documents
             : $order->documents()->get();
 
-        $transportDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, OrderDocumentTransportTypes::VALUES));
+        $transportDocuments = $documents->filter(fn (OrderDocument $document): bool => ! OrderDocumentDirection::isOutgoing($document) && $this->matchesType($document, OrderDocumentTransportTypes::VALUES));
         if ($transportDocuments->isEmpty()) {
             return null;
         }
 
-        $requestDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, ['request', 'contract_request']) && $this->resolvePartyForMatching($document) === $party);
-        $updDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, ['upd']) && $this->resolvePartyForMatching($document) === $party);
-        $actDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, ['act']) && $this->resolvePartyForMatching($document) === $party);
-        $invoiceFacturaDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, ['invoice_factura']) && $this->resolvePartyForMatching($document) === $party);
+        $requestDocuments = $documents->filter(fn (OrderDocument $document): bool => ! OrderDocumentDirection::isOutgoing($document) && $this->matchesType($document, ['request', 'contract_request']) && $this->resolvePartyForMatching($document) === $party);
+        $updDocuments = $documents->filter(fn (OrderDocument $document): bool => ! OrderDocumentDirection::isOutgoing($document) && $this->matchesType($document, ['upd']) && $this->resolvePartyForMatching($document) === $party);
+        $actDocuments = $documents->filter(fn (OrderDocument $document): bool => ! OrderDocumentDirection::isOutgoing($document) && $this->matchesType($document, ['act']) && $this->resolvePartyForMatching($document) === $party);
+        $invoiceFacturaDocuments = $documents->filter(fn (OrderDocument $document): bool => ! OrderDocumentDirection::isOutgoing($document) && $this->matchesType($document, ['invoice_factura']) && $this->resolvePartyForMatching($document) === $party);
 
         $candidateDates = collect();
         $transportAt = $this->latestDocumentDate($transportDocuments);
@@ -435,6 +436,10 @@ class OrderDocumentRequirementService
      */
     private function matchesRule(OrderDocument|array $document, array $rule): bool
     {
+        if (OrderDocumentDirection::isOutgoing($document)) {
+            return false;
+        }
+
         $type = $document instanceof OrderDocument
             ? (string) $document->type
             : (string) ($document['type'] ?? '');

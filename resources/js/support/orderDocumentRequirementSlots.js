@@ -441,6 +441,11 @@ export function findRequirementRuleForUpload(rules, criteria) {
 export function documentMatchesRequirementRule(document, rule) {
     const accepted = Array.isArray(rule.accepted_types) ? rule.accepted_types : [];
     const type = String(document?.type ?? '');
+    const direction = String(document?.direction ?? document?.metadata?.direction ?? 'incoming');
+
+    if (direction === 'outgoing') {
+        return false;
+    }
 
     if (!accepted.includes(type)) {
         return false;

@@ -75,6 +75,10 @@ final class OrderDocumentClosingFulfillment
      */
     public static function documentMatchesClosingType(OrderDocument|array $document, string $documentType, array $rule): bool
     {
+        if (OrderDocumentDirection::isOutgoing($document)) {
+            return false;
+        }
+
         $type = $document instanceof OrderDocument
             ? (string) $document->type
             : (string) ($document['type'] ?? '');

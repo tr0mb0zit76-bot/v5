@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\OrderPortalInvite;
+use App\Support\OrderDocumentDirection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
@@ -108,6 +109,7 @@ class OrderCustomerPortalDocumentService
 
         $metadata = [
             'party' => 'customer',
+            'direction' => OrderDocumentDirection::INCOMING,
             'flow' => 'uploaded',
             'storage_driver' => $stored['storage_driver'],
             'requirement_slot_key' => (string) ($rule['slot_key'] ?? $validated['requirement_slot_key']),

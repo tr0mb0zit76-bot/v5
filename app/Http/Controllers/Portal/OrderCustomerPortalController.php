@@ -6,16 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreOrderCustomerPortalDocumentRequest;
 use App\Models\Contractor;
 use App\Models\Order;
+use App\Models\OrderDocument;
 use App\Models\OrderPortalInvite;
 use App\Services\OrderCustomerPortalDocumentService;
 use App\Services\OrderPortalInviteAccessService;
 use App\Services\OrderPortalInviteService;
+use App\Services\OrderPortalOutgoingDocumentService;
 use App\Support\DocumentUploadLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OrderCustomerPortalController extends Controller
 {
@@ -23,6 +26,7 @@ class OrderCustomerPortalController extends Controller
         private readonly OrderPortalInviteService $inviteService,
         private readonly OrderPortalInviteAccessService $inviteAccessService,
         private readonly OrderCustomerPortalDocumentService $portalDocumentService,
+        private readonly OrderPortalOutgoingDocumentService $outgoingDocumentService,
     ) {}
 
     public function show(Request $request, string $token): Response
@@ -34,7 +38,7 @@ class OrderCustomerPortalController extends Controller
         }
 
         return Inertia::render('Portal/CustomerDocuments', array_merge(
-            $this->portalPayload($invite),
+            $this->portalPayload($invite, $token),
             ['portal_token' => $token],
         ));
     }
@@ -66,6 +70,13 @@ class OrderCustomerPortalController extends Controller
             ]);
     }
 
+    public function downloadOutgoing(string $token, OrderDocument $orderDocument): StreamedResponse
+    {
+        $invite = $this->resolveInviteOrAbort($token, allowClosed: true);
+
+        return $this->outgoingDocumentService->downloadForInvite($invite, $orderDocument, 'customer');
+    }
+
     private function resolveInviteOrAbort(string $token, bool $allowClosed = false): OrderPortalInvite
     {
         $invite = $this->inviteService->resolveCustomerByToken($token);
@@ -86,7 +97,7 @@ class OrderCustomerPortalController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function portalPayload(OrderPortalInvite $invite): array
+    private function portalPayload(OrderPortalInvite $invite, string $token): array
     {
         /** @var Order $order */
         $order = $invite->order;
@@ -111,6 +122,12 @@ class OrderCustomerPortalController extends Controller
                 'inn' => $customer->inn,
             ],
             'document_slots' => $this->portalDocumentService->documentSlotsForInvite($invite),
+            'outgoing_documents' => $this->outgoingDocumentService->listForInvite(
+                $invite,
+                'customer',
+                'portal.customer.documents.download',
+                $token,
+            ),
             'document_upload_limits' => DocumentUploadLimits::forSharedInertia(),
             'traklo_apk_url' => config('external_users.apk_url', '/downloads/traklo.apk'),
         ];

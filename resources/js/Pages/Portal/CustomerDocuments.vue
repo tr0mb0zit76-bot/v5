@@ -1,5 +1,6 @@
 <script setup>
 import PortalCarrierDocuments from '@/Components/Portal/PortalCarrierDocuments.vue';
+import PortalOutgoingDocuments from '@/Components/Portal/PortalOutgoingDocuments.vue';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
@@ -17,6 +18,7 @@ const props = defineProps({
     customer: { type: Object, required: true },
     portal_token: { type: String, required: true },
     document_slots: { type: Array, default: () => [] },
+    outgoing_documents: { type: Array, default: () => [] },
     document_upload_limits: { type: Object, default: () => ({}) },
     traklo_apk_url: { type: String, default: '/downloads/traklo.apk' },
 });
@@ -67,6 +69,11 @@ const documentsReadonly = computed(() => !props.can_upload_documents);
             <span v-if="order.loading_date && order.unloading_date"> · </span>
             <span v-if="order.unloading_date">Выгрузка: {{ order.unloading_date }}</span>
         </div>
+
+        <PortalOutgoingDocuments
+            :documents="outgoing_documents"
+            heading="Документы от нас"
+        />
 
         <PortalCarrierDocuments
             :portal-token="portal_token"

@@ -8,6 +8,7 @@ use App\Http\Requests\StoreOrderCarrierPortalFleetDocumentRequest;
 use App\Http\Requests\SubmitOrderCarrierPortalRequest;
 use App\Models\Contractor;
 use App\Models\Order;
+use App\Models\OrderDocument;
 use App\Models\OrderLeg;
 use App\Models\OrderPortalInvite;
 use App\Models\RoutePoint;
@@ -16,6 +17,7 @@ use App\Services\OrderCarrierPortalFleetDocumentService;
 use App\Services\OrderCarrierPortalSubmissionService;
 use App\Services\OrderPortalInviteAccessService;
 use App\Services\OrderPortalInviteService;
+use App\Services\OrderPortalOutgoingDocumentService;
 use App\Support\DocumentUploadLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -23,6 +25,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OrderCarrierPortalController extends Controller
 {
@@ -32,6 +35,7 @@ class OrderCarrierPortalController extends Controller
         private readonly OrderCarrierPortalSubmissionService $submissionService,
         private readonly OrderCarrierPortalDocumentService $portalDocumentService,
         private readonly OrderCarrierPortalFleetDocumentService $fleetDocumentService,
+        private readonly OrderPortalOutgoingDocumentService $outgoingDocumentService,
     ) {}
 
     public function show(Request $request, string $token): Response
@@ -43,7 +47,7 @@ class OrderCarrierPortalController extends Controller
         }
 
         return Inertia::render('Portal/CarrierFleet', array_merge(
-            $this->portalPayload($invite),
+            $this->portalPayload($invite, $token),
             ['portal_token' => $token],
         ));
     }
@@ -109,6 +113,13 @@ class OrderCarrierPortalController extends Controller
         ]);
     }
 
+    public function downloadOutgoing(string $token, OrderDocument $orderDocument): StreamedResponse
+    {
+        $invite = $this->resolveInviteOrAbort($token, allowClosed: true);
+
+        return $this->outgoingDocumentService->downloadForInvite($invite, $orderDocument, 'carrier');
+    }
+
     private function resolveInviteOrAbort(string $token, bool $allowClosed = false): OrderPortalInvite
     {
         $invite = $this->inviteService->resolveByToken($token);
@@ -129,7 +140,7 @@ class OrderCarrierPortalController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function portalPayload(OrderPortalInvite $invite): array
+    private function portalPayload(OrderPortalInvite $invite, string $token): array
     {
         /** @var Order $order */
         $order = $invite->order;
@@ -172,6 +183,12 @@ class OrderCarrierPortalController extends Controller
             'route_summary' => $this->routeSummaryForLeg($order, $invite->stage),
             'form_defaults' => $formDefaults,
             'document_slots' => $this->portalDocumentService->documentSlotsForInvite($invite),
+            'outgoing_documents' => $this->outgoingDocumentService->listForInvite(
+                $invite,
+                'carrier',
+                'portal.carrier.documents.download',
+                $token,
+            ),
             'fleet_document_sections' => $this->fleetDocumentService->fleetDocumentSections($invite, $formDefaults),
             'document_upload_limits' => DocumentUploadLimits::forSharedInertia(),
         ];

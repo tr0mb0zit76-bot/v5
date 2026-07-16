@@ -21,6 +21,7 @@ use App\Support\DocumentRegistryGridColumnApplicabilityResolver;
 use App\Support\DocumentRegistryOrderAttentionResolver;
 use App\Support\OrderClipboardSummaryResolver;
 use App\Support\OrderDocumentAccessAuthorization;
+use App\Support\OrderDocumentDirection;
 use App\Support\OrderTrackReceivedRequirementResolver;
 use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
@@ -125,6 +126,7 @@ class DocumentRegistryController extends Controller
 
         $metadata = [
             'party' => $payload['party'],
+            'direction' => OrderDocumentDirection::normalize($payload['direction'] ?? null),
             'flow' => 'uploaded',
             'storage_driver' => $stored['storage_driver'],
         ];
@@ -195,6 +197,7 @@ class DocumentRegistryController extends Controller
 
         $metadata = array_merge((array) ($document->metadata ?? []), [
             'party' => $payload['party'],
+            'direction' => OrderDocumentDirection::normalize($payload['direction'] ?? data_get($document->metadata, 'direction')),
             'flow' => 'uploaded',
         ]);
 

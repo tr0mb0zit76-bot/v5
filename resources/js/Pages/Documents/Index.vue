@@ -79,6 +79,17 @@
                             <p v-if="documentForm.errors.party" class="w-full text-xs text-rose-600">{{ documentForm.errors.party }}</p>
                         </div>
                         <div :class="`${crmModalFieldRow} crm-modal-field-row--wide flex-wrap`">
+                            <label :class="crmModalFieldLabel">Направление</label>
+                            <select v-model="documentForm.direction" :class="crmFieldFluid" required>
+                                <option value="incoming">Входящий (от контрагента)</option>
+                                <option value="outgoing">Исходящий (от нас)</option>
+                            </select>
+                            <p v-if="documentForm.errors.direction" class="w-full text-xs text-rose-600">{{ documentForm.errors.direction }}</p>
+                            <p v-if="documentForm.direction === 'outgoing'" class="w-full text-xs text-zinc-500">
+                                Исходящий не закрывает чек-лист; появится в портале стороны.
+                            </p>
+                        </div>
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide flex-wrap`">
                             <label :class="crmModalFieldLabel">Тип</label>
                             <select v-model="documentForm.type" :class="crmFieldFluid" required>
                                 <option v-for="type in documentTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
@@ -231,6 +242,7 @@ const documentTypes = [
 const documentForm = useForm({
     order_id: null,
     party: 'customer',
+    direction: 'incoming',
     type: 'invoice',
     number: '',
     document_date: '',
@@ -295,6 +307,7 @@ function openCreateModal(orderId = null) {
     documentForm.clearErrors();
     documentForm.order_id = orderId;
     documentForm.party = 'customer';
+    documentForm.direction = 'incoming';
     documentForm.type = 'invoice';
     documentForm.status = 'draft';
     showDocumentModal.value = true;

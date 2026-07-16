@@ -160,6 +160,7 @@ const attachError = ref('');
 const deletingDocId = ref(null);
 const attachForm = reactive({
     party: 'customer',
+    direction: 'incoming',
     type: 'request',
     number: '',
     document_date: '',
@@ -506,6 +507,7 @@ function resolveAttachCarrierTarget() {
 
 async function openAttachModal(preset = {}) {
     attachForm.party = preset.party ?? 'customer';
+    attachForm.direction = preset.direction ?? 'incoming';
     attachForm.type = preset.type ?? 'request';
     attachForm.number = '';
     attachForm.document_date = '';
@@ -608,6 +610,7 @@ async function submitAttach() {
     const body = new FormData();
     body.append('order_id', String(props.order.id));
     body.append('party', attachForm.party);
+    body.append('direction', attachForm.direction);
     body.append('type', attachForm.type);
     body.append('status', 'signed');
 
@@ -946,6 +949,16 @@ async function onGlobalDrop(event) {
                             <option value="internal">Внутренний</option>
                         </select>
                     </div>
+                    <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                        <label :class="crmModalFieldLabel">Направление</label>
+                        <select v-model="attachForm.direction" :class="crmFieldFluid">
+                            <option value="incoming">Входящий (от контрагента)</option>
+                            <option value="outgoing">Исходящий (от нас)</option>
+                        </select>
+                    </div>
+                    <p v-if="attachForm.direction === 'outgoing'" class="text-xs text-zinc-500 dark:text-zinc-400">
+                        Исходящий не закрывает чек-лист; появится для скачивания в портале стороны.
+                    </p>
                     <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
                         <label :class="crmModalFieldLabel">Тип</label>
                         <select v-model="attachForm.type" :class="crmFieldFluid">

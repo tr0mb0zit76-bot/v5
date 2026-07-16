@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
 use App\Services\OrderPrintDocumentWorkflowService;
+use App\Support\OrderDocumentDirection;
 use App\Support\OrderDocumentWorkflowStatus;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -28,6 +29,10 @@ class OrderWizardOrderDocumentSerializer
             'type' => $document->type,
             'flow' => data_get($document->metadata, 'flow', 'uploaded'),
             'party' => $this->resolveWizardDocumentParty($document, $templatesById),
+            'direction' => OrderDocumentDirection::fromDocument($document),
+            'direction_label' => OrderDocumentDirection::label(
+                OrderDocumentDirection::fromDocument($document)
+            ),
             'stage' => data_get($document->metadata, 'stage'),
             'order_leg_stage' => data_get($document->metadata, 'order_leg_stage')
                 ?? data_get($document->metadata, 'stage'),

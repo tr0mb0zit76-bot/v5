@@ -208,9 +208,11 @@ Route::middleware('throttle:60,1')->prefix('portal')->name('portal.')->group(fun
     Route::get('/carrier/{token}', [OrderCarrierPortalController::class, 'show'])->name('carrier.show');
     Route::post('/carrier/{token}', [OrderCarrierPortalController::class, 'store'])->name('carrier.store');
     Route::post('/carrier/{token}/documents', [OrderCarrierPortalController::class, 'storeDocument'])->name('carrier.documents.store');
+    Route::get('/carrier/{token}/documents/{orderDocument}/download', [OrderCarrierPortalController::class, 'downloadOutgoing'])->name('carrier.documents.download');
     Route::post('/carrier/{token}/fleet-documents', [OrderCarrierPortalController::class, 'storeFleetDocument'])->name('carrier.fleet-documents.store');
     Route::get('/customer/{token}', [OrderCustomerPortalController::class, 'show'])->name('customer.show');
     Route::post('/customer/{token}/documents', [OrderCustomerPortalController::class, 'storeDocument'])->name('customer.documents.store');
+    Route::get('/customer/{token}/documents/{orderDocument}/download', [OrderCustomerPortalController::class, 'downloadOutgoing'])->name('customer.documents.download');
 });
 
 Route::middleware('throttle:60,1')

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\OrderPortalInvite;
+use App\Support\OrderDocumentDirection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
@@ -127,6 +128,7 @@ class OrderCarrierPortalDocumentService
 
         $metadata = [
             'party' => 'carrier',
+            'direction' => OrderDocumentDirection::INCOMING,
             'flow' => 'uploaded',
             'storage_driver' => $stored['storage_driver'],
             'order_leg_stage' => filled($rule['order_leg_stage'] ?? null)

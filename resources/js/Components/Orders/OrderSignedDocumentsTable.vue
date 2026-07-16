@@ -439,7 +439,15 @@ function onEdoFieldBlur(row) {
                         >
                     </td>
                     <td class="max-w-[240px] px-3 py-2.5 whitespace-normal text-zinc-700 dark:text-zinc-300">
-                        {{ partyLabel(row) }}
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span>{{ partyLabel(row) }}</span>
+                            <span
+                                v-if="row.direction === 'outgoing'"
+                                class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                            >
+                                Исх.
+                            </span>
+                        </div>
                     </td>
                     <td class="w-[96px] min-w-[96px] px-3 py-2.5 text-zinc-700 dark:text-zinc-300">
                         <select

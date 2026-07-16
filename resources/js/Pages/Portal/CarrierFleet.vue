@@ -1,6 +1,7 @@
 <script setup>
 import PortalCarrierDocuments from '@/Components/Portal/PortalCarrierDocuments.vue';
 import PortalCarrierFleetDocuments from '@/Components/Portal/PortalCarrierFleetDocuments.vue';
+import PortalOutgoingDocuments from '@/Components/Portal/PortalOutgoingDocuments.vue';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
@@ -24,6 +25,7 @@ const props = defineProps({
     form_defaults: { type: Object, default: () => ({}) },
     portal_token: { type: String, required: true },
     document_slots: { type: Array, default: () => [] },
+    outgoing_documents: { type: Array, default: () => [] },
     fleet_document_sections: { type: Array, default: () => [] },
     document_upload_limits: { type: Object, default: () => ({}) },
 });
@@ -120,12 +122,18 @@ function submit() {
         </div>
 
         <div class="grid gap-6 lg:grid-cols-2 lg:items-start">
-            <PortalCarrierDocuments
-                :portal-token="portal_token"
-                :document-slots="document_slots"
-                :readonly="documentsReadonly"
-                :document-upload-hint="documentUploadHint"
-            />
+            <div class="space-y-6">
+                <PortalOutgoingDocuments
+                    :documents="outgoing_documents"
+                    heading="Документы от нас"
+                />
+                <PortalCarrierDocuments
+                    :portal-token="portal_token"
+                    :document-slots="document_slots"
+                    :readonly="documentsReadonly"
+                    :document-upload-hint="documentUploadHint"
+                />
+            </div>
 
             <div class="space-y-4">
                 <template v-if="isSubmitted">

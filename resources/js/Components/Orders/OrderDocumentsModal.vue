@@ -63,6 +63,7 @@ const printWorkflowDocuments = computed(() => documents.value.filter((doc) => do
 
 const addForm = reactive({
     party: 'customer',
+    direction: 'incoming',
     type: 'invoice',
     number: '',
     document_date: '',
@@ -211,6 +212,7 @@ async function submitAdd() {
     const body = new FormData();
     body.append('order_id', String(props.orderId));
     body.append('party', addForm.party);
+    body.append('direction', addForm.direction);
     body.append('type', addForm.type);
     body.append('status', addForm.status);
     if (addForm.number) {
@@ -266,6 +268,7 @@ async function onReplaceFilePicked(event) {
     body.append('_method', 'PATCH');
     body.append('order_id', String(props.orderId));
     body.append('party', doc.party);
+    body.append('direction', doc.direction ?? 'incoming');
     body.append('type', doc.type);
     body.append('status', doc.status);
     if (doc.number) {
@@ -348,6 +351,16 @@ function openWizardDocuments() {
                                 <option value="internal">Внутренний</option>
                             </select>
                         </div>
+                        <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
+                            <label :class="crmModalFieldLabel">Направление</label>
+                            <select v-model="addForm.direction" :class="crmFieldFluid">
+                                <option value="incoming">Входящий (от контрагента)</option>
+                                <option value="outgoing">Исходящий (от нас)</option>
+                            </select>
+                        </div>
+                        <p v-if="addForm.direction === 'outgoing'" class="text-xs text-zinc-500 dark:text-zinc-400">
+                            Исходящий не закрывает чек-лист; появится для скачивания в портале стороны.
+                        </p>
                         <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
                             <label :class="crmModalFieldLabel">Тип</label>
                             <select v-model="addForm.type" :class="crmFieldFluid">
@@ -463,7 +476,9 @@ function openWizardDocuments() {
                                     </span>
                                 </div>
                                 <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                    {{ doc.party_label }} · {{ doc.type_label }}
+                                    {{ doc.party_label }}
+                                    <template v-if="doc.direction === 'outgoing'"> · Исходящий</template>
+                                    · {{ doc.type_label }}
                                     <template v-if="doc.number"> · № {{ doc.number }}</template>
                                     <template v-if="doc.document_date"> · {{ doc.document_date }}</template>
                                     · {{ doc.status_label }}
