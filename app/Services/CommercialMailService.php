@@ -146,7 +146,7 @@ class CommercialMailService
             inlineImages: $inlineImages,
         );
 
-        Mail::to($toEmails)->cc($ccEmails)->send($mailable);
+        $this->deliverMailable($sender, $mailable, $toEmails, $ccEmails);
 
         if ($offer !== null) {
             $offer->forceFill([
@@ -300,6 +300,56 @@ class CommercialMailService
     public function readAttachmentContents(string $path, ?string $driver = null): string
     {
         return $this->documentStorage->get($path, $driver);
+    }
+
+    /**
+     * @param  list<string>  $toEmails
+     * @param  list<string>  $ccEmails
+     */
+    private function deliverMailable(User $sender, CommercialOutboundMail $mailable, array $toEmails, array $ccEmails): void
+    {
+        if (! $this->usesSmtpTransport()) {
+            Mail::to($toEmails)->cc($ccEmails)->send($mailable);
+
+            return;
+        }
+
+        abort_unless(
+            $sender->hasMailImapCredential(),
+            422,
+            'Не задан пароль почты. Укажите его в карточке пользователя (тот же, что для IMAP) или перелогиньтесь в CRM.',
+        );
+
+        $password = $sender->mail_imap_secret;
+        abort_if(! is_string($password) || $password === '', 422, 'Не удалось прочитать пароль почты. Перелогиньтесь или задайте пароль заново.');
+
+        $from = $this->resolveSenderFrom($sender);
+        $previousUsername = config('mail.mailers.smtp.username');
+        $previousPassword = config('mail.mailers.smtp.password');
+
+        config([
+            'mail.mailers.smtp.username' => $from['email'],
+            'mail.mailers.smtp.password' => $password,
+        ]);
+        Mail::purge('smtp');
+
+        try {
+            Mail::mailer('smtp')->to($toEmails)->cc($ccEmails)->send($mailable);
+        } finally {
+            config([
+                'mail.mailers.smtp.username' => $previousUsername,
+                'mail.mailers.smtp.password' => $previousPassword,
+            ]);
+            Mail::purge('smtp');
+        }
+    }
+
+    private function usesSmtpTransport(): bool
+    {
+        $name = (string) config('mail.default');
+        $transport = (string) config("mail.mailers.{$name}.transport", '');
+
+        return $name === 'smtp' || $transport === 'smtp';
     }
 
     /**

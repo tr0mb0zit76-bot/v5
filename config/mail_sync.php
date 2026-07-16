@@ -3,7 +3,7 @@
 $appUrlHost = parse_url((string) env('APP_URL', ''), PHP_URL_HOST);
 $defaultMailHost = is_string($appUrlHost) && $appUrlHost !== ''
     ? 'mail.'.$appUrlHost
-    : 'imap.hosting.reg.ru';
+    : 'mail.hosting.reg.ru';
 
 return [
 
