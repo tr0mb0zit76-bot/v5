@@ -8,7 +8,9 @@ use App\Models\Lead;
 use App\Models\ProposalHtmlTemplate;
 use App\Models\ProposalHtmlTemplateVariable;
 use App\Services\Commercial\LeadProposalHtmlRenderer;
+use App\Services\Commercial\ProposalEmlImportService;
 use App\Support\LeadViewAuthorization;
+use App\Support\ProposalHtmlEmailDocumentNormalizer;
 use App\Support\ProposalHtmlTemplateVariableCatalog;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
@@ -23,6 +25,7 @@ class ProposalHtmlTemplateController extends Controller
     public function __construct(
         private readonly ProposalHtmlTemplateVariableCatalog $variableCatalog,
         private readonly LeadProposalHtmlRenderer $htmlRenderer,
+        private readonly ProposalEmlImportService $emlImportService,
     ) {}
 
     public function index(Request $request): Response
@@ -56,6 +59,13 @@ class ProposalHtmlTemplateController extends Controller
     {
         abort_unless($this->canManage($request), 403);
 
+        // Full-document .eml HTML → body fragment + css, иначе GrapesJS теряет <head>-стили.
+        if (Str::contains(strtolower((string) $proposalHtmlTemplate->html_body), '<html')
+            || Str::contains(strtolower((string) $proposalHtmlTemplate->html_body), '<head')) {
+            $this->emlImportService->normalizeStoredTemplate($proposalHtmlTemplate);
+            $proposalHtmlTemplate->refresh();
+        }
+
         return Inertia::render('Modules/ProposalTemplates/Editor', [
             'template' => $this->serializeTemplate($proposalHtmlTemplate),
             'variables' => $this->variablesForUi(),
@@ -72,12 +82,17 @@ class ProposalHtmlTemplateController extends Controller
             ? (string) $validated['slug']
             : Str::slug((string) $validated['name']);
 
+        $normalized = $this->normalizeHtmlPayload(
+            (string) $validated['html_body'],
+            isset($validated['css_inline']) ? (string) $validated['css_inline'] : null,
+        );
+
         $template = ProposalHtmlTemplate::query()->create([
             'name' => $validated['name'],
             'slug' => $this->uniqueSlug($slug),
             'is_active' => (bool) ($validated['is_active'] ?? true),
-            'html_body' => $validated['html_body'],
-            'css_inline' => $validated['css_inline'] ?? null,
+            'html_body' => $normalized['html_body'],
+            'css_inline' => $normalized['css_inline'],
             'version' => 1,
             'published_at' => now(),
             'owner_user_id' => $request->user()?->id,
@@ -93,16 +108,23 @@ class ProposalHtmlTemplateController extends Controller
         abort_unless($this->canManage($request), 403);
 
         $validated = $request->validated();
+        $htmlBody = $validated['html_body'] ?? $proposalHtmlTemplate->html_body;
+        $cssInline = array_key_exists('css_inline', $validated)
+            ? $validated['css_inline']
+            : $proposalHtmlTemplate->css_inline;
+        $normalized = $this->normalizeHtmlPayload(
+            (string) $htmlBody,
+            is_string($cssInline) ? $cssInline : null,
+        );
+
         $proposalHtmlTemplate->fill([
             'name' => $validated['name'] ?? $proposalHtmlTemplate->name,
             'slug' => $validated['slug'] ?? $proposalHtmlTemplate->slug,
             'is_active' => array_key_exists('is_active', $validated)
                 ? (bool) $validated['is_active']
                 : $proposalHtmlTemplate->is_active,
-            'html_body' => $validated['html_body'] ?? $proposalHtmlTemplate->html_body,
-            'css_inline' => array_key_exists('css_inline', $validated)
-                ? $validated['css_inline']
-                : $proposalHtmlTemplate->css_inline,
+            'html_body' => $normalized['html_body'],
+            'css_inline' => $normalized['css_inline'],
             'visibility' => $validated['visibility'] ?? $proposalHtmlTemplate->visibility,
         ]);
 
@@ -216,6 +238,19 @@ class ProposalHtmlTemplateController extends Controller
         }
 
         return $candidate;
+    }
+
+    /**
+     * @return array{html_body: string, css_inline: string|null}
+     */
+    private function normalizeHtmlPayload(string $html, ?string $css): array
+    {
+        $normalized = ProposalHtmlEmailDocumentNormalizer::normalize($html, $css);
+
+        return [
+            'html_body' => $normalized['body'],
+            'css_inline' => $normalized['css'] !== '' ? $normalized['css'] : null,
+        ];
     }
 
     private function canManage(Request $request): bool

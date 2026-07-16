@@ -12,6 +12,7 @@ import grapesjs from 'grapesjs';
 import grapesjsPresetNewsletter from 'grapesjs-preset-newsletter';
 import ru from 'grapesjs/locale/ru';
 import 'grapesjs/dist/css/grapes.min.css';
+import { normalizeProposalEmailHtml } from '@/support/proposalHtmlEmailDocument.js';
 
 const props = defineProps({
     htmlBody: {
@@ -28,6 +29,49 @@ const containerRef = ref(null);
 /** @type {import('grapesjs').Editor | null} */
 let editor = null;
 let canvasLoaded = false;
+
+const prepared = normalizeProposalEmailHtml(props.htmlBody, props.cssInline);
+const canvasStyles = [
+    'https://fonts.googleapis.com/css2?family=Arial&display=swap',
+    ...prepared.fontUrls,
+].filter((url, index, list) => list.indexOf(url) === index);
+
+/**
+ * @param {import('grapesjs').Editor} ed
+ * @param {string} css
+ * @param {string[]} fontUrls
+ */
+function injectCanvasDocumentAssets(ed, css, fontUrls) {
+    const doc = ed.Canvas?.getDocument?.();
+    if (!doc?.head) {
+        return;
+    }
+
+    for (const url of fontUrls) {
+        const exists = Array.from(doc.head.querySelectorAll('link[rel="stylesheet"]'))
+            .some((link) => link.getAttribute('href') === url);
+        if (exists) {
+            continue;
+        }
+        const link = doc.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = url;
+        doc.head.appendChild(link);
+    }
+
+    if (!css) {
+        return;
+    }
+
+    const styleId = 'proposal-email-imported-css';
+    let styleEl = doc.getElementById(styleId);
+    if (!styleEl) {
+        styleEl = doc.createElement('style');
+        styleEl.id = styleId;
+        doc.head.appendChild(styleEl);
+    }
+    styleEl.textContent = css;
+}
 
 onMounted(() => {
     if (!containerRef.value) {
@@ -64,9 +108,7 @@ onMounted(() => {
             ],
         },
         canvas: {
-            styles: [
-                'https://fonts.googleapis.com/css2?family=Arial&display=swap',
-            ],
+            styles: canvasStyles,
         },
     });
 
@@ -77,8 +119,8 @@ onMounted(() => {
 
         canvasLoaded = true;
 
-        const html = props.htmlBody?.trim() ?? '';
-        const css = props.cssInline?.trim() ?? '';
+        const html = prepared.body;
+        const css = prepared.css;
 
         if (html !== '') {
             editor.setComponents(html);
@@ -87,6 +129,8 @@ onMounted(() => {
         if (css !== '') {
             editor.setStyle(css);
         }
+
+        injectCanvasDocumentAssets(editor, css, prepared.fontUrls);
     });
 });
 
@@ -98,14 +142,33 @@ onBeforeUnmount(() => {
 function syncFromEditor() {
     if (!editor) {
         return {
-            html_body: props.htmlBody,
-            css_inline: props.cssInline,
+            html_body: prepared.body || props.htmlBody,
+            css_inline: prepared.css || props.cssInline,
         };
     }
 
+    const exportedHtml = editor.getHtml();
+    const exportedCss = editor.getCss({ avoidProtected: true });
+    // Grapes иногда отдаёт урезанный CSS; сохраняем импортированные правила классов EmailMaker.
+    const css = [prepared.css, exportedCss]
+        .map((chunk) => String(chunk ?? '').trim())
+        .filter(Boolean)
+        .join('\n');
+
     return {
-        html_body: editor.getHtml(),
-        css_inline: editor.getCss({ avoidProtected: true }),
+        html_body: exportedHtml,
+        css_inline: css,
+    };
+}
+
+function getMailPreviewDocument() {
+    const exported = syncFromEditor();
+    const fontUrls = prepared.fontUrls;
+
+    return {
+        html_body: exported.html_body,
+        css_inline: exported.css_inline,
+        font_urls: fontUrls,
     };
 }
 
@@ -142,6 +205,7 @@ function insertVariable(path) {
 
 defineExpose({
     syncFromEditor,
+    getMailPreviewDocument,
     insertVariable,
 });
 </script>

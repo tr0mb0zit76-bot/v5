@@ -14,7 +14,7 @@
                     :disabled="!canPreviewOnLead"
                     @click="openLeadPreview"
                 >
-                    Preview
+                    Preview на лиде
                 </button>
                 <button
                     type="submit"
@@ -54,6 +54,28 @@
                         {{ lead.label }}
                     </option>
                 </select>
+                <div class="inline-flex shrink-0 rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700">
+                    <button
+                        type="button"
+                        class="rounded-md px-2.5 py-1 text-xs font-medium"
+                        :class="workspaceMode === 'editor'
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                        @click="workspaceMode = 'editor'"
+                    >
+                        Редактор
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded-md px-2.5 py-1 text-xs font-medium"
+                        :class="workspaceMode === 'mail'
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                        @click="showMailPreview"
+                    >
+                        Как в письме
+                    </button>
+                </div>
             </div>
 
             <div class="grid min-h-0 flex-1 gap-2 xl:grid-cols-[220px,minmax(0,1fr)]">
@@ -87,11 +109,28 @@
                     </div>
                 </aside>
 
-                <ProposalGrapesEditor
-                    ref="grapesEditorRef"
-                    :html-body="initialHtmlBody"
-                    :css-inline="initialCssInline"
-                />
+                <div class="relative min-h-0 min-w-0 flex-1">
+                    <ProposalGrapesEditor
+                        v-show="workspaceMode === 'editor'"
+                        ref="grapesEditorRef"
+                        class="h-full min-h-[28rem]"
+                        :html-body="initialHtmlBody"
+                        :css-inline="initialCssInline"
+                    />
+                    <div
+                        v-show="workspaceMode === 'mail'"
+                        class="flex h-full min-h-[28rem] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-100 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+                    >
+                        <div class="border-b border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                            Превью как в письме (плейсхолдеры не подставляются — для подстановки выберите лид и «Preview на лиде»).
+                        </div>
+                        <iframe
+                            title="Превью письма"
+                            class="min-h-0 w-full flex-1 border-0 bg-white"
+                            :srcdoc="mailPreviewSrcdoc"
+                        />
+                    </div>
+                </div>
             </div>
         </form>
     </div>
@@ -103,6 +142,10 @@ import { Link, useForm } from '@inertiajs/vue3';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import ProposalGrapesEditor from '@/Components/ProposalTemplates/ProposalGrapesEditor.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import {
+    buildProposalEmailPreviewDocument,
+    normalizeProposalEmailHtml,
+} from '@/support/proposalHtmlEmailDocument.js';
 import { crmBtnPrimary, crmBtnSecondary, crmFieldFluid } from '@/support/crmUi.js';
 
 defineOptions({
@@ -132,12 +175,18 @@ const props = defineProps({
 const grapesEditorRef = ref(null);
 const variableFilter = ref('');
 const previewLeadId = ref('');
+const workspaceMode = ref('editor');
+const mailPreviewSrcdoc = ref('');
 
 const defaultHtmlBody = '<table style="width:100%;max-width:600px;margin:0 auto;"><tr><td style="padding:24px;font-family:Arial,sans-serif;"><h1 style="margin:0 0 16px;">Коммерческое предложение</h1><p style="margin:0 0 12px;">Уважаемый {counterparty.contact_person}!</p><p style="margin:0 0 12px;">Маршрут: {route.loading_first_city} → {route.unloading_last_city}</p><p style="margin:0;">Ставка: {offer.price} {offer.currency}</p></td></tr></table>';
 const defaultCssInline = 'body{margin:0;padding:0;background:#f4f4f5;}';
 
-const initialHtmlBody = props.template?.html_body ?? defaultHtmlBody;
-const initialCssInline = props.template?.css_inline ?? defaultCssInline;
+const preparedInitial = normalizeProposalEmailHtml(
+    props.template?.html_body ?? defaultHtmlBody,
+    props.template?.css_inline ?? defaultCssInline,
+);
+const initialHtmlBody = preparedInitial.body;
+const initialCssInline = preparedInitial.css;
 
 const form = useForm({
     name: props.template?.name ?? '',
@@ -163,6 +212,21 @@ const canPreviewOnLead = computed(() => Boolean(props.template?.id && previewLea
 
 function insertVariable(path) {
     grapesEditorRef.value?.insertVariable(path);
+}
+
+function showMailPreview() {
+    const payload = grapesEditorRef.value?.getMailPreviewDocument?.() ?? {
+        html_body: form.html_body,
+        css_inline: form.css_inline,
+        font_urls: preparedInitial.fontUrls,
+    };
+
+    mailPreviewSrcdoc.value = buildProposalEmailPreviewDocument(
+        payload.html_body,
+        payload.css_inline ?? '',
+        payload.font_urls ?? preparedInitial.fontUrls,
+    );
+    workspaceMode.value = 'mail';
 }
 
 function openLeadPreview() {

@@ -29,7 +29,7 @@ Content-Type: multipart/related; boundary="boundary-related"
 --boundary-related
 Content-Type: text/html; charset=utf-8
 
-<html><body><p>Привет, <strong style="color:#de3b3b;">МЕНЯЕМ_ИМЯ</strong>!</p><img src="cid:logo@emailmaker" width="10" height="10"></body></html>
+<html><head><style>.em-title{color:#111}</style><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Slab&display=swap"></head><body><p class="em-title">Привет, <strong style="color:#de3b3b;">МЕНЯЕМ_ИМЯ</strong>!</p><img src="cid:logo@emailmaker" width="10" height="10"></body></html>
 
 --boundary-related
 Content-Type: image/png
@@ -56,6 +56,10 @@ EML;
         $this->assertStringContainsString('/assets/proposal-emails/'.$slug.'/logo.png', $template->html_body);
         $this->assertStringContainsString('{counterparty.contact_person}', $template->html_body);
         $this->assertStringNotContainsString('cid:', $template->html_body);
+        $this->assertStringNotContainsString('<html', strtolower($template->html_body));
+        $this->assertStringNotContainsString('<head', strtolower($template->html_body));
+        $this->assertStringContainsString('em-title', (string) $template->css_inline);
+        $this->assertStringContainsString('fonts.googleapis.com', (string) $template->css_inline);
         $this->assertIsArray($template->email_assets);
         $this->assertCount(1, $template->email_assets);
         $this->assertFileExists(public_path(ltrim($template->email_assets[0]['public_path'], '/')));

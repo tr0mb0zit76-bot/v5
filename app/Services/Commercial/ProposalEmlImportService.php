@@ -3,6 +3,7 @@
 namespace App\Services\Commercial;
 
 use App\Models\ProposalHtmlTemplate;
+use App\Support\ProposalHtmlEmailDocumentNormalizer;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -47,7 +48,6 @@ class ProposalEmlImportService
 
         $parsed = $this->parseMultipartRelated($emlContents);
         $html = $parsed['html'];
-        $cssInline = $this->extractInlineCss($html);
         $assetDirRelative = 'assets/proposal-emails/'.$slug;
         $assetDirAbsolute = public_path($assetDirRelative);
         File::ensureDirectoryExists($assetDirAbsolute);
@@ -79,14 +79,15 @@ class ProposalEmlImportService
 
         $html = strtr($html, $replacements);
         $html = $this->normalizePlaceholders($html);
+        $normalized = ProposalHtmlEmailDocumentNormalizer::normalize($html);
 
         $template = ProposalHtmlTemplate::query()->updateOrCreate(
             ['slug' => $slug],
             [
                 'name' => $name,
                 'is_active' => true,
-                'html_body' => $html,
-                'css_inline' => $cssInline !== '' ? $cssInline : null,
+                'html_body' => $normalized['body'],
+                'css_inline' => $normalized['css'] !== '' ? $normalized['css'] : null,
                 'email_assets' => $assets,
                 'published_at' => now(),
                 'owner_user_id' => $ownerUserId,
@@ -103,7 +104,38 @@ class ProposalEmlImportService
         return [
             'template' => $template->refresh(),
             'assets_written' => count($assets),
-            'html_bytes' => strlen($html),
+            'html_bytes' => strlen($normalized['body']),
+        ];
+    }
+
+    /**
+     * Привести уже сохранённый full-document HTML к форме для редактора (body + css).
+     *
+     * @return array{html_body: string, css_inline: string|null, changed: bool}
+     */
+    public function normalizeStoredTemplate(ProposalHtmlTemplate $template): array
+    {
+        $html = (string) $template->html_body;
+        $normalized = ProposalHtmlEmailDocumentNormalizer::normalize(
+            $html,
+            is_string($template->css_inline) ? $template->css_inline : null,
+        );
+
+        $changed = $normalized['body'] !== trim($html)
+            || trim((string) ($template->css_inline ?? '')) !== $normalized['css'];
+
+        if ($changed) {
+            $template->forceFill([
+                'html_body' => $normalized['body'],
+                'css_inline' => $normalized['css'] !== '' ? $normalized['css'] : null,
+                'version' => max(1, (int) $template->version) + 1,
+            ])->save();
+        }
+
+        return [
+            'html_body' => $normalized['body'],
+            'css_inline' => $normalized['css'] !== '' ? $normalized['css'] : null,
+            'changed' => $changed,
         ];
     }
 
@@ -211,23 +243,6 @@ class ProposalEmlImportService
             'quoted-printable' => (string) quoted_printable_decode($body),
             default => $body,
         };
-    }
-
-    private function extractInlineCss(string $html): string
-    {
-        if (preg_match_all('/<style\b[^>]*>(.*?)<\/style>/is', $html, $matches) < 1) {
-            return '';
-        }
-
-        $chunks = [];
-        foreach ($matches[1] as $chunk) {
-            $chunk = trim((string) $chunk);
-            if ($chunk !== '') {
-                $chunks[] = $chunk;
-            }
-        }
-
-        return implode("\n", $chunks);
     }
 
     private function normalizePlaceholders(string $html): string
