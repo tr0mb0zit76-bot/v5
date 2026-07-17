@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-17 11:00 (EmailMaker КП: 4 rich EML) · **HEAD:** *(после push)* · **Ветка:** `master`
+**Обновлено:** 2026-07-17 11:00 (EmailMaker КП: 4 rich EML) · **HEAD:** `02afeced` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-17 — rich HTML-КП из EmailMaker (.eml)
 
