@@ -231,16 +231,13 @@
 
                 <section class="space-y-3 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
                     <h3 class="text-sm font-semibold">Суть сделки</h3>
-                    <div class="space-y-1.5">
-                        <label :class="crmLabel">Тема</label>
-                        <input v-model="form.title" type="text" :class="crmFieldFluid" required />
-                        <p class="text-[11px] text-zinc-500 dark:text-zinc-400">Можно совпадать с другими лидами — уникальность не требуется.</p>
-                        <p v-if="form.errors.title" class="text-sm text-rose-600 dark:text-rose-300">{{ form.errors.title }}</p>
-                    </div>
-                    <div class="space-y-1.5">
-                        <textarea v-model="form.description" rows="3" :class="crmFieldFluid" placeholder="Суть запроса, ограничения, особенности груза или клиента" />
-                    </div>
-                    <div class="grid gap-3" :class="isContractSigningCard ? 'md:grid-cols-1' : 'md:grid-cols-2'">
+                    <div class="grid gap-3 md:grid-cols-2">
+                        <div class="space-y-1.5">
+                            <label :class="crmLabel">Тема</label>
+                            <input v-model="form.title" type="text" :class="crmFieldFluid" required />
+                            <p class="text-[11px] text-zinc-500 dark:text-zinc-400">Можно совпадать с другими лидами — уникальность не требуется.</p>
+                            <p v-if="form.errors.title" class="text-sm text-rose-600 dark:text-rose-300">{{ form.errors.title }}</p>
+                        </div>
                         <div class="space-y-1.5">
                             <label :class="crmLabel">Источник</label>
                             <select v-model="form.source" :class="crmFieldFluid">
@@ -248,7 +245,12 @@
                                 <option v-for="option in sourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                             </select>
                         </div>
-                        <div v-if="!isContractSigningCard" class="space-y-1.5">
+                    </div>
+                    <div class="space-y-1.5">
+                        <textarea v-model="form.description" rows="3" :class="crmFieldFluid" placeholder="Суть запроса, ограничения, особенности груза или клиента" />
+                    </div>
+                    <div v-if="!isContractSigningCard" class="grid gap-3 md:grid-cols-2">
+                        <div class="space-y-1.5">
                             <label :class="crmLabel">Тип перевозки</label>
                             <select v-model="form.transport_type" :class="crmFieldFluid">
                                 <option value="">Не выбрано</option>

@@ -25,6 +25,7 @@ export const LEAD_WIZARD_TAB_KEYS_BY_PROFILE = {
         LEAD_WIZARD_TAB_KEYS.main,
         LEAD_WIZARD_TAB_KEYS.documents,
         LEAD_WIZARD_TAB_KEYS.activities,
+        LEAD_WIZARD_TAB_KEYS.commercial,
     ],
 };
 
