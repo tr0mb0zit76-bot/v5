@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Mail\CommercialOutboundMail;
+use App\Models\Contractor;
+use App\Models\ContractorContact;
 use App\Models\Lead;
 use App\Models\ProposalHtmlTemplate;
 use App\Models\Role;
@@ -62,7 +64,6 @@ class LeadHtmlProposalMailSendTest extends TestCase
             'proposal_html_template_id' => $template->id,
             'to' => ['client@example.com'],
             'subject' => 'КП по перевозке',
-            'body' => "Добрый день!\n\nНаправляем коммерческое предложение.",
         ]);
 
         $response->assertRedirect();
@@ -79,8 +80,46 @@ class LeadHtmlProposalMailSendTest extends TestCase
             return is_string($mail->bodyHtml)
                 && str_contains($mail->bodyHtml, 'L-HTML-SEND')
                 && $mail->outboundAttachments === []
-                && $mail->hasTo('client@example.com');
+                && $mail->hasTo('client@example.com')
+                && str_contains($mail->bodyText, 'HTML');
         });
+    }
+
+    #[Test]
+    public function mail_recipients_endpoint_returns_counterparty_contacts(): void
+    {
+        if (! Schema::hasTable('contractors') || ! Schema::hasTable('contractor_contacts')) {
+            $this->markTestSkipped('Таблицы контрагентов недоступны.');
+        }
+
+        $role = Role::query()->firstOrCreate(
+            ['name' => 'manager-html-recipients'],
+            [
+                'display_name' => 'Менеджер',
+                'visibility_areas' => ['leads', 'mail'],
+                'visibility_scopes' => ['leads' => 'own'],
+            ],
+        );
+
+        $user = User::factory()->create(['role_id' => $role->id]);
+        $contractor = Contractor::query()->create([
+            'type' => 'customer',
+            'name' => 'ООО Получатель',
+            'is_active' => true,
+        ]);
+        ContractorContact::query()->create([
+            'contractor_id' => $contractor->id,
+            'full_name' => 'Пётр',
+            'email' => 'petr@client.test',
+            'is_primary' => true,
+        ]);
+
+        $response = $this->actingAs($user)->getJson(route('leads.mail-recipients', [
+            'contractor_id' => $contractor->id,
+        ]));
+
+        $response->assertOk();
+        $response->assertJsonFragment(['email' => 'petr@client.test']);
     }
 
     #[Test]

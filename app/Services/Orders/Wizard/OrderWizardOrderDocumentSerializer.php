@@ -5,9 +5,13 @@ namespace App\Services\Orders\Wizard;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
+use App\Models\User;
 use App\Services\OrderPrintDocumentWorkflowService;
+use App\Support\ContractorMailRecipientCatalog;
+use App\Support\CrmFeatureCatalog;
 use App\Support\OrderDocumentDirection;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\RoleAccess;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -23,6 +27,7 @@ class OrderWizardOrderDocumentSerializer
         bool $canManage,
         bool $canApprove,
         Collection $templatesById,
+        ?User $viewer = null,
     ): array {
         $base = [
             'id' => $document->id,
@@ -100,6 +105,16 @@ class OrderWizardOrderDocumentSerializer
             OrderDocumentWorkflowStatus::FINALIZED,
         ], true);
 
+        $canSendByEmail = $canManage
+            && $finalUrl !== null
+            && $viewer !== null
+            && CrmFeatureCatalog::isEnabled('order_document_mail', $viewer)
+            && RoleAccess::canAccessVisibilityArea($viewer, 'mail');
+
+        $mailContractorId = $canSendByEmail
+            ? $this->resolveMailContractorId($document, $order, $templatesById)
+            : null;
+
         $printPartyLabel = null;
         $printTemplateName = $this->printTemplateName($document, $templatesById);
         $printTemplateCode = $this->printTemplateCode($document, $templatesById);
@@ -151,6 +166,10 @@ class OrderWizardOrderDocumentSerializer
                 $canManage,
                 $canApprove
             ),
+            'can_send_by_email' => $canSendByEmail,
+            'mail_recipients' => $canSendByEmail
+                ? ContractorMailRecipientCatalog::forContractorId($mailContractorId)
+                : [],
             'requires_counterparty_signature' => $requiresCounterpartySignature,
             'signature_status' => $signatureStatus,
             'signature_status_label' => $this->orderDocumentSignatureStatusLabel($signatureStatus),
@@ -305,6 +324,23 @@ class OrderWizardOrderDocumentSerializer
         }
 
         return null;
+    }
+
+    /**
+     * @param  Collection<int, PrintFormTemplate>  $templatesById
+     */
+    private function resolveMailContractorId(OrderDocument $document, Order $order, Collection $templatesById): ?int
+    {
+        $party = $this->resolveWizardDocumentParty($document, $templatesById);
+
+        if ($party === 'carrier') {
+            $carrierId = data_get($document->metadata, 'carrier_contractor_id')
+                ?? data_get($document->metadata, 'contractor_id');
+
+            return $carrierId !== null ? (int) $carrierId : null;
+        }
+
+        return $order->customer_id !== null ? (int) $order->customer_id : null;
     }
 
     /**

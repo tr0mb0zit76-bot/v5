@@ -15,6 +15,7 @@ const emit = defineEmits([
     'toggle-reject',
     'submit-reject',
     'discard',
+    'send-email',
     'update:reject-reason',
 ]);
 
@@ -65,6 +66,14 @@ function title(doc) {
                 >
                     Скачать PDF
                 </a>
+                <button
+                    v-if="doc.can_send_by_email"
+                    type="button"
+                    class="rounded-lg border border-emerald-300 px-2 py-1 text-xs text-emerald-800 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-200 dark:hover:bg-emerald-950/40"
+                    @click="emit('send-email', doc)"
+                >
+                    Отправить по e-mail
+                </button>
             </div>
         </div>
         <p v-if="doc.rejection_reason" class="text-xs text-rose-700 dark:text-rose-300">

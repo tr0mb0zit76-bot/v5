@@ -1,13 +1,15 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
-import { Link, router, usePage } from '@inertiajs/vue3';
+import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { Paperclip } from 'lucide-vue-next';
 import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
+import MailRecipientPicker from '@/Components/Crm/MailRecipientPicker.vue';
 import OrderSignedDocumentsTable from '@/Components/Orders/OrderSignedDocumentsTable.vue';
 import PrintWorkflowDocList from '@/Components/Orders/PrintWorkflowDocList.vue';
 import { mergeDocumentUploadLimits } from '@/support/documentUploadClientCheck.js';
 import { useDocumentUploadGate } from '@/support/documentUploadGate.js';
+import { mergeMailRecipientEmails } from '@/support/mailRecipients.js';
 import {
     destroyDocumentRegistry,
     formatDocumentRegistryError,
@@ -36,6 +38,8 @@ import {
 } from '@/support/printFormTemplateMatching.js';
 import {
     crmBtnCreate,
+    crmBtnPrimary,
+    crmBtnSecondary,
     crmFieldFluid,
     crmModalFieldLabel,
     crmModalFieldRow,
@@ -153,6 +157,14 @@ const effectiveDocumentChecklist = computed(() => {
 
 const workflowRejectTargetId = ref(null);
 const workflowRejectReason = ref('');
+const showSendDocMailModal = ref(false);
+const sendDocMailTarget = ref(null);
+const sendDocSelectedEmails = ref([]);
+const sendDocExtraRaw = ref('');
+const sendDocMailForm = useForm({
+    subject: '',
+    body: '',
+});
 
 const showAttachModal = ref(false);
 const attachSubmitting = ref(false);
@@ -483,6 +495,45 @@ function confirmDiscardPrintWorkflow(doc) {
     router.delete(route('orders.documents.discard-print-workflow', [props.order.id, doc.id]), {
         preserveScroll: true,
     });
+}
+
+function openSendDocMailModal(doc) {
+    sendDocMailTarget.value = doc;
+    sendDocSelectedEmails.value = [];
+    sendDocExtraRaw.value = '';
+    sendDocMailForm.subject = `Документ по заказу ${props.order?.order_number || props.order?.id || ''}`.trim();
+    sendDocMailForm.body = '';
+    showSendDocMailModal.value = true;
+}
+
+function closeSendDocMailModal() {
+    showSendDocMailModal.value = false;
+    sendDocMailTarget.value = null;
+    sendDocSelectedEmails.value = [];
+    sendDocExtraRaw.value = '';
+}
+
+function submitSendDocMail() {
+    if (!props.order?.id || !sendDocMailTarget.value?.id) {
+        return;
+    }
+
+    const to = mergeMailRecipientEmails(sendDocSelectedEmails.value, sendDocExtraRaw.value);
+    if (to.length === 0) {
+        window.alert('Выберите контакт или укажите адрес получателя.');
+        return;
+    }
+
+    sendDocMailForm
+        .transform((data) => ({
+            to,
+            subject: data.subject || null,
+            body: data.body || null,
+        }))
+        .post(route('orders.documents.send-email', [props.order.id, sendDocMailTarget.value.id]), {
+            preserveScroll: true,
+            onSuccess: () => closeSendDocMailModal(),
+        });
 }
 
 function defaultAttachCustomerStage() {
@@ -818,6 +869,7 @@ async function onGlobalDrop(event) {
                         @toggle-reject="toggleWorkflowReject"
                         @submit-reject="submitWorkflowReject"
                         @discard="confirmDiscardPrintWorkflow"
+                        @send-email="openSendDocMailModal"
                         @update:reject-reason="workflowRejectReason = $event"
                     />
                 </template>
@@ -876,6 +928,7 @@ async function onGlobalDrop(event) {
                         @toggle-reject="toggleWorkflowReject"
                         @submit-reject="submitWorkflowReject"
                         @discard="confirmDiscardPrintWorkflow"
+                        @send-email="openSendDocMailModal"
                         @update:reject-reason="workflowRejectReason = $event"
                     />
                 </template>
@@ -1049,5 +1102,36 @@ async function onGlobalDrop(event) {
                 </div>
             </section>
         </Modal>
+
+        <div
+            v-show="showSendDocMailModal"
+            class="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
+            @click.self="closeSendDocMailModal"
+        >
+            <form :class="`${crmModalPanel} w-full max-w-lg space-y-3 p-5 shadow-2xl`" @submit.prevent="submitSendDocMail">
+                <div class="text-lg font-semibold">Отправить PDF по e-mail</div>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                    {{ sendDocMailTarget?.print_template_name || sendDocMailTarget?.original_name || 'Документ' }}
+                </p>
+                <MailRecipientPicker
+                    :recipients="sendDocMailTarget?.mail_recipients || []"
+                    :selected-emails="sendDocSelectedEmails"
+                    :extra-raw="sendDocExtraRaw"
+                    @update:selected-emails="sendDocSelectedEmails = $event"
+                    @update:extra-raw="sendDocExtraRaw = $event"
+                />
+                <input v-model="sendDocMailForm.subject" type="text" :class="crmFieldFluid" placeholder="Тема (необязательно)" />
+                <textarea
+                    v-model="sendDocMailForm.body"
+                    rows="4"
+                    :class="crmFieldFluid"
+                    placeholder="Текст письма (необязательно)"
+                />
+                <div class="flex justify-end gap-2">
+                    <button type="button" :class="crmBtnSecondary" @click="closeSendDocMailModal">Отмена</button>
+                    <button type="submit" :class="crmBtnPrimary" :disabled="sendDocMailForm.processing">Отправить</button>
+                </div>
+            </form>
+        </div>
     </div>
 </template>

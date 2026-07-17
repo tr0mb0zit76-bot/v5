@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\SendLeadHtmlProposalMailRequest;
 use App\Http\Requests\SendLeadOfferMailRequest;
-use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\LeadOffer;
 use App\Models\ProposalHtmlTemplate;
@@ -12,7 +11,9 @@ use App\Models\User;
 use App\Services\Commercial\LeadProposalHtmlRenderer;
 use App\Services\Commercial\ProposalHtmlCidMailPreparer;
 use App\Services\CommercialMailService;
+use App\Support\ContractorMailRecipientCatalog;
 use App\Support\LeadViewAuthorization;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -93,9 +94,13 @@ class LeadOfferMailController extends Controller
 
         $offer = $this->prepareOfferForHtmlSend($lead, $request->user(), $template, $rendered['html'], $emailAssets);
 
+        $bodyText = filled($request->input('body'))
+            ? trim($request->string('body')->toString())
+            : 'Коммерческое предложение (полная версия — в HTML-части письма).';
+
         $this->commercialMail->sendOutbound(
             subject: $request->string('subject')->toString(),
-            bodyText: $request->string('body')->toString(),
+            bodyText: $bodyText,
             toEmails: $request->input('to', []),
             sender: $request->user(),
             lead: $lead,
@@ -109,6 +114,17 @@ class LeadOfferMailController extends Controller
         return back()->with('flash', [
             'type' => 'success',
             'message' => 'HTML-КП отправлено по e-mail.',
+        ]);
+    }
+
+    public function mailRecipients(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'contractor_id' => ['required', 'integer', 'exists:contractors,id'],
+        ]);
+
+        return response()->json([
+            'recipients' => ContractorMailRecipientCatalog::forContractorId((int) $validated['contractor_id']),
         ]);
     }
 
@@ -175,16 +191,9 @@ class LeadOfferMailController extends Controller
      */
     public static function defaultRecipientEmails(Lead $lead): array
     {
-        $contractor = $lead->counterparty_id
-            ? Contractor::query()->find($lead->counterparty_id)
-            : null;
-
-        $emails = array_filter([
-            $contractor?->contact_person_email,
-            $contractor?->email,
-        ]);
-
-        return array_values(array_unique($emails));
+        return ContractorMailRecipientCatalog::emailsForContractorId(
+            $lead->counterparty_id !== null ? (int) $lead->counterparty_id : null,
+        );
     }
 
     private function canAccessLead(Request $request, Lead $lead): bool

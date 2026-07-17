@@ -333,7 +333,8 @@ class OrderWizardOrderPresenter
                 $order,
                 $canManageOrderDocuments,
                 $canApproveOrderDocuments,
-                $templatesById
+                $templatesById,
+                $request->user(),
             ))->values()->all(),
             'status_logs' => $statusLogs->map(fn ($log): array => [
                 'id' => $log->id,

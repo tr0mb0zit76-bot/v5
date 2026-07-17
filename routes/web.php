@@ -245,6 +245,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/leads', 'store')->name('leads.store');
         Route::post('/leads/contractors', 'storeInlineContractor')->name('leads.contractors.store');
         Route::get('/leads/counterparty-authority-hint', 'counterpartyAuthorityHint')->name('leads.counterparty-authority-hint');
+        Route::get('/leads/mail-recipients', [LeadOfferMailController::class, 'mailRecipients'])->name('leads.mail-recipients');
         Route::post('/leads/mass-update', 'massUpdate')->name('leads.mass-update');
         Route::get('/leads/precalculation/tn-ved/search', 'searchPrecalculationTnVed')->name('leads.precalculation.tn-ved.search');
         Route::post('/leads/precalculation/calculate', 'calculatePrecalculation')->name('leads.precalculation.calculate');

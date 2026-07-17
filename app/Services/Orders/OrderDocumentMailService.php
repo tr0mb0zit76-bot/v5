@@ -69,8 +69,22 @@ class OrderDocumentMailService
             ccEmails: $ccEmails,
             attachments: $attachments,
             orderId: $order->id,
-            contractorId: $order->customer_id,
+            contractorId: $this->resolveLinkedContractorId($order, $orderDocument),
         );
+    }
+
+    private function resolveLinkedContractorId(Order $order, OrderDocument $orderDocument): ?int
+    {
+        $party = (string) data_get($orderDocument->metadata, 'party', '');
+
+        if ($party === 'carrier' || filled(data_get($orderDocument->metadata, 'carrier_contractor_id'))) {
+            $carrierId = data_get($orderDocument->metadata, 'carrier_contractor_id')
+                ?? data_get($orderDocument->metadata, 'contractor_id');
+
+            return $carrierId !== null ? (int) $carrierId : null;
+        }
+
+        return $order->customer_id !== null ? (int) $order->customer_id : null;
     }
 
     private function resolveAttachmentFilename(OrderDocument $orderDocument): string

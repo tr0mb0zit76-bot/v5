@@ -444,11 +444,30 @@
                     v-if="sendHtmlTemplateTarget"
                     class="text-sm text-zinc-500 dark:text-zinc-400"
                 >
-                    Шаблон: {{ sendHtmlTemplateTarget.name }}. Письмо уйдёт как HTML (без PDF).
+                    Шаблон: {{ sendHtmlTemplateTarget.name }}. Письмо уйдёт как HTML из шаблона (без PDF).
                 </p>
-                <input v-model="sendOfferForm.to_raw" type="text" :class="crmFieldFluid" placeholder="Кому (через запятую)" />
+                <MailRecipientPicker
+                    :recipients="sendOfferRecipients"
+                    :selected-emails="sendOfferSelectedEmails"
+                    :extra-raw="sendOfferExtraRaw"
+                    :loading="sendOfferRecipientsLoading"
+                    @update:selected-emails="sendOfferSelectedEmails = $event"
+                    @update:extra-raw="sendOfferExtraRaw = $event"
+                />
                 <input v-model="sendOfferForm.subject" type="text" :class="crmFieldFluid" placeholder="Тема" />
-                <textarea v-model="sendOfferForm.body" rows="5" :class="crmFieldFluid" placeholder="Текст письма (plain-text запасной)" />
+                <textarea
+                    v-if="!sendHtmlTemplateTarget"
+                    v-model="sendOfferForm.body"
+                    rows="5"
+                    :class="crmFieldFluid"
+                    placeholder="Текст письма (plain-text запасной)"
+                />
+                <p
+                    v-else
+                    class="text-xs text-zinc-500 dark:text-zinc-400"
+                >
+                    Текст письма берётся из HTML-шаблона; отдельное plain-text тело не нужно.
+                </p>
                 <label
                     v-if="sendOfferTarget?.has_html_teaser && !sendHtmlTemplateTarget"
                     class="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100"
@@ -473,6 +492,7 @@ import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ArrowRightLeft, Banknote, Calculator, ClipboardList, FileText, History, MapPinned, Package, Paperclip, Plus, Save, Trash2, Truck, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CardSmartLinksBar from '@/Components/Crm/CardSmartLinksBar.vue';
+import MailRecipientPicker from '@/Components/Crm/MailRecipientPicker.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';
 import LeadFocusNowPanel from '@/Components/Leads/LeadFocusNowPanel.vue';
@@ -502,6 +522,7 @@ import {
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import { normalizeLeadCargoItems } from '@/support/leadWizardCargo.js';
 import { defaultLeadRoutePoints, normalizeLeadRoutePoints } from '@/support/leadWizardRoute.js';
+import { mergeMailRecipientEmails } from '@/support/mailRecipients.js';
 import {
     isContractSigningLeadWizard,
     leadWizardVisibleTabKeys,
@@ -1357,47 +1378,76 @@ const showSendOfferModal = ref(false);
 const sendOfferTarget = ref(null);
 const sendHtmlTemplateTarget = ref(null);
 const activityTimelineRef = ref(null);
+const sendOfferRecipients = ref([]);
+const sendOfferSelectedEmails = ref([]);
+const sendOfferExtraRaw = ref('');
+const sendOfferRecipientsLoading = ref(false);
 const sendOfferForm = useForm({
-    to_raw: '',
     subject: '',
     body: '',
     use_html_teaser: true,
     proposal_html_template_id: null,
 });
 
-function defaultSendOfferEmails() {
-    const counterparty = contractors.value.find((c) => c.id === form.counterparty_id);
-    const emails = [counterparty?.contact_person_email, counterparty?.email].filter(Boolean);
+async function loadSendOfferRecipients(contractorId) {
+    sendOfferRecipients.value = [];
+    sendOfferSelectedEmails.value = [];
+    sendOfferExtraRaw.value = '';
 
-    return [...new Set(emails)].join(', ');
+    if (!contractorId) {
+        return;
+    }
+
+    sendOfferRecipientsLoading.value = true;
+    try {
+        const response = await fetch(route('leads.mail-recipients', { contractor_id: contractorId }), {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        });
+        if (!response.ok) {
+            return;
+        }
+        const payload = await response.json();
+        sendOfferRecipients.value = Array.isArray(payload?.recipients) ? payload.recipients : [];
+    } catch {
+        sendOfferRecipients.value = [];
+    } finally {
+        sendOfferRecipientsLoading.value = false;
+    }
 }
 
-function openSendOfferModal(offer) {
+async function openSendOfferModal(offer) {
     sendOfferTarget.value = offer;
     sendHtmlTemplateTarget.value = null;
-    sendOfferForm.to_raw = defaultSendOfferEmails();
     sendOfferForm.subject = `Коммерческое предложение ${offer.number || ''}`.trim();
     sendOfferForm.body = `Добрый день!\n\nНаправляем коммерческое предложение по перевозке «${form.title}».`;
     sendOfferForm.use_html_teaser = Boolean(offer?.has_html_teaser);
     sendOfferForm.proposal_html_template_id = null;
     showSendOfferModal.value = true;
+    await loadSendOfferRecipients(form.counterparty_id);
 }
 
-function openSendHtmlTemplateModal(template) {
+async function openSendHtmlTemplateModal(template) {
     sendOfferTarget.value = null;
     sendHtmlTemplateTarget.value = template;
-    sendOfferForm.to_raw = defaultSendOfferEmails();
     sendOfferForm.subject = `Коммерческое предложение: ${template.name || ''}`.trim();
-    sendOfferForm.body = `Добрый день!\n\nНаправляем коммерческое предложение по перевозке «${form.title}».`;
+    sendOfferForm.body = '';
     sendOfferForm.use_html_teaser = true;
     sendOfferForm.proposal_html_template_id = Number(template.id);
     showSendOfferModal.value = true;
+    await loadSendOfferRecipients(form.counterparty_id);
 }
 
 function closeSendOfferModal() {
     showSendOfferModal.value = false;
     sendOfferTarget.value = null;
     sendHtmlTemplateTarget.value = null;
+    sendOfferRecipients.value = [];
+    sendOfferSelectedEmails.value = [];
+    sendOfferExtraRaw.value = '';
 }
 
 function submitSendOffer() {
@@ -1405,18 +1455,18 @@ function submitSendOffer() {
         return;
     }
 
-    const to = sendOfferForm.to_raw
-        .split(/[,;]/)
-        .map((s) => s.trim())
-        .filter(Boolean);
+    const to = mergeMailRecipientEmails(sendOfferSelectedEmails.value, sendOfferExtraRaw.value);
+    if (to.length === 0) {
+        window.alert('Выберите контакт или укажите адрес получателя.');
+        return;
+    }
 
     if (sendHtmlTemplateTarget.value) {
         sendOfferForm
-            .transform((data) => ({
+            .transform(() => ({
                 to,
-                subject: data.subject,
-                body: data.body,
-                proposal_html_template_id: Number(data.proposal_html_template_id || sendHtmlTemplateTarget.value.id),
+                subject: sendOfferForm.subject,
+                proposal_html_template_id: Number(sendOfferForm.proposal_html_template_id || sendHtmlTemplateTarget.value.id),
             }))
             .post(route('leads.proposal.send-html-email', selectedLeadId.value), {
                 preserveScroll: true,
@@ -1434,7 +1484,12 @@ function submitSendOffer() {
     }
 
     sendOfferForm
-        .transform((data) => ({ ...data, to }))
+        .transform((data) => ({
+            to,
+            subject: data.subject,
+            body: data.body,
+            use_html_teaser: data.use_html_teaser,
+        }))
         .post(route('leads.offers.send-email', [selectedLeadId.value, sendOfferTarget.value.id]), {
             preserveScroll: true,
             onSuccess: () => {

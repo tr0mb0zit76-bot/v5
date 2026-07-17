@@ -23,7 +23,7 @@ class SendLeadHtmlProposalMailRequest extends FormRequest
             'cc' => ['nullable', 'array'],
             'cc.*' => ['email'],
             'subject' => ['required', 'string', 'max:255'],
-            'body' => ['required', 'string', 'max:20000'],
+            'body' => ['nullable', 'string', 'max:20000'],
         ];
     }
 
@@ -36,7 +36,6 @@ class SendLeadHtmlProposalMailRequest extends FormRequest
             'proposal_html_template_id.required' => 'Выберите HTML-шаблон КП.',
             'to.required' => 'Укажите адрес получателя.',
             'subject.required' => 'Укажите тему письма.',
-            'body.required' => 'Укажите текст письма.',
         ];
     }
 }
