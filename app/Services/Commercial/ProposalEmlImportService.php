@@ -4,6 +4,7 @@ namespace App\Services\Commercial;
 
 use App\Models\ProposalHtmlTemplate;
 use App\Support\ProposalHtmlEmailDocumentNormalizer;
+use App\Support\ProposalHtmlManagerContactNormalizer;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -252,7 +253,7 @@ class ProposalEmlImportService
             'меняем_имя' => '{counterparty.contact_person}',
         ];
 
-        return strtr($html, $map);
+        return ProposalHtmlManagerContactNormalizer::normalize(strtr($html, $map));
     }
 
     private function extensionForMime(string $mime): string

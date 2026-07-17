@@ -66,4 +66,48 @@ EML;
 
         File::deleteDirectory($dir);
     }
+
+    #[Test]
+    public function it_normalizes_manager_contact_block_like_parallel_import(): void
+    {
+        if (! Schema::hasTable('proposal_html_templates')) {
+            $this->markTestSkipped('Нет таблицы proposal_html_templates.');
+        }
+
+        $eml = <<<'EML'
+Subject: Demo
+MIME-Version: 1.0
+Content-Type: multipart/related; boundary="boundary-related"
+
+--boundary-related
+Content-Type: text/html; charset=utf-8
+
+<html><body>
+<strong>Эмиль Садыков</strong>
+<td style="background-color: #e5e5e5;" bgcolor="#E5E5E5">
+<strong>+7&nbsp;917 141 70 07<br></strong>
+<a href="mailto:sad@log-sol.ru">sad@log-sol.ru</a>
+</td>
+<p>Добрый день, <strong>МЕНЯЕМ_ИМЯ</strong>!</p>
+</body></html>
+
+--boundary-related--
+EML;
+
+        $result = app(ProposalEmlImportService::class)->importContents(
+            $eml,
+            'Контакты менеджера — тест',
+            'manager-contact-normalize-test',
+        );
+
+        $html = $result['template']->html_body;
+        $this->assertStringContainsString('{manager.name}', $html);
+        $this->assertStringContainsString('{manager.phone}', $html);
+        $this->assertStringContainsString('mailto:{manager.email}', $html);
+        $this->assertStringContainsString('{counterparty.contact_person}', $html);
+        $this->assertStringNotContainsString('Эмиль Садыков', $html);
+        $this->assertStringNotContainsString('e5e5e5', strtolower($html));
+
+        $result['template']->delete();
+    }
 }
