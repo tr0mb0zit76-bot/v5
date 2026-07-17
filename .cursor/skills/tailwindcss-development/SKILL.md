@@ -8,24 +8,17 @@ metadata:
 
 # Tailwind CSS Development
 
-
-
 ## Documentation
-
 
 Use `search-docs` for detailed Tailwind CSS v3 patterns and documentation.
 
-
 ## Basic Usage
-
 
 - Use Tailwind CSS classes to style HTML. Check and follow existing Tailwind conventions in the project before introducing new patterns.
 - Offer to extract repeated patterns into components that match the project's conventions (e.g., Blade, JSX, Vue).
 - Consider class placement, order, priority, and defaults. Remove redundant classes, add classes to parent or child elements carefully to reduce repetition, and group elements logically.
 
-
 ## Tailwind CSS v3 Specifics
-
 
 - Always use Tailwind CSS v3 and verify you're using only classes it supports.
 - Configuration is done in the `tailwind.config.js` file.
@@ -38,9 +31,7 @@ Use `search-docs` for detailed Tailwind CSS v3 patterns and documentation.
 @tailwind utilities;
 ```
 
-
 ## Spacing
-
 
 When listing items, use gap utilities for spacing; don't use margins.
 
@@ -52,9 +43,7 @@ When listing items, use gap utilities for spacing; don't use margins.
 </div>
 ```
 
-
 ## Dark Mode
-
 
 If existing pages and components support dark mode, new pages and components must support it the same way, typically using the `dark:` variant:
 
@@ -65,13 +54,9 @@ If existing pages and components support dark mode, new pages and components mus
 </div>
 ```
 
-
 ## Common Patterns
 
-
-
 ### Flexbox Layout
-
 
 <!-- Flexbox Layout -->
 ```html
@@ -81,9 +66,7 @@ If existing pages and components support dark mode, new pages and components mus
 </div>
 ```
 
-
 ### Grid Layout
-
 
 <!-- Grid Layout -->
 ```html
@@ -94,17 +77,13 @@ If existing pages and components support dark mode, new pages and components mus
 </div>
 ```
 
-
 ## Verification
-
 
 1. Check browser for visual rendering
 2. Test responsive breakpoints
 3. Verify dark mode if project uses it
 
-
 ## Common Pitfalls
-
 
 - Using margins for spacing between siblings instead of gap utilities
 - Forgetting to add dark mode variants when the project uses dark mode

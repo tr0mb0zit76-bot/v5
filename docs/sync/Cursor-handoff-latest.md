@@ -3,7 +3,25 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-17 11:00 (EmailMaker КП: 4 rich EML) · **HEAD:** `02afeced` · **Ветка:** `master`
+**Обновлено:** 2026-07-17 13:50 (MCP HTML-КП + Boost skills) · **HEAD:** *(после push)* · **Ветка:** `master`
+
+### Итог сессии 2026-07-17 — MCP HTML-шаблоны КП + Laravel Boost
+
+| Блок | Статус |
+| --- | --- |
+| MCP tools: `list/get/create/update_proposal_html_template` (cold / clone `parallel-import`) | ✅ `6722faaf` + этот коммит |
+| Доступ: `settings_system` / admin; запись — `mcp:write` | ✅ |
+| Laravel Boost update: skills `ai-sdk-development`, `mcp-development`; обновлены laravel-best-practices / tailwind | ✅ |
+| `AGENTS.md`: boost guidelines + восстановлен раздел «Домен приложения» | ✅ |
+| `codebase-memory-mcp`: отказ — удалён `install.ps1` и `%LOCALAPPDATA%\Programs\codebase-memory-mcp` | ✅ не используем |
+
+**На втором ПК:** `git pull` → переподключить MCP CRM → при необходимости `php artisan boost:install` / skills уже в git.
+
+**Следующий шаг:** на проде `git pull` при деплое MCP; в Cursor проверить, что `codebase-memory` нет в `mcp.json` (если добавляли вручную — убрать).
+
+---
+
+**Обновлено (архив):** 2026-07-17 11:00 (EmailMaker КП: 4 rich EML) · **HEAD:** `02afeced` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-17 — rich HTML-КП из EmailMaker (.eml)
 

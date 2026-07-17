@@ -11,7 +11,9 @@
     "nightwatch_mcp": false,
     "sail": false,
     "skills": [
+        "ai-sdk-development",
         "laravel-best-practices",
+        "mcp-development",
         "inertia-vue-development",
         "tailwindcss-development"
     ]

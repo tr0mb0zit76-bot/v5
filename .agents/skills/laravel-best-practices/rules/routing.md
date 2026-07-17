@@ -1,9 +1,6 @@
 # Routing & Controllers Best Practices
 
-
-
 ## Use Implicit Route Model Binding
-
 
 Let Laravel resolve models automatically from route parameters.
 
@@ -23,9 +20,7 @@ public function show(Post $post)
 }
 ```
 
-
 ## Use Scoped Bindings for Nested Resources
-
 
 Enforce parent-child relationships automatically.
 
@@ -35,9 +30,7 @@ Route::get('/users/{user}/posts/{post}', function (User $user, Post $post) {
 })->scopeBindings();
 ```
 
-
 ## Use Resource Controllers
-
 
 Use `Route::resource()` or `apiResource()` for RESTful endpoints.
 
@@ -46,9 +39,7 @@ Route::resource('posts', PostController::class);
 Route::apiResource('api/posts', Api\PostController::class);
 ```
 
-
 ## Keep Controllers Thin
-
 
 Aim for under 10 lines per method. Extract business logic to action or service classes.
 
@@ -77,9 +68,7 @@ public function store(StorePostRequest $request, CreatePostAction $create)
 }
 ```
 
-
 ## Type-Hint Form Requests
-
 
 Type-hinting Form Requests triggers automatic validation and authorization before the method executes.
 

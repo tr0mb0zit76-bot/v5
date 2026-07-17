@@ -1,9 +1,6 @@
 # Migration Best Practices
 
-
-
 ## Generate Migrations with Artisan
-
 
 Always use `php artisan make:migration` for consistent naming and timestamps.
 
@@ -18,9 +15,7 @@ php artisan make:migration create_posts_table
 php artisan make:migration add_slug_to_posts_table
 ```
 
-
 ## Use `constrained()` for Foreign Keys
-
 
 Automatic naming and referential integrity.
 
@@ -31,9 +26,7 @@ $table->foreignId('user_id')->constrained()->cascadeOnDelete();
 $table->foreignId('author_id')->constrained('users');
 ```
 
-
 ## Never Modify Deployed Migrations
-
 
 Once a migration has run in production, treat it as immutable. Create a new migration to change the table.
 
@@ -51,9 +44,7 @@ Schema::table('posts', function (Blueprint $table) {
 });
 ```
 
-
 ## Add Indexes in the Migration
-
 
 Add indexes when creating the table, not as an afterthought. Columns used in `WHERE`, `ORDER BY`, and `JOIN` clauses need indexes.
 
@@ -78,9 +69,7 @@ Schema::create('orders', function (Blueprint $table) {
 });
 ```
 
-
 ## Mirror Defaults in Model `$attributes`
-
 
 When a column has a database default, mirror it in the model so new instances have correct values before saving.
 
@@ -94,9 +83,7 @@ protected $attributes = [
 ];
 ```
 
-
 ## Write Reversible `down()` Methods by Default
-
 
 Implement `down()` for schema changes that can be safely reversed so `migrate:rollback` works in CI and failed deployments.
 
@@ -111,9 +98,7 @@ public function down(): void
 
 For intentionally irreversible migrations (e.g., destructive data backfills), leave a clear comment and require a forward fix migration instead of pretending rollback is supported.
 
-
 ## Keep Migrations Focused
-
 
 One concern per migration. Never mix DDL (schema changes) and DML (data manipulation).
 

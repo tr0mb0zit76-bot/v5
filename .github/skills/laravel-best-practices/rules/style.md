@@ -1,9 +1,6 @@
 # Conventions & Style
 
-
-
 ## Follow Laravel Naming Conventions
-
 
 | What | Convention | Good | Bad |
 |------|-----------|------|-----|
@@ -23,9 +20,7 @@
 | Config | snake_case | `google_calendar.php` | `googleCalendar.php` |
 | Enum | singular | `UserType` | `UserTypes` |
 
-
 ## Prefer Shorter Readable Syntax
-
 
 | Verbose | Shorter |
 |---------|---------|
@@ -40,9 +35,7 @@
 | `->orderBy('created_at', 'asc')` | `->oldest()` |
 | `->first()->name` | `->value('name')` |
 
-
 ## Use Laravel String & Array Helpers
-
 
 Laravel provides `Str`, `Arr`, `Number`, and `Uri` helper classes that are more readable, chainable, and UTF-8 safe than raw PHP functions. Always prefer them.
 
@@ -100,9 +93,7 @@ Use `$request->string('name')` to get a fluent `Stringable` directly from reques
 
 Use `search-docs` for the full list of available methods — these helpers are extensive.
 
-
 ## No Inline JS/CSS in Blade
-
 
 Do not put JS or CSS in Blade templates. Do not put HTML in PHP classes.
 
@@ -118,9 +109,7 @@ Correct:
 
 Pass data to JS via data attributes or use a dedicated PHP-to-JS package.
 
-
 ## No Unnecessary Comments
-
 
 Code should be readable on its own. Use descriptive method and variable names instead of comments. The only exception is config files, where descriptive comments are expected.
 
