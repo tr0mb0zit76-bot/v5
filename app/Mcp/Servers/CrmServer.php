@@ -9,6 +9,7 @@ use App\Mcp\Tools\CreateContractorTool;
 use App\Mcp\Tools\CreateFleetDriverTool;
 use App\Mcp\Tools\CreateFleetVehicleTool;
 use App\Mcp\Tools\CreateOrderIntakeDraftFromTextTool;
+use App\Mcp\Tools\CreateProposalHtmlTemplateTool;
 use App\Mcp\Tools\CreateTaskTool;
 use App\Mcp\Tools\ExtractOrderDraftFromDocumentTool;
 use App\Mcp\Tools\GetAiUsageInsightsTool;
@@ -25,6 +26,7 @@ use App\Mcp\Tools\GetOrderTimelineTool;
 use App\Mcp\Tools\GetOrderTool;
 use App\Mcp\Tools\GetPrintFormBasicTermsTool;
 use App\Mcp\Tools\GetPrintFormTemplatesInsightsTool;
+use App\Mcp\Tools\GetProposalHtmlTemplateTool;
 use App\Mcp\Tools\GetSalesBookArticleTool;
 use App\Mcp\Tools\GetSalesBookQualityInsightsTool;
 use App\Mcp\Tools\GetSalesBookQuizInsightsTool;
@@ -39,6 +41,7 @@ use App\Mcp\Tools\ListManagementStatementImportsTool;
 use App\Mcp\Tools\ListManagementStatementLinesTool;
 use App\Mcp\Tools\ListOrderDocumentsTool;
 use App\Mcp\Tools\ListOrderIntakeDraftsTool;
+use App\Mcp\Tools\ListProposalHtmlTemplatesTool;
 use App\Mcp\Tools\ListSalesScriptsTool;
 use App\Mcp\Tools\RememberManagementReconcileRuleTool;
 use App\Mcp\Tools\RememberOrderIntakePhraseTool;
@@ -54,6 +57,7 @@ use App\Mcp\Tools\SubmitContractorPrintFormChangeTool;
 use App\Mcp\Tools\SuggestManagementStatementLineTool;
 use App\Mcp\Tools\UpdateOrderFieldTool;
 use App\Mcp\Tools\UpdateOrderRouteActualTool;
+use App\Mcp\Tools\UpdateProposalHtmlTemplateTool;
 use App\Mcp\Tools\UpsertDispositionEntryTool;
 use App\Mcp\Tools\UpsertPrintFormBasicTermsTool;
 use App\Mcp\Tools\UpsertSalesBookArticleTool;
@@ -95,6 +99,7 @@ use Laravel\Mcp\Server\Tool;
         - upsert_print_form_basic_terms — прямое сохранение базовых условий (admin / settings_system)
         - submit_contractor_print_form_change — заявка на согласование условий контрагента (менеджер / Юрик)
         - resolve_contractor_print_form_change — утверждение/отклонение заявки (руководитель)
+        - list_proposal_html_templates / get_proposal_html_template / create_proposal_html_template / update_proposal_html_template — HTML-шаблоны КП (settings_system): cold или clone parallel-import + тексты/картинки
         - search_mail_threads / get_mail_thread / get_mail_sync_status / send_mail / reply_mail_thread — переписка, IMAP sync и отправка из CRM
         - Управленческий учёт (can_management_accounting / admin):
           list_management_statement_imports, list_management_statement_lines, suggest_management_statement_line,
@@ -146,6 +151,10 @@ class CrmServer extends Server
         UpsertPrintFormBasicTermsTool::class,
         SubmitContractorPrintFormChangeTool::class,
         ResolveContractorPrintFormChangeTool::class,
+        ListProposalHtmlTemplatesTool::class,
+        GetProposalHtmlTemplateTool::class,
+        CreateProposalHtmlTemplateTool::class,
+        UpdateProposalHtmlTemplateTool::class,
         GetOrderIntakeDraftTool::class,
         ListOrderIntakeDraftsTool::class,
         CreateOrderIntakeDraftFromTextTool::class,

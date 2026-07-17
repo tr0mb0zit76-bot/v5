@@ -220,6 +220,55 @@ CSS;
     }
 
     /**
+     * Собрать HTML холодного письма по параметрам (для MCP / seeder).
+     *
+     * @param  list<string>  $points
+     * @return array{html_body: string, css_inline: string}
+     */
+    public static function buildCustom(
+        string $preheader,
+        string $title,
+        string $intro,
+        string $angle,
+        array $points,
+        string $cta,
+        string $asset = 'route.svg',
+    ): array {
+        $asset = trim($asset);
+        if ($asset === '') {
+            $asset = 'route.svg';
+        }
+
+        if (! str_contains($asset, '/') && ! str_starts_with($asset, 'http')) {
+            $asset = ltrim($asset, '/');
+        }
+
+        return [
+            'html_body' => self::layout($preheader, $title, $intro, $angle, $points, $cta, $asset),
+            'css_inline' => self::cssInline(),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function stockAssetFilenames(): array
+    {
+        return [
+            'route.svg',
+            'customs.svg',
+            'chemical.svg',
+            'heavy-equipment.svg',
+            'temperature.svg',
+            'warehouse.svg',
+            'rate.svg',
+            'documents.svg',
+            'calendar.svg',
+            'proposal.svg',
+        ];
+    }
+
+    /**
      * @param  list<string>  $points
      * @return array{slug: string, name: string, subject: string, preheader: string, html_body: string, css_inline: string}
      */
@@ -260,7 +309,9 @@ CSS;
         $pointsHtml = collect($points)
             ->map(fn (string $point): string => '<li style="margin:0 0 9px;">'.e($point).'</li>')
             ->implode('');
-        $assetUrl = self::ASSET_BASE.'/'.$asset;
+        $assetUrl = str_starts_with($asset, 'http://') || str_starts_with($asset, 'https://') || str_starts_with($asset, '/')
+            ? $asset
+            : self::ASSET_BASE.'/'.ltrim($asset, '/');
 
         return <<<HTML
 <div style="display:none;max-height:0;overflow:hidden;color:#ffffff;font-size:1px;line-height:1px;">{$preheader}</div>

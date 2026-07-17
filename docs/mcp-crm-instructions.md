@@ -25,6 +25,7 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 - upsert_print_form_basic_terms — прямое сохранение базовых условий cp/dp (admin / settings_system)
 - submit_contractor_print_form_change — заявка на согласование условий контрагента (contractors)
 - resolve_contractor_print_form_change — утвердить / отклонить / вернуть на согласование с контрагентом (руководитель)
+- list_proposal_html_templates / get_proposal_html_template / create_proposal_html_template / update_proposal_html_template — HTML-шаблоны КП (settings_system): cold или clone parallel-import + тексты/картинки
 - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text / extract_order_draft_from_document / apply_order_wizard_draft — черновики заявок (текст, файл base64, создание заказа с confirm_token)
 - search_mail_threads / get_mail_thread / get_mail_sync_status / send_mail / reply_mail_thread — переписка, IMAP sync и отправка из CRM (search: query, mailbox_owner, mailbox_user_id; team[].thread_count в sync status)
 - Управленческий учёт (`can_management_accounting` / admin):
@@ -52,6 +53,10 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 | `upsert_print_form_basic_terms` | Прямое сохранение базовых условий `party` + `items`, опционально `contractor_id` (admin / settings_system) |
 | `submit_contractor_print_form_change` | Заявка на согласование условий контрагента: `contractor_id`, `party`, `items`, опционально `manager_notes` / `yurik_summary` |
 | `resolve_contractor_print_form_change` | Решение по заявке: `change_request_id`, `action` (`approve` / `reject` / `needs_counterparty`), `reason` при reject |
+| `list_proposal_html_templates` | Список HTML-шаблонов КП + `stock_assets` (settings_system) |
+| `get_proposal_html_template` | Карточка шаблона: placeholders, image_srcs; `include_html` для полного HTML |
+| `create_proposal_html_template` | `mode=cold` (тексты + stock_asset/hero_image) или `mode=clone` (base_slug + text_replacements + images). Нужен `mcp:write` |
+| `update_proposal_html_template` | Правки name/is_active / text_replacements / images / html_body. Нужен `mcp:write` |
 
 ## Управленческий учёт (2026-06)
 
