@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-17 09:50 (HTML-КП send + SMTP per-user) · **HEAD:** `944cbf7` · **Ветка:** `master`
+**Обновлено:** 2026-07-17 09:50 (HTML-КП send + SMTP per-user) · **HEAD:** `ae630a9` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-16…17 — исходящие документы, HTML-КП, SMTP
 
