@@ -3,7 +3,45 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-15 14:15 (host-only session cookie + WebDAV password rotation) · **HEAD:** `ecdeff7` · **Ветка:** `master`
+**Обновлено:** 2026-07-17 09:50 (HTML-КП send + SMTP per-user) · **HEAD:** `944cbf7` · **Ветка:** `master`
+
+### Итог сессии 2026-07-16…17 — исходящие документы, HTML-КП, SMTP
+
+| Блок | Статус |
+| --- | --- |
+| **Исходящие документы заказа** (`metadata.direction` incoming/outgoing; не закрывают чек-лист; портал download) | ✅ `8ea5aff` на `origin/master` |
+| **Шаблоны КП / GrapesJS:** нормализация `.eml` (body+CSS+fonts), вкладка «Как в письме» | ✅ `e56aa54`; на прод: pull + `npm run build`; шаблон parallel-import восстановлен из rich HTML |
+| **SMTP per-user:** auth = `users.email` + `mail_imap_secret`; host `mail.hosting.reg.ru:465` / `smtps` | ✅ `9b0b755` |
+| **HTML-КП с лида:** кнопка «Отправить по e-mail» без PDF; `POST leads.proposal.send-html-email`; история «письмо отправлено» | ✅ `09dceec` |
+| **UI:** `.crm-btn-secondary` выровнен с компактной геометрией primary | ✅ в `09dceec` |
+| **Тесты:** `LeadHtmlProposalMailSendTest`, `CommercialMailPerUserSmtpTest`, offer mail | ✅ локально |
+
+**На прод (ещё не обязательно всё применено):**
+
+```text
+git pull
+# .env:
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtps
+MAIL_HOST=mail.hosting.reg.ru
+MAIL_PORT=465
+# MAIL_USERNAME/PASSWORD не нужны для КП — пароль у пользователя (mail_imap_secret)
+npm run build
+php artisan optimize:clear
+```
+
+У менеджера должен быть пароль почты (как для IMAP sync). Исходящие документы (`8ea5aff`) — migrate не требуется для direction (metadata JSON).
+
+**Следующий шаг:**
+1. Прописать SMTP на prod `.env` + проверить отправку HTML-КП с лида
+2. При необходимости — deploy исходящих документов / portal download, если ещё не на проде
+3. Опционально: `{own_company.name}` в snapshot лида для плейсхолдеров КП
+
+**На большом ПК:** `git pull` → `pwsh -File scripts/sync-docs-to-yandex.ps1` → читать этот handoff.
+
+---
+
+**Обновлено (архив):** 2026-07-15 14:15 (host-only session cookie + WebDAV password rotation) · **HEAD:** `ecdeff7` · **Ветка:** `master`
 
 > **Полный backlog аудита:** [`docs/sync/v5-local-Components-Code-Audit-2026-07.md`](v5-local-Components-Code-Audit-2026-07.md) → vault: `v5-local/Components/Code Audit 2026-07`
 
