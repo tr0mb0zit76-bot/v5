@@ -3,7 +3,24 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-17 09:50 (HTML-КП send + SMTP per-user) · **HEAD:** `ae630a9` · **Ветка:** `master`
+**Обновлено:** 2026-07-17 10:00 (Vite 5174 канон оба ПК) · **HEAD:** *(после push)* · **Ветка:** `master`
+
+### Итог сессии 2026-07-17 — синхрон локального Vite на обоих ПК
+
+| Блок | Статус |
+| --- | --- |
+| **Vite:** порт **5174** + `strictPort` в `vite.config.js` (оба ПК одинаково) | ✅ в git |
+| **optimizeDeps:** убран `ag-grid-community/styles/ag-grid.css` (ломал `npm run dev`) | ✅ |
+| **`.env.example`:** `VITE_DEV_SERVER_URL=http://127.0.0.1:5174` | ✅ |
+| **Инструкция:** раздел «Локальное окружение» в `cursor-agent-startup.md` | ✅ |
+
+**На каждом ПК после pull:** в `.env` прописать `VITE_DEV_SERVER_URL=http://127.0.0.1:5174` (если ещё нет). Другой проект на той же машине — свой порт (5173), не CRM.
+
+**Следующий шаг (из прошлой сессии):** SMTP на prod + проверка HTML-КП; deploy исходящих документов при необходимости.
+
+---
+
+**Обновлено (архив):** 2026-07-17 09:50 (HTML-КП send + SMTP per-user) · **HEAD:** `ae630a9` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-16…17 — исходящие документы, HTML-КП, SMTP
 

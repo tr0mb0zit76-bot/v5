@@ -86,6 +86,26 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1
 
 ---
 
+## Локальное окружение (оба ПК одинаково)
+
+Канон в **git** — не копируйте `.env` целиком между машинами.
+
+| Что | Канон | После `git pull` на каждом ПК |
+| --- | --- | --- |
+| **Vite HMR** | порт **5174**, `strictPort: true` в `vite.config.js` | `npm run dev` → `http://127.0.0.1:5174/`. В `.env` (не в git): `VITE_DEV_SERVER_URL=http://127.0.0.1:5174` — см. `.env.example` |
+| **optimizeDeps** | только JS-пакеты; **не** включать `*.css` (иначе Vite падает на pre-bundle) | уже в `vite.config.js` |
+| Другой проект на том же ПК | свой порт (часто 5173) | не менять порт CRM на 5173 |
+| PHP deps | `composer.lock` | при смене lock: `composer install` |
+| JS deps | `package-lock.json` | при смене lock: `npm ci` |
+| Миграции | `database/migrations/` | `php artisan migrate` |
+| Тесты | `.env.testing` → `u_tromb_test` | не путать с рабочей БД |
+| OSPanel DB | `DB_HOST=127.0.1.21` (типично) | свой `.env` |
+| MCP | Я.Диск / `sync-cursor-mcp-from-yandex.ps1` | не коммитить токены |
+
+Laravel в dev читает URL из `public/hot` (его пишет Vite). Порт в `vite.config.js` — источник правды; строка в `.env` нужна, чтобы оба ПК не расходились «на глаз».
+
+---
+
 ## Карта файлов контекста
 
 | Файл | Назначение |
@@ -128,7 +148,8 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1
    pwsh -File scripts/sync-docs-to-yandex.ps1 -ExchangeRoot "$env:USERPROFILE\Yandex.Disk\Exchange"
    pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1   # по желанию, MCP
    ```
-2. Агент читает handoff → этот файл → `AGENTS.md` и кратко сообщает, что актуально.
+2. Сверить локальный `.env` с `.env.example` (особенно `VITE_DEV_SERVER_URL=http://127.0.0.1:5174`). При смене lock-файлов — `composer install` / `npm ci`; при новых миграциях — `php artisan migrate`.
+3. Агент читает handoff → этот файл → `AGENTS.md` и кратко сообщает, что актуально.
 
 > Я.Диск дублирует файлы из git для Obsidian; **источник правды — git**. Без `git pull` vault может быть свежее handoff в репозитории на другой машине, но код — нет.
 

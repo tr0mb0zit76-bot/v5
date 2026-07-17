@@ -13,7 +13,7 @@ export default defineConfig({
     ],
     server: {
         host: '127.0.0.1',
-        port: 5173,
+        port: 5174,
         strictPort: true,
         // Важно: разрешаем CORS для MCP
         cors: true,
@@ -53,7 +53,6 @@ export default defineConfig({
         include: [
             'ag-grid-community',
             'ag-grid-vue3',
-            'ag-grid-community/styles/ag-grid.css',
             'grapesjs',
             'grapesjs-preset-newsletter',
             'mermaid',
