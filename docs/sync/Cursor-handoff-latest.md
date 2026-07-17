@@ -3,7 +3,25 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-17 10:00 (Vite 5174 канон оба ПК) · **HEAD:** `7672c28` · **Ветка:** `master`
+**Обновлено:** 2026-07-17 11:00 (EmailMaker КП: 4 rich EML) · **HEAD:** *(после push)* · **Ветка:** `master`
+
+### Итог сессии 2026-07-17 — rich HTML-КП из EmailMaker (.eml)
+
+| Блок | Статус |
+| --- | --- |
+| Импорт 4 шаблонов как «Параллельный импорт» (картинки + CSS + body) | ✅ локально |
+| Slugs: `hard-to-reach-regions`, `dangerous-goods`, `export-solutions`, `special-equipment` | ✅ |
+| Источники `.eml`: `resources/proposal-emails/eml/` · ассеты: `public/assets/proposal-emails/{slug}/` | ✅ в git |
+| Скрипт: `php scripts/import-proposal-eml-batch.php` | ✅ |
+| Плейсхолдер `МЕНЯЕМ_ИМЯ` → `{counterparty.contact_person}` | ✅ |
+
+**На прод:** `git pull` → `php artisan migrate --force` (если ещё нет `email_assets`) → `php scripts/import-proposal-eml-batch.php` → `php artisan optimize:clear`. `npm run build` не обязателен (только public assets + БД).
+
+**Локально:** Модули → Шаблоны КП — четыре новых шаблона; вкладка «Как в письме».
+
+---
+
+**Обновлено (архив):** 2026-07-17 10:00 (Vite 5174 канон оба ПК) · **HEAD:** `7672c28` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-17 — синхрон локального Vite на обоих ПК
 
