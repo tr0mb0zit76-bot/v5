@@ -21,9 +21,33 @@
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <button v-if="canUseLoadBoard" type="button" :class="`${crmBtnSecondary} inline-flex items-center gap-2 !px-4 !py-2`" :disabled="!selectedLeadId" @click="openLoadBoardFromLead"><Package class="h-4 w-4" />На биржу</button>
-                <button v-if="canUseHowMuchFits" type="button" :class="`${crmBtnSecondary} inline-flex items-center gap-2 !px-4 !py-2`" :disabled="!selectedLeadId" @click="openHowMuchFitsFromLead"><Truck class="h-4 w-4" />Сколько влезет?</button>
-                <button type="button" :class="crmBtnPrimary" :disabled="!selectedLeadId || !form.counterparty_id" @click="convertLead"><ArrowRightLeft class="h-4 w-4" />Конвертировать в заказ</button>
+                <button
+                    v-if="canUseLoadBoard && !isContractSigningCard"
+                    type="button"
+                    :class="`${crmBtnSecondary} inline-flex items-center gap-2 !px-4 !py-2`"
+                    :disabled="!selectedLeadId"
+                    @click="openLoadBoardFromLead"
+                >
+                    <Package class="h-4 w-4" />На биржу
+                </button>
+                <button
+                    v-if="canUseHowMuchFits && !isContractSigningCard"
+                    type="button"
+                    :class="`${crmBtnSecondary} inline-flex items-center gap-2 !px-4 !py-2`"
+                    :disabled="!selectedLeadId"
+                    @click="openHowMuchFitsFromLead"
+                >
+                    <Truck class="h-4 w-4" />Сколько влезет?
+                </button>
+                <button
+                    v-if="!isContractSigningCard"
+                    type="button"
+                    :class="crmBtnPrimary"
+                    :disabled="!selectedLeadId || !form.counterparty_id"
+                    @click="convertLead"
+                >
+                    <ArrowRightLeft class="h-4 w-4" />Конвертировать в заказ
+                </button>
                 <button type="button" :class="crmBtnCreate" @click="submit"><Save class="h-4 w-4" />Сохранить</button>
             </div>
         </div>
@@ -47,26 +71,29 @@
                         {{ tab.label }}
                     </button>
                 </div>
-                <div class="flex min-w-[14rem] items-center gap-2">
-                    <span class="shrink-0 text-xs font-medium text-zinc-500 dark:text-zinc-400">Ответственный</span>
-                    <select
-                        v-model.number="form.responsible_id"
-                        :class="`${crmFieldFluid} !py-1.5 text-sm`"
-                        :disabled="!canAssignResponsible"
+                <div class="flex flex-wrap items-center gap-3">
+                    <p
+                        v-if="leadCreatedAtLabel"
+                        class="text-xs text-zinc-500 dark:text-zinc-400"
                     >
-                        <option v-for="user in responsibleUsers" :key="`lead-responsible-${user.id}`" :value="user.id">
-                            {{ user.name }}
-                        </option>
-                    </select>
+                        Дата лида:
+                        <span class="font-medium text-zinc-700 dark:text-zinc-200">{{ leadCreatedAtLabel }}</span>
+                    </p>
+                    <div class="flex min-w-[14rem] items-center gap-2">
+                        <span class="shrink-0 text-xs font-medium text-zinc-500 dark:text-zinc-400">Ответственный</span>
+                        <select
+                            v-model.number="form.responsible_id"
+                            :class="`${crmFieldFluid} !py-1.5 text-sm`"
+                            :disabled="!canAssignResponsible"
+                        >
+                            <option v-for="user in responsibleUsers" :key="`lead-responsible-${user.id}`" :value="user.id">
+                                {{ user.name }}
+                            </option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
-
-        <LeadSalesCoachingPanel
-            v-if="salesCoachingInsights?.available"
-            class="shrink-0 border-b border-zinc-200 px-5 py-2 dark:border-zinc-800"
-            :insights="salesCoachingInsights"
-        />
 
         <div :class="crmWizardBody">
             <div
@@ -231,7 +258,10 @@
 
                 <section class="space-y-3 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
                     <h3 class="text-sm font-semibold">Суть сделки</h3>
-                    <div class="grid gap-3 md:grid-cols-2">
+                    <div
+                        class="grid gap-3"
+                        :class="isContractSigningCard ? 'md:grid-cols-2' : 'md:grid-cols-3'"
+                    >
                         <div class="space-y-1.5">
                             <label :class="crmLabel">Тема</label>
                             <input v-model="form.title" type="text" :class="crmFieldFluid" required />
@@ -245,12 +275,10 @@
                                 <option v-for="option in sourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                             </select>
                         </div>
-                    </div>
-                    <div class="space-y-1.5">
-                        <textarea v-model="form.description" rows="3" :class="crmFieldFluid" placeholder="Суть запроса, ограничения, особенности груза или клиента" />
-                    </div>
-                    <div v-if="!isContractSigningCard" class="grid gap-3 md:grid-cols-2">
-                        <div class="space-y-1.5">
+                        <div
+                            v-if="!isContractSigningCard"
+                            class="space-y-1.5"
+                        >
                             <label :class="crmLabel">Тип перевозки</label>
                             <select v-model="form.transport_type" :class="crmFieldFluid">
                                 <option value="">Не выбрано</option>
@@ -258,10 +286,27 @@
                             </select>
                         </div>
                     </div>
+                    <div class="space-y-1.5">
+                        <label :class="crmLabel">Запрос клиента</label>
+                        <textarea
+                            v-model="form.description"
+                            rows="3"
+                            :class="crmFieldFluid"
+                            placeholder="Что нужно клиенту: маршрут, ограничения, особенности груза/сроков. Не пишите сюда статусы работы («отправил КП», «жду ответ») — это во вкладках Коммуникации и Коммерческое."
+                        />
+                        <p class="text-[11px] text-zinc-500 dark:text-zinc-400">
+                            Только суть потребности. Действия менеджера и переписка — в «Коммуникациях» / «Коммерческом», не здесь.
+                        </p>
+                    </div>
                 </section>
 
-                <div class="grid gap-3 md:grid-cols-2">
-                    <input v-model="form.next_contact_at" type="datetime-local" :class="crmFieldFluid" placeholder="Следующий контакт" />
+                <div class="space-y-1.5">
+                    <label :class="crmLabel">Следующий контакт</label>
+                    <input
+                        v-model="form.next_contact_at"
+                        type="datetime-local"
+                        :class="crmFieldFluid"
+                    />
                 </div>
 
                 <div
@@ -496,7 +541,6 @@ import MailRecipientPicker from '@/Components/Crm/MailRecipientPicker.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';
 import LeadFocusNowPanel from '@/Components/Leads/LeadFocusNowPanel.vue';
-import LeadSalesCoachingPanel from '@/Components/Leads/LeadSalesCoachingPanel.vue';
 import LeadWizardCargoTab from '@/Components/Leads/LeadWizardCargoTab.vue';
 import LeadWizardNextStepPanel from '@/Components/Leads/LeadWizardNextStepPanel.vue';
 import LeadStatusPipeline from '@/Components/Leads/LeadStatusPipeline.vue';
@@ -816,6 +860,28 @@ const visibleTabs = computed(() => {
     return allWizardTabs.filter((tab) => allowedKeys.has(tab.key));
 });
 const isContractSigningCard = computed(() => isContractSigningLeadWizard(selectedBusinessProcessSlug.value));
+
+const leadCreatedAtLabel = computed(() => {
+    const raw = props.selectedLead?.created_at;
+
+    if (!raw) {
+        return '';
+    }
+
+    const date = new Date(raw);
+
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(date);
+});
 
 function ensureActiveTabVisible() {
     if (!visibleTabs.value.some((tab) => tab.key === activeTab.value)) {

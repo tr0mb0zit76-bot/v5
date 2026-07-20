@@ -1440,6 +1440,7 @@ class LeadController extends Controller
             'expected_margin' => $lead->expected_margin,
             'proposal_sent_at' => optional($lead->proposal_sent_at)?->toIso8601String(),
             'next_contact_at' => optional($lead->next_contact_at)?->format('Y-m-d\TH:i'),
+            'created_at' => optional($lead->created_at)?->toIso8601String(),
             'lost_reason' => $lead->lost_reason,
             'close_outcome_primary_flag' => $lead->close_outcome_primary_flag,
             'close_outcome_primary_label' => LeadCloseOutcomeFlagCatalog::label($lead->close_outcome_primary_flag),
