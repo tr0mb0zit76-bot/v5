@@ -6,7 +6,8 @@
 ## Сущность
 
 - **Один QR = один `OrderDocument`** (заявка заказчика и заявка перевозчика — разные id и коды).
-- QR в DOCX: `${document_verification_qr}`; fallback-штамп на PDF, если макроса нет в шаблоне.
+- QR в DOCX: `${document_verification_qr}`; без макроса QR **не** ставится (ни в DOCX, ни штампом на PDF).
+- Устаревший fallback PDF-штампа: `PRINT_VERIFICATION_QR_PDF_FALLBACK=true` в `.env`.
 - Страница проверки: `/verify/order-documents/{id}?code=…` — **без login**, throttle 60/min.
 
 ## Ключевые классы
@@ -31,10 +32,11 @@
 PRINT_VERIFICATION_QR_DOCX_PX=80
 PRINT_VERIFICATION_QR_PDF_MM=12
 PRINT_VERIFICATION_QR_PNG_PIXEL=5
+# PRINT_VERIFICATION_QR_PDF_FALLBACK=true  # только если нужен старый автоштамп без макроса в DOCX
 ```
 
 ## Деплой
 
 После правок: `git pull`, `php artisan optimize:clear`. Старые DOCX/PDF не пересобираются сами — «Пересоздать черновик» или повторное согласование.
 
-*Обновлено: 2026-06-20.*
+*Обновлено: 2026-07-20.*

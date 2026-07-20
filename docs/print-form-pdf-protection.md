@@ -2,7 +2,7 @@
 
 Экспериментальная защита «от неумелой правки» финального PDF заявки. **Не юридическая КЭП.**
 
-**Последнее обновление:** 2026-06-20
+**Последнее обновление:** 2026-07-20
 
 ---
 
@@ -10,23 +10,24 @@
 
 1. Менеджер подправил PDF в Acrobat → **цифровая подпись недействительна** (панель подписей / полоска в Reader).
 2. Контрагент может **добавить своё факсимиле** (DocMDP level 2) без поломки нашей подписи.
-3. На документе есть **QR + код** для сверки с эталоном в CRM (бумажные правки не ловятся crypto).
+3. На документе есть **QR + код** для сверки с эталоном в CRM (бумажные правки не ловятся crypto) — **только если в шаблоне есть плейсхолдер**.
 
 ---
 
 ## Пайплайн (после согласования)
 
 ```
-DOCX (черновик с QR, если в шаблоне ${document_verification_qr})
+DOCX (QR только при ${document_verification_qr} в шаблоне)
     → Gotenberg → PDF
-    → [опционально] QR-штамп на каждую страницу PDF (если QR не был в DOCX)
+    → QR-штамп на PDF — только если QR уже был в DOCX
+      (или PRINT_VERIFICATION_QR_PDF_FALLBACK=true — старое «всегда штамповать»)
     → [опционально] certifying signature DocMDP (PDF_CERTIFY_ENABLED=true)
     → сохранение generated_pdf_path + metadata
 ```
 
 Порядок в `OrderPrintDocumentWorkflowService::persistGeneratedApprovedPdf()`:
 
-1. `stampVerificationQr()` — если `metadata.pdf_verification_qr_in_docx` = true, PDF-штамп **не** накладывается (QR уже в DOCX).
+1. `stampVerificationQr()` — при `pdf_verification_qr_in_docx` штамп не дублируется; без макроса в шаблоне и без fallback — QR на PDF не ставится.
 2. `maybeCertifyApprovedPdf()` — TCPDF/FPDI + self-signed сертификат.
 
 ---

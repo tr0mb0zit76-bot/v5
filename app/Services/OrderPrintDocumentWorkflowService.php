@@ -85,8 +85,9 @@ class OrderPrintDocumentWorkflowService
 
         $metadata = is_array($document->metadata) ? $document->metadata : [];
         $metadata['pdf_verification_code'] = $verificationCode;
-        $metadata['pdf_verification_qr'] = true;
-        $metadata['pdf_verification_qr_in_docx'] = (bool) ($generated['verification_qr_injected'] ?? false);
+        $inDocx = (bool) ($generated['verification_qr_injected'] ?? false);
+        $metadata['pdf_verification_qr_in_docx'] = $inDocx;
+        $metadata['pdf_verification_qr'] = $inDocx;
 
         $document->update([
             'original_name' => $generated['download_name'],
@@ -496,9 +497,8 @@ class OrderPrintDocumentWorkflowService
     }
 
     /**
-     * Наносит QR-штамп на PDF, если он ещё не был вставлен в DOCX через плейсхолдер.
-     * Если QR уже есть в DOCX (признак pdf_verification_qr_in_docx), PDF-штамп не накладывается,
-     * но URL для проверки сохраняется в metadata.
+     * Наносит QR-штамп на PDF только если QR уже был в DOCX через плейсхолдер,
+     * либо включён fallback `documents.verification_qr.pdf_stamp_when_missing_in_docx`.
      *
      * @param  array<string, mixed>  $metadata
      */
@@ -513,6 +513,10 @@ class OrderPrintDocumentWorkflowService
                 ]);
             }
 
+            return $pdfContents;
+        }
+
+        if (! (bool) config('documents.verification_qr.pdf_stamp_when_missing_in_docx', false)) {
             return $pdfContents;
         }
 

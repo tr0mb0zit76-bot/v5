@@ -33,12 +33,18 @@ return [
     'pdf_tail_scan_bytes' => max(256_000, (int) env('DOCUMENT_PDF_TAIL_SCAN_BYTES', 4 * 1024 * 1024)),
 
     /**
-     * QR проверки подлинности (${document_verification_qr} в DOCX, штамп на PDF).
+     * QR проверки подлинности (${document_verification_qr} в DOCX).
      * docx_px — сторона картинки в пикселях PhpWord (меньше = компактнее в ячейке таблицы).
+     * pdf_stamp_when_missing_in_docx — если false, без макроса в шаблоне QR на PDF не штампуется
+     * (старое поведение: true — fallback-штамп в угол PDF).
      */
     'verification_qr' => [
         'docx_px' => max(48, (int) env('PRINT_VERIFICATION_QR_DOCX_PX', 80)),
         'pdf_stamp_mm' => max(8.0, (float) env('PRINT_VERIFICATION_QR_PDF_MM', 12)),
         'png_pixel_size' => max(3, (int) env('PRINT_VERIFICATION_QR_PNG_PIXEL', 5)),
+        'pdf_stamp_when_missing_in_docx' => filter_var(
+            env('PRINT_VERIFICATION_QR_PDF_FALLBACK', false),
+            FILTER_VALIDATE_BOOL,
+        ),
     ],
 ];
