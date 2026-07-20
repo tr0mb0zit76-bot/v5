@@ -440,6 +440,12 @@ export function syncInstallmentAmountsFromPercents(schedule, totalAmount) {
     }
 }
 
+/**
+ * После правки доли транша `changedIndex`:
+ * — транши до него (и сам изменённый) не трогаем;
+ * — остаток до 100% делим поровну между траншами после него.
+ * Если правят последний — подстраиваем предпоследний (поглотитель).
+ */
 export function rebalanceInstallmentPercents(schedule, changedIndex) {
     if (!usesInstallments(schedule) || schedule.installments.length < 2) {
         return;
@@ -450,25 +456,55 @@ export function rebalanceInstallmentPercents(schedule, changedIndex) {
     const pct = Math.min(100, Math.max(0, Number(rows[changed].percent || 0)));
     rows[changed].percent = Math.round(pct * 100) / 100;
 
-    const others = rows.length - 1;
-    const remainder = Math.max(0, 100 - rows[changed].percent);
-    const each = Math.round((remainder / others) * 100) / 100;
-    let distributed = 0;
+    const laterStart = changed + 1;
 
-    rows.forEach((row, index) => {
-        if (index === changed) {
-            return;
+    if (laterStart < rows.length) {
+        let lockedSum = 0;
+        for (let i = 0; i <= changed; i++) {
+            lockedSum += Number(rows[i].percent || 0);
         }
-        const isLastOther = index === rows.length - 1 || (changed === rows.length - 1 && index === rows.length - 2);
-        if (isLastOther && index !== changed) {
-            row.percent = Math.round((100 - rows[changed].percent - distributed) * 100) / 100;
-        } else {
-            row.percent = each;
-            distributed += each;
+
+        if (lockedSum > 100) {
+            let beforeChanged = 0;
+            for (let i = 0; i < changed; i++) {
+                beforeChanged += Number(rows[i].percent || 0);
+            }
+            rows[changed].percent = Math.round(Math.max(0, 100 - beforeChanged) * 100) / 100;
+            lockedSum = beforeChanged + rows[changed].percent;
         }
-    });
+
+        const remainder = Math.max(0, Math.round((100 - lockedSum) * 100) / 100);
+        const laterCount = rows.length - laterStart;
+        const each = Math.round((remainder / laterCount) * 100) / 100;
+        let distributed = 0;
+
+        for (let i = laterStart; i < rows.length; i++) {
+            if (i === rows.length - 1) {
+                rows[i].percent = Math.round((remainder - distributed) * 100) / 100;
+            } else {
+                rows[i].percent = each;
+                distributed += each;
+            }
+        }
+
+        return;
+    }
+
+    // Изменён последний транш: предыдущие до поглотителя фиксируем, предпоследний забирает остаток.
+    const absorber = rows.length - 2;
+    let beforeAbsorber = 0;
+    for (let i = 0; i < absorber; i++) {
+        beforeAbsorber += Number(rows[i].percent || 0);
+    }
+
+    const maxForTail = Math.max(0, Math.round((100 - beforeAbsorber) * 100) / 100);
+    rows[changed].percent = Math.min(rows[changed].percent, maxForTail);
+    rows[absorber].percent = Math.round(Math.max(0, maxForTail - rows[changed].percent) * 100) / 100;
 }
 
+/**
+ * Аналог rebalanceInstallmentPercents для сумм: раньше стоящие транши не сбрасываем.
+ */
 export function rebalanceInstallmentAmounts(schedule, changedIndex, totalAmount) {
     const total = Number(totalAmount || 0);
     if (!usesInstallments(schedule) || schedule.installments.length < 2 || !total) {
@@ -482,23 +518,79 @@ export function rebalanceInstallmentAmounts(schedule, changedIndex, totalAmount)
     rows[changed].amount = Math.round(amt * 100) / 100;
     rows[changed].percent = Math.round((100 * rows[changed].amount) / total * 100) / 100;
 
-    let allocated = rows[changed].amount;
-    const others = rows.filter((_, i) => i !== changed);
-    const each = Math.round(((total - allocated) / others.length) * 100) / 100;
+    const laterStart = changed + 1;
 
-    rows.forEach((row, index) => {
-        if (index === changed) {
-            return;
+    if (laterStart < rows.length) {
+        let lockedAmount = 0;
+        for (let i = 0; i <= changed; i++) {
+            lockedAmount += Number(rows[i].amount || 0);
         }
-        const isLast = index === rows.length - 1;
-        if (isLast) {
-            row.amount = Math.round((total - allocated) * 100) / 100;
+
+        if (lockedAmount > total) {
+            let beforeChanged = 0;
+            for (let i = 0; i < changed; i++) {
+                beforeChanged += Number(rows[i].amount || 0);
+            }
+            rows[changed].amount = Math.round(Math.max(0, total - beforeChanged) * 100) / 100;
+            rows[changed].percent = Math.round((100 * rows[changed].amount) / total * 100) / 100;
+            lockedAmount = beforeChanged + rows[changed].amount;
+        }
+
+        const remainder = Math.max(0, Math.round((total - lockedAmount) * 100) / 100);
+        const laterCount = rows.length - laterStart;
+        const each = Math.round((remainder / laterCount) * 100) / 100;
+        let distributed = 0;
+
+        for (let i = laterStart; i < rows.length; i++) {
+            if (i === rows.length - 1) {
+                rows[i].amount = Math.round((remainder - distributed) * 100) / 100;
+            } else {
+                rows[i].amount = each;
+                distributed += each;
+            }
+            rows[i].percent = Math.round((100 * rows[i].amount) / total * 100) / 100;
+        }
+
+        return;
+    }
+
+    const absorber = rows.length - 2;
+    let beforeAbsorber = 0;
+    for (let i = 0; i < absorber; i++) {
+        beforeAbsorber += Number(rows[i].amount || 0);
+    }
+
+    const maxForTail = Math.max(0, Math.round((total - beforeAbsorber) * 100) / 100);
+    rows[changed].amount = Math.min(rows[changed].amount, maxForTail);
+    rows[absorber].amount = Math.round(Math.max(0, maxForTail - rows[changed].amount) * 100) / 100;
+    rows[changed].percent = Math.round((100 * rows[changed].amount) / total * 100) / 100;
+    rows[absorber].percent = Math.round((100 * rows[absorber].amount) / total * 100) / 100;
+}
+
+/** Равные доли на все транши (добавление / удаление строки). */
+export function equalizeInstallmentPercents(schedule) {
+    if (!usesInstallments(schedule) || schedule.installments.length === 0) {
+        return;
+    }
+
+    const rows = schedule.installments;
+    if (rows.length === 1) {
+        rows[0].percent = 100;
+
+        return;
+    }
+
+    const each = Math.round((100 / rows.length) * 100) / 100;
+    let distributed = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+        if (i === rows.length - 1) {
+            rows[i].percent = Math.round((100 - distributed) * 100) / 100;
         } else {
-            row.amount = each;
-            allocated += each;
+            rows[i].percent = each;
+            distributed += each;
         }
-        row.percent = Math.round((100 * row.amount) / total * 100) / 100;
-    });
+    }
 }
 
 export function addInstallmentRow(schedule) {
@@ -508,10 +600,8 @@ export function addInstallmentRow(schedule) {
         return false;
     }
 
-    const rows = schedule.installments;
-    const defaultPercent = rows.length === 0 ? 100 : Math.round((100 / (rows.length + 1)) * 100) / 100;
-    rows.push(blankInstallmentRow({ percent: defaultPercent }));
-    rebalanceInstallmentPercents(schedule, rows.length - 1);
+    schedule.installments.push(blankInstallmentRow({ percent: 0 }));
+    equalizeInstallmentPercents(schedule);
     stripLegacyKeysInPlace(schedule);
 
     return true;
@@ -523,11 +613,8 @@ export function removeInstallmentRow(schedule, index) {
     }
 
     schedule.installments.splice(index, 1);
-    if (schedule.installments.length === 1) {
-        schedule.installments[0].percent = 100;
-    } else {
-        rebalanceInstallmentPercents(schedule, 0);
-    }
+    equalizeInstallmentPercents(schedule);
+
     return true;
 }
 
