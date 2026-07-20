@@ -379,6 +379,7 @@
 | 2026-06-03 | **Фаза 2b (основное):** цепочки, reply, MCP send/reply, вложения исходящих, HTML-тело, группировка ящиков, блок почты в заказе |
 | 2026-06-03 | **Отображение писем:** `MailHtmlSanitizer::toPlainText`, iframe для HTML; CSS из `<style>` больше не показывается как текст |
 | 2026-06-03 | **Вложения входящих** — отложены (MIME ATI и др.) |
+| 2026-07-20 | Очередь модулей после ядра: Claims (Юрик) → RFQ → Playbooks → portal заказчика; см. [product-modules-roadmap.md](./product-modules-roadmap.md) |
 
 ---
 

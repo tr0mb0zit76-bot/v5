@@ -27,7 +27,7 @@ php artisan optimize:clear
 
 **На втором ПК:** `git pull` → sync-docs → `npm run build` / `dev` → проверить Лиды (OI над гридом, «Голосом», карточка без OI).
 
-**Следующий шаг:** mic в command bar (V.4) когда понадобится; Whisper после GPU (V.5); опционально — ставки конкурентов на Финансах; SMTP/EML на prod из прошлых сессий если ещё не выкатывали.
+**Следующий шаг:** модуль **Претензии (Claims)** для Юрика — см. [`docs/product-modules-roadmap.md`](../product-modules-roadmap.md); затем RFQ / Playbooks / портал заказчика. Whisper — после GPU. SMTP/EML на prod из прошлых сессий если ещё не выкатывали.
 
 ---
 
