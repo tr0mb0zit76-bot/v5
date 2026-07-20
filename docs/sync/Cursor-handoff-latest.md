@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-20 15:22 (OI + voice spike + UI лидов) · **HEAD:** `1f8c4f1` · **Ветка:** `master`
+**Обновлено:** 2026-07-20 15:22 (OI + voice spike + UI лидов) · **HEAD:** `c9ae687` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-20 — Outcome Intelligence, голос, карточка лида
 
