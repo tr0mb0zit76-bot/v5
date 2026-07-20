@@ -3,7 +3,35 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-17 13:50 (MCP HTML-КП + Boost skills) · **HEAD:** 66d577a9 · **Ветка:** `master`
+**Обновлено:** 2026-07-20 15:22 (OI + voice spike + UI лидов) · **HEAD:** `1f8c4f1` · **Ветка:** `master`
+
+### Итог сессии 2026-07-20 — Outcome Intelligence, голос, карточка лида
+
+| Блок | Статус |
+| --- | --- |
+| **OI v1 «добит»:** Pipeline lost → модалка причин; чипы закрытия; панель (топ отказов + contrast); тест idle_dwell | ✅ `b894c5e` |
+| **Голос → лид (spike):** «Лиды → Голосом» → Web Speech за фасадом `speechToTextSession` → `LeadMessageIntakeService` | ✅ `b894c5e` |
+| **Whisper / GPU:** пауза до своего GPU-сервера; не укоренять Web Speech — только `speechToTextSession.js` | ⏸ roadmap + `ai-platform-architecture.md` |
+| **Карточка лида UX:** OI убран из Wizard (остаётся над гридом); дата у вкладок; Тема/Источник/Тип в ряд; скрытие биржи/конвертации на `contract-signing`; яснее подсказка «Запрос клиента» | ✅ `1f8c4f1` |
+| Смена БП после старта / ставки конкурентов / жёсткая валидация «Сути» | ❌ не делаем (отдельный лид / позже) |
+
+**На прод:**
+
+```text
+git pull
+npm run build
+php artisan optimize:clear
+```
+
+Миграций в этих коммитах нет. Голос: Chrome/Edge + микрофон (или вставить текст вручную).
+
+**На втором ПК:** `git pull` → sync-docs → `npm run build` / `dev` → проверить Лиды (OI над гридом, «Голосом», карточка без OI).
+
+**Следующий шаг:** mic в command bar (V.4) когда понадобится; Whisper после GPU (V.5); опционально — ставки конкурентов на Финансах; SMTP/EML на prod из прошлых сессий если ещё не выкатывали.
+
+---
+
+**Обновлено (архив):** 2026-07-17 13:50 (MCP HTML-КП + Boost skills) · **HEAD:** 66d577a9 · **Ветка:** `master`
 
 ### Итог сессии 2026-07-17 — MCP HTML-шаблоны КП + Laravel Boost
 
