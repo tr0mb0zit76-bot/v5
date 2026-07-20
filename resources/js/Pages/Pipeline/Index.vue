@@ -161,6 +161,59 @@
                 </div>
             </div>
         </div>
+
+        <Teleport to="body">
+            <div
+                v-if="pendingClose"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="pipeline-close-outcome-title"
+                @click.self="cancelPendingClose"
+            >
+                <div class="w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-950">
+                    <h2
+                        id="pipeline-close-outcome-title"
+                        class="text-base font-semibold text-zinc-900 dark:text-zinc-50"
+                    >
+                        Закрыть лид: {{ pendingClose.cardTitle }}
+                    </h2>
+                    <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                        Этап «{{ pendingClose.stageLabel }}» — укажите причину проигрыша.
+                    </p>
+
+                    <LeadCloseOutcomeFields
+                        v-model:primary-flag="advanceForm.close_outcome_primary_flag"
+                        v-model:note="advanceForm.close_outcome_note"
+                        class="mt-3"
+                        terminal-outcome="lost"
+                        :lost-options="lost_close_outcome_options"
+                        :won-options="won_close_outcome_options"
+                        :error="advanceForm.errors.close_outcome_primary_flag || advanceForm.errors.close_outcome_note || ''"
+                        input-class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                    />
+
+                    <div class="mt-4 flex flex-wrap justify-end gap-2">
+                        <button
+                            type="button"
+                            :class="crmBtnSecondaryOutline"
+                            :disabled="advanceForm.processing"
+                            @click="cancelPendingClose"
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="button"
+                            :class="crmBtnPrimary"
+                            :disabled="!canConfirmPendingClose || advanceForm.processing"
+                            @click="confirmPendingClose"
+                        >
+                            Закрыть лид
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
     </div>
 </template>
 
@@ -168,6 +221,7 @@
 import { computed, ref } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
+import LeadCloseOutcomeFields from '@/Components/Leads/LeadCloseOutcomeFields.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnPrimary, crmBtnSecondaryOutline, crmGridPanel } from '@/support/crmUi.js';
 
@@ -183,6 +237,8 @@ const props = defineProps({
     processes: { type: Array, default: () => [] },
     can_mark_accounting_handoff: { type: Boolean, default: false },
     can_advance_lead_stage: { type: Boolean, default: false },
+    lost_close_outcome_options: { type: Array, default: () => [] },
+    won_close_outcome_options: { type: Array, default: () => [] },
     kpi: { type: Object, default: null },
     error: { type: String, default: '' },
 });
@@ -235,11 +291,26 @@ function formatPercent(value) {
 
 const draggedCard = ref(null);
 const dragOverColumn = ref('');
+const pendingClose = ref(null);
 
 const advanceForm = useForm({
     stage_id: '',
     close_outcome_primary_flag: '',
     close_outcome_note: '',
+});
+
+const canConfirmPendingClose = computed(() => {
+    const flag = advanceForm.close_outcome_primary_flag;
+
+    if (!flag) {
+        return false;
+    }
+
+    if (flag === 'lost_other' && !String(advanceForm.close_outcome_note || '').trim()) {
+        return false;
+    }
+
+    return true;
 });
 
 function switchView(nextView) {
@@ -310,11 +381,46 @@ function onColumnDrop(column) {
         return;
     }
 
-    advanceForm.stage_id = column.stage_id;
-    advanceForm.patch(route('leads.process-stage', card.id), {
+    if (column.is_terminal && column.terminal_outcome === 'lost') {
+        advanceForm.stage_id = column.stage_id;
+        advanceForm.close_outcome_primary_flag = '';
+        advanceForm.close_outcome_note = '';
+        advanceForm.clearErrors();
+        pendingClose.value = {
+            leadId: card.id,
+            cardTitle: cardTitle(card),
+            stageLabel: column.label,
+        };
+
+        return;
+    }
+
+    submitAdvance(card.id, column.stage_id);
+}
+
+function cancelPendingClose() {
+    pendingClose.value = null;
+    advanceForm.reset();
+    advanceForm.clearErrors();
+}
+
+function confirmPendingClose() {
+    if (!pendingClose.value || !canConfirmPendingClose.value) {
+        return;
+    }
+
+    submitAdvance(pendingClose.value.leadId, advanceForm.stage_id, () => {
+        pendingClose.value = null;
+    });
+}
+
+function submitAdvance(leadId, stageId, onDone = null) {
+    advanceForm.stage_id = stageId;
+    advanceForm.patch(route('leads.process-stage', leadId), {
         preserveScroll: true,
         onSuccess: () => {
             advanceForm.reset();
+            onDone?.();
         },
     });
 }

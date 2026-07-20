@@ -10,9 +10,10 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\Disposition\DispositionInProgressOrderScope;
 use App\Support\EndToEndOrderPipelineColumn;
+use App\Support\LeadCloseOutcomeFlagCatalog;
 use App\Support\LeadViewAuthorization;
-use App\Support\OrderViewAuthorization;
 use App\Support\OrderTransportTypeResolver;
+use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -101,6 +102,8 @@ final class PipelineBoardService
                 'key' => 'unassigned',
                 'label' => 'Без этапа',
                 'stage_id' => null,
+                'is_terminal' => false,
+                'terminal_outcome' => null,
                 'cards' => [],
             ],
         ];
@@ -110,6 +113,8 @@ final class PipelineBoardService
                 'key' => 'stage_'.$stage->id,
                 'label' => $stage->name,
                 'stage_id' => $stage->id,
+                'is_terminal' => (bool) $stage->is_terminal,
+                'terminal_outcome' => $stage->terminal_outcome,
                 'cards' => [],
             ];
         }
@@ -139,6 +144,8 @@ final class PipelineBoardService
             'processes' => $this->leadProcessOptions(),
             'kpi' => $this->kpi->metricsForUser($user),
             'can_advance_lead_stage' => RoleAccess::canAccessVisibilityArea($user, 'leads'),
+            'lost_close_outcome_options' => LeadCloseOutcomeFlagCatalog::lostOptions(),
+            'won_close_outcome_options' => LeadCloseOutcomeFlagCatalog::wonOptions(),
         ];
     }
 

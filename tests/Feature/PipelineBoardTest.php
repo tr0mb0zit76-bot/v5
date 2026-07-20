@@ -217,6 +217,8 @@ class PipelineBoardTest extends TestCase
                 ->has('columns')
                 ->where('columns.1.key', 'stage_'.$stage->id)
                 ->where('columns.1.cards.0.id', $lead->id)
+                ->has('lost_close_outcome_options')
+                ->where('columns.1.is_terminal', (bool) $stage->is_terminal)
             );
     }
 

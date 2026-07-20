@@ -12,14 +12,25 @@
                 <h1 :class="crmPageTitleSm">Лиды</h1>
                 <span class="text-xs text-zinc-500 dark:text-zinc-400">Всего лидов: {{ rows.length }}</span>
             </div>
-            <button
-                type="button"
-                :class="crmBtnCreate"
-                @click="openCreateLead"
-            >
-                <Plus class="h-4 w-4" />
-                Добавить
-            </button>
+            <div class="flex flex-wrap items-center gap-2">
+                <button
+                    type="button"
+                    :class="crmBtnSecondaryOutline"
+                    :disabled="featureUnavailable"
+                    @click="openVoiceIntake"
+                >
+                    <Mic class="h-4 w-4" />
+                    Голосом
+                </button>
+                <button
+                    type="button"
+                    :class="crmBtnCreate"
+                    @click="openCreateLead"
+                >
+                    <Plus class="h-4 w-4" />
+                    Добавить
+                </button>
+            </div>
         </div>
 
         <div
@@ -94,17 +105,24 @@
                 />
             </section>
         </Modal>
+
+        <LeadVoiceIntakeModal
+            :show="isVoiceIntakeOpen"
+            @close="isVoiceIntakeOpen = false"
+            @created="onVoiceLeadCreated"
+        />
     </div>
 </template>
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
-import { Plus } from 'lucide-vue-next';
-import { crmBtnCreate, crmGridPanel, crmPageTitleSm } from '@/support/crmUi.js';
+import { Mic, Plus } from 'lucide-vue-next';
+import { crmBtnCreate, crmBtnSecondaryOutline, crmGridPanel, crmPageTitleSm } from '@/support/crmUi.js';
 import LeadsGrid from '@/Components/Leads/LeadsGrid.vue';
 import LeadSalesCoachingPanel from '@/Components/Leads/LeadSalesCoachingPanel.vue';
 import LeadAttentionPanel from '@/Components/Leads/LeadAttentionPanel.vue';
+import LeadVoiceIntakeModal from '@/Components/Leads/LeadVoiceIntakeModal.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import Modal from '@/Components/Modal.vue';
 import LeadWizard from '@/Pages/Leads/Wizard.vue';
@@ -128,6 +146,7 @@ const isCreateRoute = computed(() => Boolean(page.props.isCreating));
 const leadTemplate = computed(() => page.props.leadTemplate ?? null);
 const isCreateModalOpen = ref(false);
 const isLeadModalDismissed = ref(false);
+const isVoiceIntakeOpen = ref(false);
 const isLeadModalOpen = computed(() => !featureUnavailable.value
     && (isCreateModalOpen.value || (isCreateRoute.value && !isLeadModalDismissed.value) || (selectedLead.value !== null && !isLeadModalDismissed.value)));
 
@@ -220,6 +239,32 @@ function openCreateLead() {
     isLeadModalDismissed.value = false;
     isCreateModalOpen.value = true;
     window.history.pushState(window.history.state, '', route('leads.create'));
+}
+
+function openVoiceIntake() {
+    if (featureUnavailable.value) {
+        return;
+    }
+
+    isVoiceIntakeOpen.value = true;
+}
+
+function onVoiceLeadCreated(payload) {
+    const leadId = payload?.lead?.id;
+
+    if (!leadId) {
+        router.reload({ only: ['leads', 'salesCoachingInsights', 'leadAttentionQueue'] });
+
+        return;
+    }
+
+    isCreateModalOpen.value = false;
+    isLeadModalDismissed.value = false;
+
+    router.get(route('leads.show', leadId), {}, {
+        preserveScroll: true,
+        only: [...modalPropKeys, 'leads', 'salesCoachingInsights', 'leadAttentionQueue'],
+    });
 }
 
 function openCreateLeadFrom(row) {

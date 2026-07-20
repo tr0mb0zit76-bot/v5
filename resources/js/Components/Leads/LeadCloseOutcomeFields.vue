@@ -18,20 +18,21 @@
             >
                 {{ headingShort }}
             </label>
-            <select
-                v-model="primaryFlag"
-                :class="selectClass"
-                :required="terminalOutcome === 'lost'"
+            <div
+                class="flex flex-wrap gap-1.5"
+                role="group"
+                :aria-label="heading"
             >
-                <option value="" disabled hidden>{{ selectPlaceholder }}</option>
-                <option
+                <button
                     v-for="option in activeOptions"
                     :key="option.value"
-                    :value="option.value"
+                    type="button"
+                    :class="chipClass(option.value)"
+                    @click="selectFlag(option.value)"
                 >
                     {{ option.label }}
-                </option>
-            </select>
+                </button>
+            </div>
             <p
                 v-if="variant !== 'inline' && terminalOutcome === 'lost'"
                 class="text-xs text-zinc-500 dark:text-zinc-400"
@@ -65,7 +66,6 @@
 
 <script setup>
 import { computed } from 'vue';
-import { crmFieldFluid } from '@/support/crmUi.js';
 
 const props = defineProps({
     terminalOutcome: {
@@ -121,17 +121,24 @@ const hint = computed(() =>
         : 'Обязательно при закрытии лида как проигранного.',
 );
 
-const selectPlaceholder = computed(() =>
-    props.terminalOutcome === 'won' ? 'Выберите причину' : 'Выберите причину проигрыша',
-);
-
 const needsNote = computed(() => primaryFlag.value === 'lost_other' || primaryFlag.value === 'won_other');
 
-const selectClass = computed(() => {
-    if (props.variant === 'inline') {
-        return `${crmFieldFluid} !w-auto min-w-[11rem] flex-1 rounded-lg border-zinc-300 bg-zinc-50 py-1.5 text-sm text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-200`;
+function selectFlag(value) {
+    primaryFlag.value = primaryFlag.value === value ? '' : value;
+
+    if (primaryFlag.value !== 'lost_other' && primaryFlag.value !== 'won_other') {
+        note.value = '';
+    }
+}
+
+function chipClass(value) {
+    const selected = primaryFlag.value === value;
+    const base = 'rounded-lg border px-2.5 py-1.5 text-left text-xs font-medium transition';
+
+    if (selected) {
+        return `${base} border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-500`;
     }
 
-    return props.inputClass;
-});
+    return `${base} border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-zinc-500`;
+}
 </script>

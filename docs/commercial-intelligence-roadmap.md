@@ -205,21 +205,41 @@
 
 ---
 
-## Фаза 3.5 — Outcome Intelligence (коучинг по воронке) 🚧
+## Фаза 3.5 — Outcome Intelligence (коучинг по воронке) ✅
 
 **Цель:** ответы на «почему не закрываю сделки» на основе структурированных флагов закрытия и **пассивных сигналов** из CRM (этапы, квалификация, ledger, задачи) — без телефонии и синхронизации входящей почты.
 
 | # | Задача | Готово, когда |
 |---|--------|----------------|
-| 3.5.1 | Флаги `close_outcome_primary_flag` на лидах + UI-чипы при `lost` / терминальном этапе | Менеджер закрывает проигрыш в 2 клика |
-| 3.5.2 | `ManagerDealSignalExtractor` — hygiene score, **idle_dwell** vs **active_work** по activity_events | Долгое молчание не считается «подготовкой» |
-| 3.5.3 | `ManagerSalesCoachingInsightsService` + MCP `get_manager_sales_coaching_insights` | Command bar отвечает с паттернами и примерами |
-| 3.5.4 | Блок Outcome Intelligence на странице «Лиды» | Менеджер видит win rate и рекомендации |
-| 3.5.5 | (Позже) обогащение после фазы 2 почты — «ответил / не ответил» | Не блокирует v1 |
+| 3.5.1 | Флаги `close_outcome_primary_flag` на лидах + UI-чипы при `lost` / терминальном этапе | ✅ чипы; Pipeline DnD → модалка причины |
+| 3.5.2 | `ManagerDealSignalExtractor` — hygiene score, **idle_dwell** vs **active_work** по activity_events | ✅ + unit-тесты |
+| 3.5.3 | `ManagerSalesCoachingInsightsService` + MCP `get_manager_sales_coaching_insights` | ✅ |
+| 3.5.4 | Блок Outcome Intelligence на странице «Лиды» | ✅ win rate, топ отказов, contrast samples |
+| 3.5.5 | (Позже) обогащение после фазы 2 почты — «ответил / не ответил» | 📋 backlog |
 
 **Не входит в v1:** телефония, ML-прогноз риска на открытых лидах. **IMAP ingest** — в P0 (2a), не блокирует 3.5.
 
 **Критерий фазы:** на закрытых лидах видны паттерны (нет ЛПР, idle на квалификации, частые флаги отказа); ассистент вызывает tool и цитирует факты.
+
+---
+
+## Голосовой ввод (STT) 🚧 · Whisper на паузе
+
+**Сейчас:** браузерный Web Speech через тонкий фасад `speechToTextSession.js` → UI «Лиды → Голосом» → `LeadMessageIntakeService`.  
+**Не укоренять** Web Speech в страницах/сервисах — только provider + façade, чтобы быстро сменить на локальный Whisper.
+
+**Пауза:** локальный Whisper на **GPU-сервере** (L2, свой STT-контур). Вернуться после появления железа. Не внедрять внешний Whisper API «навсегда».
+
+| # | Задача | Статус |
+|---|--------|--------|
+| V.1 | STT → текст в UI «Лиды → Голосом» | ✅ spike (Web Speech behind `speechToTextSession`) |
+| V.2 | Извлечение полей лида из монолога | ✅ reuse `LeadMessageIntakeService` |
+| V.3 | Предпросмотр текста до create; позже draft без create | 🚧 |
+| V.4 | Mic / файл в **command bar** (тот же façade) | 📋 следующий UX-слой |
+| V.5 | `SpeechTranscriptionService` + local Whisper (GPU Docker) | ⏸ пауза до GPU-сервера |
+| V.6 | Транскрипты звонков → скрипты / coaching | 📋 после V.5 |
+
+**Upgrade path V.5:** заменить тело `createSpeechToTextSession` (и/или добавить upload→server path); UI и intake не переписывать. См. также [ai-platform-architecture.md](./ai-platform-architecture.md) (уровень 2).
 
 ---
 

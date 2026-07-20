@@ -116,3 +116,10 @@
 
 - [ ] Собрать метрики: p95 latency чата, таймауты, объём индекса, RPS embeddings.
 - [ ] Перейти после стабильного ingestion **или** при превышении порога нагрузки на узел CRM (пороги зафиксировать заранее).
+
+### STT / Whisper (пауза до GPU)
+
+- **Сейчас:** браузерный Web Speech за фасадом `resources/js/support/speechToTextSession.js` (UI лида). Не плодить Web Speech по страницам.
+- **Цель L2:** локальный Whisper на GPU-сервере → `SpeechTranscriptionService` + тот же фасад / command bar (mic, файлы звонков).
+- **Статус:** ⏸ пауза до появления GPU-хоста; см. `docs/commercial-intelligence-roadmap.md` → «Голосовой ввод (STT)».
+- Не закреплять внешний Whisper API как постоянный контур для записей звонков с ПДн.
