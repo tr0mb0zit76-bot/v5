@@ -46,6 +46,7 @@ use App\Http\Controllers\Orders\OrderDocumentsModalController;
 use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
 use App\Http\Controllers\Orders\OrderIndexController;
 use App\Http\Controllers\Orders\OrderIntakeController;
+use App\Http\Controllers\Orders\OrderLinkController;
 use App\Http\Controllers\Orders\OrderPortalInviteController;
 use App\Http\Controllers\Orders\OrderTransportSummaryController;
 use App\Http\Controllers\Orders\OrderWizardController;
@@ -454,6 +455,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/orders/calculate-compensation', 'calculateCompensation')->name('orders.calculate-compensation');
         Route::get('/orders-suggest/address', 'suggestAddress')->name('orders.suggest-address');
         Route::post('/orders/contractors', 'storeContractor')->name('orders.contractors.store');
+        Route::get('/orders/link-search', [OrderLinkController::class, 'search'])->name('orders.link-search');
 
         Route::whereNumber('order')->group(function () {
             Route::get('/orders/{order}/edit', 'edit')->name('orders.edit');
@@ -469,6 +471,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::match(['patch', 'post'], '/orders/{order}/inline', 'inlineUpdate')->name('orders.inline-update');
             Route::post('/orders/{order}/basic-terms/promote-to-contractor', [OrderBasicTermsController::class, 'promoteToContractor'])
                 ->name('orders.basic-terms.promote');
+            Route::post('/orders/{order}/links', [OrderLinkController::class, 'store'])->name('orders.links.store');
+            Route::delete('/orders/{order}/links', [OrderLinkController::class, 'destroy'])->name('orders.links.destroy');
             Route::delete('/orders/{order}', 'destroy')->withTrashed()->name('orders.destroy');
         });
     });

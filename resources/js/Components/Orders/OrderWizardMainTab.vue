@@ -1,8 +1,10 @@
 <script setup>
 import { inject } from 'vue';
+import { Link } from '@inertiajs/vue3';
 import CustomerPortalInviteButton from '@/Components/Orders/CustomerPortalInviteButton.vue';
+import OrderAsyncSearchSelect from '@/Components/Orders/OrderAsyncSearchSelect.vue';
 import OrderTrakloChatButton from '@/Components/Orders/OrderTrakloChatButton.vue';
-import { crmFieldFluid } from '@/support/crmUi.js';
+import { crmBtnNeutral, crmFieldFluid } from '@/support/crmUi.js';
 import { ORDER_WIZARD_MAIN_TAB_KEY } from '@/support/orderWizardMainTabKey.js';
 
 const {
@@ -36,6 +38,11 @@ const {
     paymentSettlementLines,
     paymentSettlementLineTitle,
     paymentSettlementLineValue,
+    linkedOrder,
+    linkingOrder,
+    linkOrderError,
+    linkToOrder,
+    unlinkOrder,
 } = inject(ORDER_WIZARD_MAIN_TAB_KEY);
 </script>
 
@@ -239,6 +246,53 @@ const {
                                 <span class="block text-xs text-zinc-500">{{ option.description }}</span>
                             </span>
                         </label>
+                    </div>
+                </div>
+
+                <div
+                    v-if="isEditing && order?.id"
+                    class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
+                >
+                    <div>
+                        <h2 class="text-base font-semibold">Связанный заказ</h2>
+                        <p class="text-sm text-zinc-500">
+                            Цепочка экспедирования (например Автоальянс ↔ Гросс): два заказа на одну перевозку.
+                        </p>
+                    </div>
+
+                    <div
+                        v-if="linkedOrder"
+                        class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900/50"
+                    >
+                        <div class="min-w-0 text-sm">
+                            <Link
+                                :href="linkedOrder.edit_url || route('orders.edit', linkedOrder.id)"
+                                class="font-medium text-sky-700 hover:underline dark:text-sky-300"
+                            >
+                                {{ linkedOrder.order_number || ('#' + linkedOrder.id) }}
+                            </Link>
+                            <div class="text-xs text-zinc-500">
+                                {{ [linkedOrder.own_company_name, linkedOrder.customer_name].filter(Boolean).join(' · ') }}
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            :class="crmBtnNeutral"
+                            :disabled="linkingOrder || !isOrderFormEditable"
+                            @click="unlinkOrder"
+                        >
+                            Отвязать
+                        </button>
+                    </div>
+
+                    <div v-else class="space-y-2">
+                        <label class="text-sm font-medium">Связать с заказом</label>
+                        <OrderAsyncSearchSelect
+                            :exclude-order-id="order.id"
+                            @select="linkToOrder"
+                        />
+                        <p v-if="linkOrderError" class="text-xs text-rose-500">{{ linkOrderError }}</p>
+                        <p v-if="linkingOrder" class="text-xs text-zinc-500">Сохраняем связь…</p>
                     </div>
                 </div>
             </div>

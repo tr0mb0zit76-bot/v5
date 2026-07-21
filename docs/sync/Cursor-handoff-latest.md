@@ -3,7 +3,32 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-21 09:32 (лид «Что дальше») · **HEAD:** `9e41241` · **Ветка:** `master`
+**Обновлено:** 2026-07-21 14:26 (связь заказов expedition_chain) · **HEAD:** локально, не закоммичено · **Ветка:** `master`
+
+### Итог сессии 2026-07-21 — связь заказов (цепочка экспедирования)
+
+| Блок | Статус |
+| --- | --- |
+| Таблица `order_links` + модель/сервис | ✅ миграция локально применена |
+| API: `orders.link-search`, `orders.links.store/destroy` | ✅ async поиск по номеру (не scroll-list) |
+| UI «Основное» → «Связанный заказ» + `OrderAsyncSearchSelect` | ✅ только у сохранённого заказа |
+| PHPUnit `tests/Feature/OrderLinkTest.php` (5 тестов) | ✅ |
+| Правила УУ для связанной пары | ⏳ после появления связей в данных |
+
+**На прод / второй ПК (после commit+push):**
+
+```text
+git pull
+php artisan migrate --force
+npm run build
+php artisan optimize:clear
+```
+
+**Следующий шаг:** коммит+push; затем правила управленческого учёта для linked pairs.
+
+---
+
+**Обновлено (архив):** 2026-07-21 09:32 (лид «Что дальше») · **HEAD:** `9e41241` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-21 — коуч лида визуально «ведёт»
 

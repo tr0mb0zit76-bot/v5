@@ -3272,6 +3272,83 @@ const {
     setCarrierSearchValue,
 });
 
+const linkedOrder = ref(props.order?.linked_order ?? null);
+const linkingOrder = ref(false);
+const linkOrderError = ref('');
+
+watch(
+    () => props.order?.linked_order,
+    (value) => {
+        linkedOrder.value = value ?? null;
+    },
+);
+
+function csrfHeaders() {
+    return {
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+    };
+}
+
+async function linkToOrder(option) {
+    if (!props.order?.id || !option?.id || linkingOrder.value) {
+        return;
+    }
+
+    linkingOrder.value = true;
+    linkOrderError.value = '';
+
+    try {
+        const response = await fetch(route('orders.links.store', props.order.id), {
+            method: 'POST',
+            headers: {
+                ...csrfHeaders(),
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({ linked_order_id: option.id }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            linkOrderError.value = payload.message || 'Не удалось связать заказы.';
+            return;
+        }
+        linkedOrder.value = payload.linked_order ?? null;
+    } catch (error) {
+        linkOrderError.value = error?.message || 'Ошибка сети.';
+    } finally {
+        linkingOrder.value = false;
+    }
+}
+
+async function unlinkOrder() {
+    if (!props.order?.id || linkingOrder.value) {
+        return;
+    }
+
+    linkingOrder.value = true;
+    linkOrderError.value = '';
+
+    try {
+        const response = await fetch(route('orders.links.destroy', props.order.id), {
+            method: 'DELETE',
+            headers: csrfHeaders(),
+            credentials: 'include',
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            linkOrderError.value = payload.message || 'Не удалось отвязать заказ.';
+            return;
+        }
+        linkedOrder.value = null;
+    } catch (error) {
+        linkOrderError.value = error?.message || 'Ошибка сети.';
+    } finally {
+        linkingOrder.value = false;
+    }
+}
+
 const mainTabContext = {
     form,
     order: props.order,
@@ -3303,6 +3380,11 @@ const mainTabContext = {
     paymentSettlementLines,
     paymentSettlementLineTitle,
     paymentSettlementLineValue,
+    linkedOrder,
+    linkingOrder,
+    linkOrderError,
+    linkToOrder,
+    unlinkOrder,
 };
 
 provide(ORDER_WIZARD_MAIN_TAB_KEY, mainTabContext);

@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormBasicTerm;
 use App\Models\PrintFormTemplate;
+use App\Services\Orders\OrderLinkService;
 use App\Services\PaymentSettlementSummaryBuilder;
 use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Support\CargoPerformerAllocationNormalizer;
@@ -32,6 +33,7 @@ class OrderWizardOrderPresenter
         private readonly OrderWizardContractorsCostsNormalizer $contractorsCostsNormalizer,
         private readonly OrderWizardOrderDocumentSerializer $documentSerializer,
         private readonly OrderWizardOrderAuthorization $authorization,
+        private readonly OrderLinkService $orderLinkService,
     ) {}
 
     /**
@@ -225,6 +227,7 @@ class OrderWizardOrderPresenter
             'order_owner_name' => $this->resolveSerializedOrderOwnerName($order),
             'dispatcher_id' => Schema::hasColumn('orders', 'dispatcher_id') ? $order->dispatcher_id : null,
             'dispatcher_name' => $order->relationLoaded('dispatcher') ? $order->dispatcher?->name : null,
+            'linked_order' => $this->orderLinkService->linkedOrderPayload($order),
             'compensation_split' => is_array($order->metadata) ? ($order->metadata['compensation_split'] ?? null) : null,
             'payment_terms' => $order->payment_terms,
             'special_notes' => $order->special_notes,
