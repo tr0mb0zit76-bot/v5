@@ -771,6 +771,7 @@ class LeadController extends Controller
                     'target_currency' => $lead->target_currency,
                     'has_offer' => $lead->offers->isNotEmpty(),
                     'created_at' => optional($lead->created_at)->toIso8601String(),
+                    'next_contact_at' => optional($lead->next_contact_at)?->toIso8601String(),
                     'process_name' => null,
                     'current_stage_name' => null,
                     'stage_due_at' => null,

@@ -301,15 +301,6 @@
                     </div>
                 </section>
 
-                <div class="space-y-1.5">
-                    <label :class="crmLabel">Следующий контакт</label>
-                    <input
-                        v-model="form.next_contact_at"
-                        type="datetime-local"
-                        :class="crmFieldFluid"
-                    />
-                </div>
-
                 <div
                     v-if="selectedLeadId && form.counterparty_id && hasQualificationForPortraitMerge"
                     class="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950/40"

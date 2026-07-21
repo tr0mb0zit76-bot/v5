@@ -585,6 +585,7 @@ const fallbackColumns = [
   { field: 'process_name', label: 'Процесс', width: 180, minWidth: 150, type: null },
   { field: 'current_stage_name', label: 'Этап', width: 170, minWidth: 140, type: null },
   { field: 'next_move_label', label: 'Дальше', width: 240, minWidth: 180, type: null },
+  { field: 'next_contact_at', label: 'След. контакт', width: 150, minWidth: 130, type: 'datetime' },
   { field: 'stage_due_at', label: 'Срок этапа', width: 150, minWidth: 130, type: 'datetime' },
   { field: 'is_stage_overdue', label: 'Этап просрочен', width: 130, minWidth: 110, type: 'boolean' },
   { field: 'created_at', label: 'Создан', width: 160, minWidth: 140, type: 'datetime' },
@@ -968,6 +969,19 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.cellClass = (params) => (params.data?.is_stage_overdue ? 'leads-grid-cell-stage-overdue' : '');
     } else if (column.field === 'stage_due_at') {
       columnDefinition.cellClass = (params) => (params.data?.is_stage_overdue ? 'leads-grid-cell-stage-overdue' : '');
+    } else if (column.field === 'next_contact_at') {
+      columnDefinition.cellClass = (params) => {
+        const raw = params.data?.next_contact_at;
+        if (!raw) {
+          return '';
+        }
+        const due = new Date(raw);
+        if (Number.isNaN(due.getTime()) || due.getTime() >= Date.now()) {
+          return '';
+        }
+
+        return 'leads-grid-cell-stage-overdue';
+      };
     } else if (column.field === 'next_move_label') {
       columnDefinition.cellClass = (params) => {
         if (params.data?.next_move_health === 'stuck') {
@@ -1589,7 +1603,7 @@ function formatValue(value, type, field, row) {
     return formatMoney(value, row?.target_currency ?? 'RUB');
   }
 
-  if (field === 'stage_due_at' || field === 'created_at' || type === 'datetime') {
+  if (field === 'stage_due_at' || field === 'next_contact_at' || field === 'created_at' || type === 'datetime') {
     return formatDateTime(value);
   }
 
