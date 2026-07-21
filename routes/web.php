@@ -40,6 +40,7 @@ use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\Mobile\MobileAppUpdateController;
 use App\Http\Controllers\Mobile\MobileCounterpartyShellController;
 use App\Http\Controllers\Mobile\MobileShellController;
+use App\Http\Controllers\OrderClaimController;
 use App\Http\Controllers\Orders\OrderBasicTermsController;
 use App\Http\Controllers\Orders\OrderDocumentsModalController;
 use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
@@ -477,6 +478,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/orders/{order}/activity-timeline', [ActivityTimelineController::class, 'showForOrder'])
         ->middleware('visibility.area:orders')
         ->name('orders.activity-timeline');
+
+    Route::middleware('visibility.area:orders')->group(function (): void {
+        Route::get('/claims', [OrderClaimController::class, 'index'])->name('claims.index');
+        Route::post('/orders/{order}/claims', [OrderClaimController::class, 'store'])->name('orders.claims.store');
+        Route::patch('/orders/{order}/claims/{claim}', [OrderClaimController::class, 'update'])->name('orders.claims.update');
+    });
 
     Route::controller(OrderDocumentWorkflowController::class)->middleware('visibility.area:orders')->group(function () {
         Route::post('/orders/{order}/documents/from-template', 'storeFromTemplate')->name('orders.documents.from-template');

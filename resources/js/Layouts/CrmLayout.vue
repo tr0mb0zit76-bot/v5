@@ -619,6 +619,7 @@ import {
     Star,
     Target,
     Route,
+    Scale,
     Truck,
     Users,
     Wallet,
@@ -916,6 +917,7 @@ const MENU_ROUTES = {
     'fleet-containers': '/fleet/containers',
     'fleet-drivers': '/drivers',
     documents: '/documents',
+    claims: '/claims',
     mail: '/mail',
     finance: '/finance',
     'finance-cashflow': '/finance?section=cashflow',
@@ -1276,6 +1278,9 @@ const menuItems = computed(() => {
             ],
         },
         { key: 'documents', label: 'Документы', icon: FileText, visibilityArea: 'documents' },
+        ...(page.props.crm_features?.order_claims?.enabled
+            ? [{ key: 'claims', label: 'Претензии', icon: Scale, visibilityArea: 'orders' }]
+            : []),
         { key: 'mail', label: 'Почта', icon: Mail, visibilityArea: 'mail' },
         {
             key: 'finance',

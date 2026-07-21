@@ -80,6 +80,15 @@
                 :order-id="order.id"
             />
 
+            <OrderWizardClaimsTab
+                v-else-if="activeTab === 'claims' && order?.id && canAccessClaims"
+                :order-id="order.id"
+                :claims="orderClaims"
+                :party-options="claimPartyOptions"
+                :type-options="claimTypeOptions"
+                :status-options="claimStatusOptions"
+            />
+
             <OrderWizardDocumentsTab
                 v-else-if="activeTab === 'documents'"
                 ref="documentsTabRef"
@@ -163,7 +172,7 @@
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { Calculator, ClipboardList, FileText, Gavel, History, Mail, MapPinned, Minus, Package, Plus, ScrollText, Wallet } from 'lucide-vue-next';
+import { Calculator, ClipboardList, FileText, Gavel, History, Mail, MapPinned, Minus, Package, Plus, Scale, ScrollText, Wallet } from 'lucide-vue-next';
 import OrderWizardBodyAlerts from '@/Components/Orders/OrderWizardBodyAlerts.vue';
 import OrderWizardCounterpartyModal from '@/Components/Orders/OrderWizardCounterpartyModal.vue';
 import OrderWizardDocumentAttachModal from '@/Components/Orders/OrderWizardDocumentAttachModal.vue';
@@ -180,6 +189,7 @@ const OrderWizardRouteTab = defineAsyncComponent(() => import('@/Components/Orde
 const OrderWizardCargoTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardCargoTab.vue'));
 const OrderWizardFinanceTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardFinanceTab.vue'));
 const OrderWizardDocumentsTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardDocumentsTab.vue'));
+const OrderWizardClaimsTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardClaimsTab.vue'));
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { ORDER_STATUS_ICON_META, resolveOrderStatusIconKey } from '@/support/orderStatusDisplay.js';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
@@ -301,6 +311,11 @@ const props = defineProps({
     cargoTitleSuggestions: { type: Array, default: () => [] },
     canAccessMail: { type: Boolean, default: false },
     canViewOrderTimeline: { type: Boolean, default: false },
+    canAccessClaims: { type: Boolean, default: false },
+    orderClaims: { type: Array, default: () => [] },
+    claimPartyOptions: { type: Array, default: () => [] },
+    claimTypeOptions: { type: Array, default: () => [] },
+    claimStatusOptions: { type: Array, default: () => [] },
     orderMailThreads: { type: Array, default: () => [] },
     mailComposeDefaults: { type: Object, default: null },
 });
@@ -318,6 +333,7 @@ const tabs = computed(() => [
     { key: 'norms_penalties', label: 'Нормативы / штрафы', icon: Gavel },
     { key: 'documents', label: 'Документы', icon: FileText },
     ...(showOrderNormsTab.value ? [{ key: 'order_norms', label: 'Нормы заявки', icon: ScrollText }] : []),
+    ...(props.order?.id && props.canAccessClaims ? [{ key: 'claims', label: 'Претензии', icon: Scale }] : []),
     ...(props.order?.id && props.canAccessMail ? [{ key: 'mail', label: 'Переписка', icon: Mail }] : []),
     ...(props.order?.id && props.canViewOrderTimeline ? [{ key: 'timeline', label: 'Лента', icon: History }] : []),
 ]);
@@ -349,7 +365,7 @@ onMounted(() => {
     }
     const url = new URL(window.location.href);
     const tab = url.searchParams.get('tab');
-    const allowed = new Set(['main', 'route', 'cargo', 'finance', 'norms_penalties', 'documents', 'order_norms', 'mail', 'timeline']);
+    const allowed = new Set(['main', 'route', 'cargo', 'finance', 'norms_penalties', 'documents', 'order_norms', 'claims', 'mail', 'timeline', 'lead_precalc']);
     if (tab && allowed.has(tab)) {
         activeTab.value = tab;
     }

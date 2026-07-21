@@ -10,6 +10,7 @@ use App\Services\Commercial\OrderMailContextService;
 use App\Services\ContractorCreditService;
 use App\Services\DocumentStorageService;
 use App\Services\KpiConfigurationService;
+use App\Services\OrderClaimService;
 use App\Services\OrderDocumentEdoAcknowledgementService;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\OwnFleetContractorService;
@@ -33,6 +34,7 @@ class OrderWizardPagePresenter
         private readonly OrderDocumentRequirementService $documentRequirementService,
         private readonly OrderDocumentEdoAcknowledgementService $documentEdoAcknowledgementService,
         private readonly OrderMailContextService $orderMailContext,
+        private readonly OrderClaimService $orderClaimService,
         private readonly OwnFleetContractorService $ownFleetContractorService,
         private readonly PrintFormTemplateOrderEligibility $printFormTemplateEligibility,
         private readonly DocumentStorageService $documentStorageService,
@@ -53,6 +55,7 @@ class OrderWizardPagePresenter
         $contractors = $this->loadRelevantContractors($order);
         $this->attachContractorDebtLimits($contractors);
         $canAccessMail = $this->orderMailContext->userCanAccessMail($user);
+        $canAccessClaims = $order !== null && $user !== null && $this->orderClaimService->userCanAccess($user, $order);
 
         return [
             'order' => $order === null
@@ -102,6 +105,13 @@ class OrderWizardPagePresenter
             'cargoTitleSuggestions' => $this->cargoTitleSuggestions(),
             'canAccessMail' => $canAccessMail,
             'canViewOrderTimeline' => $user?->isAdmin() ?? false,
+            'canAccessClaims' => $canAccessClaims,
+            'orderClaims' => $canAccessClaims && $order !== null
+                ? $this->orderClaimService->listForOrder($order)->values()->all()
+                : [],
+            'claimPartyOptions' => $this->orderClaimService->partyOptions(),
+            'claimTypeOptions' => $this->orderClaimService->typeOptions(),
+            'claimStatusOptions' => $this->orderClaimService->statusOptions(),
             'orderMailThreads' => $order !== null && $canAccessMail && $user !== null
                 ? $this->orderMailContext->threadSummariesForOrder($user, $order)
                 : [],

@@ -3,7 +3,33 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-20 15:22 (OI + voice spike + UI лидов) · **HEAD:** `8d748ef` · **Ветка:** `master`
+**Обновлено:** 2026-07-20 16:10 (Claims MVP) · **HEAD:** *(локально, ещё не закоммичено)* · **Ветка:** `master`
+
+### Итог сессии 2026-07-20 (продолжение) — Претензии (Claims) MVP
+
+| Блок | Статус |
+| --- | --- |
+| Таблица `order_claims` + enums party/type/status + model/factory | ✅ миграция локально применена |
+| `OrderClaimService` + controller/requests; feature `order_claims` | ✅ |
+| Вкладка «Претензии» в заказе + реестр `/claims` + пункт меню (orders) | ✅ UI |
+| Ledger: `claim_opened` / `claim_status_changed` / `claim_closed` | ✅ |
+| PHPUnit `tests/Feature/OrderClaimTest.php` (3 теста) | ✅ |
+| MCP tools для Юрика | ⏳ следующий шаг |
+
+**На прод / второй ПК (после commit+push):**
+
+```text
+git pull
+php artisan migrate --force
+npm run build
+php artisan optimize:clear
+```
+
+**Следующий шаг:** коммит Claims; MCP tools Юрика; затем RFQ / Playbooks / портал — [`docs/product-modules-roadmap.md`](../product-modules-roadmap.md).
+
+---
+
+**Обновлено (архив):** 2026-07-20 15:22 (OI + voice spike + UI лидов) · **HEAD:** `8d748ef` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-20 — Outcome Intelligence, голос, карточка лида
 
@@ -27,7 +53,7 @@ php artisan optimize:clear
 
 **На втором ПК:** `git pull` → sync-docs → `npm run build` / `dev` → проверить Лиды (OI над гридом, «Голосом», карточка без OI).
 
-**Следующий шаг:** модуль **Претензии (Claims)** для Юрика — см. [`docs/product-modules-roadmap.md`](../product-modules-roadmap.md); затем RFQ / Playbooks / портал заказчика. Whisper — после GPU. SMTP/EML на prod из прошлых сессий если ещё не выкатывали.
+**Следующий шаг (архив):** модуль **Претензии (Claims)** — сделан MVP локально (см. блок выше).
 
 ---
 

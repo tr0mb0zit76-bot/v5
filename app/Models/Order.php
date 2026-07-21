@@ -331,6 +331,14 @@ class Order extends Model
     }
 
     /**
+     * @return HasMany<OrderClaim, $this>
+     */
+    public function claims(): HasMany
+    {
+        return $this->hasMany(OrderClaim::class)->orderByDesc('id');
+    }
+
+    /**
      * @return HasMany<OrderDocumentEdoAcknowledgement, $this>
      */
     public function edoAcknowledgements(): HasMany

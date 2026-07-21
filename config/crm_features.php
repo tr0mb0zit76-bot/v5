@@ -16,4 +16,9 @@ return [
         'enabled' => env('CRM_FEATURE_ORDER_DOCUMENT_MAIL', true),
         'depends' => ['mail', 'orders'],
     ],
+    'order_claims' => [
+        'label' => 'Претензии по заказам',
+        'enabled' => env('CRM_FEATURE_ORDER_CLAIMS', true),
+        'depends' => ['orders'],
+    ],
 ];

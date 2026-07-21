@@ -16,6 +16,9 @@ enum ActivityEventType: string
     case OrderIntakeApplied = 'order_intake_applied';
     case CloseOutcomeRecorded = 'close_outcome_recorded';
     case PortraitInsightAccepted = 'portrait_insight_accepted';
+    case ClaimOpened = 'claim_opened';
+    case ClaimStatusChanged = 'claim_status_changed';
+    case ClaimClosed = 'claim_closed';
 
     public function label(): string
     {
@@ -32,6 +35,9 @@ enum ActivityEventType: string
             self::OrderIntakeApplied => 'Заявка → заказ',
             self::CloseOutcomeRecorded => 'Причина закрытия',
             self::PortraitInsightAccepted => 'Факт в портрет',
+            self::ClaimOpened => 'Претензия открыта',
+            self::ClaimStatusChanged => 'Статус претензии',
+            self::ClaimClosed => 'Претензия закрыта',
         };
     }
 }
