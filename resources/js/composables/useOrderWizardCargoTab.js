@@ -312,18 +312,20 @@ export function useOrderWizardCargoTab(deps) {
         return l * w * h;
     }
 
-    function cargoDimensionFieldsEmpty(item) {
-        return [item.length_m, item.width_m, item.height_m].every(
-            (v) => v === null || v === undefined || v === '',
-        );
-    }
-
     function onCargoDecimalInput(item, field, event) {
         item[field] = sanitizeDecimalInput(event.target.value);
 
         if (field === 'weight_value') {
             item.weight_kg = item.weight_value;
         }
+
+        if (field === 'volume_m3') {
+            item.volume_from_dimensions = false;
+        }
+    }
+
+    function cargoVolumeIsManual(item) {
+        return cargoComputedVolumeM3(item) === null;
     }
 
     function selectedLoadingTypeCodes() {
@@ -576,6 +578,7 @@ export function useOrderWizardCargoTab(deps) {
         dictionarySelectionLabel,
         onCargoDecimalInput,
         cargoComputedVolumeM3,
+        cargoVolumeIsManual,
         cargoLineTotalWeightKg,
         cargoPackageCountFactor,
         cargoWeightInKg,
@@ -612,11 +615,13 @@ export function useOrderWizardCargoTab(deps) {
             (items) => {
                 items.forEach((item) => {
                     item.dangerous_goods = item.cargo_type === 'dangerous';
-                    const v = cargoComputedVolumeM3(item);
-                    if (v !== null) {
-                        item.volume_m3 = Math.round(v * 1000) / 1000;
-                    } else if (!cargoDimensionFieldsEmpty(item)) {
-                        item.volume_m3 = null;
+                    const computed = cargoComputedVolumeM3(item);
+                    if (computed !== null) {
+                        item.volume_m3 = Math.round(computed * 1000) / 1000;
+                        item.volume_from_dimensions = true;
+                    } else {
+                        item.volume_from_dimensions = false;
+                        // ponytail: не затирать ручной объём при частичных/пустых габаритах
                     }
                 });
             },
