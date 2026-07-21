@@ -168,6 +168,14 @@ class PrintFormPlaceholderPathResolver
             'manager' => 'manager.name',
             'manager_email' => 'manager.email',
             'manager_tel' => 'manager.phone',
+            'dispatcher' => 'dispatcher.name',
+            'dispatcher_email' => 'dispatcher.email',
+            'dispatcher_tel' => 'dispatcher.phone',
+            'dispetcher' => 'dispatcher.name',
+            'dispetcher_email' => 'dispatcher.email',
+            'dispetcher_tel' => 'dispatcher.phone',
+            'fio_dispetcher' => 'dispatcher.name',
+            'fio_dispatcher' => 'dispatcher.name',
             'responsible_name' => 'responsible.name',
             'responsible_email' => 'responsible.email',
             'responsible_tel' => 'responsible.phone',
@@ -293,6 +301,12 @@ class PrintFormPlaceholderPathResolver
             $out['lp_manager'] = 'manager.name';
             $out['lp_manager_email'] = 'manager.email';
             $out['lp_manager_tel'] = 'manager.phone';
+            $out['lp_dispatcher'] = 'dispatcher.name';
+            $out['lp_dispatcher_email'] = 'dispatcher.email';
+            $out['lp_dispatcher_tel'] = 'dispatcher.phone';
+            $out['lp_dispetcher'] = 'dispatcher.name';
+            $out['lp_dispetcher_email'] = 'dispatcher.email';
+            $out['lp_dispetcher_tel'] = 'dispatcher.phone';
         }
 
         if ($prefix === 'cp_') {

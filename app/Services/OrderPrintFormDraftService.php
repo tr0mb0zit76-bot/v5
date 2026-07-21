@@ -395,6 +395,7 @@ class OrderPrintFormDraftService
             'own_company' => $this->contractorPayload($order->ownCompany, $order->own_company_bank_account_id),
             'manager' => $this->managerPayload($order->manager),
             'responsible' => $this->managerPayload($order->manager),
+            'dispatcher' => $this->managerPayload($order->dispatcher),
             'driver' => $driver,
             'vehicle' => $vehicle,
             'contacts' => $this->partyContactsPayload($order, $order->client, $carrierContractor),
@@ -1665,6 +1666,10 @@ class OrderPrintFormDraftService
     public function loadOrderContext(Order $order): Order
     {
         $relations = ['client', 'carrier', 'ownCompany', 'manager'];
+
+        if (Schema::hasColumn('orders', 'dispatcher_id')) {
+            $relations[] = 'dispatcher';
+        }
 
         if (Schema::hasTable('order_legs') && Schema::hasTable('route_points')) {
             $relations[] = 'routePoints';

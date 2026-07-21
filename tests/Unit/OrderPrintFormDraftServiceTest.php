@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderLeg;
 use App\Models\PrintFormTemplate;
 use App\Models\RoutePoint;
+use App\Models\User;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\PrintFormVariableCatalog;
 use Illuminate\Support\Collection;
@@ -556,5 +557,35 @@ class OrderPrintFormDraftServiceTest extends TestCase
         );
 
         $this->assertSame('С357ХК797', $replacement);
+    }
+
+    public function test_dispatcher_snapshot_uses_order_dispatcher_user(): void
+    {
+        $service = $this->makeService();
+        $order = new Order;
+        $order->setRelation('routePoints', new Collection);
+        $order->setRelation('cargoItems', new Collection);
+
+        $dispatcher = new User([
+            'name' => 'Сидоров Пётр Иванович',
+            'email' => 'dispatcher@avtoaliyans.ru',
+            'phone' => '+79991234567',
+        ]);
+        $order->setRelation('dispatcher', $dispatcher);
+        $order->setRelation('manager', null);
+
+        $snapshot = $this->buildSnapshot($service, $order);
+
+        $this->assertSame('Пётр', data_get($snapshot, 'dispatcher.name'));
+        $this->assertSame('Сидоров Пётр Иванович', data_get($snapshot, 'dispatcher.full_name'));
+        $this->assertSame('dispatcher@avtoaliyans.ru', data_get($snapshot, 'dispatcher.email'));
+        $this->assertSame('+79991234567', data_get($snapshot, 'dispatcher.phone'));
+
+        $catalogValues = collect((new PrintFormVariableCatalog)->orderOptions())
+            ->pluck('value')
+            ->all();
+        $this->assertContains('dispatcher.name', $catalogValues);
+        $this->assertContains('dispatcher.email', $catalogValues);
+        $this->assertContains('dispatcher.phone', $catalogValues);
     }
 }

@@ -100,4 +100,17 @@ class PrintFormPlaceholderPathResolverTest extends TestCase
         $this->assertSame('own_company.legal_address', $resolver->resolve('lp_yur_address', [], 'order', 'customer'));
         $this->assertSame('customer.postal_address', $resolver->resolve('cp_pocht_address', [], 'order', 'customer'));
     }
+
+    #[Test]
+    public function it_maps_dispatcher_placeholders(): void
+    {
+        $resolver = new PrintFormPlaceholderPathResolver;
+
+        $this->assertSame('dispatcher.name', $resolver->resolve('dispatcher', [], 'order', 'customer'));
+        $this->assertSame('dispatcher.phone', $resolver->resolve('dispatcher_tel', [], 'order', 'customer'));
+        $this->assertSame('dispatcher.email', $resolver->resolve('dispatcher_email', [], 'order', 'customer'));
+        $this->assertSame('dispatcher.name', $resolver->resolve('dispetcher', [], 'order', 'customer'));
+        $this->assertSame('dispatcher.phone', $resolver->resolve('lp_dispatcher_tel', [], 'order', 'customer'));
+        $this->assertSame('dispatcher.email', $resolver->resolve('lp_dispetcher_email', [], 'order', 'customer'));
+    }
 }
