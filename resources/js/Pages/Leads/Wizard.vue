@@ -182,6 +182,7 @@
                     :lost-close-outcome-options="lostCloseOutcomeOptions"
                     :won-close-outcome-options="wonCloseOutcomeOptions"
                     :close-outcome-error="form.errors.close_outcome_primary_flag || form.errors.close_outcome_note"
+                    :hide-progress="Boolean(processProgress)"
                     @manual-change="markStatusTouchedByUser"
                 />
 

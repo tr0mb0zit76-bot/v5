@@ -38,6 +38,7 @@
                 :process-progress="processProgress"
                 @navigate-tab="emit('navigate-tab', $event)"
                 @focus-action="emit('focus-action', $event)"
+                @focus-advance="focusAdvanceControls"
             />
 
             <div v-if="processProgress.progress_percent > 0" class="mt-3 space-y-1">
@@ -65,24 +66,45 @@
                 </span>
             </div>
 
-            <div v-if="advanceableStages.length" class="mt-3 flex flex-wrap items-end gap-2">
-                <div class="min-w-[12rem] flex-1 space-y-1">
-                    <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Следующий этап</label>
-                    <select :value="advanceStageId" class="field" @change="onAdvanceChange">
-                        <option value="">—</option>
-                        <option v-for="stage in advanceableStages" :key="stage.id" :value="stage.id">
-                            {{ stage.name }}
-                        </option>
-                    </select>
+            <div
+                v-if="advanceableStages.length"
+                id="lead-process-advance"
+                class="mt-3 space-y-2"
+            >
+                <div class="flex flex-wrap items-end gap-2">
+                    <div class="min-w-[12rem] flex-1 space-y-1">
+                        <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Следующий этап</label>
+                        <select :value="advanceStageId" class="field" @change="onAdvanceChange">
+                            <option value="">—</option>
+                            <option v-for="stage in advanceableStages" :key="stage.id" :value="stage.id">
+                                {{ stage.name }}
+                            </option>
+                        </select>
+                    </div>
+                    <button
+                        type="button"
+                        class="secondary-button"
+                        :disabled="!advanceStageId || processing || !canSubmitAdvance || !canPrimaryAdvance"
+                        @click="emit('advance')"
+                    >
+                        Перейти
+                    </button>
                 </div>
-                <button
-                    type="button"
-                    class="secondary-button"
-                    :disabled="!advanceStageId || processing || !canSubmitAdvance"
-                    @click="emit('advance')"
+                <p
+                    v-if="advanceBlockHint"
+                    class="text-xs text-amber-800 dark:text-amber-200"
                 >
-                    Перейти
-                </button>
+                    {{ advanceBlockHint }}
+                    <button
+                        v-if="advanceStageId && canSubmitAdvance && !canPrimaryAdvance"
+                        type="button"
+                        class="ml-1 font-medium underline underline-offset-2"
+                        :disabled="processing"
+                        @click="emit('advance')"
+                    >
+                        Перейти всё равно
+                    </button>
+                </p>
             </div>
 
             <LeadCloseOutcomeFields
@@ -161,6 +183,43 @@ const canSubmitAdvance = computed(() => {
 
     return true;
 });
+
+const briefHealth = computed(() => props.operationalBrief?.health ?? null);
+
+const canPrimaryAdvance = computed(() => {
+    if (!briefHealth.value || briefHealth.value === 'ready_to_advance' || briefHealth.value === 'terminal') {
+        return true;
+    }
+
+    return false;
+});
+
+const advanceBlockHint = computed(() => {
+    if (canPrimaryAdvance.value || !props.operationalBrief) {
+        return '';
+    }
+
+    const gaps = Array.isArray(props.operationalBrief.gaps) ? props.operationalBrief.gaps : [];
+    const labels = gaps.slice(0, 2).map((gap) => gap.label).filter(Boolean);
+
+    if (labels.length) {
+        return `Ещё не хватает: ${labels.join(', ').toLowerCase()}.`;
+    }
+
+    if (props.operationalBrief.risks?.length) {
+        return `Сначала снимите риск: ${props.operationalBrief.risks[0].label.toLowerCase()}.`;
+    }
+
+    return 'По коучу этап ещё не готов к переходу.';
+});
+
+function focusAdvanceControls() {
+    if (typeof document === 'undefined') {
+        return;
+    }
+
+    document.getElementById('lead-process-advance')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
 
 function stageStateClass(state) {
     if (state === 'current') {

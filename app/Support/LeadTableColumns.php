@@ -24,6 +24,7 @@ class LeadTableColumns
             ['field' => 'has_offer', 'label' => 'Есть КП', 'width' => 110, 'minWidth' => 100, 'type' => 'boolean'],
             ['field' => 'process_name', 'label' => 'Процесс', 'width' => 180, 'minWidth' => 150, 'type' => null],
             ['field' => 'current_stage_name', 'label' => 'Этап', 'width' => 170, 'minWidth' => 140, 'type' => null],
+            ['field' => 'next_move_label', 'label' => 'Дальше', 'width' => 240, 'minWidth' => 180, 'type' => null],
             ['field' => 'stage_due_at', 'label' => 'Срок этапа', 'width' => 150, 'minWidth' => 130, 'type' => 'datetime'],
             ['field' => 'is_stage_overdue', 'label' => 'Этап просрочен', 'width' => 130, 'minWidth' => 110, 'type' => 'boolean'],
             ['field' => 'created_at', 'label' => 'Создан', 'width' => 160, 'minWidth' => 140, 'type' => 'datetime'],
@@ -55,6 +56,7 @@ class LeadTableColumns
                 'has_offer',
                 'process_name',
                 'current_stage_name',
+                'next_move_label',
                 'stage_due_at',
             ],
             default => [
@@ -71,6 +73,7 @@ class LeadTableColumns
                 'has_offer',
                 'process_name',
                 'current_stage_name',
+                'next_move_label',
                 'stage_due_at',
                 'created_at',
             ],

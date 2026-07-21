@@ -584,6 +584,7 @@ const fallbackColumns = [
   { field: 'has_offer', label: 'Есть КП', width: 110, minWidth: 100, type: 'boolean' },
   { field: 'process_name', label: 'Процесс', width: 180, minWidth: 150, type: null },
   { field: 'current_stage_name', label: 'Этап', width: 170, minWidth: 140, type: null },
+  { field: 'next_move_label', label: 'Дальше', width: 240, minWidth: 180, type: null },
   { field: 'stage_due_at', label: 'Срок этапа', width: 150, minWidth: 130, type: 'datetime' },
   { field: 'is_stage_overdue', label: 'Этап просрочен', width: 130, minWidth: 110, type: 'boolean' },
   { field: 'created_at', label: 'Создан', width: 160, minWidth: 140, type: 'datetime' },
@@ -967,6 +968,17 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.cellClass = (params) => (params.data?.is_stage_overdue ? 'leads-grid-cell-stage-overdue' : '');
     } else if (column.field === 'stage_due_at') {
       columnDefinition.cellClass = (params) => (params.data?.is_stage_overdue ? 'leads-grid-cell-stage-overdue' : '');
+    } else if (column.field === 'next_move_label') {
+      columnDefinition.cellClass = (params) => {
+        if (params.data?.next_move_health === 'stuck') {
+          return 'leads-grid-cell-next-move-stuck';
+        }
+        if (params.data?.next_move_health === 'ready_to_advance') {
+          return 'leads-grid-cell-next-move-ready';
+        }
+
+        return '';
+      };
     }
 
     return columnDefinition;

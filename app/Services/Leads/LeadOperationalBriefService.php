@@ -87,11 +87,11 @@ final class LeadOperationalBriefService
     /**
      * @return array<string, mixed>
      */
-    public function build(Lead $lead): array
+    public function build(Lead $lead, bool $includeIdleRisk = true): array
     {
         $lead->loadMissing([
             'businessProcess:id,name,slug',
-            'businessProcessStage:id,name,is_terminal',
+            'businessProcessStage:id,name,is_terminal,stage_goal',
             'routePoints',
             'cargoItems',
             'offers:id,lead_id',
@@ -105,7 +105,7 @@ final class LeadOperationalBriefService
 
         $gaps = $this->resolveGaps($checks, $requirements);
         $positives = $this->resolvePositives($checks, $requirements);
-        $risks = $this->resolveRisks($lead);
+        $risks = $this->resolveRisks($lead, $includeIdleRisk);
         $health = $this->resolveHealth($lead, $gaps, $risks);
         $healthScore = $this->healthScore($gaps, $risks);
         $actionsNow = $this->actionsNow($gaps, $risks);
@@ -122,6 +122,8 @@ final class LeadOperationalBriefService
             'stage_overdue' => $stageOverdue,
         ];
 
+        $nextMove = $this->resolveNextMove($health, $actionsNow, $context);
+
         return [
             'lead_id' => $lead->id,
             'lead_number' => $lead->number,
@@ -133,8 +135,29 @@ final class LeadOperationalBriefService
             'positives' => $positives,
             'gaps' => $gaps,
             'actions_now' => $actionsNow,
+            'next_move' => $nextMove,
             'risks' => $risks,
             'checks' => $checks,
+        ];
+    }
+
+    /**
+     * Лёгкая проекция для грида: без idle_dwell (лишние запросы в activity).
+     *
+     * @return array{label: string, health: string}|null
+     */
+    public function nextMoveForGrid(Lead $lead): ?array
+    {
+        $brief = $this->build($lead, includeIdleRisk: false);
+        $next = $brief['next_move'] ?? null;
+
+        if (! is_array($next) || empty($next['label'])) {
+            return null;
+        }
+
+        return [
+            'label' => (string) $next['label'],
+            'health' => (string) ($brief['health'] ?? 'on_track'),
         ];
     }
 
@@ -210,7 +233,7 @@ final class LeadOperationalBriefService
     /**
      * @return list<array{code: string, label: string}>
      */
-    private function resolveRisks(Lead $lead): array
+    private function resolveRisks(Lead $lead, bool $includeIdleRisk = true): array
     {
         if (LeadStatus::isClosed($lead->status)) {
             return [];
@@ -225,13 +248,62 @@ final class LeadOperationalBriefService
             ];
         }
 
-        $idle = $this->currentStageIdleRisk($lead);
+        if ($includeIdleRisk) {
+            $idle = $this->currentStageIdleRisk($lead);
 
-        if ($idle !== null) {
-            $risks[] = $idle;
+            if ($idle !== null) {
+                $risks[] = $idle;
+            }
         }
 
         return $risks;
+    }
+
+    /**
+     * @param  list<array{priority: int, label: string, tab?: string, kind?: string, code: string}>  $actionsNow
+     * @param  array<string, mixed>  $context
+     * @return array{code: string, label: string, cta: string, tab?: string, kind?: string}|null
+     */
+    private function resolveNextMove(string $health, array $actionsNow, array $context): ?array
+    {
+        if ($health === 'terminal') {
+            return null;
+        }
+
+        if ($health === 'ready_to_advance') {
+            return [
+                'code' => 'advance_stage',
+                'label' => 'Данные по этапу собраны — переходите дальше',
+                'cta' => 'К переходу этапа',
+                'kind' => 'advance',
+            ];
+        }
+
+        $first = $actionsNow[0] ?? null;
+
+        if (is_array($first) && ! empty($first['label'])) {
+            return [
+                'code' => (string) $first['code'],
+                'label' => (string) $first['label'],
+                'cta' => (string) $first['label'],
+                ...array_filter([
+                    'tab' => $first['tab'] ?? null,
+                    'kind' => $first['kind'] ?? null,
+                ]),
+            ];
+        }
+
+        $goal = trim((string) ($context['bp_stage_goal'] ?? ''));
+
+        if ($goal !== '') {
+            return [
+                'code' => 'stage_goal',
+                'label' => $goal,
+                'cta' => 'К цели этапа',
+            ];
+        }
+
+        return null;
     }
 
     /**

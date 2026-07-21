@@ -119,6 +119,7 @@ class LeadManagementTest extends TestCase
             ->where('selectedLead.operational_brief.lead_id', $lead->id)
             ->where('selectedLead.operational_brief.health', 'stuck')
             ->has('selectedLead.operational_brief.actions_now')
+            ->has('selectedLead.operational_brief.next_move')
             ->has('selectedLead.operational_brief.summary_ru')
             ->has('paymentFormOptions')
         );

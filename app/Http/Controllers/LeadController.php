@@ -736,8 +736,11 @@ class LeadController extends Controller
 
         $relations = ['counterparty:id,name', 'responsible:id,name', 'creator:id,name', 'offers:id,lead_id,status,number,offer_date'];
         if ($processReady) {
-            $relations[] = 'businessProcess:id,name';
-            $relations[] = 'businessProcessStage:id,name,is_terminal';
+            $relations[] = 'businessProcess:id,name,slug';
+            $relations[] = 'businessProcessStage:id,name,is_terminal,stage_goal';
+            $relations[] = 'routePoints';
+            $relations[] = 'cargoItems';
+            $relations[] = 'tasks:id,lead_id,status';
         }
 
         $leads = Lead::query()
@@ -772,6 +775,8 @@ class LeadController extends Controller
                     'current_stage_name' => null,
                     'stage_due_at' => null,
                     'is_stage_overdue' => false,
+                    'next_move_label' => null,
+                    'next_move_health' => null,
                     'inline_editable_fields' => $request->user() !== null
                         ? $this->leadGridMutationService->inlineEditableFields($lead, $request->user())
                         : [],
@@ -781,6 +786,12 @@ class LeadController extends Controller
                     $processFields = $this->leadBusinessProcessService->gridProcessFields($lead);
                     if ($processFields !== null) {
                         $row = array_merge($row, $processFields);
+                    }
+
+                    $nextMove = $this->leadOperationalBriefService->nextMoveForGrid($lead);
+                    if ($nextMove !== null) {
+                        $row['next_move_label'] = $nextMove['label'];
+                        $row['next_move_health'] = $nextMove['health'];
                     }
                 }
 

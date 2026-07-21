@@ -71,6 +71,8 @@ class LeadOperationalBriefServiceTest extends TestCase
         $this->assertContains('no_counterparty', collect($brief['gaps'])->pluck('code')->all());
         $this->assertContains('no_route', collect($brief['gaps'])->pluck('code')->all());
         $this->assertNotEmpty($brief['actions_now']);
+        $this->assertIsArray($brief['next_move']);
+        $this->assertSame($brief['actions_now'][0]['code'], $brief['next_move']['code']);
         $this->assertStringContainsString('LD-TEST-001', $brief['summary_ru']);
     }
 
@@ -106,6 +108,7 @@ class LeadOperationalBriefServiceTest extends TestCase
 
         $this->assertSame('ready_to_advance', $brief['health']);
         $this->assertEmpty(collect($brief['gaps'])->where('severity', 'blocking'));
+        $this->assertSame('advance_stage', $brief['next_move']['code'] ?? null);
     }
 
     public function test_brief_uses_transport_intake_stage_requirements(): void

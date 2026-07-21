@@ -3,7 +3,32 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-21 09:15 (Claims MVP) · **HEAD:** `df8764a` · **Ветка:** `master`
+**Обновлено:** 2026-07-21 09:32 (лид «Что дальше») · **HEAD:** *(push)* · **Ветка:** `master`
+
+### Итог сессии 2026-07-21 — коуч лида визуально «ведёт»
+
+| Блок | Статус |
+| --- | --- |
+| Панель «Что дальше»: hero next_move + CTA + скрипт снаружи | ✅ |
+| Soft-gate «Перейти» + «Перейти всё равно» | ✅ |
+| Грид колонка `next_move_label` («Дальше») | ✅ |
+| Скрыт % статуса CRM при активном БП | ✅ |
+
+**На прод:**
+
+```text
+git pull
+npm run build
+php artisan optimize:clear
+```
+
+Миграций нет.
+
+**Следующий шаг:** MCP Claims для Юрика / RFQ; донастройка playbook→actions по желанию.
+
+---
+
+**Обновлено (архив):** 2026-07-21 09:15 (Claims MVP) · **HEAD:** `df8764a` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-20 (продолжение) — Претензии (Claims) MVP
 

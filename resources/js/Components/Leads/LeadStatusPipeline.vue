@@ -29,6 +29,10 @@ const props = defineProps({
         type: String,
         default: '',
     },
+    hideProgress: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const emit = defineEmits(['manual-change']);
@@ -56,7 +60,7 @@ const progressPercent = computed(() => {
     return Math.round((index / lastIndex) * 100);
 });
 
-const showProgressBar = computed(() => Boolean(props.selectedLeadId));
+const showProgressBar = computed(() => Boolean(props.selectedLeadId) && !props.hideProgress);
 
 const terminalSelectValue = computed(() => (isTerminal.value ? status.value : ''));
 

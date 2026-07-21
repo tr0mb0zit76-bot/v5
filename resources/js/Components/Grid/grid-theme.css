@@ -472,6 +472,24 @@
   color: rgb(251 113 133);
 }
 
+.orders-grid-theme .leads-grid-cell-next-move-stuck {
+  color: rgb(180 83 9);
+  font-weight: 500;
+}
+
+.dark .orders-grid-theme .leads-grid-cell-next-move-stuck {
+  color: rgb(251 191 36);
+}
+
+.orders-grid-theme .leads-grid-cell-next-move-ready {
+  color: rgb(4 120 87);
+  font-weight: 500;
+}
+
+.dark .orders-grid-theme .leads-grid-cell-next-move-ready {
+  color: rgb(52 211 153);
+}
+
 /* Заказы: устаревшие данные */
 .orders-grid-theme .ag-row.ag-row-orders-stale .ag-cell {
   background-color: rgb(254 242 242 / 0.65);
