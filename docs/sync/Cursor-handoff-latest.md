@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-21 09:32 (лид «Что дальше») · **HEAD:** *(push)* · **Ветка:** `master`
+**Обновлено:** 2026-07-21 09:32 (лид «Что дальше») · **HEAD:** `9e41241` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-21 — коуч лида визуально «ведёт»
 
