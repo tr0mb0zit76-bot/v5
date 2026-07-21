@@ -630,7 +630,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     Route::controller(ContractorController::class)
-        ->middleware('visibility.area.any:contractors|orders')
+        ->middleware('visibility.area.any:contractors|orders|settings|settings_system|payment_schedules|documents|finance_salary|load_board|leads|tasks')
         ->group(function () {
             Route::get('/contractors-search', 'search')->name('contractors.search');
         });

@@ -233,10 +233,15 @@
                     @submit.prevent="submitOffer"
                 >
                     <div class="grid gap-2 md:grid-cols-2">
-                        <select v-model="offerForm.carrier_id" :class="crmFieldFluid">
-                            <option :value="null">Перевозчик не указан</option>
-                            <option v-for="contractor in contractors" :key="contractor.id" :value="contractor.id">{{ contractor.name }}</option>
-                        </select>
+                        <ContractorAsyncSearchSelect
+                            v-model="offerForm.carrier_id"
+                            :selected-label="offerCarrierLabel"
+                            search-type="carrier"
+                            clear-label="Перевозчик не указан"
+                            placeholder="Поиск перевозчика"
+                            @select="(option) => { offerCarrierLabel = option.name; }"
+                            @clear="() => { offerCarrierLabel = ''; }"
+                        />
                         <select v-model="offerForm.source" :class="crmFieldFluid">
                             <option v-for="(label, value) in offerSourceOptions" :key="value" :value="value">{{ label }}</option>
                         </select>
@@ -357,10 +362,15 @@
                     @submit.prevent="submitCandidate"
                 >
                     <div class="grid gap-2 md:grid-cols-2">
-                        <select v-model="candidateForm.carrier_id" :class="crmFieldFluid">
-                            <option :value="null">Перевозчик из справочника</option>
-                            <option v-for="contractor in contractors" :key="`pool-${contractor.id}`" :value="contractor.id">{{ contractor.name }}</option>
-                        </select>
+                        <ContractorAsyncSearchSelect
+                            v-model="candidateForm.carrier_id"
+                            :selected-label="candidateCarrierLabel"
+                            search-type="carrier"
+                            clear-label="Перевозчик из справочника"
+                            placeholder="Поиск перевозчика"
+                            @select="(option) => { candidateCarrierLabel = option.name; if (!candidateForm.carrier_name) candidateForm.carrier_name = option.name; }"
+                            @clear="() => { candidateCarrierLabel = ''; }"
+                        />
                         <select v-model="candidateForm.source" :class="crmFieldFluid">
                             <option v-for="(label, value) in offerSourceOptions" :key="`pool-source-${value}`" :value="value">{{ label }}</option>
                         </select>
@@ -510,6 +520,7 @@ import { computed, ref, watch } from 'vue';
 import { Link, router, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
 import InputError from '@/Components/InputError.vue';
+import ContractorAsyncSearchSelect from '@/Components/Crm/ContractorAsyncSearchSelect.vue';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import {
     crmBtnCreate,
@@ -523,7 +534,6 @@ import { dictionarySelectionLabel } from '@/support/wizardDictionaryHelpers.js';
 const props = defineProps({
     post: { type: Object, required: true },
     users: { type: Array, default: () => [] },
-    contractors: { type: Array, default: () => [] },
     statusLabels: { type: Object, default: () => ({}) },
     priorityLabels: { type: Object, default: () => ({}) },
     offerSourceOptions: { type: Object, default: () => ({}) },
@@ -554,6 +564,8 @@ const procurementLinkedLeads = computed(() => {
 const activeTab = ref(props.fullPage ? 'offers' : 'overview');
 const showOfferForm = ref(false);
 const showCandidateForm = ref(false);
+const offerCarrierLabel = ref('');
+const candidateCarrierLabel = ref('');
 const rateInsights = ref(null);
 const advisorPayload = ref(null);
 const advisorLoading = ref(false);
@@ -750,6 +762,7 @@ function promoteCandidateToOffer(entry) {
     showOfferForm.value = true;
     showCandidateForm.value = false;
     offerForm.carrier_id = entry.carrier_id ?? null;
+    offerCarrierLabel.value = entry.carrier_name ?? '';
     offerForm.source = entry.source ?? 'phone';
     offerForm.carrier_rate = entry.carrier_rate ?? '';
     offerForm.carrier_rate_currency = entry.carrier_rate_currency ?? 'RUB';

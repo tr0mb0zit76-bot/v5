@@ -158,19 +158,6 @@ class SettingsTemplateController extends Controller
                 ->values();
         }
 
-        $contractorOptions = collect();
-
-        if (Schema::hasTable('contractors')) {
-            $contractorOptions = Contractor::query()
-                ->orderBy('name')
-                ->get(['id', 'name'])
-                ->map(fn (Contractor $contractor): array => [
-                    'id' => $contractor->id,
-                    'name' => $contractor->name,
-                ])
-                ->values();
-        }
-
         $ownCompanyOptions = collect();
 
         if (Schema::hasTable('contractors') && Schema::hasColumn('contractors', 'is_own_company')) {
@@ -202,10 +189,16 @@ class SettingsTemplateController extends Controller
             $basicTermsContractorId = null;
         }
 
+        $basicTermsContractorName = null;
+        if ($basicTermsContractorId !== null && Schema::hasTable('contractors')) {
+            $basicTermsContractorName = Contractor::query()
+                ->whereKey($basicTermsContractorId)
+                ->value('name');
+        }
+
         return Inertia::render('Settings/Templates', [
             'pageTab' => $pageTab,
             'templates' => $templates,
-            'contractorOptions' => $contractorOptions,
             'ownCompanyOptions' => $ownCompanyOptions,
             'entityTypeOptions' => PrintFormTemplate::entityTypeOptions(),
             'documentTypeOptions' => PrintFormTemplate::documentTypeOptions(),
@@ -220,6 +213,7 @@ class SettingsTemplateController extends Controller
                 'enabled' => $this->basicTermsService->tablesReady(),
                 'activeParty' => $basicTermsParty,
                 'activeContractorId' => $basicTermsContractorId,
+                'activeContractorName' => $basicTermsContractorName,
                 'rows' => $this->basicTermsService->listRows($basicTermsParty, $basicTermsContractorId),
                 'partyOptions' => [
                     ['value' => PrintFormBasicTerm::PARTY_CUSTOMER, 'label' => 'Заказчик'],

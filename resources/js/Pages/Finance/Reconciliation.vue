@@ -16,11 +16,16 @@
 
         <section :class="`${crmPanel} space-y-4 p-5`">
             <form class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" @submit.prevent="submit">
-                <ContractorSearchSelect
-                    v-model="form.contractor_id"
-                    label="Контрагент"
-                    :options="contractorOptions"
-                />
+                <div class="space-y-1.5">
+                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Контрагент</label>
+                    <ContractorAsyncSearchSelect
+                        v-model="form.contractor_id"
+                        :selected-label="selectedContractorLabel"
+                        clear-label="Выберите контрагента"
+                        @select="(option) => { selectedContractorLabel = option.name; }"
+                        @clear="() => { selectedContractorLabel = ''; }"
+                    />
+                </div>
                 <div class="space-y-1.5">
                     <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Период с</label>
                     <input v-model="form.date_from" type="date" :class="crmFieldFluid" />
@@ -86,10 +91,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Link, useForm } from '@inertiajs/vue3';
 import { Download, Printer } from 'lucide-vue-next';
-import ContractorSearchSelect from '@/Components/Finance/ContractorSearchSelect.vue';
+import ContractorAsyncSearchSelect from '@/Components/Crm/ContractorAsyncSearchSelect.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import ReconciliationSection from '@/Components/Finance/ReconciliationSection.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -101,10 +106,6 @@ defineOptions({
 });
 
 const props = defineProps({
-    contractorOptions: {
-        type: Array,
-        default: () => [],
-    },
     filters: {
         type: Object,
         default: () => ({}),
@@ -119,8 +120,10 @@ const props = defineProps({
     },
 });
 
+const selectedContractorLabel = ref(props.report?.contractor?.name ?? '');
+
 const form = useForm({
-    contractor_id: props.filters.contractor_id ? String(props.filters.contractor_id) : '',
+    contractor_id: props.filters.contractor_id ?? null,
     date_from: props.filters.date_from ?? '',
     date_to: props.filters.date_to ?? '',
 });

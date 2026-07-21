@@ -13,7 +13,6 @@
         <LoadBoardPostCard
             :post="post"
             :users="users"
-            :contractors="contractors"
             :status-labels="statusLabels"
             :priority-labels="priorityLabels"
             :offer-source-options="offerSourceOptions"
@@ -42,7 +41,6 @@ const props = defineProps({
     statusLabels: { type: Object, default: () => ({}) },
     priorityLabels: { type: Object, default: () => ({}) },
     users: { type: Array, default: () => [] },
-    contractors: { type: Array, default: () => [] },
     leadOptions: { type: Array, default: () => [] },
     orderOptions: { type: Array, default: () => [] },
     offerSourceOptions: { type: Object, default: () => ({}) },

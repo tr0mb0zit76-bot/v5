@@ -83,9 +83,17 @@ const props = defineProps({
         type: String,
         default: '',
     },
+    /**
+     * Не сбрасывать modelValue при вводе — только при выборе из списка или «Очистить».
+     * Нужно для scope-переключателей (базовые условия), где смена id сразу грузит другую область.
+     */
+    commitOnSelectOnly: {
+        type: Boolean,
+        default: false,
+    },
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'select', 'clear']);
 
 const root = ref(null);
 const query = ref('');
@@ -122,7 +130,12 @@ function onFocus() {
 function onInput() {
     open.value = true;
 
-    if (props.modelValue !== null && props.modelValue !== '' && props.modelValue !== undefined) {
+    if (
+        !props.commitOnSelectOnly
+        && props.modelValue !== null
+        && props.modelValue !== ''
+        && props.modelValue !== undefined
+    ) {
         emit('update:modelValue', null);
     }
 
@@ -131,6 +144,7 @@ function onInput() {
 
 function clearSelection() {
     emit('update:modelValue', null);
+    emit('clear');
     query.value = '';
     results.value = [];
     open.value = false;
@@ -138,6 +152,7 @@ function clearSelection() {
 
 function selectOption(option) {
     emit('update:modelValue', option.id);
+    emit('select', option);
     query.value = option.name;
     open.value = false;
 }

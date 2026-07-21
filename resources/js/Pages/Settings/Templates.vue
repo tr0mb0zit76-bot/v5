@@ -277,20 +277,16 @@
                         <div class="grid shrink-0 gap-2 sm:grid-cols-[minmax(0,1fr)] sm:items-end">
                             <label class="block text-sm">
                                 <span class="mb-1 block text-zinc-600 dark:text-zinc-300">Область редактирования</span>
-                                <select
+                                <ContractorAsyncSearchSelect
                                     v-model="basicTermsContractorId"
-                                    :class="crmFieldFluid"
-                                    @change="reloadBasicTermsScope"
-                                >
-                                    <option :value="null">Общие условия (по умолчанию для всех)</option>
-                                    <option
-                                        v-for="contractor in contractorOptions"
-                                        :key="contractor.id"
-                                        :value="contractor.id"
-                                    >
-                                        {{ contractor.name }}
-                                    </option>
-                                </select>
+                                    :selected-label="basicTermsContractorLabel"
+                                    :search-type="basicTermsParty === 'carrier' ? 'carrier' : 'customer'"
+                                    clear-label="Общие условия (по умолчанию для всех)"
+                                    placeholder="Поиск контрагента по названию или ИНН"
+                                    commit-on-select-only
+                                    @select="onBasicTermsContractorSelect"
+                                    @clear="onBasicTermsContractorClear"
+                                />
                             </label>
                         </div>
 
@@ -403,7 +399,6 @@
         <PrintFormDraftConverterTab
             v-else-if="pageTab === 'draft-converter'"
             :party-options="partyOptions"
-            :contractor-options="contractorOptions"
             :own-company-options="ownCompanyOptions"
         />
 
@@ -516,12 +511,15 @@
                                     </div>
                                     <div v-if="form.source_type === 'external_docx'" class="space-y-2">
                                         <label class="text-sm font-medium">Контрагент</label>
-                                        <select v-model="form.contractor_id" :class="crmFieldFluid">
-                                            <option :value="null">Выберите контрагента</option>
-                                            <option v-for="option in contractorOptions" :key="option.id" :value="option.id">
-                                                {{ option.name }}
-                                            </option>
-                                        </select>
+                                        <ContractorAsyncSearchSelect
+                                            v-model="form.contractor_id"
+                                            :selected-label="formContractorLabel"
+                                            :search-type="formPartySearchType"
+                                            clear-label="Выберите контрагента"
+                                            placeholder="Поиск по названию или ИНН"
+                                            @select="(option) => { formContractorLabel = option.name; }"
+                                            @clear="() => { formContractorLabel = ''; }"
+                                        />
                                         <div class="text-xs text-zinc-500 dark:text-zinc-400">
                                             Обязательно для DOCX контрагента — шаблон применяется только к этому контрагенту.
                                         </div>
@@ -887,6 +885,7 @@ import { FileText, ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from 'lucid
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import PrintFormDraftConverterTab from '@/Components/Settings/PrintFormDraftConverterTab.vue';
+import ContractorAsyncSearchSelect from '@/Components/Crm/ContractorAsyncSearchSelect.vue';
 import { shouldHideFromVariableMapping } from '@/support/printFormClonePlaceholders.js';
 import {
     crmBtnCreate,
@@ -911,10 +910,6 @@ const props = defineProps({
         default: 'templates',
     },
     templates: {
-        type: Array,
-        default: () => [],
-    },
-    contractorOptions: {
         type: Array,
         default: () => [],
     },
@@ -998,6 +993,8 @@ const pageTab = computed(() => {
 });
 const basicTermsParty = ref(props.basicTermsEditor.activeParty ?? 'customer');
 const basicTermsContractorId = ref(props.basicTermsEditor.activeContractorId ?? null);
+const basicTermsContractorLabel = ref(props.basicTermsEditor.activeContractorName ?? '');
+const formContractorLabel = ref('');
 
 const basicTermsForm = useForm({
     party: basicTermsParty.value,
@@ -1025,6 +1022,7 @@ function basicTermsQueryParams(overrides = {}) {
 function syncBasicTermsFormFromProps(editor) {
     basicTermsParty.value = editor?.activeParty ?? 'customer';
     basicTermsContractorId.value = editor?.activeContractorId ?? null;
+    basicTermsContractorLabel.value = editor?.activeContractorName ?? '';
     basicTermsForm.party = basicTermsParty.value;
     basicTermsForm.contractor_id = basicTermsContractorId.value;
     basicTermsForm.items = mapBasicTermsRows(editor?.rows);
@@ -1077,6 +1075,16 @@ function reloadBasicTermsScope() {
             only: ['basicTermsEditor', 'pageTab'],
         },
     );
+}
+
+function onBasicTermsContractorSelect(option) {
+    basicTermsContractorLabel.value = option?.name ?? '';
+    reloadBasicTermsScope();
+}
+
+function onBasicTermsContractorClear() {
+    basicTermsContractorLabel.value = '';
+    reloadBasicTermsScope();
 }
 
 function addBasicTermRow() {
@@ -1155,6 +1163,17 @@ const form = useForm({
     stamp_image_file: null,
 });
 
+const formPartySearchType = computed(() => {
+    if (form.party === 'carrier') {
+        return 'carrier';
+    }
+    if (form.party === 'customer') {
+        return 'customer';
+    }
+
+    return '';
+});
+
 const externalTemplateCount = computed(() => props.templates.filter((template) => template.source_type === 'external_docx').length);
 const defaultTemplateCount = computed(() => props.templates.filter((template) => template.is_default).length);
 const listFilter = ref('all');
@@ -1213,6 +1232,7 @@ const activeVariableOptions = computed(() => (form.entity_type === 'lead' ? prop
 watch(() => form.source_type, (sourceType) => {
     if (sourceType !== 'external_docx') {
         form.contractor_id = null;
+        formContractorLabel.value = '';
     }
 });
 
@@ -1227,6 +1247,7 @@ function resetForm() {
     form.party = props.partyOptions[0]?.value ?? 'internal';
     form.source_type = props.sourceTypeOptions[0]?.value ?? 'system';
     form.contractor_id = null;
+    formContractorLabel.value = '';
     form.own_company_id = null;
     form.transport_scope = props.transportScopeOptions[0]?.value ?? 'any';
     form.is_default = false;
@@ -1270,6 +1291,7 @@ function openEditModal(template) {
     form.party = template.party;
     form.source_type = template.source_type;
     form.contractor_id = template.contractor_id ?? null;
+    formContractorLabel.value = template.contractor_name ?? '';
     form.own_company_id = template.own_company_id ?? null;
     form.transport_scope = template.transport_scope ?? props.transportScopeOptions[0]?.value ?? 'any';
     form.is_default = Boolean(template.is_default);

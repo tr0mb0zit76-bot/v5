@@ -73,7 +73,7 @@ class TemplateManagementTest extends TestCase
             ->where('leadVariableOptions', fn ($options): bool => collect($options)->contains(
                 fn ($row): bool => ($row['value'] ?? '') === 'cargo.summary'
             ))
-            ->has('contractorOptions', 1)
+            ->missing('contractorOptions')
         );
     }
 

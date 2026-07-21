@@ -6,13 +6,10 @@ import {
     crmFieldFluid,
     crmPanel,
 } from '@/support/crmUi.js';
+import ContractorAsyncSearchSelect from '@/Components/Crm/ContractorAsyncSearchSelect.vue';
 
 const props = defineProps({
     partyOptions: {
-        type: Array,
-        default: () => [],
-    },
-    contractorOptions: {
         type: Array,
         default: () => [],
     },
@@ -24,6 +21,7 @@ const props = defineProps({
 
 const party = ref('customer');
 const contractorId = ref(null);
+const contractorLabel = ref('');
 const ownCompanyId = ref(props.ownCompanyOptions[0]?.id ?? null);
 const sourceFile = ref(null);
 const fileInput = ref(null);
@@ -235,16 +233,15 @@ function confidenceLabel(level) {
 
             <label class="block text-sm">
                 <span class="mb-1 block text-zinc-600 dark:text-zinc-300">Контрагент формы</span>
-                <select v-model="contractorId" :class="crmFieldFluid">
-                    <option :value="null">Не выбран</option>
-                    <option
-                        v-for="contractor in contractorOptions"
-                        :key="contractor.id"
-                        :value="contractor.id"
-                    >
-                        {{ contractor.name }}
-                    </option>
-                </select>
+                <ContractorAsyncSearchSelect
+                    v-model="contractorId"
+                    :selected-label="contractorLabel"
+                    :search-type="party === 'carrier' ? 'carrier' : (party === 'customer' ? 'customer' : '')"
+                    clear-label="Не выбран"
+                    placeholder="Поиск по названию или ИНН"
+                    @select="(option) => { contractorLabel = option.name; }"
+                    @clear="() => { contractorLabel = ''; }"
+                />
             </label>
 
             <label class="block text-sm">

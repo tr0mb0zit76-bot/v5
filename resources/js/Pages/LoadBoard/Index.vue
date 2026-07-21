@@ -29,10 +29,15 @@
                 </label>
                 <label :class="crmFilterField">
                     <span :class="crmLabelCompact">Клиент</span>
-                    <select v-model="postForm.customer_id" :class="crmFieldFluid">
-                        <option :value="null">Не указан</option>
-                        <option v-for="contractor in contractors" :key="contractor.id" :value="contractor.id">{{ contractor.name }}</option>
-                    </select>
+                    <ContractorAsyncSearchSelect
+                        v-model="postForm.customer_id"
+                        :selected-label="customerLabel"
+                        search-type="customer"
+                        clear-label="Не указан"
+                        placeholder="Поиск клиента"
+                        @select="(option) => { customerLabel = option.name; }"
+                        @clear="() => { customerLabel = ''; }"
+                    />
                 </label>
             </div>
 
@@ -365,7 +370,6 @@
                 :key="post.id"
                 :post="post"
                 :users="users"
-                :contractors="contractors"
                 :status-labels="statusLabels"
                 :priority-labels="priorityLabels"
                 :offer-source-options="offerSourceOptions"
@@ -385,6 +389,7 @@ import axios from 'axios';
 import { AgGridVue } from 'ag-grid-vue3';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
+import ContractorAsyncSearchSelect from '@/Components/Crm/ContractorAsyncSearchSelect.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import LoadBoardPostCard from '@/Components/LoadBoard/LoadBoardPostCard.vue';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
@@ -431,7 +436,6 @@ const props = defineProps({
     statusLabels: { type: Object, default: () => ({}) },
     priorityLabels: { type: Object, default: () => ({}) },
     users: { type: Array, default: () => [] },
-    contractors: { type: Array, default: () => [] },
     leadOptions: { type: Array, default: () => [] },
     orderOptions: { type: Array, default: () => [] },
     atiDictionaries: { type: Object, default: () => ({}) },
@@ -444,6 +448,7 @@ const currentUserId = computed(() => page.props.auth?.user?.id ?? null);
 const flash = computed(() => page.props.flash ?? {});
 const atiPreview = computed(() => flash.value.load_board_ati_preview ?? null);
 const createOpen = ref(Boolean(props.prefill));
+const customerLabel = ref(props.prefill?.customer_name ?? '');
 
 const filterItems = [
     { value: 'active', label: 'Активные' },

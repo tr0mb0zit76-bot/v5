@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreLoadBoardCarrierPoolCandidateRequest;
 use App\Http\Requests\StoreLoadBoardOfferRequest;
 use App\Http\Requests\StoreLoadBoardPostRequest;
-use App\Models\Contractor;
 use App\Models\FinancialTerm;
 use App\Models\Lead;
 use App\Models\LoadBoardOffer;
@@ -93,7 +92,6 @@ class LoadBoardController extends Controller
             'statusLabels' => self::statusLabels(),
             'priorityLabels' => self::priorityLabels(),
             'users' => User::query()->select(['id', 'name'])->orderBy('name')->get(),
-            'contractors' => Contractor::query()->select(['id', 'name'])->orderBy('name')->limit(500)->get(),
             'leadOptions' => Lead::query()->select(['id', 'number', 'title'])->latest('id')->limit(100)->get(),
             'orderOptions' => Order::query()->select(['id', 'order_number'])->latest('id')->limit(100)->get(),
             'atiDictionaries' => $this->atiDictionaries(),
@@ -553,6 +551,7 @@ class LoadBoardController extends Controller
             'lead_id' => $lead->id,
             'order_id' => null,
             'customer_id' => $lead->counterparty_id,
+            'customer_name' => $lead->counterparty?->name,
             'priority' => 'normal',
             'title' => $lead->title ?: 'Груз по лиду #'.($lead->number ?? $lead->id),
             'loading_location' => $loadingPoint?->address ?? $lead->loading_location,
@@ -593,6 +592,7 @@ class LoadBoardController extends Controller
             'lead_id' => $order->lead_id,
             'order_id' => $order->id,
             'customer_id' => $order->customer_id,
+            'customer_name' => $order->customer?->name,
             'priority' => 'normal',
             'title' => 'Закупка перевозчика по заказу '.($order->order_number ?? '#'.$order->id),
             'loading_location' => $loadingPoint?->address,
@@ -888,7 +888,6 @@ class LoadBoardController extends Controller
             'statusLabels' => self::statusLabels(),
             'priorityLabels' => self::priorityLabels(),
             'users' => User::query()->select(['id', 'name'])->orderBy('name')->get(),
-            'contractors' => Contractor::query()->select(['id', 'name'])->orderBy('name')->limit(500)->get(),
             'leadOptions' => Lead::query()->select(['id', 'number', 'title'])->latest('id')->limit(100)->get(),
             'orderOptions' => Order::query()->select(['id', 'order_number'])->latest('id')->limit(100)->get(),
             'atiDictionaries' => $this->atiDictionaries(),
