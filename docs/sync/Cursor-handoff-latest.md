@@ -3,7 +3,36 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-21 14:40 (async поиск контрагентов) · **HEAD:** локально → push · **Ветка:** `master`
+**Обновлено:** 2026-07-21 15:38 (ОТДАТЬ) · **HEAD:** `d630789` · **Ветка:** `master`
+
+### Итог сессии 2026-07-21 (ОТДАТЬ)
+
+| Блок | Статус | HEAD |
+| --- | --- | --- |
+| Связь заказов `expedition_chain` (`order_links`, UI typeahead по номеру) | ✅ | `7b60185` |
+| Async поиск контрагентов (шаблоны / сверки / биржа), без scroll-list | ✅ | `c0737ae` |
+| Роли: «Биржа грузов» (`load_board`) в матрице видимости + scope | ✅ | `d630789` |
+| Правила УУ для связанной пары заказов | ⏳ | — |
+| MCP Claims / RFQ | ⏳ | — |
+
+**На прод / второй ПК (ЗАБРАТЬ):**
+
+```text
+git pull
+php artisan migrate --force
+npm run build
+php artisan optimize:clear
+```
+
+Миграция: `2026_07_21_141949_create_order_links_table`.
+
+**Не в git:** `templates/` (сертификат агента) — локальный мусор/черновик, не коммитить.
+
+**Следующий шаг:** правила управленческого учёта для linked pairs; либо MCP Claims для Юрика.
+
+---
+
+**Обновлено (архив):** 2026-07-21 14:40 (async поиск контрагентов) · **HEAD:** `c0737ae` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-21 — поиск контрагентов везде через typeahead
 
