@@ -81,4 +81,23 @@ class PrintFormPlaceholderPathResolverTest extends TestCase
             $resolver->resolve('osobye_uslovia_vygruzki', [], 'order', 'carrier'),
         );
     }
+
+    #[Test]
+    public function it_maps_stern_customer_form_placeholders(): void
+    {
+        $resolver = new PrintFormPlaceholderPathResolver;
+
+        $this->assertSame('own_company.signer_authority_basis', $resolver->resolve('lp_osnovanie', [], 'order', 'customer'));
+        $this->assertSame('customer.signer_authority_basis', $resolver->resolve('cp_osnovanie', [], 'order', 'customer'));
+        $this->assertSame('route.loading_first_address', $resolver->resolve('adres_pogruzki', [], 'order', 'customer'));
+        $this->assertSame('route.unloading_first_address', $resolver->resolve('adres_vygruzki', [], 'order', 'customer'));
+        $this->assertSame('cargo_sender.contact_phone', $resolver->resolve('kontankt_pogruzka', [], 'order', 'customer'));
+        $this->assertSame('cargo_sender.name', $resolver->resolve('gruzootpravitel', [], 'order', 'customer'));
+        $this->assertSame('cargo.line_1_name', $resolver->resolve('cargo_row_name', [], 'order', 'customer'));
+        $this->assertSame('order.customer_rate_with_currency', $resolver->resolve('stoimost', [], 'order', 'customer'));
+        $this->assertSame('order.customer_payment_term', $resolver->resolve('usloviya_oplaty', [], 'order', 'customer'));
+        $this->assertSame('order.special_notes', $resolver->resolve('primechanya', [], 'order', 'customer'));
+        $this->assertSame('own_company.legal_address', $resolver->resolve('lp_yur_address', [], 'order', 'customer'));
+        $this->assertSame('customer.postal_address', $resolver->resolve('cp_pocht_address', [], 'order', 'customer'));
+    }
 }

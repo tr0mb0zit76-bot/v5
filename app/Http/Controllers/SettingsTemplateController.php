@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\AnalyzePrintFormDraftRequest;
+use App\Http\Requests\ApplyPrintFormDraftRequest;
 use App\Http\Requests\StorePrintFormTemplateRequest;
 use App\Http\Requests\UpdatePrintFormBasicTermsRequest;
 use App\Http\Requests\UpdatePrintFormTemplateRequest;
@@ -14,6 +16,7 @@ use App\Services\DocxPlaceholderExtractor;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\PrintForm\PrintFormBasicTermsService;
+use App\Services\PrintForm\PrintFormDraftPlaceholderConverter;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormTemplateOrderEligibility;
 use App\Services\PrintFormVariableCatalog;
@@ -24,6 +27,7 @@ use App\Support\PrintFormImageOverlayPlaceholders;
 use App\Support\PrintFormPlaceholderPathResolver;
 use App\Support\PrintFormTemplateTransportScope;
 use App\Support\RoleAccess;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -32,6 +36,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SettingsTemplateController extends Controller
 {
@@ -43,6 +48,7 @@ class SettingsTemplateController extends Controller
         private readonly PrintFormDraftResponseBuilder $draftResponseBuilder,
         private readonly PrintFormPlaceholderPathResolver $placeholderPathResolver,
         private readonly PrintFormBasicTermsService $basicTermsService,
+        private readonly PrintFormDraftPlaceholderConverter $draftPlaceholderConverter,
     ) {}
 
     public function index(Request $request): Response
@@ -179,7 +185,11 @@ class SettingsTemplateController extends Controller
                 ->values();
         }
 
-        $pageTab = $request->string('tab')->toString() === 'basic-terms' ? 'basic-terms' : 'templates';
+        $pageTab = match ($request->string('tab')->toString()) {
+            'basic-terms' => 'basic-terms',
+            'draft-converter' => 'draft-converter',
+            default => 'templates',
+        };
         $basicTermsParty = $request->string('party')->toString();
         $basicTermsParty = in_array($basicTermsParty, [PrintFormBasicTerm::PARTY_CUSTOMER, PrintFormBasicTerm::PARTY_CARRIER], true)
             ? $basicTermsParty
@@ -680,6 +690,71 @@ class SettingsTemplateController extends Controller
         if (is_string($path) && $path !== '') {
             Storage::disk((string) $disk)->delete($path);
         }
+    }
+
+    public function analyzeDraft(AnalyzePrintFormDraftRequest $request): JsonResponse
+    {
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
+
+        /** @var UploadedFile $file */
+        $file = $request->file('source_file');
+        $party = (string) $request->validated('party');
+
+        $counterparty = null;
+        $ownCompany = null;
+
+        if (Schema::hasTable('contractors')) {
+            $contractorId = $request->validated('contractor_id');
+            if ($contractorId) {
+                $counterparty = Contractor::query()->find((int) $contractorId);
+            }
+
+            $ownCompanyId = $request->validated('own_company_id');
+            if ($ownCompanyId) {
+                $ownCompany = Contractor::query()
+                    ->where('is_own_company', true)
+                    ->find((int) $ownCompanyId);
+            } elseif (Schema::hasColumn('contractors', 'is_own_company')) {
+                $ownCompany = Contractor::query()
+                    ->where('is_own_company', true)
+                    ->orderBy('name')
+                    ->first();
+            }
+        }
+
+        $result = $this->draftPlaceholderConverter->analyze(
+            $file->getRealPath() ?: $file->getPathname(),
+            (string) ($file->getClientOriginalName() ?: 'draft.docx'),
+            $party,
+            $counterparty,
+            $ownCompany,
+        );
+
+        return response()->json($result);
+    }
+
+    public function applyDraft(ApplyPrintFormDraftRequest $request): BinaryFileResponse
+    {
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
+
+        $token = (string) $request->validated('draft_token');
+        $replacements = $request->validated('replacements');
+        $filename = (string) ($request->validated('download_filename') ?: 'shablon-crm.docx');
+        if (! str_ends_with(mb_strtolower($filename), '.docx')) {
+            $filename .= '.docx';
+        }
+
+        try {
+            $absolute = $this->draftPlaceholderConverter->apply($token, $replacements);
+        } catch (\InvalidArgumentException $e) {
+            abort(422, $e->getMessage());
+        }
+
+        return response()
+            ->download($absolute, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            ])
+            ->deleteFileAfterSend(true);
     }
 
     private function syncScopedDefault(PrintFormTemplate $template): void

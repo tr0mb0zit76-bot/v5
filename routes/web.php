@@ -549,6 +549,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::controller(SettingsTemplateController::class)->middleware('visibility.area:settings')->group(function () {
         Route::get('/settings/templates', 'index')->name('settings.templates.index');
         Route::put('/settings/templates/basic-terms', 'updateBasicTerms')->name('settings.templates.basic-terms.update');
+        Route::post('/settings/templates/draft-converter/analyze', 'analyzeDraft')->name('settings.templates.draft-converter.analyze');
+        Route::post('/settings/templates/draft-converter/apply', 'applyDraft')->name('settings.templates.draft-converter.apply');
         Route::post('/settings/templates', 'store')->name('settings.templates.store');
         Route::patch('/settings/templates/{printFormTemplate}', 'update')->name('settings.templates.update');
         Route::delete('/settings/templates/{printFormTemplate}', 'destroy')->name('settings.templates.destroy');

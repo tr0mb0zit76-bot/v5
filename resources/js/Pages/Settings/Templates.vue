@@ -33,6 +33,13 @@
             >
                 Базовые условия для договоров-заявок
             </button>
+            <button
+                type="button"
+                :class="pageTab === 'draft-converter' ? crmPillActive : crmPill"
+                @click="switchPageTab('draft-converter')"
+            >
+                Черновик → шаблон
+            </button>
         </div>
 
         <template v-if="pageTab === 'templates'">
@@ -45,18 +52,62 @@
         </div>
 
         <div class="grid gap-3 md:grid-cols-3">
-            <section :class="`${crmStatCard} p-4`">
+            <button
+                type="button"
+                :class="[
+                    crmStatCard,
+                    'p-4 text-left transition ring-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500',
+                    listFilter === 'all' ? 'ring-2 ring-sky-500' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60',
+                ]"
+                :aria-pressed="listFilter === 'all'"
+                @click="listFilter = 'all'"
+            >
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Всего шаблонов</div>
                 <div class="mt-2 text-2xl font-semibold">{{ templates.length }}</div>
-            </section>
-            <section :class="`${crmStatCard} p-4`">
+                <div class="mt-1 text-xs text-zinc-500">Показать все</div>
+            </button>
+            <button
+                type="button"
+                :class="[
+                    crmStatCard,
+                    'p-4 text-left transition ring-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500',
+                    listFilter === 'external' ? 'ring-2 ring-sky-500' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60',
+                ]"
+                :aria-pressed="listFilter === 'external'"
+                @click="listFilter = 'external'"
+            >
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">DOCX контрагентов</div>
                 <div class="mt-2 text-2xl font-semibold">{{ externalTemplateCount }}</div>
-            </section>
-            <section :class="`${crmStatCard} p-4`">
+                <div class="mt-1 text-xs text-zinc-500">Только внешние формы</div>
+            </button>
+            <button
+                type="button"
+                :class="[
+                    crmStatCard,
+                    'p-4 text-left transition ring-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500',
+                    listFilter === 'default' ? 'ring-2 ring-sky-500' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60',
+                ]"
+                :aria-pressed="listFilter === 'default'"
+                @click="listFilter = 'default'"
+            >
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">По умолчанию</div>
                 <div class="mt-2 text-2xl font-semibold">{{ defaultTemplateCount }}</div>
-            </section>
+                <div class="mt-1 text-xs text-zinc-500">Только default</div>
+            </button>
+        </div>
+
+        <div
+            v-if="listFilter !== 'all'"
+            class="flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300"
+        >
+            <span>
+                Фильтр:
+                <strong>{{ listFilterLabel }}</strong>
+                — {{ filteredTemplates.length }} из {{ templates.length }}
+            </span>
+            <button type="button" class="underline decoration-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50" @click="listFilter = 'all'">
+                Сбросить
+            </button>
         </div>
 
         <div :class="`${crmPanel} min-h-0 flex-1 overflow-hidden`">
@@ -77,7 +128,7 @@
                     </thead>
                     <tbody>
                         <tr
-                            v-for="template in templates"
+                            v-for="template in filteredTemplates"
                             :key="template.id"
                             class="border-b border-zinc-100 dark:border-zinc-800"
                         >
@@ -178,6 +229,12 @@
                         <tr v-if="templates.length === 0">
                             <td colspan="9" class="px-4 py-10 text-center text-sm text-zinc-500 dark:text-zinc-400">
                                 Шаблоны пока не добавлены. Начни с DOCX-формы контрагента или системного шаблона.
+                            </td>
+                        </tr>
+                        <tr v-else-if="filteredTemplates.length === 0">
+                            <td colspan="9" class="px-4 py-10 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                                Нет шаблонов в фильтре «{{ listFilterLabel }}».
+                                <button type="button" class="ml-1 underline" @click="listFilter = 'all'">Показать все</button>
                             </td>
                         </tr>
                     </tbody>
@@ -342,6 +399,13 @@
                 </div>
             </template>
         </section>
+
+        <PrintFormDraftConverterTab
+            v-else-if="pageTab === 'draft-converter'"
+            :party-options="partyOptions"
+            :contractor-options="contractorOptions"
+            :own-company-options="ownCompanyOptions"
+        />
 
         <Teleport to="body">
             <div
@@ -807,6 +871,7 @@ import { router, useForm } from '@inertiajs/vue3';
 import { FileText, ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
+import PrintFormDraftConverterTab from '@/Components/Settings/PrintFormDraftConverterTab.vue';
 import { shouldHideFromVariableMapping } from '@/support/printFormClonePlaceholders.js';
 import {
     crmBtnCreate,
@@ -906,7 +971,16 @@ function mapBasicTermsRows(rows) {
     }));
 }
 
-const pageTab = computed(() => (props.pageTab === 'basic-terms' ? 'basic-terms' : 'templates'));
+const pageTab = computed(() => {
+    if (props.pageTab === 'basic-terms') {
+        return 'basic-terms';
+    }
+    if (props.pageTab === 'draft-converter') {
+        return 'draft-converter';
+    }
+
+    return 'templates';
+});
 const basicTermsParty = ref(props.basicTermsEditor.activeParty ?? 'customer');
 const basicTermsContractorId = ref(props.basicTermsEditor.activeContractorId ?? null);
 
@@ -955,9 +1029,13 @@ function switchPageTab(tab) {
         return;
     }
 
+    const query = tab === 'basic-terms'
+        ? basicTermsQueryParams()
+        : (tab === 'draft-converter' ? { tab: 'draft-converter' } : {});
+
     router.get(
         route('settings.templates.index'),
-        tab === 'basic-terms' ? basicTermsQueryParams() : {},
+        query,
         { preserveState: true, preserveScroll: true },
     );
 }
@@ -1064,6 +1142,27 @@ const form = useForm({
 
 const externalTemplateCount = computed(() => props.templates.filter((template) => template.source_type === 'external_docx').length);
 const defaultTemplateCount = computed(() => props.templates.filter((template) => template.is_default).length);
+const listFilter = ref('all');
+const filteredTemplates = computed(() => {
+    if (listFilter.value === 'external') {
+        return props.templates.filter((template) => template.source_type === 'external_docx');
+    }
+    if (listFilter.value === 'default') {
+        return props.templates.filter((template) => template.is_default);
+    }
+
+    return props.templates;
+});
+const listFilterLabel = computed(() => {
+    if (listFilter.value === 'external') {
+        return 'DOCX контрагентов';
+    }
+    if (listFilter.value === 'default') {
+        return 'По умолчанию';
+    }
+
+    return 'Все';
+});
 const activeVariableOptions = computed(() => (form.entity_type === 'lead' ? props.leadVariableOptions : props.orderVariableOptions));
 
 watch(() => form.source_type, (sourceType) => {
