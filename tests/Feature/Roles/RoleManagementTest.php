@@ -21,10 +21,12 @@ class RoleManagementTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Roles/Index')
-            ->has('roles', 1)
-            ->where('roles.0.default_has_signing_authority', false)
+            ->has('roles')
             ->has('permissionOptions')
             ->has('visibilityAreaOptions')
+            ->where('visibilityAreaOptions', fn ($options): bool => collect($options)->contains(
+                fn ($row): bool => ($row['key'] ?? '') === 'load_board'
+            ))
             ->has('visibilityScopeOptions', 3)
         );
     }

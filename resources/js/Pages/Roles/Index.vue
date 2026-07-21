@@ -476,6 +476,7 @@ const childAreaMap = {
 const salesBookPermissionKeys = ['sales_book_read', 'sales_book_comment', 'sales_book_write'];
 const scopeAreaKeys = [
     'orders',
+    'load_board',
     'leads',
     'tasks',
     'kanban',
@@ -488,10 +489,10 @@ const visibilityGroupDefinitions = [
     {
         id: 'sales',
         label: 'Продажи',
-        description: 'Дашборд, лиды, заказы, контрагенты, ТС, задачи, канбан, pipeline',
+        description: 'Дашборд, лиды, заказы, биржа, контрагенты, ТС, задачи, канбан, pipeline',
         collapsible: true,
-        keys: ['dashboard', 'leads', 'mail', 'orders', 'pipeline', 'contractors', 'drivers', 'tasks', 'kanban'],
-        groupScopeKeys: ['orders', 'pipeline', 'leads', 'tasks', 'kanban', 'contractors'],
+        keys: ['dashboard', 'leads', 'mail', 'orders', 'load_board', 'pipeline', 'contractors', 'drivers', 'tasks', 'kanban'],
+        groupScopeKeys: ['orders', 'load_board', 'pipeline', 'leads', 'tasks', 'kanban', 'contractors'],
     },
     {
         id: 'own_fleet',
