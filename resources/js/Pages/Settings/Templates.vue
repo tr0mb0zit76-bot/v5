@@ -588,6 +588,21 @@
                                         <span class="font-mono">&#123;&#123;stamp&#125;&#125;</span> — оба стиля макросов обрабатываются. После выбора файла нажмите «Сохранить» внизу окна.
                                         Для фона под печатью лучше <span class="font-medium">PNG с прозрачностью</span> — в итоговом PDF через LibreOffice/Gotenberg она обычно сохраняется лучше, чем в HTML-предпросмотре.
                                     </p>
+                                    <div
+                                        v-if="overlayPlaceholderWarnings.length"
+                                        class="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
+                                        role="status"
+                                    >
+                                        <div class="font-medium">Картинка загружена, но в DOCX нет плейсхолдера — подставить некуда:</div>
+                                        <ul class="mt-1 list-disc pl-5 text-xs">
+                                            <li v-for="item in overlayPlaceholderWarnings" :key="item">{{ item }}</li>
+                                        </ul>
+                                        <p class="mt-1 text-xs">
+                                            Откройте DOCX в Word, вставьте в место печати/подписи макрос
+                                            <span class="font-mono">${stamp}</span> /
+                                            <span class="font-mono">${signature}</span> (или как задано выше), сохраните и заново загрузите файл шаблона.
+                                        </p>
+                                    </div>
                                     <div class="grid gap-4 md:grid-cols-2">
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium">Плейсхолдер подписи</label>
@@ -1163,6 +1178,36 @@ const listFilterLabel = computed(() => {
 
     return 'Все';
 });
+
+const docxPlaceholderNames = computed(() => {
+    const fromMappings = (form.variable_mappings ?? [])
+        .map((row) => String(row?.placeholder ?? '').trim())
+        .filter(Boolean);
+    const fromTemplate = Array.isArray(editingTemplate.value?.variables)
+        ? editingTemplate.value.variables.map((name) => String(name ?? '').trim()).filter(Boolean)
+        : [];
+
+    return new Set([...fromMappings, ...fromTemplate].map((name) => name.toLowerCase()));
+});
+
+const overlayPlaceholderWarnings = computed(() => {
+    const warnings = [];
+    const names = docxPlaceholderNames.value;
+    const sigPh = String(form.internal_signature_placeholder || 'signature').trim();
+    const stampPh = String(form.internal_stamp_placeholder || 'stamp').trim();
+    const hasSigFile = Boolean(form.signature_image_file || editingTemplate.value?.has_signature_image);
+    const hasStampFile = Boolean(form.stamp_image_file || editingTemplate.value?.has_stamp_image);
+
+    if (hasSigFile && sigPh !== '' && !names.has(sigPh.toLowerCase())) {
+        warnings.push(`Подпись: в файле нет \${${sigPh}} (картинка есть)`);
+    }
+    if (hasStampFile && stampPh !== '' && !names.has(stampPh.toLowerCase())) {
+        warnings.push(`Печать: в файле нет \${${stampPh}} (картинка есть)`);
+    }
+
+    return warnings;
+});
+
 const activeVariableOptions = computed(() => (form.entity_type === 'lead' ? props.leadVariableOptions : props.orderVariableOptions));
 
 watch(() => form.source_type, (sourceType) => {
