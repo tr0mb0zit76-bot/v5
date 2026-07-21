@@ -38,6 +38,11 @@ defineProps({
         type: Boolean,
         default: false,
     },
+    /** Мягкий чип: открытый шаг не пересекается с целью этапа / next_move. */
+    offPlaybookHint: {
+        type: Boolean,
+        default: false,
+    },
     formatDateTime: {
         type: Function,
         required: true,
@@ -55,8 +60,16 @@ const emit = defineEmits([
 
 <template>
     <section v-if="selectedLeadId" id="lead-next-step-panel" class="space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
-        <div class="flex items-start justify-between gap-4">
-            <h3 class="text-base font-semibold">Следующий шаг</h3>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0 space-y-1">
+                <h3 class="text-base font-semibold">Следующий шаг</h3>
+                <p
+                    v-if="offPlaybookHint"
+                    class="inline-flex max-w-xl rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+                >
+                    Шаг не из playbook этапа — ок, если так решили по факту
+                </p>
+            </div>
             <div class="text-sm text-zinc-500 dark:text-zinc-400">Открытых задач: {{ openTasks.length }}</div>
         </div>
 

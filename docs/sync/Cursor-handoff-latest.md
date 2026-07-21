@@ -3,7 +3,35 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-21 15:38 (ОТДАТЬ) · **HEAD:** `d630789` · **Ветка:** `master`
+**Обновлено:** 2026-07-21 19:20 (ОТДАТЬ) · **Ветка:** `master`
+
+### Итог сессии 2026-07-21 вечер (ОТДАТЬ)
+
+| Блок | Статус |
+| --- | --- |
+| MCP лиды: `search_leads` / `get_lead` / `update_lead_field` / `create_lead_next_step` | ✅ |
+| Контрагенты: overlap «Роль в сделке»/заметок; «Сохранить» на вкладке Портрет | ✅ |
+| Лиды: `no_next_contact` → next_step; задача со сроком = контакт; soft chip playbook | ✅ |
+| `ensure-cursor-user.php` + `MCP_DEV_USER_ID` / gate сообщение | ✅ |
+| Правила УУ для связанной пары заказов | ⏳ |
+| MCP Claims / RFQ | ⏳ |
+| MCP leads tools на прод (после деплоя кода) | ⏳ |
+
+**На прод / второй ПК (ЗАБРАТЬ):**
+
+```text
+git pull
+npm run build
+php artisan optimize:clear
+```
+
+Миграций в этом коммите нет. После деплоя переподключить MCP в Cursor (local/prod токены уже на user `cursor` id=42 в `~/.cursor/mcp.json` — не в git).
+
+**Следующий шаг:** деплой на прод; эталон ведения лида 176 / АГРОТОРГ (портрет+квалификация) для демо коллегам; либо УУ linked pairs / MCP Claims.
+
+---
+
+**Обновлено (архив):** 2026-07-21 15:38 (ОТДАТЬ) · **HEAD:** `d630789` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-21 (ОТДАТЬ)
 

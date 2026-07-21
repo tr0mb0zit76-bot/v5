@@ -11,6 +11,7 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 - get_order_field_lexicon — русские названия полей и синонимы
 - search_contractors / get_contractor / create_contractor
 - create_fleet_driver / create_fleet_vehicle — водитель и авто (модалки в заказе)
+- search_leads / get_lead / update_lead_field / create_lead_next_step — лиды (карточка, whitelist-поля, следующий контакт)
 - search_tasks / get_task / create_task
 - add_order_note — заметка в ленту заказа
 - update_order_field — одно поле заказа (whitelist)
@@ -57,6 +58,19 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 | `get_proposal_html_template` | Карточка шаблона: placeholders, image_srcs; `include_html` для полного HTML |
 | `create_proposal_html_template` | `mode=cold` (тексты + stock_asset/hero_image) или `mode=clone` (base_slug + text_replacements + images). Нужен `mcp:write` |
 | `update_proposal_html_template` | Правки name/is_active / text_replacements / images / html_body. Нужен `mcp:write` |
+
+## Лиды (MCP)
+
+Доступ: область `leads`. Запись (`update_lead_field`, `create_lead_next_step`) — `mcp:write`. Следующий шаг также требует область `tasks`.
+
+| Tool | Когда вызывать |
+|------|----------------|
+| `search_leads` | Найти лид по номеру/id/заголовку/контрагенту; опционально `status` |
+| `get_lead` | Карточка + `operational_brief` (gaps/next_move) + открытые задачи + `wizard_path` |
+| `update_lead_field` | Одно поле из whitelist (без закрытия won/lost) |
+| `create_lead_next_step` | Задача следующего контакта + `next_contact_at` при `due_at` |
+
+Сервис: `App\Services\Mcp\LeadMcpService`.
 
 ## Управленческий учёт (2026-06)
 

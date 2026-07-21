@@ -21,7 +21,7 @@ final class LeadGapCatalog
             'proposal_not_sent' => ['label' => 'Отметить отправку КП', 'tab' => 'commercial'],
             'no_lpr' => ['label' => 'Указать ЛПР в квалификации', 'tab' => 'main'],
             'no_open_task' => ['label' => 'Создать задачу по лиду', 'tab' => 'main', 'kind' => 'next_step'],
-            'no_next_contact' => ['label' => 'Запланировать следующий контакт', 'tab' => 'activities'],
+            'no_next_contact' => ['label' => 'Запланировать следующий контакт', 'tab' => 'main', 'kind' => 'next_step'],
             'close_outcome_missing' => ['label' => 'Указать причину закрытия', 'tab' => 'main'],
         ];
     }

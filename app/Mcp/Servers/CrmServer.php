@@ -8,6 +8,7 @@ use App\Mcp\Tools\ApplyOrderWizardDraftTool;
 use App\Mcp\Tools\CreateContractorTool;
 use App\Mcp\Tools\CreateFleetDriverTool;
 use App\Mcp\Tools\CreateFleetVehicleTool;
+use App\Mcp\Tools\CreateLeadNextStepTool;
 use App\Mcp\Tools\CreateOrderIntakeDraftFromTextTool;
 use App\Mcp\Tools\CreateProposalHtmlTemplateTool;
 use App\Mcp\Tools\CreateTaskTool;
@@ -15,6 +16,7 @@ use App\Mcp\Tools\ExtractOrderDraftFromDocumentTool;
 use App\Mcp\Tools\GetAiUsageInsightsTool;
 use App\Mcp\Tools\GetContractorTool;
 use App\Mcp\Tools\GetHeadOfSalesInsightsTool;
+use App\Mcp\Tools\GetLeadTool;
 use App\Mcp\Tools\GetMailSyncStatusTool;
 use App\Mcp\Tools\GetMailThreadTool;
 use App\Mcp\Tools\GetManagementAccountingAnalyticsTool;
@@ -48,6 +50,7 @@ use App\Mcp\Tools\RememberOrderIntakePhraseTool;
 use App\Mcp\Tools\ReplyMailThreadTool;
 use App\Mcp\Tools\ResolveContractorPrintFormChangeTool;
 use App\Mcp\Tools\SearchContractorsTool;
+use App\Mcp\Tools\SearchLeadsTool;
 use App\Mcp\Tools\SearchMailThreadsTool;
 use App\Mcp\Tools\SearchOrdersTool;
 use App\Mcp\Tools\SearchSalesBookArticlesTool;
@@ -55,6 +58,7 @@ use App\Mcp\Tools\SearchTasksTool;
 use App\Mcp\Tools\SendMailTool;
 use App\Mcp\Tools\SubmitContractorPrintFormChangeTool;
 use App\Mcp\Tools\SuggestManagementStatementLineTool;
+use App\Mcp\Tools\UpdateLeadFieldTool;
 use App\Mcp\Tools\UpdateOrderFieldTool;
 use App\Mcp\Tools\UpdateOrderRouteActualTool;
 use App\Mcp\Tools\UpdateProposalHtmlTemplateTool;
@@ -79,6 +83,7 @@ use Laravel\Mcp\Server\Tool;
         - get_order_field_lexicon — русские названия полей и синонимы
         - search_contractors / get_contractor / create_contractor
         - create_fleet_driver / create_fleet_vehicle — водитель и авто (модалки в заказе)
+        - search_leads / get_lead / update_lead_field / create_lead_next_step — лиды (карточка, whitelist-поля, следующий контакт)
         - search_tasks / get_task / create_task
         - add_order_note — заметка в ленту заказа
         - update_order_field — одно поле заказа (whitelist)
@@ -126,6 +131,10 @@ class CrmServer extends Server
         CreateContractorTool::class,
         CreateFleetDriverTool::class,
         CreateFleetVehicleTool::class,
+        SearchLeadsTool::class,
+        GetLeadTool::class,
+        UpdateLeadFieldTool::class,
+        CreateLeadNextStepTool::class,
         SearchTasksTool::class,
         GetTaskTool::class,
         CreateTaskTool::class,

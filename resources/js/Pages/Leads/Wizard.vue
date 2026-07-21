@@ -244,6 +244,23 @@
                     @navigate-tab="activeTab = $event"
                     @focus-action="handleFocusAction"
                 />
+
+                <LeadWizardNextStepPanel
+                    :selected-lead-id="selectedLeadId"
+                    :can-use-lead-tasks="canUseLeadTasks"
+                    :can-assign-responsible="canAssignResponsible"
+                    :responsible-users="responsibleUsers"
+                    :open-tasks="openTasks"
+                    v-model:next-step-title="nextStepForm.title"
+                    v-model:next-step-due-at="nextStepForm.due_at"
+                    v-model:next-step-responsible-id="nextStepForm.responsible_id"
+                    :processing="nextStepForm.processing"
+                    :off-playbook-hint="nextStepOffPlaybook"
+                    :format-date-time="formatDateTime"
+                    @create="createNextStep"
+                    @open-task="openTask"
+                />
+
                 <div
                     v-if="counterpartyPortraitIncomplete"
                     class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
@@ -316,21 +333,6 @@
                 </div>
                 <p v-if="portraitMergeMessage" class="text-sm text-emerald-700 dark:text-emerald-300">{{ portraitMergeMessage }}</p>
                 <p v-if="portraitMergeError" class="text-sm text-rose-600 dark:text-rose-300">{{ portraitMergeError }}</p>
-
-                <LeadWizardNextStepPanel
-                    :selected-lead-id="selectedLeadId"
-                    :can-use-lead-tasks="canUseLeadTasks"
-                    :can-assign-responsible="canAssignResponsible"
-                    :responsible-users="responsibleUsers"
-                    :open-tasks="openTasks"
-                    v-model:next-step-title="nextStepForm.title"
-                    v-model:next-step-due-at="nextStepForm.due_at"
-                    v-model:next-step-responsible-id="nextStepForm.responsible_id"
-                    :processing="nextStepForm.processing"
-                    :format-date-time="formatDateTime"
-                    @create="createNextStep"
-                    @open-task="openTask"
-                />
             </div>
 
             <LeadWizardRouteTab
@@ -557,6 +559,7 @@ import {
 } from '@/support/contractorPartyAutofill.js';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import { normalizeLeadCargoItems } from '@/support/leadWizardCargo.js';
+import { isNextStepOffPlaybook } from '@/support/leadNextStepPlaybookAlign.js';
 import { defaultLeadRoutePoints, normalizeLeadRoutePoints } from '@/support/leadWizardRoute.js';
 import { mergeMailRecipientEmails } from '@/support/mailRecipients.js';
 import {
@@ -922,6 +925,17 @@ const suppressAuthorityManualReset = ref(false);
 const canAssignResponsible = computed(() => Boolean(props.canAssignResponsible));
 const canUseLeadTasks = computed(() => Boolean(props.canUseLeadTasks));
 const openTasks = computed(() => (form.tasks ?? []).filter((task) => !['done', 'cancelled'].includes(task.status)));
+const nextStepOffPlaybook = computed(() => isNextStepOffPlaybook(
+    openTasks.value.map((task) => task.title),
+    [
+        processProgress.value?.current_stage_goal,
+        processProgress.value?.current_stage_name,
+        operationalBrief.value?.next_move?.label,
+        // strip HTML-ish markdown lightly: playbook can be long; take first line-ish by truncating via helper tokens
+        String(processProgress.value?.current_stage_playbook ?? '').replace(/[#*_`>\-\[\]]/g, ' ').slice(0, 400),
+        String(processProgress.value?.current_stage_success_criteria ?? '').replace(/[#*_`>\-\[\]]/g, ' ').slice(0, 400),
+    ],
+));
 
 const MIN_CONTRACTOR_QUERY_LENGTH = 2;
 const counterpartySearch = ref('');

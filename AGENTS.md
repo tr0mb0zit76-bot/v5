@@ -140,6 +140,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 - `TaskController::syncLinkedLeadStatus` не перезаписывает закрытые лиды (`LeadStatus::isClosed`).
 - Терминальный этап БП: `LeadBusinessProcessService::progressPayload` → 100%; playbook без `auto_create_task` на terminal.
 - **Playbook этапов БП:** `BusinessProcessPlaybook`, `BusinessProcessDefaultPlaybookLibrary`, `BusinessProcessPlaybookSeederService`; поля на `business_process_stages` (`coaching_hint`, `sales_script_id`); сидер `php artisan business-processes:seed-playbooks`; UI — `Settings/BusinessProcesses/Index.vue` (`CrmMarkdownEditor`).
+- MCP (`/mcp/crm`): `LeadMcpService` — `search_leads`, `get_lead`, `update_lead_field`, `create_lead_next_step`; gate `requireLeadsArea` / `findAccessibleLead`.
 
 ### Дашборд и меню
 

@@ -130,6 +130,7 @@ const availableColumns = computed(() => page.props.contractorColumns ?? []);
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const search = ref(props.filters.search || '');
 const activeTab = ref(props.initialTab || 'general');
+const portraitTabRef = ref(null);
 const isCreateModalOpen = ref(false);
 const isCreateRouteDismissed = ref(false);
 const isDetailsModalDismissed = ref(false);
@@ -1395,6 +1396,12 @@ function filterEmptyNestedRowsForSubmit() {
 }
 
 async function submit() {
+    if (activeTab.value === 'portrait' && selectedContractorId.value !== null) {
+        portraitTabRef.value?.savePortrait?.();
+
+        return;
+    }
+
     submitError.value = '';
     form.clearErrors();
 
@@ -2251,11 +2258,15 @@ function goToPage(pageNumber) {
                         <button
                             type="button"
                             :class="crmBtnCreate"
-                            :disabled="form.processing"
+                            :disabled="form.processing || Boolean(portraitTabRef?.isProcessing?.())"
                             @click="submit"
                         >
                             <Save class="h-4 w-4" />
-                            {{ form.processing ? 'Сохранение...' : 'Сохранить' }}
+                            {{
+                                form.processing || portraitTabRef?.isProcessing?.()
+                                    ? 'Сохранение...'
+                                    : 'Сохранить'
+                            }}
                         </button>
                     </div>
                 </div>
@@ -3488,7 +3499,7 @@ function goToPage(pageNumber) {
                                             ЛПР
                                         </label>
                                     </div>
-                                    <div class="space-y-2 xl:col-start-1 xl:row-start-3 md:col-span-2">
+                                    <div class="space-y-2 md:col-span-2 xl:col-span-1 xl:col-start-1 xl:row-start-3">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Роль в сделке</label>
                                         <select v-model="contact.role_in_deal" :class="crmFieldFluid">
                                             <option v-for="option in portraitOptions.role_in_deal ?? []" :key="option.value" :value="option.value">
@@ -3496,7 +3507,7 @@ function goToPage(pageNumber) {
                                             </option>
                                         </select>
                                     </div>
-                                    <div class="space-y-2 xl:col-start-2 xl:row-start-3 md:col-span-2">
+                                    <div class="space-y-2 md:col-span-2 xl:col-span-1 xl:col-start-2 xl:row-start-3">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Заметки по общению</label>
                                         <input v-model="contact.communication_notes" type="text" :class="crmFieldFluid" placeholder="Когда звонить, стиль, табу-темы" />
                                     </div>
@@ -3523,6 +3534,7 @@ function goToPage(pageNumber) {
 
                     <ContractorPortraitTab
                         v-else-if="activeTab === 'portrait' && selectedContractorId"
+                        ref="portraitTabRef"
                         :contractor-id="selectedContractorId"
                         :contractor-type="props.selectedContractor?.type ?? null"
                         :portrait="portraitForTab"

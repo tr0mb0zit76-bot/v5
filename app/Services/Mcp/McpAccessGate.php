@@ -45,6 +45,10 @@ class McpAccessGate
 
                 return $devUser;
             }
+
+            throw new AuthenticationException(
+                'MCP_DEV_USER_ID='.(string) $devUserId.' не найден или неактивен. Запустите php scripts/ensure-cursor-user.php и обновите .env.',
+            );
         }
 
         throw new AuthenticationException('Требуется Bearer-токен Sanctum (Authorization: Bearer …) или MCP_DEV_USER_ID для локального stdio.');
@@ -273,6 +277,14 @@ class McpAccessGate
         }
 
         return $lead;
+    }
+
+    /**
+     * @param  Builder<Lead>  $query
+     */
+    public function applyLeadsScope(Builder $query, User $user): void
+    {
+        LeadViewAuthorization::applyLeadsVisibilityScope($query, $user);
     }
 
     /**

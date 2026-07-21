@@ -12,6 +12,7 @@ use App\Services\ActivityLedgerService;
 use App\Services\LeadBusinessProcessService;
 use App\Services\Leads\LeadOperationalBriefService;
 use App\Support\LeadDataChecks;
+use App\Support\LeadGapCatalog;
 use App\Support\LeadStageRequirements;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -140,6 +141,36 @@ class LeadOperationalBriefServiceTest extends TestCase
         $this->assertSame('stuck', $brief['health']);
         $this->assertContains('no_client_price', collect($brief['gaps'])->pluck('code')->all());
         $this->assertSame('Расчёт цены', $brief['context']['bp_stage_name']);
+    }
+
+    public function test_open_task_with_due_counts_as_next_contact(): void
+    {
+        $lead = $this->makeLead([
+            'counterparty_id' => 1,
+            'status' => 'qualification',
+            'next_contact_at' => null,
+        ]);
+
+        $lead->setRelation('tasks', collect([
+            new Task([
+                'status' => 'new',
+                'due_at' => now()->addDay(),
+                'title' => 'Перезвонить',
+            ]),
+        ]));
+
+        $checks = LeadDataChecks::run($lead);
+
+        $this->assertTrue($checks['has_open_task']);
+        $this->assertTrue($checks['has_next_contact']);
+    }
+
+    public function test_next_contact_gap_points_to_next_step_panel(): void
+    {
+        $meta = LeadGapCatalog::gapMeta('no_next_contact');
+
+        $this->assertSame('main', $meta['tab'] ?? null);
+        $this->assertSame('next_step', $meta['kind'] ?? null);
     }
 
     /**

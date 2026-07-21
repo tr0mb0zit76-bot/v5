@@ -29,11 +29,16 @@ final class LeadDataChecks
             : null;
 
         $hasOpenTask = false;
+        $hasOpenTaskWithDue = false;
 
         if ($lead->relationLoaded('tasks')) {
             $openStatuses = TaskStatus::openStatuses();
-            $hasOpenTask = $lead->tasks->contains(
+            $openTasks = $lead->tasks->filter(
                 fn (Task $task): bool => in_array($task->status, $openStatuses, true),
+            );
+            $hasOpenTask = $openTasks->isNotEmpty();
+            $hasOpenTaskWithDue = $openTasks->contains(
+                fn (Task $task): bool => $task->due_at !== null,
             );
         }
 
@@ -50,7 +55,8 @@ final class LeadDataChecks
             'proposal_sent' => $lead->proposal_sent_at !== null,
             'has_lpr' => filled($qualification['authority'] ?? null),
             'has_open_task' => $hasOpenTask,
-            'has_next_contact' => $lead->next_contact_at !== null,
+            // Открытая задача со сроком = запланированный контакт (единый «следующий шаг»).
+            'has_next_contact' => $lead->next_contact_at !== null || $hasOpenTaskWithDue,
             'close_outcome_set' => filled($lead->close_outcome_primary_flag),
         ];
     }

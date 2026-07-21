@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Check, Copy, Link2, Plus, Save, Star, UserCircle, X } from 'lucide-vue-next';
+import { Check, Copy, Link2, Plus, Star, UserCircle, X } from 'lucide-vue-next';
 import {
     crmBtnCreate,
     crmBtnNeutral,
@@ -224,6 +224,11 @@ function savePortrait() {
         onSuccess: () => emit('portrait-updated'),
     });
 }
+
+defineExpose({
+    savePortrait,
+    isProcessing: () => portraitForm.processing,
+});
 </script>
 
 <template>
@@ -363,10 +368,9 @@ function savePortrait() {
                     <textarea v-model="portraitForm.internal_notes" rows="3" :class="`mt-2 ${crmFieldFluid}`" />
                 </label>
 
-                <button type="submit" :class="crmBtnCreate" :disabled="portraitForm.processing">
-                    <Save class="h-4 w-4" />
-                    Сохранить портрет
-                </button>
+                <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                    Изменения блока сохраняются общей кнопкой «Сохранить» в шапке карточки.
+                </p>
             </form>
 
             <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
