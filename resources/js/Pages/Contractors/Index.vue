@@ -123,6 +123,10 @@ const props = defineProps({
         type: String,
         default: null,
     },
+    cardFocus: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const page = usePage();
@@ -1371,6 +1375,20 @@ function openContractor(contractorId) {
     }), {}, { preserveScroll: true });
 }
 
+function contractorShowQuery(extra = {}) {
+    const query = { ...extra };
+
+    if (props.cardFocus) {
+        query.view = 'card';
+    }
+
+    if (props.initialTab) {
+        query.tab = props.initialTab;
+    }
+
+    return query;
+}
+
 function closeContractorModal() {
     if (!confirmDiscardUnsavedChanges()) {
         return;
@@ -1385,6 +1403,18 @@ function closeContractorModal() {
     isCreateModalOpen.value = false;
     isCreateRouteDismissed.value = true;
     isDetailsModalDismissed.value = true;
+
+    if (props.cardFocus) {
+        if (window.history.length > 1) {
+            window.history.back();
+
+            return;
+        }
+
+        window.close();
+
+        return;
+    }
 
     router.get(route('contractors.index', {
         search: effectiveIndexSearchQuery(search.value),
@@ -1553,7 +1583,10 @@ async function submit() {
 
         const url = selectedContractorId.value === null
             ? route('contractors.store')
-            : route('contractors.update', selectedContractorId.value);
+            : route('contractors.update', {
+                contractor: selectedContractorId.value,
+                ...contractorShowQuery(),
+            });
         const opts = {
             preserveScroll: true,
             forceFormData: true,
@@ -1594,7 +1627,10 @@ async function submit() {
         return;
     }
 
-    form.patch(route('contractors.update', selectedContractorId.value), {
+    form.patch(route('contractors.update', {
+        contractor: selectedContractorId.value,
+        ...contractorShowQuery(),
+    }), {
         preserveScroll: true,
         onError: handleContractorSubmitErrors,
     });
@@ -2415,34 +2451,36 @@ function goToPage(pageNumber) {
     </div>
 
     <div v-else class="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-        <CrmPageHeader
-            lead="Реестр контрагентов на всю ширину экрана. Карточка открывается поверх таблицы."
-            title="Контрагенты"
-            :title-class="crmPageTitleSm"
-        >
-            <template #actions>
-                <button
-                    type="button"
-                    :class="crmBtnCreate"
-                    @click="openCreateForm"
-                >
-                    <Plus class="h-4 w-4" />
-                    Добавить
-                </button>
-            </template>
-        </CrmPageHeader>
+        <template v-if="!cardFocus">
+            <CrmPageHeader
+                lead="Реестр контрагентов на всю ширину экрана. Карточка открывается поверх таблицы."
+                title="Контрагенты"
+                :title-class="crmPageTitleSm"
+            >
+                <template #actions>
+                    <button
+                        type="button"
+                        :class="crmBtnCreate"
+                        @click="openCreateForm"
+                    >
+                        <Plus class="h-4 w-4" />
+                        Добавить
+                    </button>
+                </template>
+            </CrmPageHeader>
 
-        <div :class="crmGridPanel">
-            <ContractorsGrid
-                :rows="contractors"
-                :available-columns="availableColumns"
-                :role-columns-config="roleColumnsConfig"
-                :user-id="userId"
-                :users="users"
-                @row-select="openContractor"
-                @create-request="openCreateForm"
-            />
-        </div>
+            <div :class="crmGridPanel">
+                <ContractorsGrid
+                    :rows="contractors"
+                    :available-columns="availableColumns"
+                    :role-columns-config="roleColumnsConfig"
+                    :user-id="userId"
+                    :users="users"
+                    @row-select="openContractor"
+                    @create-request="openCreateForm"
+                />
+            </div>
+        </template>
 
             <Modal :show="isContractorModalOpen" max-width="7xl" @close="closeContractorModal">
                 <section :class="`${crmModalEntityShell} gap-3`">
@@ -2451,11 +2489,11 @@ function goToPage(pageNumber) {
                         <button
                             type="button"
                             :class="crmWizardBack"
-                            title="К реестру"
+                            :title="cardFocus ? 'Закрыть' : 'К реестру'"
                             @click="closeContractorModal"
                         >
                             <X class="h-5 w-5" />
-                            <span class="sr-only">К реестру</span>
+                            <span class="sr-only">{{ cardFocus ? 'Закрыть' : 'К реестру' }}</span>
                         </button>
 
                         <div class="min-w-0">
@@ -3854,6 +3892,7 @@ function goToPage(pageNumber) {
                         :interactions="props.selectedContractor?.interactions ?? []"
                         :insight-drafts="props.selectedContractor?.insight_drafts ?? []"
                         :portrait-options="portraitOptions"
+                        :card-focus="cardFocus"
                         @open-communications="activeTab = 'communications'"
                         @record-interaction="showInteractionOutcomeModal = true"
                     />

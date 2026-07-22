@@ -158,18 +158,18 @@ function stepClasses(step, index) {
                         </option>
                     </select>
                 </div>
-
-                <LeadCloseOutcomeFields
-                    v-if="showCloseOutcome"
-                    v-model:primary-flag="closeOutcomePrimaryFlag"
-                    v-model:note="closeOutcomeNote"
-                    variant="inline"
-                    :terminal-outcome="closeOutcomeTerminal"
-                    :lost-options="lostCloseOutcomeOptions"
-                    :won-options="wonCloseOutcomeOptions"
-                    :error="closeOutcomeError"
-                />
             </div>
         </div>
+
+        <LeadCloseOutcomeFields
+            v-if="showCloseOutcome"
+            v-model:primary-flag="closeOutcomePrimaryFlag"
+            v-model:note="closeOutcomeNote"
+            variant="inline"
+            :terminal-outcome="closeOutcomeTerminal"
+            :lost-options="lostCloseOutcomeOptions"
+            :won-options="wonCloseOutcomeOptions"
+            :error="closeOutcomeError"
+        />
     </section>
 </template>

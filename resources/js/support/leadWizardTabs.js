@@ -27,6 +27,12 @@ export const LEAD_WIZARD_TAB_KEYS_BY_PROFILE = {
         LEAD_WIZARD_TAB_KEYS.activities,
         LEAD_WIZARD_TAB_KEYS.commercial,
     ],
+    'client-acquaintance': [
+        LEAD_WIZARD_TAB_KEYS.main,
+        LEAD_WIZARD_TAB_KEYS.documents,
+        LEAD_WIZARD_TAB_KEYS.activities,
+        LEAD_WIZARD_TAB_KEYS.commercial,
+    ],
 };
 
 /**
@@ -35,6 +41,10 @@ export const LEAD_WIZARD_TAB_KEYS_BY_PROFILE = {
 export function leadWizardCardProfile(slug) {
     if (slug === 'contract-signing') {
         return 'contract-signing';
+    }
+
+    if (slug === 'client-acquaintance') {
+        return 'client-acquaintance';
     }
 
     return 'default';
@@ -77,4 +87,20 @@ export function resolveLeadBusinessProcessSlug(businessProcessId, businessProces
  */
 export function isContractSigningLeadWizard(slug) {
     return leadWizardCardProfile(slug) === 'contract-signing';
+}
+
+/**
+ * Воронка «от запроса до заказа» (биржа / конвертация / «сколько влезет»).
+ *
+ * @param {string|null|undefined} slug
+ */
+export function isTransportIntakeLeadWizard(slug) {
+    return slug === 'transport-intake';
+}
+
+/**
+ * @param {string|null|undefined} slug
+ */
+export function isClientAcquaintanceLeadWizard(slug) {
+    return slug === 'client-acquaintance';
 }

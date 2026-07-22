@@ -2,10 +2,10 @@
     <div
         v-if="showBlock"
         :class="variant === 'inline'
-            ? 'flex min-w-0 flex-1 flex-wrap items-end gap-x-3 gap-y-2'
+            ? 'w-full min-w-0 space-y-2'
             : 'space-y-2 rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-950/40'"
     >
-        <div :class="variant === 'inline' ? 'min-w-[12rem] flex-1 space-y-1' : 'space-y-1'">
+        <div class="space-y-1.5">
             <label
                 v-if="variant !== 'inline'"
                 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100"
@@ -19,7 +19,7 @@
                 {{ headingShort }}
             </label>
             <div
-                class="flex flex-wrap gap-1.5"
+                class="flex flex-wrap gap-2"
                 role="group"
                 :aria-label="heading"
             >
@@ -43,7 +43,7 @@
 
         <div
             v-if="needsNote"
-            :class="variant === 'inline' ? 'min-w-[12rem] flex-1 space-y-1' : 'space-y-1'"
+            class="space-y-1"
         >
             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Уточнение</label>
             <input
@@ -56,8 +56,7 @@
 
         <p
             v-if="error"
-            class="w-full text-xs text-rose-600 dark:text-rose-400"
-            :class="variant === 'inline' ? 'basis-full' : ''"
+            class="text-xs text-rose-600 dark:text-rose-400"
         >
             {{ error }}
         </p>
@@ -133,7 +132,7 @@ function selectFlag(value) {
 
 function chipClass(value) {
     const selected = primaryFlag.value === value;
-    const base = 'rounded-lg border px-2.5 py-1.5 text-left text-xs font-medium transition';
+    const base = 'shrink-0 rounded-lg border px-2.5 py-1.5 text-left text-xs font-medium transition';
 
     if (selected) {
         return `${base} border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-500`;

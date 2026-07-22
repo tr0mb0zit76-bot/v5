@@ -614,6 +614,41 @@ class ContractorManagementTest extends TestCase
         );
     }
 
+    public function test_contractors_show_with_view_card_skips_journal_list(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $focusId = (int) DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Карточка',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('contractors')->insert([
+            'type' => 'customer',
+            'name' => 'ООО Журнал',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('contractors.show', [
+            'contractor' => $focusId,
+            'view' => 'card',
+        ]));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Contractors/Index')
+            ->where('cardFocus', true)
+            ->where('selectedContractor.id', $focusId)
+            ->where('contractors', [])
+            ->where('pagination.total', 0)
+        );
+    }
+
     public function test_update_redirect_preserves_list_context(): void
     {
         $admin = $this->createAdminUser();

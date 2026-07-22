@@ -270,6 +270,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/leads/{lead}/attachments/{leadAttachment}/download', 'downloadAttachment')->name('leads.attachments.download');
         Route::get('/leads/{lead}/templates/{printFormTemplate}/draft', 'generateCommercialDraft')->name('leads.templates.generate-draft');
         Route::post('/leads/{lead}/convert', 'convert')->name('leads.convert');
+        Route::post('/leads/{lead}/spawn-transport', 'spawnTransportFromAcquaintance')->name('leads.spawn-transport');
         Route::get('/leads/{lead}/activity-timeline', [ActivityTimelineController::class, 'showForLead'])->name('leads.activity-timeline');
         Route::post('/leads/{lead}/offers/{offer}/send-email', [LeadOfferMailController::class, 'send'])->name('leads.offers.send-email');
     });

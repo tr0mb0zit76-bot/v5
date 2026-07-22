@@ -71,6 +71,28 @@ final class LeadStageRequirements
                     'recommended' => ['has_open_task'],
                 ],
             ],
+            'client-acquaintance' => [
+                'Выход на ЛПР' => [
+                    'blocking' => ['has_counterparty'],
+                    'recommended' => ['has_lpr', 'has_next_contact', 'has_open_task'],
+                ],
+                'Диагностика и портрет' => [
+                    'blocking' => ['has_counterparty'],
+                    'recommended' => ['has_lpr', 'has_next_contact', 'has_open_task'],
+                ],
+                'Следующее касание' => [
+                    'blocking' => ['has_counterparty'],
+                    'recommended' => ['has_next_contact', 'has_open_task'],
+                ],
+                'Отказ' => [
+                    'blocking' => ['close_outcome_set'],
+                    'recommended' => [],
+                ],
+                'Готов к перевозке' => [
+                    'blocking' => ['has_counterparty'],
+                    'recommended' => [],
+                ],
+            ],
         ];
     }
 

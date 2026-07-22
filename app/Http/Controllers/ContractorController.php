@@ -432,141 +432,157 @@ class ContractorController extends Controller
             ContractorViewAuthorization::authorize($request->user(), $selectedContractor);
         }
 
+        $cardFocus = $selectedContractor !== null
+            && $request->query('view') === 'card';
+
         /** @var ContractorCreditService $creditService */
         $creditService = app(ContractorCreditService::class);
+        /** @var ContractorOperationalStatusService $statusService */
+        $statusService = app(ContractorOperationalStatusService::class);
         $hasContactsTable = Schema::hasTable('contractor_contacts');
         $hasInteractionsTable = Schema::hasTable('contractor_interactions');
         $hasDocumentsTable = Schema::hasTable('contractor_documents');
         $hasOrderDocumentsTable = Schema::hasTable('order_documents');
 
         // Фильтр списка — только query string (в теле PATCH есть поле type — тип контрагента).
-        $type = trim((string) $request->query('type', ''));
+        $type = $cardFocus ? '' : trim((string) $request->query('type', ''));
+        $search = $cardFocus ? '' : (string) $request->input('search', '');
 
-        // Apply visibility scope with type filter parameter
-        // The scope will handle type-specific visibility rules
-        $contractorsQuery = Contractor::query()->visibleTo($request->user(), $type);
+        if ($cardFocus) {
+            $contractors = collect();
+            $pagination = [
+                'current_page' => 1,
+                'last_page' => 1,
+                'per_page' => 0,
+                'total' => 0,
+                'from' => 0,
+                'to' => 0,
+                'links' => [],
+            ];
+        } else {
+            // Apply visibility scope with type filter parameter
+            // The scope will handle type-specific visibility rules
+            $contractorsQuery = Contractor::query()->visibleTo($request->user(), $type);
 
-        // Add search functionality
-        $search = $request->input('search', '');
-        if ($search) {
-            $contractorsQuery->where(function ($query) use ($search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('inn', 'like', "%{$search}%")
-                    ->orWhere('phone', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
+            // Add search functionality
+            if ($search !== '') {
+                $contractorsQuery->where(function ($query) use ($search) {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('inn', 'like', "%{$search}%")
+                        ->orWhere('phone', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%");
 
-                if (Schema::hasColumn('contractors', 'owner_id')) {
-                    $query->orWhereHas('owner', function ($ownerQuery) use ($search): void {
-                        $ownerQuery->where('name', 'like', "%{$search}%");
-                    });
-                }
-            });
-        }
+                    if (Schema::hasColumn('contractors', 'owner_id')) {
+                        $query->orWhereHas('owner', function ($ownerQuery) use ($search): void {
+                            $ownerQuery->where('name', 'like', "%{$search}%");
+                        });
+                    }
+                });
+            }
 
-        // Note: Type filtering is handled within the visibleTo scope
-        // based on the $type parameter passed above
+            // Note: Type filtering is handled within the visibleTo scope
+            // based on the $type parameter passed above
 
-        if ($hasContactsTable) {
-            $contractorsQuery->withCount('contacts');
-        }
+            if ($hasContactsTable) {
+                $contractorsQuery->withCount('contacts');
+            }
 
-        $contractorsQuery->withCount(['customerOrders', 'carrierOrders']);
+            $contractorsQuery->withCount(['customerOrders', 'carrierOrders']);
 
-        if (Schema::hasColumn('contractors', 'owner_id')) {
-            $contractorsQuery->with('owner:id,name');
-        }
+            if (Schema::hasColumn('contractors', 'owner_id')) {
+                $contractorsQuery->with('owner:id,name');
+            }
 
-        if ($hasContactsTable) {
-            $contractorsQuery->with([
-                'contacts' => static function ($query): void {
-                    $query->select('id', 'contractor_id', 'full_name', 'phone', 'is_primary')
-                        ->orderByDesc('is_primary')
-                        ->orderBy('full_name');
-                },
-            ]);
-        }
+            if ($hasContactsTable) {
+                $contractorsQuery->with([
+                    'contacts' => static function ($query): void {
+                        $query->select('id', 'contractor_id', 'full_name', 'phone', 'is_primary')
+                            ->orderByDesc('is_primary')
+                            ->orderBy('full_name');
+                    },
+                ]);
+            }
 
-        try {
-            $contractorsCollection = $contractorsQuery
-                ->orderByDesc('is_active')
-                ->orderBy('name')
-                ->get();
-        } catch (QueryException $exception) {
-            if ($this->isMissingTableException($exception, 'contractor_contacts')) {
-                $fallbackQuery = Contractor::query()
-                    ->visibleTo($request->user(), $type)
-                    ->withCount(['customerOrders', 'carrierOrders']);
-
-                if (Schema::hasColumn('contractors', 'owner_id')) {
-                    $fallbackQuery->with('owner:id,name');
-                }
-
-                $contractorsCollection = $fallbackQuery
+            try {
+                $contractorsCollection = $contractorsQuery
                     ->orderByDesc('is_active')
                     ->orderBy('name')
                     ->get();
-                $hasContactsTable = false;
-            } else {
-                throw $exception;
+            } catch (QueryException $exception) {
+                if ($this->isMissingTableException($exception, 'contractor_contacts')) {
+                    $fallbackQuery = Contractor::query()
+                        ->visibleTo($request->user(), $type)
+                        ->withCount(['customerOrders', 'carrierOrders']);
+
+                    if (Schema::hasColumn('contractors', 'owner_id')) {
+                        $fallbackQuery->with('owner:id,name');
+                    }
+
+                    $contractorsCollection = $fallbackQuery
+                        ->orderByDesc('is_active')
+                        ->orderBy('name')
+                        ->get();
+                    $hasContactsTable = false;
+                } else {
+                    throw $exception;
+                }
             }
+
+            $debtMap = $creditService->currentDebtByContractorIds($contractorsCollection->pluck('id')->all());
+
+            $statusService->enrichManyForDisplay($contractorsCollection);
+
+            $contractors = $contractorsCollection
+                ->map(function (Contractor $contractor) use ($hasContactsTable, $creditService, $debtMap, $statusService): array {
+                    $primary = $this->primaryContactNameAndPhoneForGrid($contractor, $hasContactsTable);
+
+                    return [
+                        'id' => $contractor->id,
+                        'name' => $contractor->name,
+                        'type' => $contractor->type,
+                        'type_label' => $this->contractorTypeLabel($contractor->type),
+                        'inn' => $contractor->inn,
+                        'phone' => $primary['phone'],
+                        'email' => $contractor->email,
+                        'is_active' => $contractor->is_active,
+                        'work_status' => $contractor->work_status ?? ContractorWorkStatus::ACTIVE,
+                        'work_pause_is_automatic' => (bool) ($contractor->work_pause_is_automatic ?? false),
+                        'is_verified' => (bool) $contractor->is_verified,
+                        'verified_at' => optional($contractor->verified_at)?->toIso8601String(),
+                        'verification_valid_until' => optional($statusService->verificationValidUntil($contractor->verified_at))?->toDateString(),
+                        'is_own_company' => $contractor->is_own_company ?? false,
+                        'status_text' => $statusService->resolveStatusText($contractor),
+                        'status_badge_class' => $statusService->resolveStatusBadge($contractor)['badge'],
+                        'activity_types_label' => $this->implodeActivityTypes($contractor->activity_types),
+                        'primary_contact' => $primary['name'],
+                        'owner_id' => Schema::hasColumn('contractors', 'owner_id')
+                            ? $contractor->owner_id
+                            : null,
+                        'owner_name' => Schema::hasColumn('contractors', 'owner_id')
+                            ? ($contractor->owner?->name ?? '')
+                            : '',
+                        'debt_limit' => $contractor->debt_limit,
+                        'debt_limit_currency' => $contractor->debt_limit_currency ?? 'RUB',
+                        'stop_on_limit' => (bool) ($contractor->stop_on_limit ?? false),
+                        'current_debt' => $debtMap[$contractor->id] ?? 0,
+                        'debt_limit_reached' => $creditService->isBlockedByDebtLimit($contractor, $debtMap[$contractor->id] ?? 0),
+                        'contacts_count' => $hasContactsTable ? $contractor->contacts_count : 0,
+                        'orders_count' => $contractor->customer_orders_count + $contractor->carrier_orders_count,
+                    ];
+                })
+                ->values();
+
+            // Add pagination metadata
+            $pagination = [
+                'current_page' => 1,
+                'last_page' => 1,
+                'per_page' => $contractors->count(),
+                'total' => $contractors->count(),
+                'from' => $contractors->isEmpty() ? 0 : 1,
+                'to' => $contractors->count(),
+                'links' => [],
+            ];
         }
-
-        $debtMap = $creditService->currentDebtByContractorIds($contractorsCollection->pluck('id')->all());
-
-        /** @var ContractorOperationalStatusService $statusService */
-        $statusService = app(ContractorOperationalStatusService::class);
-        $statusService->enrichManyForDisplay($contractorsCollection);
-
-        $contractors = $contractorsCollection
-            ->map(function (Contractor $contractor) use ($hasContactsTable, $creditService, $debtMap, $statusService): array {
-                $primary = $this->primaryContactNameAndPhoneForGrid($contractor, $hasContactsTable);
-
-                return [
-                    'id' => $contractor->id,
-                    'name' => $contractor->name,
-                    'type' => $contractor->type,
-                    'type_label' => $this->contractorTypeLabel($contractor->type),
-                    'inn' => $contractor->inn,
-                    'phone' => $primary['phone'],
-                    'email' => $contractor->email,
-                    'is_active' => $contractor->is_active,
-                    'work_status' => $contractor->work_status ?? ContractorWorkStatus::ACTIVE,
-                    'work_pause_is_automatic' => (bool) ($contractor->work_pause_is_automatic ?? false),
-                    'is_verified' => (bool) $contractor->is_verified,
-                    'verified_at' => optional($contractor->verified_at)?->toIso8601String(),
-                    'verification_valid_until' => optional($statusService->verificationValidUntil($contractor->verified_at))?->toDateString(),
-                    'is_own_company' => $contractor->is_own_company ?? false,
-                    'status_text' => $statusService->resolveStatusText($contractor),
-                    'status_badge_class' => $statusService->resolveStatusBadge($contractor)['badge'],
-                    'activity_types_label' => $this->implodeActivityTypes($contractor->activity_types),
-                    'primary_contact' => $primary['name'],
-                    'owner_id' => Schema::hasColumn('contractors', 'owner_id')
-                        ? $contractor->owner_id
-                        : null,
-                    'owner_name' => Schema::hasColumn('contractors', 'owner_id')
-                        ? ($contractor->owner?->name ?? '')
-                        : '',
-                    'debt_limit' => $contractor->debt_limit,
-                    'debt_limit_currency' => $contractor->debt_limit_currency ?? 'RUB',
-                    'stop_on_limit' => (bool) ($contractor->stop_on_limit ?? false),
-                    'current_debt' => $debtMap[$contractor->id] ?? 0,
-                    'debt_limit_reached' => $creditService->isBlockedByDebtLimit($contractor, $debtMap[$contractor->id] ?? 0),
-                    'contacts_count' => $hasContactsTable ? $contractor->contacts_count : 0,
-                    'orders_count' => $contractor->customer_orders_count + $contractor->carrier_orders_count,
-                ];
-            })
-            ->values();
-
-        // Add pagination metadata
-        $pagination = [
-            'current_page' => 1,
-            'last_page' => 1,
-            'per_page' => $contractors->count(),
-            'total' => $contractors->count(),
-            'from' => $contractors->isEmpty() ? 0 : 1,
-            'to' => $contractors->count(),
-            'links' => [],
-        ];
 
         $contractorDetails = null;
 
@@ -836,6 +852,7 @@ class ContractorController extends Controller
             'initialTab' => in_array($request->string('tab')->toString(), [
                 'general', 'requisites', 'cooperation', 'contacts', 'portrait', 'communications', 'orders', 'documents',
             ], true) ? $request->string('tab')->toString() : null,
+            'cardFocus' => $cardFocus,
         ]);
     }
 
@@ -1581,7 +1598,7 @@ class ContractorController extends Controller
     }
 
     /**
-     * @return array{search?: string, type?: string, page?: int}
+     * @return array{search?: string, type?: string, page?: int, view?: string, tab?: string}
      */
     private function listContext(Request $request): array
     {
@@ -1602,6 +1619,17 @@ class ContractorController extends Controller
         $page = (int) $request->query('page', 0);
         if ($page > 0) {
             $context['page'] = $page;
+        }
+
+        if ($request->query('view') === 'card') {
+            $context['view'] = 'card';
+        }
+
+        $tab = $request->string('tab')->toString();
+        if (in_array($tab, [
+            'general', 'requisites', 'cooperation', 'contacts', 'portrait', 'communications', 'orders', 'documents',
+        ], true)) {
+            $context['tab'] = $tab;
         }
 
         return $context;

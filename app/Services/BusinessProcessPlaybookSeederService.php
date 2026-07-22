@@ -117,8 +117,14 @@ class BusinessProcessPlaybookSeederService
 
         $keywords = match ($processSlug) {
             'transport-intake' => match ($stageName) {
-                'Получение деталей по перевозке' => ['квалиф', 'qualif', 'детал'],
-                'Согласование цены' => ['возраж', 'objection', 'соглас'],
+                'Получение деталей по перевозке' => ['квалиф', 'qualif', 'детал', 'ставк'],
+                'Согласование цены' => ['возраж', 'objection', 'соглас', 'дожим'],
+                default => [],
+            },
+            'client-acquaintance' => match ($stageName) {
+                'Выход на ЛПР' => ['холодн'],
+                'Диагностика и портрет' => ['знаком'],
+                'Следующее касание' => ['холодн', 'знаком'],
                 default => [],
             },
             default => [],

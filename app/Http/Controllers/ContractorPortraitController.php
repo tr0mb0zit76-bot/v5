@@ -27,8 +27,13 @@ class ContractorPortraitController extends Controller
             $request->user(),
         );
 
+        $showParams = ['contractor' => $contractor->id, 'tab' => 'portrait'];
+        if ($request->query('view') === 'card') {
+            $showParams['view'] = 'card';
+        }
+
         return redirect()
-            ->route('contractors.show', ['contractor' => $contractor->id, 'tab' => 'portrait'])
+            ->route('contractors.show', $showParams)
             ->with('flash', [
                 'type' => 'success',
                 'message' => 'Портрет контрагента сохранён.',

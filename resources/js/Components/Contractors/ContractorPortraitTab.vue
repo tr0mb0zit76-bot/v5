@@ -38,6 +38,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    cardFocus: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const emit = defineEmits(['portrait-updated', 'open-communications', 'record-interaction']);
@@ -219,7 +223,12 @@ function removeObjectionTag(tag) {
 }
 
 function savePortrait() {
-    portraitForm.patch(route('contractors.portrait.update', props.contractorId), {
+    const params = { contractor: props.contractorId };
+    if (props.cardFocus) {
+        params.view = 'card';
+    }
+
+    portraitForm.patch(route('contractors.portrait.update', params), {
         preserveScroll: true,
         onSuccess: () => emit('portrait-updated'),
     });

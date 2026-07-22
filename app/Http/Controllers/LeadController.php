@@ -42,6 +42,7 @@ use App\Services\LeadConversionService;
 use App\Services\LeadLinkedTaskService;
 use App\Services\LeadPrecalculationService;
 use App\Services\LeadPrintFormDraftService;
+use App\Services\Leads\LeadAcquaintanceSpawnService;
 use App\Services\Leads\LeadBasedOnTemplateBuilder;
 use App\Services\Leads\LeadGridMutationService;
 use App\Services\Leads\LeadOperationalBriefService;
@@ -654,6 +655,26 @@ class LeadController extends Controller
         $order = $leadConversionService->convert($lead, $request->user(), $request->input('own_company_id'));
 
         return to_route('orders.edit', $order);
+    }
+
+    public function spawnTransportFromAcquaintance(
+        Request $request,
+        Lead $lead,
+        LeadAcquaintanceSpawnService $spawnService,
+    ): RedirectResponse {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+
+        try {
+            $child = $spawnService->spawnTransportLead($lead, $request->user());
+        } catch (\InvalidArgumentException $exception) {
+            return back()->withErrors(['spawn' => $exception->getMessage()]);
+        }
+
+        return to_route('leads.show', $child)->with('flash', [
+            'type' => 'success',
+            'message' => 'Создан лид по перевозке '.$child->number.'. Знакомство закрыто.',
+        ]);
     }
 
     public function generateCommercialDraft(
@@ -1508,6 +1529,12 @@ class LeadController extends Controller
             'business_process_id' => $lead->business_process_id,
             'process_progress' => $this->leadBusinessProcessService->progressPayload($lead),
             'operational_brief' => $this->leadOperationalBriefService->build($lead),
+            'spawned_transport_lead_id' => is_array($lead->metadata)
+                ? ($lead->metadata['spawned_transport_lead_id'] ?? null)
+                : null,
+            'spawned_transport_lead_number' => is_array($lead->metadata)
+                ? ($lead->metadata['spawned_transport_lead_number'] ?? null)
+                : null,
             'tasks' => Schema::hasTable('tasks')
                 ? $lead->tasks->map(fn (Task $task): array => [
                     'id' => $task->id,

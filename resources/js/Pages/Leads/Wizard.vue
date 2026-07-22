@@ -22,32 +22,46 @@
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 <button
-                    v-if="canUseLoadBoard && !isContractSigningCard"
+                    v-if="showTransportDealActions && canUseLoadBoard"
                     type="button"
                     :class="`${crmBtnSecondary} inline-flex items-center gap-2 !px-4 !py-2`"
-                    :disabled="!selectedLeadId"
                     @click="openLoadBoardFromLead"
                 >
                     <Package class="h-4 w-4" />На биржу
                 </button>
                 <button
-                    v-if="canUseHowMuchFits && !isContractSigningCard"
+                    v-if="showTransportDealActions && canUseHowMuchFits"
                     type="button"
                     :class="`${crmBtnSecondary} inline-flex items-center gap-2 !px-4 !py-2`"
-                    :disabled="!selectedLeadId"
                     @click="openHowMuchFitsFromLead"
                 >
                     <Truck class="h-4 w-4" />Сколько влезет?
                 </button>
                 <button
-                    v-if="!isContractSigningCard"
+                    v-if="showTransportDealActions"
                     type="button"
                     :class="crmBtnPrimary"
-                    :disabled="!selectedLeadId || !form.counterparty_id"
+                    :disabled="!form.counterparty_id"
                     @click="convertLead"
                 >
                     <ArrowRightLeft class="h-4 w-4" />Конвертировать в заказ
                 </button>
+                <button
+                    v-if="showAcquaintanceSpawnAction"
+                    type="button"
+                    :class="crmBtnPrimary"
+                    :disabled="!form.counterparty_id"
+                    @click="spawnTransportFromAcquaintance"
+                >
+                    <ArrowRightLeft class="h-4 w-4" />Лид по перевозке
+                </button>
+                <Link
+                    v-else-if="spawnedTransportLeadId"
+                    :href="route('leads.show', spawnedTransportLeadId)"
+                    :class="`${crmBtnSecondary} inline-flex items-center gap-2 !px-4 !py-2`"
+                >
+                    Открыть лид {{ spawnedTransportLeadNumber || spawnedTransportLeadId }}
+                </Link>
                 <button type="button" :class="crmBtnCreate" @click="submit"><Save class="h-4 w-4" />Сохранить</button>
             </div>
         </div>
@@ -162,7 +176,7 @@
                         </button>
                         <Link
                             v-if="form.counterparty_id"
-                            :href="route('contractors.show', form.counterparty_id)"
+                            :href="route('contractors.show', { contractor: form.counterparty_id, view: 'card' })"
                             target="_blank"
                             class="inline-flex shrink-0 items-center rounded-xl border border-zinc-200 px-2.5 py-2 text-xs font-medium text-sky-700 hover:bg-sky-50 dark:border-zinc-700 dark:text-sky-300 dark:hover:bg-sky-950/30"
                         >
@@ -277,7 +291,7 @@
                 >
                     Портрет клиента неполный ({{ props.selectedLead?.counterparty_portrait_coverage_pct }}%).
                     <Link
-                        :href="route('contractors.show', { contractor: form.counterparty_id, tab: 'portrait' })"
+                        :href="route('contractors.show', { contractor: form.counterparty_id, tab: 'portrait', view: 'card' })"
                         class="ml-1 font-medium underline underline-offset-2"
                     >
                         Заполнить портрет контрагента
@@ -288,7 +302,7 @@
                     <h3 class="text-sm font-semibold">Суть сделки</h3>
                     <div
                         class="grid gap-3"
-                        :class="isContractSigningCard ? 'md:grid-cols-2' : 'md:grid-cols-3'"
+                        :class="isCompactLeadCard ? 'md:grid-cols-2' : 'md:grid-cols-3'"
                     >
                         <div class="space-y-1.5">
                             <label :class="crmLabel">Тема</label>
@@ -304,7 +318,7 @@
                             </select>
                         </div>
                         <div
-                            v-if="!isContractSigningCard"
+                            v-if="!isCompactLeadCard"
                             class="space-y-1.5"
                         >
                             <label :class="crmLabel">Тип перевозки</label>
@@ -573,7 +587,9 @@ import { isNextStepOffPlaybook } from '@/support/leadNextStepPlaybookAlign.js';
 import { defaultLeadRoutePoints, normalizeLeadRoutePoints } from '@/support/leadWizardRoute.js';
 import { mergeMailRecipientEmails } from '@/support/mailRecipients.js';
 import {
+    isClientAcquaintanceLeadWizard,
     isContractSigningLeadWizard,
+    isTransportIntakeLeadWizard,
     leadWizardVisibleTabKeys,
     resolveLeadBusinessProcessSlug,
 } from '@/support/leadWizardTabs.js';
@@ -865,6 +881,19 @@ const visibleTabs = computed(() => {
     return allWizardTabs.filter((tab) => allowedKeys.has(tab.key));
 });
 const isContractSigningCard = computed(() => isContractSigningLeadWizard(selectedBusinessProcessSlug.value));
+const isClientAcquaintanceCard = computed(() => isClientAcquaintanceLeadWizard(selectedBusinessProcessSlug.value));
+const isCompactLeadCard = computed(() => isContractSigningCard.value || isClientAcquaintanceCard.value);
+const showTransportDealActions = computed(() => (
+    Boolean(selectedLeadId.value)
+    && isTransportIntakeLeadWizard(selectedBusinessProcessSlug.value)
+));
+const spawnedTransportLeadId = computed(() => props.selectedLead?.spawned_transport_lead_id ?? null);
+const spawnedTransportLeadNumber = computed(() => props.selectedLead?.spawned_transport_lead_number ?? null);
+const showAcquaintanceSpawnAction = computed(() => (
+    Boolean(selectedLeadId.value)
+    && isClientAcquaintanceCard.value
+    && !spawnedTransportLeadId.value
+));
 
 const leadCreatedAtLabel = computed(() => {
     const raw = props.selectedLead?.created_at;
@@ -1581,6 +1610,13 @@ function submitSendOffer() {
         });
 }
 function convertLead() { if (selectedLeadId.value) router.post(route('leads.convert', selectedLeadId.value), {}); }
+function spawnTransportFromAcquaintance() {
+    if (!selectedLeadId.value) {
+        return;
+    }
+
+    router.post(route('leads.spawn-transport', selectedLeadId.value), {});
+}
 function openLoadBoardFromLead() { if (selectedLeadId.value) router.get(route('load-board.index', { from_lead: selectedLeadId.value }), {}, { preserveScroll: true }); }
 function openHowMuchFitsFromLead() { if (selectedLeadId.value) router.get(route('modules.how-much-fits.index', { lead: selectedLeadId.value })); }
 function destroyLead() {
