@@ -206,6 +206,11 @@ class ContractorManagementTest extends TestCase
             'contractor_id' => $contractorId,
             'full_name' => 'Иван Петров',
         ]);
+        $this->assertDatabaseHas('contractor_interactions', [
+            'contractor_id' => $contractorId,
+            'subject' => 'Первичный звонок',
+            'created_by' => $admin->id,
+        ]);
         $this->assertDatabaseHas('contractor_documents', [
             'contractor_id' => $contractorId,
             'title' => 'Договор поставки',
@@ -1079,6 +1084,70 @@ class ContractorManagementTest extends TestCase
             'id' => $subjectId,
             'name' => 'ООО Редактируемый',
         ]);
+    }
+
+    public function test_update_contractor_preserves_interaction_created_by(): void
+    {
+        $author = $this->createAdminUser();
+        $editor = User::factory()->create([
+            'role_id' => $author->role_id,
+        ]);
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Стабильный автор коммуникации',
+            'inn' => '5808231001',
+            'is_active' => true,
+            'is_own_company' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $interactionId = DB::table('contractor_interactions')->insertGetId([
+            'contractor_id' => $contractorId,
+            'contacted_at' => now(),
+            'channel' => 'phone',
+            'subject' => 'Старый звонок',
+            'summary' => 'Исходный текст',
+            'result' => 'Ожидает',
+            'created_by' => $author->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($editor)->patch(route('contractors.update', $contractorId), [
+            'type' => 'customer',
+            'name' => 'ООО Стабильный автор коммуникации',
+            'inn' => '5808231001',
+            'stop_on_limit' => false,
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'contacts' => [],
+            'documents' => [],
+            'interactions' => [
+                [
+                    'id' => $interactionId,
+                    'contacted_at' => now()->toDateTimeString(),
+                    'channel' => 'phone',
+                    'subject' => 'Обновлённый звонок',
+                    'summary' => 'Текст после правки другим пользователем',
+                ],
+            ],
+        ]);
+
+        $response->assertSessionDoesntHaveErrors();
+        $response->assertRedirect();
+
+        $this->assertDatabaseHas('contractor_interactions', [
+            'id' => $interactionId,
+            'contractor_id' => $contractorId,
+            'subject' => 'Обновлённый звонок',
+            'summary' => 'Текст после правки другим пользователем',
+            'created_by' => $author->id,
+            'result' => 'Ожидает',
+        ]);
+        $this->assertSame(1, DB::table('contractor_interactions')->where('contractor_id', $contractorId)->count());
     }
 
     public function test_scoring_route_returns_json_payload_for_contractor(): void

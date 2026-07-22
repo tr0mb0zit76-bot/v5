@@ -400,6 +400,7 @@ class StoreContractorRequest extends FormRequest
             'contacts.*.communication_notes' => ['nullable', 'string', 'max:2000'],
             'contacts.*.notes' => ['nullable', 'string'],
             'interactions' => ['nullable', 'array'],
+            'interactions.*.id' => ['nullable', 'integer', 'min:1'],
             'interactions.*.contacted_at' => ['nullable', 'date'],
             'interactions.*.channel' => ['nullable', 'string', 'max:50'],
             'interactions.*.subject' => ['nullable', 'string', 'max:255'],

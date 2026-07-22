@@ -775,6 +775,7 @@ class ContractorController extends Controller
                     'summary' => $interaction->summary,
                     'result' => $interaction->result,
                     'objection_tags' => is_array($interaction->objection_tags) ? $interaction->objection_tags : [],
+                    'created_by' => $interaction->created_by,
                     'author_name' => $interaction->author?->name,
                 ])->values() : collect(),
                 'portrait' => Schema::hasTable('contractor_portraits')
@@ -1432,13 +1433,48 @@ class ContractorController extends Controller
         if (Schema::hasTable('contractor_interactions')
             && array_key_exists('interactions', $validated)
             && is_array($validated['interactions'])) {
-            $contractor->interactions()->delete();
+            $keepIds = [];
 
             foreach ($validated['interactions'] as $interaction) {
-                $contractor->interactions()->create([
-                    ...$interaction,
+                if (! is_array($interaction)) {
+                    continue;
+                }
+
+                $attributes = [
+                    'contacted_at' => $interaction['contacted_at'] ?? null,
+                    'channel' => $interaction['channel'] ?? null,
+                    'subject' => $interaction['subject'] ?? null,
+                    'summary' => $interaction['summary'] ?? null,
+                ];
+
+                if (array_key_exists('result', $interaction)) {
+                    $attributes['result'] = $interaction['result'];
+                }
+
+                $existingId = isset($interaction['id']) ? (int) $interaction['id'] : 0;
+                if ($existingId > 0) {
+                    $existing = $contractor->interactions()->whereKey($existingId)->first();
+                    if ($existing !== null) {
+                        // Stable author: never overwrite created_by on update.
+                        $existing->fill($attributes);
+                        $existing->save();
+                        $keepIds[] = $existing->id;
+
+                        continue;
+                    }
+                }
+
+                $created = $contractor->interactions()->create([
+                    ...$attributes,
                     'created_by' => $userId,
                 ]);
+                $keepIds[] = $created->id;
+            }
+
+            if ($keepIds === []) {
+                $contractor->interactions()->delete();
+            } else {
+                $contractor->interactions()->whereNotIn('id', $keepIds)->delete();
             }
         }
 

@@ -139,6 +139,7 @@ const showInteractionOutcomeModal = ref(false);
 const isInnLookupPending = ref(false);
 const submitError = ref('');
 const expandedContactIndexes = ref(new Set());
+const expandedInteractionIndexes = ref(new Set());
 const contactPhoneKindOptions = [
     { value: 'work', label: 'Рабочий' },
     { value: 'personal', label: 'Личный' },
@@ -604,11 +605,13 @@ function contractorToForm(contractor) {
             : [],
         interactions: Array.isArray(contractor.interactions)
             ? contractor.interactions.map((interaction) => ({
+                id: interaction.id ?? null,
                 contacted_at: interaction.contacted_at ? interaction.contacted_at.slice(0, 16) : '',
                 channel: interaction.channel ?? '',
                 subject: interaction.subject ?? '',
                 summary: interaction.summary ?? '',
-                result: interaction.result ?? '',
+                created_by: interaction.created_by ?? null,
+                author_name: interaction.author_name ?? '',
             }))
             : [],
         documents: Array.isArray(contractor.documents)
@@ -773,6 +776,7 @@ function applyFormState(contractor, options = {}) {
 
     inferAddressLinkFlagsFromForm();
     expandedContactIndexes.value = new Set();
+    expandedInteractionIndexes.value = new Set();
 
     if (shouldLookupPartyByInn(normalizedInn)) {
         void nextTick(() => fetchPartySuggestions());
@@ -1399,9 +1403,8 @@ function filterEmptyNestedRowsForSubmit() {
         const contactedAt = String(interaction?.contacted_at ?? '').trim();
         const subject = String(interaction?.subject ?? '').trim();
         const summary = String(interaction?.summary ?? '').trim();
-        const result = String(interaction?.result ?? '').trim();
 
-        return contactedAt !== '' || subject !== '' || summary !== '' || result !== '';
+        return contactedAt !== '' || subject !== '' || summary !== '';
     });
 }
 
@@ -1691,12 +1694,68 @@ function removeContact(index) {
 
 function addInteraction() {
     form.interactions.push({
+        id: null,
         contacted_at: '',
         channel: 'phone',
         subject: '',
         summary: '',
-        result: '',
+        created_by: page.props.auth?.user?.id ?? null,
+        author_name: page.props.auth?.user?.name ?? '',
     });
+    const index = form.interactions.length - 1;
+    const next = new Set(expandedInteractionIndexes.value);
+    next.add(index);
+    expandedInteractionIndexes.value = next;
+}
+
+function removeInteraction(index) {
+    removeItem(form.interactions, index);
+    const next = new Set();
+    for (const expandedIndex of expandedInteractionIndexes.value) {
+        if (expandedIndex === index) {
+            continue;
+        }
+        next.add(expandedIndex > index ? expandedIndex - 1 : expandedIndex);
+    }
+    expandedInteractionIndexes.value = next;
+}
+
+function isInteractionExpanded(index) {
+    return expandedInteractionIndexes.value.has(index);
+}
+
+function toggleInteractionExpanded(index) {
+    const next = new Set(expandedInteractionIndexes.value);
+    if (next.has(index)) {
+        next.delete(index);
+    } else {
+        next.add(index);
+    }
+    expandedInteractionIndexes.value = next;
+}
+
+function editInteraction(index) {
+    const next = new Set(expandedInteractionIndexes.value);
+    next.add(index);
+    expandedInteractionIndexes.value = next;
+}
+
+function interactionTitle(interaction, index) {
+    const subject = String(interaction?.subject ?? '').trim();
+    if (subject !== '') {
+        return subject;
+    }
+
+    const summary = String(interaction?.summary ?? '').trim();
+    if (summary !== '') {
+        return summary.length > 80 ? `${summary.slice(0, 80)}…` : summary;
+    }
+
+    return `Событие #${index + 1}`;
+}
+
+function interactionAuthorLabel(interaction) {
+    return String(interaction?.author_name ?? '').trim() || '—';
 }
 
 function removeItem(collection, index) {
@@ -2084,11 +2143,6 @@ function formatDateTime(value) {
 
 function interactionChannelLabel(value) {
     return interactionChannels.find((channel) => channel.value === value)?.label ?? (value || '—');
-}
-
-function scrollToInteractionCard(index) {
-    const element = document.getElementById(`contractor-interaction-${index}`);
-    element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function formatMoney(value, currency = 'RUB') {
@@ -3737,7 +3791,7 @@ function goToPage(pageNumber) {
                     <div v-else-if="activeTab === 'communications'" class="space-y-4">
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div class="min-w-0 flex-1 text-sm text-zinc-500 dark:text-zinc-400">
-                                Журнал общения: источник контекста для ассистента. Ниже — редактирование записей перед сохранением карточки.
+                                Журнал общения: источник контекста для ассистента. Изменения в списке сохраняются кнопкой «Сохранить» карточки. «Зафиксировать итог» пишет в журнал сразу.
                             </div>
                             <div class="flex shrink-0 flex-wrap items-center gap-2">
                                 <button
@@ -3756,76 +3810,86 @@ function goToPage(pageNumber) {
                             </div>
                         </div>
 
-                        <div v-if="form.interactions.length > 0" class="overflow-auto border border-zinc-200 dark:border-zinc-800">
-                            <table class="min-w-full border-collapse text-sm">
-                                <thead class="bg-zinc-100 dark:bg-zinc-800">
-                                    <tr class="text-left">
-                                        <th class="border-b border-zinc-200 px-3 py-2 font-medium dark:border-zinc-700">Дата</th>
-                                        <th class="border-b border-zinc-200 px-3 py-2 font-medium dark:border-zinc-700">Канал</th>
-                                        <th class="border-b border-zinc-200 px-3 py-2 font-medium dark:border-zinc-700">Тема</th>
-                                        <th class="border-b border-zinc-200 px-3 py-2 font-medium dark:border-zinc-700">Содержание</th>
-                                        <th class="border-b border-zinc-200 px-3 py-2 font-medium dark:border-zinc-700">Результат</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr
-                                        v-for="(interaction, index) in form.interactions"
-                                        :key="`interaction-row-${index}`"
-                                        class="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60"
-                                        @click="scrollToInteractionCard(index)"
-                                    >
-                                        <td class="whitespace-nowrap px-3 py-2 tabular-nums">{{ formatDateTime(interaction.contacted_at) }}</td>
-                                        <td class="px-3 py-2">{{ interactionChannelLabel(interaction.channel) }}</td>
-                                        <td class="px-3 py-2">{{ interaction.subject || '—' }}</td>
-                                        <td class="max-w-xs truncate px-3 py-2" :title="interaction.summary">{{ interaction.summary || '—' }}</td>
-                                        <td class="px-3 py-2">{{ interaction.result || '—' }}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-
                         <div class="space-y-3">
                             <div
                                 v-for="(interaction, index) in form.interactions"
-                                :id="`contractor-interaction-${index}`"
-                                :key="`interaction-${index}`"
-                                class="border border-zinc-200 p-4 dark:border-zinc-800"
+                                :key="interaction.id ? `interaction-${interaction.id}` : `interaction-new-${index}`"
+                                class="border border-zinc-200 dark:border-zinc-800"
                             >
-                                <div class="mb-3 flex items-center justify-between gap-3">
-                                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Событие #{{ index + 1 }}</div>
-                                    <button type="button" class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300" @click="removeItem(form.interactions, index)">
-                                        Удалить
+                                <div class="flex items-stretch gap-2 px-3 py-2.5">
+                                    <button
+                                        type="button"
+                                        class="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                        @click="toggleInteractionExpanded(index)"
+                                    >
+                                        <ChevronDown
+                                            class="h-4 w-4 shrink-0 text-zinc-400 transition-transform dark:text-zinc-500"
+                                            :class="isInteractionExpanded(index) ? 'rotate-0' : '-rotate-90'"
+                                        />
+                                        <div class="min-w-0 flex-1">
+                                            <div class="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                                {{ interactionTitle(interaction, index) }}
+                                            </div>
+                                            <div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                                                <span>{{ interactionChannelLabel(interaction.channel) }}</span>
+                                                <span>·</span>
+                                                <span>{{ interactionAuthorLabel(interaction) }}</span>
+                                                <span>·</span>
+                                                <span class="tabular-nums">{{ formatDateTime(interaction.contacted_at) }}</span>
+                                            </div>
+                                        </div>
                                     </button>
-                                </div>
-
-                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Дата и время</label>
-                                        <input v-model="interaction.contacted_at" type="datetime-local" :class="crmFieldFluid" />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Канал</label>
-                                        <select v-model="interaction.channel" :class="crmFieldFluid">
-                                            <option value="">Не указан</option>
-                                            <option v-for="channel in interactionChannels" :key="channel.value" :value="channel.value">
-                                                {{ channel.label }}
-                                            </option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-2 md:col-span-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Тема</label>
-                                        <input v-model="interaction.subject" type="text" :class="crmFieldFluid" />
+                                    <div class="flex shrink-0 items-center gap-3 self-center">
+                                        <button
+                                            type="button"
+                                            class="text-sm font-medium text-sky-700 hover:text-sky-800 dark:text-sky-300 dark:hover:text-sky-200"
+                                            @click="editInteraction(index)"
+                                        >
+                                            Редактировать
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300"
+                                            @click="removeInteraction(index)"
+                                        >
+                                            Удалить
+                                        </button>
                                     </div>
                                 </div>
 
-                                <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+                                <div v-if="isInteractionExpanded(index)" class="space-y-4 border-t border-zinc-200 px-4 py-4 dark:border-zinc-800">
+                                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                        <div class="space-y-2 md:col-span-2 xl:col-span-1">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Тема</label>
+                                            <input v-model="interaction.subject" type="text" :class="crmFieldFluid" />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Канал</label>
+                                            <select v-model="interaction.channel" :class="crmFieldFluid">
+                                                <option value="">Не указан</option>
+                                                <option v-for="channel in interactionChannels" :key="channel.value" :value="channel.value">
+                                                    {{ channel.label }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Ответственный</label>
+                                            <input
+                                                type="text"
+                                                :value="interactionAuthorLabel(interaction)"
+                                                readonly
+                                                :class="`${crmFieldFluid} bg-zinc-50 text-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-300`"
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Дата и время</label>
+                                            <input v-model="interaction.contacted_at" type="datetime-local" :class="crmFieldFluid" />
+                                        </div>
+                                    </div>
+
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Краткое содержание</label>
                                         <textarea v-model="interaction.summary" rows="4" :class="crmFieldFluid"></textarea>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Результат</label>
-                                        <input v-model="interaction.result" type="text" :class="crmFieldFluid" />
                                     </div>
                                 </div>
                             </div>
