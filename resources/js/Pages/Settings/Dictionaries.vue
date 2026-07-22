@@ -48,7 +48,7 @@
                             />
                             <button
                                 type="submit"
-                                class="inline-flex items-center justify-center border border-zinc-200 px-3 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                :class="crmBtnCreate"
                                 :disabled="activityTypeForm.processing"
                             >
                                 {{ activityTypeForm.processing ? 'Сохранение...' : 'Добавить' }}
@@ -83,7 +83,7 @@
                             </div>
                             <button
                                 type="submit"
-                                class="inline-flex h-[38px] shrink-0 items-center justify-center border border-zinc-200 px-3 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                :class="crmBtnCreate"
                                 :disabled="vatRateForm.processing"
                             >
                                 {{ vatRateForm.processing ? 'Сохранение...' : 'Добавить' }}
@@ -103,7 +103,7 @@
                             >
                             <button
                                 type="submit"
-                                class="inline-flex shrink-0 items-center justify-center border border-zinc-200 px-3 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                :class="crmBtnCreate"
                                 :disabled="departmentForm.processing"
                             >
                                 {{ departmentForm.processing ? 'Сохранение...' : 'Добавить' }}
@@ -137,7 +137,7 @@
                             </div>
                             <button
                                 type="submit"
-                                class="inline-flex h-[38px] shrink-0 items-center justify-center border border-zinc-200 px-3 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                :class="crmBtnCreate"
                                 :disabled="currencyForm.processing"
                             >
                                 {{ currencyForm.processing ? 'Сохранение...' : 'Добавить' }}
@@ -196,7 +196,7 @@
                                         <div class="flex shrink-0 gap-2">
                                             <button
                                                 type="button"
-                                                class="inline-flex items-center justify-center border border-zinc-200 px-3 py-1.5 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                                :class="crmBtnCreate"
                                                 @click="saveDepartment(item)"
                                             >
                                                 Сохранить
@@ -253,7 +253,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmListItemActive, crmListItemIdle, crmPanel } from '@/support/crmUi.js';
+import { crmBtnCreate, crmListItemActive, crmListItemIdle, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'configuration', activeLeafKey: 'dictionaries' }, () => page),

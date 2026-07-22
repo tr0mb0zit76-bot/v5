@@ -1,6 +1,7 @@
 /**
  * Единые визуальные классы для CRM: кнопки «создать», «разрушающее», вторичная.
- * Стили задаются в resources/css/crm-appearance.css и crm-workspace-skin.css.
+ * Акцент «Сохранить»/«Добавить» (crm-btn-create) — data-crm-accent на <html>.
+ * Стили: resources/css/crm-appearance.css; оболочка layout — crm-workspace-skin.css.
  */
 
 export const crmBtnCreate = 'crm-btn-create';

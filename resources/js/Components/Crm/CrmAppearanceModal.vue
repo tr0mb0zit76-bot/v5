@@ -141,6 +141,9 @@ const workspaceSkinOptions = [
 
                 <div class="space-y-2">
                     <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Цвет кнопок «Сохранить» и «Добавить»</div>
+                    <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                        Работает отдельно от «Общего вида» (Sky / классический). Меняет подкраску кнопок create/save.
+                    </p>
                     <div class="grid gap-2 sm:grid-cols-2">
                         <button
                             v-for="option in accentOptions"

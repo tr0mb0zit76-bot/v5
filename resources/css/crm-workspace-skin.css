@@ -125,27 +125,6 @@ html.dark[data-crm-workspace-skin='sky'] {
         justify-content: center;
     }
 
-    html[data-crm-workspace-skin='sky'] .crm-btn-create {
-        border-color: rgb(var(--crm-accent) / 0.4);
-        background: rgb(var(--crm-accent-soft));
-        color: rgb(12 74 110);
-    }
-
-    html[data-crm-workspace-skin='sky'] .crm-btn-create:hover {
-        background: rgb(var(--crm-accent-soft) / 0.85);
-        filter: brightness(0.98);
-    }
-
-    html.dark[data-crm-workspace-skin='sky'] .crm-btn-create {
-        border-color: rgb(var(--crm-accent) / 0.45);
-        background: rgb(var(--crm-accent-soft) / 0.55);
-        color: rgb(var(--crm-accent));
-    }
-
-    html.dark[data-crm-workspace-skin='sky'] .crm-btn-create:hover {
-        background: rgb(var(--crm-accent-soft) / 0.75);
-    }
-
     html[data-crm-workspace-skin='sky'] .crm-tab-btn--active-filled {
         border-color: rgb(var(--crm-accent) / 0.35);
         background: rgb(var(--crm-accent));

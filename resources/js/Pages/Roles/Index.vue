@@ -8,7 +8,7 @@
             <template #actions>
                 <button
                     type="button"
-                    :class="crmBtnNeutral"
+                    :class="crmBtnCreate"
                     @click="showCreateForm = !showCreateForm"
                 >
                     <Plus class="h-4 w-4" />

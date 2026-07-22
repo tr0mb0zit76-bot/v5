@@ -1,53 +1,59 @@
 /**
  * Личные настройки внешнего вида CRM (data-атрибуты на <html>).
+ *
+ * Акцент кнопок «Сохранить» / «Добавить» — только data-crm-accent (emerald|sky),
+ * не путать с data-crm-workspace-skin (оболочка layout).
  */
 
+html,
+html[data-crm-accent='emerald'] {
+    --crm-btn-create-border: 167 243 208;
+    --crm-btn-create-bg: 236 253 245;
+    --crm-btn-create-fg: 6 78 59;
+    --crm-btn-create-bg-hover: 209 250 229;
+    --crm-btn-create-border-dark: 6 78 59;
+    --crm-btn-create-bg-dark: 6 78 59;
+    --crm-btn-create-fg-dark: 236 253 245;
+    --crm-btn-create-bg-hover-dark: 6 95 70;
+}
+
+html[data-crm-accent='sky'] {
+    --crm-btn-create-border: 125 211 252;
+    --crm-btn-create-bg: 240 249 255;
+    --crm-btn-create-fg: 12 74 110;
+    --crm-btn-create-bg-hover: 224 242 254;
+    --crm-btn-create-border-dark: 12 74 110;
+    --crm-btn-create-bg-dark: 12 74 110;
+    --crm-btn-create-fg-dark: 224 242 254;
+    --crm-btn-create-bg-hover-dark: 7 89 133;
+}
+
 .crm-btn-create {
-    @apply inline-flex items-center gap-2 border px-4 py-2 text-sm font-medium shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex shrink-0 items-center gap-2 whitespace-nowrap border px-4 py-2 text-sm font-medium shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60;
     border-width: 1px;
     border-style: solid;
     border-radius: var(--crm-radius-control);
-    border-color: rgb(167 243 208 / 0.9);
-    background-color: rgb(236 253 245);
-    color: rgb(6 78 59);
+    border-color: rgb(var(--crm-btn-create-border) / 0.9);
+    background-color: rgb(var(--crm-btn-create-bg));
+    color: rgb(var(--crm-btn-create-fg));
 }
 
 .crm-btn-create:hover {
-    background-color: rgb(209 250 229);
+    background-color: rgb(var(--crm-btn-create-bg-hover));
 }
 
 .dark .crm-btn-create {
-    border-color: rgb(6 78 59 / 0.7);
-    background-color: rgb(6 78 59 / 0.5);
-    color: rgb(236 253 245);
+    border-color: rgb(var(--crm-btn-create-border-dark) / 0.7);
+    background-color: rgb(var(--crm-btn-create-bg-dark) / 0.5);
+    color: rgb(var(--crm-btn-create-fg-dark));
 }
 
 .dark .crm-btn-create:hover {
-    background-color: rgb(6 95 70 / 0.45);
-}
-
-html[data-crm-accent='sky'] .crm-btn-create {
-    border-color: rgb(125 211 252 / 0.9);
-    background-color: rgb(240 249 255);
-    color: rgb(12 74 110);
-}
-
-html[data-crm-accent='sky'] .crm-btn-create:hover {
-    background-color: rgb(224 242 254);
-}
-
-html.dark[data-crm-accent='sky'] .crm-btn-create {
-    border-color: rgb(12 74 110 / 0.7);
-    background-color: rgb(12 74 110 / 0.5);
-    color: rgb(224 242 254);
-}
-
-html.dark[data-crm-accent='sky'] .crm-btn-create:hover {
-    background-color: rgb(7 89 133 / 0.45);
+    background-color: rgb(var(--crm-btn-create-bg-hover-dark) / 0.45);
 }
 
 .crm-btn-danger-muted {
-    @apply inline-flex items-center gap-2 border px-4 py-2 text-sm font-medium shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex shrink-0 items-center gap-2 whitespace-nowrap border px-4 py-2 text-sm font-medium shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60;
     border-radius: var(--crm-radius-control);
     border-color: rgb(254 205 211 / 0.9);
     background-color: rgb(255 241 242);
@@ -66,7 +72,7 @@ html.dark[data-crm-accent='sky'] .crm-btn-create:hover {
 
 .crm-btn-neutral,
 .crm-btn-secondary-outline {
-    @apply inline-flex items-center gap-2 border px-4 py-2 text-sm font-medium transition-colors;
+    @apply inline-flex shrink-0 items-center gap-2 whitespace-nowrap border px-4 py-2 text-sm font-medium transition-colors;
     border-radius: var(--crm-radius-control);
 }
 

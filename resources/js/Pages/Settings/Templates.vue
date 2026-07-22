@@ -9,7 +9,7 @@
                 <button
                     v-if="pageTab === 'templates'"
                     type="button"
-                    :class="crmBtnNeutral"
+                    :class="crmBtnCreate"
                     @click="openCreateModal"
                 >
                     <Plus class="h-4 w-4" />

@@ -108,18 +108,9 @@
 
             <div v-if="activeTab === 'main'" class="space-y-3">
                 <section class="space-y-3 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
-                    <div class="flex items-center justify-between gap-2">
-                        <h3 class="text-sm font-semibold">Клиент</h3>
-                        <button
-                            type="button"
-                            class="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                            @mousedown.prevent
-                            @click.stop="openLeadCounterpartyModal"
-                        >
-                            Новый контрагент
-                        </button>
-                    </div>
-                    <div class="relative">
+                    <h3 class="text-sm font-semibold">Клиент</h3>
+                    <div class="flex flex-wrap items-start gap-2">
+                        <div class="relative min-w-0 max-w-md flex-1 basis-[16rem]">
                             <input
                                 v-model="counterpartySearch"
                                 type="text"
@@ -160,6 +151,23 @@
                                     Не найдено — создать «{{ counterpartySearch.trim() }}»
                                 </button>
                             </div>
+                        </div>
+                        <button
+                            type="button"
+                            class="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                            @mousedown.prevent
+                            @click.stop="openLeadCounterpartyModal"
+                        >
+                            Новый контрагент
+                        </button>
+                        <Link
+                            v-if="form.counterparty_id"
+                            :href="route('contractors.show', form.counterparty_id)"
+                            target="_blank"
+                            class="inline-flex shrink-0 items-center rounded-xl border border-zinc-200 px-2.5 py-2 text-xs font-medium text-sky-700 hover:bg-sky-50 dark:border-zinc-700 dark:text-sky-300 dark:hover:bg-sky-950/30"
+                        >
+                            Открыть карточку
+                        </Link>
                     </div>
                     <div class="grid gap-3 md:grid-cols-2">
                         <input
