@@ -1106,6 +1106,145 @@ class ContractorManagementTest extends TestCase
             ]);
     }
 
+    public function test_store_contractor_contact_with_multiple_phones_mirrors_primary(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $response = $this->actingAs($admin)->post(route('contractors.store'), $this->minimalContractorCreatePayload([
+            'name' => 'ООО Мультифон',
+            'inn' => '5508231001',
+            'contacts' => [
+                [
+                    'full_name' => 'Анна Сидорова',
+                    'position' => 'Менеджер',
+                    'phones' => [
+                        [
+                            'number' => '+7 900 111-11-11',
+                            'kind' => 'work',
+                            'is_primary' => false,
+                        ],
+                        [
+                            'number' => '+7 900 222-22-22',
+                            'kind' => 'personal',
+                            'is_primary' => true,
+                        ],
+                    ],
+                    'email' => 'anna@example.com',
+                    'is_primary' => true,
+                    'notes' => '',
+                ],
+            ],
+        ]));
+
+        $response->assertSessionDoesntHaveErrors();
+        $response->assertRedirect();
+
+        $contractorId = (int) DB::table('contractors')->where('name', 'ООО Мультифон')->value('id');
+        $this->assertNotSame(0, $contractorId);
+
+        $contact = DB::table('contractor_contacts')
+            ->where('contractor_id', $contractorId)
+            ->where('full_name', 'Анна Сидорова')
+            ->first();
+
+        $this->assertNotNull($contact);
+        $this->assertSame('+7 900 222-22-22', $contact->phone);
+
+        $phones = json_decode((string) $contact->phones, true, 512, JSON_THROW_ON_ERROR);
+        $this->assertCount(2, $phones);
+        $this->assertSame('work', $phones[0]['kind']);
+        $this->assertSame('personal', $phones[1]['kind']);
+        $this->assertFalse((bool) $phones[0]['is_primary']);
+        $this->assertTrue((bool) $phones[1]['is_primary']);
+    }
+
+    public function test_store_contractor_contact_legacy_phone_without_phones_still_works(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $response = $this->actingAs($admin)->post(route('contractors.store'), $this->minimalContractorCreatePayload([
+            'name' => 'ООО Легаси телефон',
+            'inn' => '5608231001',
+            'contacts' => [
+                [
+                    'full_name' => 'Пётр Иванов',
+                    'position' => 'Логист',
+                    'phone' => '+7 999 555-44-33',
+                    'email' => 'petr@example.com',
+                    'is_primary' => true,
+                    'notes' => '',
+                ],
+            ],
+        ]));
+
+        $response->assertSessionDoesntHaveErrors();
+        $response->assertRedirect();
+
+        $contractorId = (int) DB::table('contractors')->where('name', 'ООО Легаси телефон')->value('id');
+        $contact = DB::table('contractor_contacts')
+            ->where('contractor_id', $contractorId)
+            ->where('full_name', 'Пётр Иванов')
+            ->first();
+
+        $this->assertNotNull($contact);
+        $this->assertSame('+7 999 555-44-33', $contact->phone);
+
+        $phones = json_decode((string) $contact->phones, true, 512, JSON_THROW_ON_ERROR);
+        $this->assertCount(1, $phones);
+        $this->assertSame('+7 999 555-44-33', $phones[0]['number']);
+        $this->assertSame('work', $phones[0]['kind']);
+        $this->assertTrue((bool) $phones[0]['is_primary']);
+    }
+
+    public function test_selected_contractor_payload_includes_contact_phones(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Телефоны в show',
+            'inn' => '5708231001',
+            'is_active' => true,
+            'is_own_company' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('contractor_contacts')->insert([
+            'contractor_id' => $contractorId,
+            'full_name' => 'Мария Орлова',
+            'position' => 'Директор',
+            'phone' => '+7 900 333-33-33',
+            'phones' => json_encode([
+                [
+                    'number' => '+7 900 333-33-33',
+                    'kind' => 'mobile',
+                    'is_primary' => true,
+                ],
+                [
+                    'number' => '+7 900 444-44-44',
+                    'kind' => 'work',
+                    'is_primary' => false,
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'email' => 'maria@example.com',
+            'is_primary' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('contractors.show', ['contractor' => $contractorId]));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Contractors/Index')
+            ->where('selectedContractor.contacts.0.phone', '+7 900 333-33-33')
+            ->where('selectedContractor.contacts.0.phones.0.number', '+7 900 333-33-33')
+            ->where('selectedContractor.contacts.0.phones.0.kind', 'mobile')
+            ->where('selectedContractor.contacts.0.phones.1.number', '+7 900 444-44-44')
+        );
+    }
+
     /**
      * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>

@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import {
     Building2,
+    ChevronDown,
     FileDown,
     FileText,
     History,
@@ -137,6 +138,13 @@ const isDetailsModalDismissed = ref(false);
 const showInteractionOutcomeModal = ref(false);
 const isInnLookupPending = ref(false);
 const submitError = ref('');
+const expandedContactIndexes = ref(new Set());
+const contactPhoneKindOptions = [
+    { value: 'work', label: 'Рабочий' },
+    { value: 'personal', label: 'Личный' },
+    { value: 'mobile', label: 'Мобильный' },
+    { value: 'other', label: 'Другой' },
+];
 const duplicateWarning = ref({
     message: '',
     contractorId: null,
@@ -585,6 +593,7 @@ function contractorToForm(contractor) {
                 full_name: contact.full_name ?? '',
                 position: contact.position ?? '',
                 phone: contact.phone ?? '',
+                phones: normalizeContactPhonesForForm(contact),
                 email: contact.email ?? '',
                 is_primary: Boolean(contact.is_primary),
                 is_decision_maker: Boolean(contact.is_decision_maker),
@@ -763,6 +772,7 @@ function applyFormState(contractor, options = {}) {
     };
 
     inferAddressLinkFlagsFromForm();
+    expandedContactIndexes.value = new Set();
 
     if (shouldLookupPartyByInn(normalizedInn)) {
         void nextTick(() => fetchPartySuggestions());
@@ -1452,11 +1462,18 @@ async function submit() {
     form.bank_accounts = normalizeBankAccounts(form.bank_accounts);
     form.is_non_resident = Boolean(form.is_non_resident);
     form.has_english_requisites = Boolean(form.has_english_requisites);
-    form.contacts = (form.contacts ?? []).map((contact) => ({
-        ...contact,
-        is_primary: Boolean(contact.is_primary),
-        is_decision_maker: Boolean(contact.is_decision_maker),
-    }));
+    form.contacts = (form.contacts ?? []).map((contact) => {
+        const phones = normalizeContactPhonesForForm(contact);
+        const primary = phones.find((row) => row.is_primary) ?? phones[0] ?? null;
+
+        return {
+            ...contact,
+            phones,
+            phone: primary?.number ?? '',
+            is_primary: Boolean(contact.is_primary),
+            is_decision_maker: Boolean(contact.is_decision_maker),
+        };
+    });
 
     const primaryBankAccount = form.bank_accounts.find((account) => account.is_primary) ?? form.bank_accounts[0] ?? null;
     const existingHadLegacy = Boolean(
@@ -1560,11 +1577,93 @@ function removeContractor() {
     });
 }
 
+function normalizeContactPhonesForForm(contact) {
+    const rows = Array.isArray(contact?.phones) ? contact.phones : [];
+    const phones = rows
+        .map((row) => ({
+            number: String(row?.number ?? '').trim(),
+            kind: ['work', 'personal', 'mobile', 'other'].includes(row?.kind) ? row.kind : 'work',
+            is_primary: Boolean(row?.is_primary),
+        }))
+        .filter((row) => row.number !== '');
+
+    if (phones.length === 0) {
+        const legacy = String(contact?.phone ?? '').trim();
+        if (legacy !== '') {
+            return [{ number: legacy, kind: 'work', is_primary: true }];
+        }
+
+        return [{ number: '', kind: 'work', is_primary: true }];
+    }
+
+    if (!phones.some((row) => row.is_primary)) {
+        phones[0].is_primary = true;
+    }
+
+    return phones;
+}
+
+function contactPrimaryPhone(contact) {
+    const phones = Array.isArray(contact?.phones) ? contact.phones : [];
+    const primary = phones.find((row) => row.is_primary && String(row.number ?? '').trim() !== '')
+        ?? phones.find((row) => String(row.number ?? '').trim() !== '');
+
+    return primary?.number || contact?.phone || '';
+}
+
+function addContactPhone(contact) {
+    if (!Array.isArray(contact.phones)) {
+        contact.phones = [];
+    }
+    contact.phones.push({
+        number: '',
+        kind: 'work',
+        is_primary: contact.phones.length === 0,
+    });
+}
+
+function removeContactPhone(contact, phoneIndex) {
+    if (!Array.isArray(contact.phones) || contact.phones.length <= 1) {
+        contact.phones = [{ number: '', kind: 'work', is_primary: true }];
+        return;
+    }
+
+    contact.phones.splice(phoneIndex, 1);
+    if (!contact.phones.some((row) => row.is_primary)) {
+        contact.phones[0].is_primary = true;
+    }
+}
+
+function setContactPrimaryPhone(contact, phoneIndex) {
+    if (!Array.isArray(contact.phones)) {
+        return;
+    }
+
+    contact.phones.forEach((row, index) => {
+        row.is_primary = index === phoneIndex;
+    });
+}
+
+function isContactExpanded(index) {
+    return expandedContactIndexes.value.has(index);
+}
+
+function toggleContactExpanded(index) {
+    const next = new Set(expandedContactIndexes.value);
+    if (next.has(index)) {
+        next.delete(index);
+    } else {
+        next.add(index);
+    }
+    expandedContactIndexes.value = next;
+}
+
 function addContact() {
     form.contacts.push({
         full_name: '',
         position: '',
         phone: '',
+        phones: [{ number: '', kind: 'work', is_primary: true }],
         email: '',
         is_primary: form.contacts.length === 0,
         is_decision_maker: false,
@@ -1572,6 +1671,22 @@ function addContact() {
         communication_notes: '',
         notes: '',
     });
+    const index = form.contacts.length - 1;
+    const next = new Set(expandedContactIndexes.value);
+    next.add(index);
+    expandedContactIndexes.value = next;
+}
+
+function removeContact(index) {
+    removeItem(form.contacts, index);
+    const next = new Set();
+    for (const expandedIndex of expandedContactIndexes.value) {
+        if (expandedIndex === index) {
+            continue;
+        }
+        next.add(expandedIndex > index ? expandedIndex - 1 : expandedIndex);
+    }
+    expandedContactIndexes.value = next;
 }
 
 function addInteraction() {
@@ -3239,7 +3354,7 @@ function goToPage(pageNumber) {
                                         <input v-model="form.is_non_resident" type="checkbox" :class="crmCheckbox" />
                                         Нерезидент
                                     </label>
-                                    <button type="button" class="inline-flex items-center gap-1 border border-zinc-300 px-2 py-1 text-xs text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" @click="addBankAccount">
+                                    <button type="button" :class="crmBtnCreate" class="!px-2 !py-1 !text-xs" @click="addBankAccount">
                                         <Plus class="h-3.5 w-3.5" />
                                         Добавить счёт
                                     </button>
@@ -3456,72 +3571,145 @@ function goToPage(pageNumber) {
                         </div>
                     </div>
                     <div v-else-if="activeTab === 'contacts'" class="space-y-4">
-                        <div class="flex items-center justify-between gap-3">
-                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div class="min-w-0 flex-1 text-sm text-zinc-500 dark:text-zinc-400">
                                 Отдельные контакты удобно хранить отдельно от основной карточки компании. Основной контакт подставляется в заявку и печатные формы, если в заказе не указан другой.
                             </div>
-                            <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" @click="addContact">
+                            <button type="button" :class="crmBtnCreate" @click="addContact">
                                 <Plus class="h-4 w-4" />
                                 Добавить контакт
                             </button>
                         </div>
 
                         <div class="space-y-3">
-                            <div v-for="(contact, index) in form.contacts" :key="`contact-${index}`" class="border border-zinc-200 p-4 dark:border-zinc-800">
-                                <div class="mb-3 flex items-center justify-between gap-3">
-                                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Контакт #{{ index + 1 }}</div>
-                                    <button type="button" class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300" @click="removeItem(form.contacts, index)">
+                            <div v-for="(contact, index) in form.contacts" :key="`contact-${index}`" class="border border-zinc-200 dark:border-zinc-800">
+                                <div class="flex items-stretch gap-2 px-3 py-2.5">
+                                    <button
+                                        type="button"
+                                        class="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                        @click="toggleContactExpanded(index)"
+                                    >
+                                        <ChevronDown
+                                            class="h-4 w-4 shrink-0 text-zinc-400 transition-transform dark:text-zinc-500"
+                                            :class="isContactExpanded(index) ? 'rotate-0' : '-rotate-90'"
+                                        />
+                                        <div class="min-w-0 flex-1">
+                                            <div class="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                                {{ contact.full_name?.trim() || `Контакт #${index + 1}` }}
+                                            </div>
+                                            <div class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                                <span v-if="contactPrimaryPhone(contact)" class="truncate">{{ contactPrimaryPhone(contact) }}</span>
+                                                <span v-else class="text-zinc-400 dark:text-zinc-500">Нет телефона</span>
+                                                <span
+                                                    v-if="contact.is_primary"
+                                                    class="rounded bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                                >основной</span>
+                                                <span
+                                                    v-if="contact.is_decision_maker"
+                                                    class="rounded bg-sky-50 px-1.5 py-0.5 font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
+                                                >ЛПР</span>
+                                            </div>
+                                        </div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="shrink-0 self-center text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300"
+                                        @click="removeContact(index)"
+                                    >
                                         Удалить
                                     </button>
                                 </div>
 
-                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                    <div class="space-y-2 xl:col-start-1 xl:row-start-1">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">ФИО</label>
-                                        <input v-model="contact.full_name" type="text" :class="crmFieldFluid" />
+                                <div v-if="isContactExpanded(index)" class="space-y-4 border-t border-zinc-200 px-4 py-4 dark:border-zinc-800">
+                                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                        <div class="space-y-2 xl:col-start-1 xl:row-start-1">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">ФИО</label>
+                                            <input v-model="contact.full_name" type="text" :class="crmFieldFluid" />
+                                        </div>
+                                        <div class="space-y-2 xl:col-start-2 xl:row-start-1">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Должность</label>
+                                            <input v-model="contact.position" type="text" :class="crmFieldFluid" />
+                                        </div>
+                                        <div class="flex flex-col gap-3 md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1 xl:row-span-2">
+                                            <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
+                                                <input v-model="contact.is_primary" type="checkbox" :class="crmCheckbox" />
+                                                Основной контакт (для заявок и печати)
+                                            </label>
+                                            <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
+                                                <input
+                                                    v-model="contact.is_decision_maker"
+                                                    type="checkbox"
+                                                    :class="crmCheckbox"
+                                                    @change="contact.role_in_deal = contact.is_decision_maker ? 'decision_maker' : (contact.role_in_deal === 'decision_maker' ? 'unknown' : contact.role_in_deal)"
+                                                />
+                                                ЛПР
+                                            </label>
+                                        </div>
+                                        <div class="space-y-2 md:col-span-2 xl:col-span-1 xl:col-start-1 xl:row-start-2">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Роль в сделке</label>
+                                            <select v-model="contact.role_in_deal" :class="crmFieldFluid">
+                                                <option v-for="option in portraitOptions.role_in_deal ?? []" :key="option.value" :value="option.value">
+                                                    {{ option.label }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                        <div class="space-y-2 md:col-span-2 xl:col-span-1 xl:col-start-2 xl:row-start-2">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Заметки по общению</label>
+                                            <input v-model="contact.communication_notes" type="text" :class="crmFieldFluid" placeholder="Когда звонить, стиль, табу-темы" />
+                                        </div>
+                                        <div class="space-y-2 xl:col-start-1 xl:row-start-3 xl:col-span-2">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Email</label>
+                                            <input v-model="contact.email" type="email" :class="crmFieldFluid" />
+                                        </div>
+                                        <div class="col-span-full space-y-2">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Комментарий</label>
+                                            <input v-model="contact.notes" type="text" :class="crmFieldFluid" />
+                                        </div>
                                     </div>
-                                    <div class="space-y-2 xl:col-start-2 xl:row-start-1">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Должность</label>
-                                        <input v-model="contact.position" type="text" :class="crmFieldFluid" />
-                                    </div>
-                                    <div class="flex flex-col gap-3 md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1 xl:row-span-2">
-                                        <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
-                                            <input v-model="contact.is_primary" type="checkbox" :class="crmCheckbox" />
-                                            Основной контакт (для заявок и печати)
-                                        </label>
-                                        <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
-                                            <input
-                                                v-model="contact.is_decision_maker"
-                                                type="checkbox"
-                                                :class="crmCheckbox"
-                                                @change="contact.role_in_deal = contact.is_decision_maker ? 'decision_maker' : (contact.role_in_deal === 'decision_maker' ? 'unknown' : contact.role_in_deal)"
-                                            />
-                                            ЛПР
-                                        </label>
-                                    </div>
-                                    <div class="space-y-2 md:col-span-2 xl:col-span-1 xl:col-start-1 xl:row-start-3">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Роль в сделке</label>
-                                        <select v-model="contact.role_in_deal" :class="crmFieldFluid">
-                                            <option v-for="option in portraitOptions.role_in_deal ?? []" :key="option.value" :value="option.value">
-                                                {{ option.label }}
-                                            </option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-2 md:col-span-2 xl:col-span-1 xl:col-start-2 xl:row-start-3">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Заметки по общению</label>
-                                        <input v-model="contact.communication_notes" type="text" :class="crmFieldFluid" placeholder="Когда звонить, стиль, табу-темы" />
-                                    </div>
-                                    <div class="space-y-2 xl:col-start-1 xl:row-start-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Телефон</label>
-                                        <input v-model="contact.phone" type="text" :class="crmFieldFluid" />
-                                    </div>
-                                    <div class="space-y-2 xl:col-start-2 xl:row-start-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Email</label>
-                                        <input v-model="contact.email" type="email" :class="crmFieldFluid" />
-                                    </div>
-                                    <div class="col-span-full space-y-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Комментарий</label>
-                                        <input v-model="contact.notes" type="text" :class="crmFieldFluid" />
+
+                                    <div class="space-y-3">
+                                        <div class="flex flex-wrap items-center justify-between gap-2">
+                                            <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Телефоны</div>
+                                            <button type="button" :class="crmBtnNeutral" @click="addContactPhone(contact)">
+                                                <Plus class="h-4 w-4" />
+                                                Добавить телефон
+                                            </button>
+                                        </div>
+                                        <div
+                                            v-for="(phoneRow, phoneIndex) in (contact.phones ?? [])"
+                                            :key="`contact-${index}-phone-${phoneIndex}`"
+                                            class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_auto_auto] sm:items-end"
+                                        >
+                                            <div class="space-y-1">
+                                                <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Номер</label>
+                                                <input v-model="phoneRow.number" type="text" :class="crmFieldFluid" placeholder="+7 …" />
+                                            </div>
+                                            <div class="space-y-1">
+                                                <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Признак</label>
+                                                <select v-model="phoneRow.kind" :class="crmFieldFluid">
+                                                    <option v-for="option in contactPhoneKindOptions" :key="option.value" :value="option.value">
+                                                        {{ option.label }}
+                                                    </option>
+                                                </select>
+                                            </div>
+                                            <label class="flex items-center gap-2 pb-2 text-sm text-zinc-900 dark:text-zinc-100">
+                                                <input
+                                                    type="radio"
+                                                    :name="`contact-${index}-primary-phone`"
+                                                    :checked="phoneRow.is_primary"
+                                                    :class="crmCheckbox"
+                                                    @change="setContactPrimaryPhone(contact, phoneIndex)"
+                                                />
+                                                Основной
+                                            </label>
+                                            <button
+                                                type="button"
+                                                class="pb-2 text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300"
+                                                @click="removeContactPhone(contact, phoneIndex)"
+                                            >
+                                                Удалить
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -3547,21 +3735,21 @@ function goToPage(pageNumber) {
                     />
 
                     <div v-else-if="activeTab === 'communications'" class="space-y-4">
-                        <div class="flex flex-wrap items-center justify-between gap-3">
-                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div class="min-w-0 flex-1 text-sm text-zinc-500 dark:text-zinc-400">
                                 Журнал общения: источник контекста для ассистента. Ниже — редактирование записей перед сохранением карточки.
                             </div>
-                            <div class="flex flex-wrap items-center gap-2">
+                            <div class="flex shrink-0 flex-wrap items-center gap-2">
                                 <button
                                     v-if="selectedContractorId"
                                     type="button"
-                                    class="inline-flex items-center gap-2 border border-sky-200 px-3 py-2 text-sm text-sky-800 hover:bg-sky-50 dark:border-sky-900 dark:text-sky-200 dark:hover:bg-sky-950/40"
+                                    :class="crmBtnCreate"
                                     @click="showInteractionOutcomeModal = true"
                                 >
                                     <Plus class="h-4 w-4" />
                                     Зафиксировать итог
                                 </button>
-                                <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" @click="addInteraction">
+                                <button type="button" :class="crmBtnCreate" @click="addInteraction">
                                     <Plus class="h-4 w-4" />
                                     Добавить запись
                                 </button>

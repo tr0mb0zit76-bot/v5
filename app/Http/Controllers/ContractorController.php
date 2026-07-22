@@ -24,6 +24,7 @@ use App\Services\DocumentStorageService;
 use App\Services\PrintForm\ContractorPrintFormChangeRequestService;
 use App\Services\PrintForm\ContractorPrintFormProfileResolver;
 use App\Support\CarrierRateFromFinancialTerms;
+use App\Support\ContractorContactPhonesNormalizer;
 use App\Support\ContractorDuplicateGuard;
 use App\Support\ContractorPortraitDictionary;
 use App\Support\ContractorTableColumns;
@@ -734,6 +735,9 @@ class ContractorController extends Controller
                     'full_name' => $contact->full_name,
                     'position' => $contact->position,
                     'phone' => $contact->phone,
+                    'phones' => Schema::hasColumn('contractor_contacts', 'phones')
+                        ? (is_array($contact->phones) ? $contact->phones : [])
+                        : [],
                     'email' => $contact->email,
                     'is_primary' => $contact->is_primary,
                     'is_traklo_primary' => Schema::hasColumn('contractor_contacts', 'is_traklo_primary')
@@ -1394,6 +1398,10 @@ class ContractorController extends Controller
             $contractor->contacts()->delete();
 
             foreach ($validated['contacts'] as $contact) {
+                if (! is_array($contact)) {
+                    continue;
+                }
+
                 if (! Schema::hasColumn('contractor_contacts', 'is_decision_maker')) {
                     unset($contact['is_decision_maker']);
                 }
@@ -1405,6 +1413,16 @@ class ContractorController extends Controller
                     }
                 } else {
                     unset($contact['role_in_deal'], $contact['communication_notes']);
+                }
+
+                $normalizedPhones = ContractorContactPhonesNormalizer::normalizeContactPhones($contact);
+                $contact['phone'] = $normalizedPhones['phone'];
+                if (Schema::hasColumn('contractor_contacts', 'phones')) {
+                    $contact['phones'] = $normalizedPhones['phones'] === []
+                        ? null
+                        : $normalizedPhones['phones'];
+                } else {
+                    unset($contact['phones']);
                 }
 
                 $contractor->contacts()->create($contact);

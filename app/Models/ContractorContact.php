@@ -16,6 +16,7 @@ class ContractorContact extends Model
         'full_name',
         'position',
         'phone',
+        'phones',
         'email',
         'is_primary',
         'is_traklo_primary',
@@ -31,6 +32,7 @@ class ContractorContact extends Model
     protected function casts(): array
     {
         return [
+            'phones' => 'array',
             'is_primary' => 'boolean',
             'is_traklo_primary' => 'boolean',
             'is_decision_maker' => 'boolean',
