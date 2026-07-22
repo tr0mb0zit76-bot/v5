@@ -72,7 +72,7 @@
             v-if="!claims.length"
             class="rounded-xl border border-dashed border-zinc-300 px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-700"
         >
-            Пока нет претензий по этому заказу.
+            Нет претензий
         </div>
 
         <ul v-else class="space-y-2">

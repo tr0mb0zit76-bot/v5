@@ -92,7 +92,30 @@
                     </button>
                 </div>
                 <p
-                    v-if="advanceBlockHint"
+                    v-if="hintGaps.length"
+                    class="text-xs text-amber-800 dark:text-amber-200"
+                >
+                    Ещё не хватает:
+                    <template v-for="(gap, index) in hintGaps" :key="gap.code">
+                        <span v-if="index > 0">, </span>
+                        <button
+                            type="button"
+                            class="font-medium underline underline-offset-2"
+                            @click="emit('focus-action', { tab: gap.tab ?? 'main', kind: gap.kind ?? null, code: gap.code ?? null })"
+                        >{{ gap.label.toLowerCase() }}</button>
+                    </template>.
+                    <button
+                        v-if="advanceStageId && canSubmitAdvance && !canPrimaryAdvance"
+                        type="button"
+                        class="ml-1 font-medium underline underline-offset-2"
+                        :disabled="processing"
+                        @click="emit('advance')"
+                    >
+                        Перейти всё равно
+                    </button>
+                </p>
+                <p
+                    v-else-if="advanceBlockHint"
                     class="text-xs text-amber-800 dark:text-amber-200"
                 >
                     {{ advanceBlockHint }}
@@ -200,11 +223,8 @@ const advanceBlockHint = computed(() => {
         return '';
     }
 
-    const gaps = Array.isArray(props.operationalBrief.gaps) ? props.operationalBrief.gaps : [];
-    const labels = gaps.slice(0, 2).map((gap) => gap.label).filter(Boolean);
-
-    if (labels.length) {
-        return `Ещё не хватает: ${labels.join(', ').toLowerCase()}.`;
+    if (hintGaps.value.length) {
+        return '';
     }
 
     if (props.operationalBrief.risks?.length) {
@@ -212,6 +232,16 @@ const advanceBlockHint = computed(() => {
     }
 
     return 'По коучу этап ещё не готов к переходу.';
+});
+
+const hintGaps = computed(() => {
+    if (canPrimaryAdvance.value || !props.operationalBrief) {
+        return [];
+    }
+
+    const gaps = Array.isArray(props.operationalBrief.gaps) ? props.operationalBrief.gaps : [];
+
+    return gaps.slice(0, 2).filter((gap) => Boolean(gap?.label));
 });
 
 function focusAdvanceControls() {

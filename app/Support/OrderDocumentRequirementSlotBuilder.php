@@ -65,6 +65,16 @@ final class OrderDocumentRequirementSlotBuilder
         }
 
         foreach (self::carrierRequestSlots($performers, $mode) as $slot) {
+            $contractorId = isset($slot['contractorId']) && (int) $slot['contractorId'] > 0
+                ? (int) $slot['contractorId']
+                : null;
+            $carrierPaymentForm = $contractorId !== null ? ($carrierPaymentForms[$contractorId] ?? null) : null;
+
+            // Наличка перевозчику: заявка не в обязательном чек-листе (как и закрывающие).
+            if (! self::closingRequiredForPaymentForm($carrierPaymentForm)) {
+                continue;
+            }
+
             $rules[] = self::requestRule('carrier', $slot, 'carrier_request', 'Заявка перевозчику', self::REQUEST_TYPES);
         }
 

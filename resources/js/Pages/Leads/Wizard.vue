@@ -275,6 +275,7 @@
                     :can-assign-responsible="canAssignResponsible"
                     :responsible-users="responsibleUsers"
                     :open-tasks="openTasks"
+                    :emphasized="nextStepPanelEmphasized"
                     v-model:next-step-title="nextStepForm.title"
                     v-model:next-step-due-at="nextStepForm.due_at"
                     v-model:next-step-responsible-id="nextStepForm.responsible_id"
@@ -932,9 +933,42 @@ function handleFocusAction({ tab, kind }) {
 
     if (kind === 'next_step') {
         nextTick(() => {
-            document.getElementById('lead-next-step-panel')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            focusLeadNextStepPanel();
         });
     }
+}
+
+const nextStepPanelEmphasized = ref(false);
+let nextStepPanelEmphasizeTimer = null;
+
+function focusLeadNextStepPanel() {
+    const panel = document.getElementById('lead-next-step-panel');
+
+    if (!panel) {
+        return;
+    }
+
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    nextStepPanelEmphasized.value = true;
+
+    if (nextStepPanelEmphasizeTimer) {
+        clearTimeout(nextStepPanelEmphasizeTimer);
+    }
+
+    nextStepPanelEmphasizeTimer = setTimeout(() => {
+        nextStepPanelEmphasized.value = false;
+        nextStepPanelEmphasizeTimer = null;
+    }, 1800);
+
+    const titleInput = document.getElementById('lead-next-step-title');
+
+    if (titleInput instanceof HTMLElement) {
+        titleInput.focus({ preventScroll: true });
+
+        return;
+    }
+
+    panel.focus({ preventScroll: true });
 }
 const hasFormValidationErrors = computed(() => Object.keys(form.errors).length > 0);
 const formValidationErrors = computed(() => Object.entries(form.errors).map(([field, message]) => ({

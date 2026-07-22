@@ -180,7 +180,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Дата получения оригиналов: `track_received_date_customer/carrier` — clerk в реестре (`PATCH documents/orders/{id}/track-received`) и в таблице учёта (`OrderSignedDocumentsTable.vue`); одна дата на сторону, строки заявки + закрывающих — `orderTrackingDates.js`.
 - Слоты обязательных документов: `OrderDocumentRequirementSlotBuilder`, зеркало на фронте `orderDocumentRequirementSlots.js`.
 - Транспортные типы (ТН / ЭТрН / CMR / ТСД) — одна группа: `OrderDocumentTransportTypes`, слот `waybill` с `accepted_types` waybill|etrn|cmr.
-- **Наличные (`cash`):** закрывающие слоты (УПД / СФ / акт) **не создаются** — только заявка по контрагенту + общий слот ТСД. Форма оплаты: заказчик — `customer_payment_form`; перевозчик — `contractors_costs` / `leg_costs`; подрядчик — `additional_costs.payment_form`.
+- **Наличные (`cash`):** закрывающие слоты (УПД / СФ / акт) **не создаются**; у **перевозчика** при `cash` также **нет** слота «Заявка перевозчику» в обязательном чек-листе (заявка заказчика при cash остаётся; + общий слот ТСД). Форма оплаты: заказчик — `customer_payment_form`; перевозчик — `contractors_costs` / `leg_costs`; подрядчик — `additional_costs.payment_form`.
 - Закрытие сделки: `OrderStatusService` → `checklistForOrder()` — все пункты чек-листа должны быть `completed`.
 - Документация: `docs/documents-user-guide.md`, `docs/documents-regulation.md`; карточка `docs/sync/v5-local-Components-Documents-Registry.md`; публикация в Книгу: `php scripts/mcp-prod-upsert-documents.php`.
 

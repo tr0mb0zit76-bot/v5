@@ -321,6 +321,15 @@ export function buildDocumentRequirementRules(
     });
 
     carrierRequestSlots(performers, mode).forEach((slot) => {
+        const carrierPaymentForm = slot.contractorId != null
+            ? (carrierPaymentForms[Number(slot.contractorId)] ?? null)
+            : null;
+
+        // Наличка перевозчику: заявка не в обязательном чек-листе (как и закрывающие).
+        if (!closingRequiredForPaymentForm(carrierPaymentForm)) {
+            return;
+        }
+
         rules.push({
             key: `carrier_request:${slot.slotKey}`,
             label: `Заявка перевозчику${slot.labelSuffix}`,

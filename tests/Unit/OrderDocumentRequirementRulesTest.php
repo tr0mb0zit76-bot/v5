@@ -37,7 +37,7 @@ class OrderDocumentRequirementRulesTest extends TestCase
     }
 
     #[Test]
-    public function cash_to_cash_deal_requires_only_requests_and_transport_documents(): void
+    public function cash_to_cash_deal_requires_customer_request_and_transport_only(): void
     {
         $performers = [[
             'stage' => 'leg_1',
@@ -51,11 +51,32 @@ class OrderDocumentRequirementRulesTest extends TestCase
         ]);
 
         $this->assertNotNull(collect($rules)->firstWhere('key', 'customer_request:customer-all'));
-        $this->assertNotNull(collect($rules)->firstWhere('key', 'carrier_request:carrier-15'));
+        $this->assertNull(collect($rules)->firstWhere('key', 'carrier_request:carrier-15'));
         $this->assertNotNull(collect($rules)->firstWhere('key', 'waybill'));
         $this->assertNull(collect($rules)->firstWhere('key', 'customer_closing:customer-all'));
         $this->assertNull(collect($rules)->firstWhere('key', 'carrier_closing:carrier-15'));
-        $this->assertCount(3, $rules);
+        $this->assertCount(2, $rules);
+    }
+
+    #[Test]
+    public function cash_carrier_payment_omits_carrier_request_requirement(): void
+    {
+        $performers = [[
+            'stage' => 'leg_1',
+            'contractor_id' => 15,
+            'contractor_name' => 'Перевозчик',
+        ]];
+
+        $rules = OrderDocumentRequirementSlotBuilder::buildRules($performers, 'single_request', [], [
+            'customer' => 'vat_20',
+            'carriers' => [15 => 'cash'],
+        ]);
+
+        $this->assertNull(collect($rules)->firstWhere('key', 'carrier_request:carrier-15'));
+        $this->assertNull(collect($rules)->firstWhere('key', 'carrier_closing:carrier-15'));
+        $this->assertNotNull(collect($rules)->firstWhere('key', 'customer_request:customer-all'));
+        $this->assertNotNull(collect($rules)->firstWhere('key', 'customer_closing:customer-all'));
+        $this->assertNotNull(collect($rules)->firstWhere('key', 'waybill'));
     }
 
     #[Test]

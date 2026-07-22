@@ -43,6 +43,11 @@ defineProps({
         type: Boolean,
         default: false,
     },
+    /** Подсветка после клика из «Что дальше». */
+    emphasized: {
+        type: Boolean,
+        default: false,
+    },
     formatDateTime: {
         type: Function,
         required: true,
@@ -59,7 +64,15 @@ const emit = defineEmits([
 </script>
 
 <template>
-    <section v-if="selectedLeadId" id="lead-next-step-panel" class="space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
+    <section
+        v-if="selectedLeadId"
+        id="lead-next-step-panel"
+        tabindex="-1"
+        class="space-y-4 border p-4 transition ring-offset-2 dark:ring-offset-zinc-950"
+        :class="emphasized
+            ? 'border-sky-400 ring-2 ring-sky-400/70 dark:border-sky-500 dark:ring-sky-500/60'
+            : 'border-zinc-200 dark:border-zinc-800'"
+    >
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0 space-y-1">
                 <h3 class="text-base font-semibold">Следующий шаг</h3>
@@ -75,6 +88,7 @@ const emit = defineEmits([
 
         <div v-if="canUseLeadTasks" class="grid gap-3 xl:grid-cols-[minmax(0,1.4fr),220px,220px,160px]">
             <input
+                id="lead-next-step-title"
                 :value="nextStepTitle"
                 type="text"
                 :class="crmFieldFluid"
