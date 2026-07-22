@@ -68,7 +68,6 @@
         </div>
 
         <section v-if="isFinanceModule" :class="`${crmPanel} p-5`">
-            <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div class="space-y-1">
                     <div class="flex flex-wrap items-center gap-2">
                         <h2 class="text-lg font-semibold">Зарплатные периоды</h2>
@@ -81,32 +80,10 @@
                         </span>
                     </div>
                     <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                        Начисление = delta / 2; «к выплате» — по фактическим оплатам заказчиков в рамках периода.
+                        Начисление = delta / 2; «к выплате» — сколько ещё можно провести по оплатам заказчиков.
+                        Полностью выплаченные и удалённые заказы в таблице не показываются.
                     </p>
                 </div>
-                <div class="flex flex-wrap items-center gap-2">
-                    <select
-                        v-model="selectedSalaryUserId"
-                        :class="crmFieldFluid"
-                        @change="selectSalaryPeriod"
-                    >
-                        <option :value="null">Все сотрудники</option>
-                        <option v-for="employee in employees" :key="`salary-user-${employee.id}`" :value="employee.id">
-                            {{ employee.name }}
-                        </option>
-                    </select>
-                    <select
-                        v-model="selectedSalaryPeriodId"
-                        :class="crmFieldFluid"
-                        @change="selectSalaryPeriod"
-                    >
-                        <option :value="null">Выберите период</option>
-                        <option v-for="period in salaryPeriods" :key="period.id" :value="period.id">
-                            {{ salaryPeriodLabel(period) }}
-                        </option>
-                    </select>
-                </div>
-            </div>
 
             <p
                 v-if="salaryPeriodsPrunedCount"
@@ -119,26 +96,75 @@
                 v-if="salaryPeriods.length === 0"
                 class="mb-4 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:border-zinc-600 dark:bg-zinc-950/40 dark:text-zinc-400"
             >
-                Пока нет периодов. Укажите даты и нажмите «Создать и рассчитать период» — начисления подтянутся из грида по заказам.
+                Пока нет периодов. Выберите месяц и H1/H2, затем «Создать и рассчитать» — начисления подтянутся из грида по заказам.
             </p>
 
-            <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-[repeat(4,minmax(0,1fr))]">
-                <input v-model="createPeriodForm.period_start" type="date" :class="crmFieldFluid">
-                <input v-model="createPeriodForm.period_end" type="date" :class="crmFieldFluid">
-                <select v-model="createPeriodForm.period_type" :class="crmFieldFluid">
-                    <option value="h1">1-15 (H1)</option>
-                    <option value="h2">16-last (H2)</option>
-                </select>
+            <div class="mb-4 flex flex-wrap items-end gap-3">
+                <label class="space-y-1">
+                    <span class="text-xs font-medium text-zinc-500">Месяц</span>
+                    <input v-model="createPeriodForm.period_month" type="month" :class="crmFieldFluid" class="min-w-[10rem]">
+                </label>
+                <label class="space-y-1">
+                    <span class="text-xs font-medium text-zinc-500">Период</span>
+                    <select v-model="createPeriodForm.period_type" :class="crmFieldFluid" class="min-w-[8rem]">
+                        <option value="h1">1–15 (H1)</option>
+                        <option value="h2">16–конец (H2)</option>
+                    </select>
+                </label>
                 <button
                     type="button"
                     :class="crmBtnPrimary"
                     class="disabled:opacity-60"
-                    :disabled="createPeriodForm.processing"
+                    :disabled="createPeriodForm.processing || !createPeriodForm.period_month"
                     @click="storeSalaryPeriod"
                 >
-                    Создать и рассчитать период
+                    Создать и рассчитать
                 </button>
+                <label class="min-w-[12rem] flex-1 space-y-1">
+                    <span class="text-xs font-medium text-zinc-500">Рассчитанные периоды</span>
+                    <select
+                        v-model="selectedSalaryPeriodId"
+                        :class="crmFieldFluid"
+                        @change="selectSalaryPeriod"
+                    >
+                        <option :value="null">Выберите период</option>
+                        <option v-for="period in salaryPeriods" :key="period.id" :value="period.id">
+                            {{ salaryPeriodLabel(period) }}
+                        </option>
+                    </select>
+                </label>
+                <label v-if="departments.length > 0" class="min-w-[11rem] space-y-1">
+                    <span class="text-xs font-medium text-zinc-500">Подразделения</span>
+                    <select
+                        v-model="selectedSalaryDepartmentIds"
+                        multiple
+                        :class="crmFieldFluid"
+                        class="min-h-[2.5rem]"
+                        @change="selectSalaryPeriod"
+                    >
+                        <option v-for="department in departments" :key="`dept-${department.id}`" :value="department.id">
+                            {{ department.name }}
+                        </option>
+                    </select>
+                </label>
+                <label class="min-w-[12rem] flex-1 space-y-1">
+                    <span class="text-xs font-medium text-zinc-500">Сотрудники</span>
+                    <select
+                        v-model="selectedSalaryUserIds"
+                        multiple
+                        :class="crmFieldFluid"
+                        class="min-h-[2.5rem]"
+                        @change="selectSalaryPeriod"
+                    >
+                        <option v-for="employee in filteredEmployees" :key="`salary-user-${employee.id}`" :value="employee.id">
+                            {{ employee.name }}
+                        </option>
+                    </select>
+                </label>
             </div>
+            <p class="mb-3 text-[11px] text-zinc-500 dark:text-zinc-400">
+                В списках подразделений и сотрудников можно выбрать несколько (Ctrl/⌘ + клик). Пустой список сотрудников = все.
+            </p>
 
             <div v-if="selectedSalaryPeriodId !== null" class="mb-4 flex flex-wrap gap-2">
                 <button
@@ -193,7 +219,6 @@
                             <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Выплачено</th>
                             <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Авансы</th>
                             <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Аванс к зачёту</th>
-                            <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Остаток</th>
                             <th class="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-300">Выплата</th>
                         </tr>
                     </thead>
@@ -219,7 +244,6 @@
                                 <td class="px-3 py-2">{{ money(row.paid_total) }}</td>
                                 <td class="px-3 py-2">{{ money(row.advance_total) }}</td>
                                 <td class="px-3 py-2">{{ money(row.advance_balance) }}</td>
-                                <td class="px-3 py-2">{{ money(row.payable_left) }}</td>
                                 <td class="px-3 py-2" @click.stop>
                                     <div class="flex justify-end gap-2">
                                         <input
@@ -252,7 +276,7 @@
                                 </td>
                             </tr>
                             <tr v-if="isEmployeeExpanded(row.user_id)">
-                                <td colspan="8" class="bg-zinc-50 px-3 py-3 dark:bg-zinc-950/50">
+                                <td colspan="7" class="bg-zinc-50 px-3 py-3 dark:bg-zinc-950/50">
                                     <div v-if="employeeOrderRows(row.user_id).length > 0" class="overflow-auto border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
                                         <table class="min-w-full divide-y divide-zinc-200 text-xs dark:divide-zinc-800">
                                             <thead class="bg-zinc-50 dark:bg-zinc-950/60">
@@ -300,7 +324,7 @@
                             </tr>
                         </template>
                         <tr v-if="salaryPeriodUsers.length === 0">
-                            <td colspan="8" class="px-3 py-4 text-center text-xs text-zinc-500 dark:text-zinc-400">
+                            <td colspan="7" class="px-3 py-4 text-center text-xs text-zinc-500 dark:text-zinc-400">
                                 <span v-if="!selectedSalaryPeriodId">Выберите период или создайте новый.</span>
                                 <span v-else>Нет строк начислений за этот период — проверьте заказы в гриде и нажмите «Пересчитать».</span>
                             </td>
@@ -585,7 +609,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -610,6 +634,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    departments: {
+        type: Array,
+        default: () => [],
+    },
     salaryCoefficients: {
         type: Array,
         default: () => [],
@@ -625,6 +653,14 @@ const props = defineProps({
     activeSalaryUserId: {
         type: Number,
         default: null,
+    },
+    activeSalaryUserIds: {
+        type: Array,
+        default: () => [],
+    },
+    activeSalaryDepartmentIds: {
+        type: Array,
+        default: () => [],
     },
     salaryPeriodUsers: {
         type: Array,
@@ -660,7 +696,8 @@ const salaryFlashSuccess = computed(() => {
     return flash?.type === 'success' ? (flash.message || null) : null;
 });
 const selectedSalaryPeriodId = ref(props.activeSalaryPeriodId ?? null);
-const selectedSalaryUserId = ref(props.activeSalaryUserId ?? null);
+const selectedSalaryUserIds = ref([...(props.activeSalaryUserIds || [])]);
+const selectedSalaryDepartmentIds = ref([...(props.activeSalaryDepartmentIds || [])]);
 const expandedEmployeeIds = ref([]);
 const payoutDrafts = reactive({});
 
@@ -682,63 +719,30 @@ const createSalaryForm = useForm({
     is_active: true,
 });
 
-function todayIsoDate() {
-    return new Date().toISOString().slice(0, 10);
+function todayMonthIso() {
+    const now = new Date();
+
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
-
-function canonicalHalfMonthDates(periodType, periodStartIso) {
-    if (!periodStartIso) {
-        return null;
-    }
-
-    const match = String(periodStartIso).match(/^(\d{4})-(\d{2})/);
-    if (!match) {
-        return null;
-    }
-
-    const year = Number(match[1]);
-    const month = Number(match[2]);
-    const monthPad = String(month).padStart(2, '0');
-
-    if (periodType === 'h1') {
-        return {
-            period_start: `${year}-${monthPad}-01`,
-            period_end: `${year}-${monthPad}-15`,
-        };
-    }
-
-    const lastDay = new Date(year, month, 0).getDate();
-
-    return {
-        period_start: `${year}-${monthPad}-16`,
-        period_end: `${year}-${monthPad}-${String(lastDay).padStart(2, '0')}`,
-    };
-}
-
-const initialPeriodDates = canonicalHalfMonthDates('h1', todayIsoDate()) ?? {
-    period_start: '',
-    period_end: '',
-};
 
 const createPeriodForm = useForm({
-    period_start: initialPeriodDates.period_start,
-    period_end: initialPeriodDates.period_end,
+    period_month: todayMonthIso(),
     period_type: 'h1',
     notes: '',
 });
 
-watch(
-    () => [createPeriodForm.period_type, createPeriodForm.period_start],
-    () => {
-        const normalized = canonicalHalfMonthDates(createPeriodForm.period_type, createPeriodForm.period_start);
-        if (!normalized) {
-            return;
-        }
+const filteredEmployees = computed(() => {
+    const departmentIds = selectedSalaryDepartmentIds.value.map(Number).filter((id) => id > 0);
+    if (departmentIds.length === 0) {
+        return props.employees;
+    }
 
-        createPeriodForm.period_start = normalized.period_start;
-        createPeriodForm.period_end = normalized.period_end;
-    },
-);
+    return props.employees.filter((employee) => {
+        const ids = (employee.department_ids || []).map(Number);
+
+        return ids.some((id) => departmentIds.includes(id));
+    });
+});
 
 const salaryDrafts = reactive(props.salaryCoefficients.map((row) => ({
     ...row,
@@ -860,7 +864,8 @@ function deleteSalaryCoefficient(id) {
 function selectSalaryPeriod() {
     router.get(route(routes.salaryIndex), {
         salary_period_id: selectedSalaryPeriodId.value,
-        salary_user_id: selectedSalaryUserId.value,
+        salary_user_ids: selectedSalaryUserIds.value,
+        salary_department_ids: selectedSalaryDepartmentIds.value,
     }, {
         preserveScroll: true,
         preserveState: true,
@@ -868,6 +873,11 @@ function selectSalaryPeriod() {
 }
 
 function storeSalaryPeriod() {
+    if (!createPeriodForm.period_month) {
+        window.alert('Выберите месяц.');
+        return;
+    }
+
     createPeriodForm.post(route(routes.periodsStore), {
         preserveScroll: true,
     });
@@ -964,7 +974,9 @@ function openAdvancePayoutModal() {
         return;
     }
 
-    advancePayoutForm.user_id = selectedSalaryUserId.value != null ? String(selectedSalaryUserId.value) : '';
+    advancePayoutForm.user_id = selectedSalaryUserIds.value.length === 1
+        ? String(selectedSalaryUserIds.value[0])
+        : '';
     advancePayoutForm.amount = '';
     advancePayoutForm.payout_date = new Date().toISOString().slice(0, 10);
     advancePayoutForm.comment = '';

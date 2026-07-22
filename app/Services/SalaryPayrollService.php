@@ -333,22 +333,34 @@ class SalaryPayrollService
     }
 
     /**
+     * @param  list<int>|null  $userIds
      * @return array<int, array<string, mixed>>
      */
-    public function userSummariesForPeriod(?SalaryPeriod $period, ?int $userId = null): array
+    public function userSummariesForPeriod(?SalaryPeriod $period, ?array $userIds = null): array
     {
         if ($period === null) {
             return [];
         }
 
-        $accrualUserIds = SalaryAccrual::query()
-            ->when($userId !== null, fn ($query) => $query->where('user_id', $userId))
-            ->distinct()
-            ->pluck('user_id');
+        $normalizedUserIds = $this->normalizeIdList($userIds);
+
+        $accrualUserIdsQuery = SalaryAccrual::query()
+            ->where('period_id', $period->id)
+            ->where('unpaid_amount', '>', 0.009)
+            ->when($normalizedUserIds !== null, fn ($query) => $query->whereIn('user_id', $normalizedUserIds));
+
+        if (Schema::hasColumn('orders', 'deleted_at')) {
+            $accrualUserIdsQuery->whereHas(
+                'order',
+                fn ($orderQuery) => $orderQuery->whereNull('deleted_at')
+            );
+        }
+
+        $accrualUserIds = $accrualUserIdsQuery->distinct()->pluck('user_id');
 
         $payoutUserIds = SalaryPayout::query()
             ->where('period_id', $period->id)
-            ->when($userId !== null, fn ($query) => $query->where('user_id', $userId))
+            ->when($normalizedUserIds !== null, fn ($query) => $query->whereIn('user_id', $normalizedUserIds))
             ->distinct()
             ->pluck('user_id');
 
@@ -367,20 +379,38 @@ class SalaryPayrollService
 
         return $users->map(function (User $userRow) use ($period): array {
             $userId = (int) $userRow->id;
-            $periodAccruals = SalaryAccrual::query()
+            $periodAccrualsQuery = SalaryAccrual::query()
                 ->where('period_id', $period->id)
                 ->where('user_id', $userId)
-                ->get();
-            $allAccruals = SalaryAccrual::query()
+                ->where('unpaid_amount', '>', 0.009);
+
+            if (Schema::hasColumn('orders', 'deleted_at')) {
+                $periodAccrualsQuery->whereHas(
+                    'order',
+                    fn ($orderQuery) => $orderQuery->whereNull('deleted_at')
+                );
+            }
+
+            $periodAccruals = $periodAccrualsQuery->get();
+            $allAccrualsQuery = SalaryAccrual::query()
                 ->where('user_id', $userId)
-                ->orderBy('order_date_snapshot')
-                ->get();
+                ->orderBy('order_date_snapshot');
+
+            if (Schema::hasColumn('orders', 'deleted_at')) {
+                $allAccrualsQuery->whereHas(
+                    'order',
+                    fn ($orderQuery) => $orderQuery->whereNull('deleted_at')
+                );
+            }
+
+            $allAccruals = $allAccrualsQuery->get();
             $payableTotal = $allAccruals->sum(
                 fn (SalaryAccrual $accrual): float => $this->payableForAccrualToPeriodEnd($accrual, $period)
             );
             $allocatedTotal = $allAccruals->sum(
                 fn (SalaryAccrual $accrual): float => $this->allocatedAmountForAccrualTotal($accrual->id)
             );
+            $payableLeft = round(max(0.0, $payableTotal - $allocatedTotal), 2);
             $paidTotal = (float) SalaryPayout::query()
                 ->where('period_id', $period->id)
                 ->where('user_id', $userId)
@@ -396,31 +426,39 @@ class SalaryPayrollService
                 'user_id' => $userId,
                 'user_name' => $userRow->name,
                 'accrued_total' => round((float) $periodAccruals->sum('salary_amount'), 2),
-                'payable_total' => round($payableTotal, 2),
+                // «К выплате» = ещё можно провести сейчас (не исторический payable с уже закрытыми заказами).
+                'payable_total' => $payableLeft,
                 'paid_total' => round($paidTotal, 2),
                 'advance_total' => round($advanceTotal, 2),
                 'advance_balance' => round($advanceBalance, 2),
                 'unpaid_total' => round(max(0.0, $allAccruals->sum(fn (SalaryAccrual $accrual): float => (float) $accrual->unpaid_amount)), 2),
-                'payable_left' => round(max(0.0, $payableTotal - $allocatedTotal), 2),
+                'payable_left' => $payableLeft,
             ];
         })->values()->all();
     }
 
     /**
+     * @param  list<int>|null  $userIds
      * @return array<int, array<string, mixed>>
      */
-    public function orderRowsForPeriod(?SalaryPeriod $period, ?int $userId = null): array
+    public function orderRowsForPeriod(?SalaryPeriod $period, ?array $userIds = null): array
     {
         if ($period === null) {
             return [];
         }
 
+        $normalizedUserIds = $this->normalizeIdList($userIds);
+
         $rows = SalaryAccrual::query()
             ->leftJoin('orders', 'orders.id', '=', 'salary_accruals.order_id')
             ->leftJoin('users', 'users.id', '=', 'salary_accruals.user_id')
             ->where('salary_accruals.period_id', $period->id)
-            ->when($userId !== null, fn ($query) => $query->where('salary_accruals.user_id', $userId))
+            ->when($normalizedUserIds !== null, fn ($query) => $query->whereIn('salary_accruals.user_id', $normalizedUserIds))
             ->where('salary_accruals.unpaid_amount', '>', 0.009)
+            ->when(
+                Schema::hasColumn('orders', 'deleted_at'),
+                fn ($query) => $query->whereNull('orders.deleted_at')
+            )
             ->select([
                 'salary_accruals.id',
                 'salary_accruals.period_id',
@@ -759,5 +797,70 @@ class SalaryPayrollService
                 'suggested_period_type' => $day <= 15 ? 'h1' : 'h2',
             ];
         })->values()->all();
+    }
+
+    /**
+     * Soft-deleted / удалённые из грида заказы: убрать из открытых начислений и зафиксировать выплату ЗП,
+     * если менеджеру уже рассчитались вне модуля (или заказ больше не ведём).
+     */
+    public function settleAccrualForRemovedOrder(int $orderId, bool $markSalaryPaid = true): void
+    {
+        DB::transaction(function () use ($orderId, $markSalaryPaid): void {
+            $accruals = SalaryAccrual::query()
+                ->where('order_id', $orderId)
+                ->lockForUpdate()
+                ->get();
+
+            $paidSum = 0.0;
+
+            foreach ($accruals as $accrual) {
+                $salaryAmount = (float) $accrual->salary_amount;
+                $paidFact = $markSalaryPaid ? $salaryAmount : (float) $accrual->paid_amount_fact;
+                $paidSum += $paidFact;
+
+                $accrual->forceFill([
+                    'paid_amount_fact' => $paidFact,
+                    'unpaid_amount' => round(max(0.0, $salaryAmount - $paidFact), 2),
+                    'payable_amount_computed' => $markSalaryPaid ? $salaryAmount : $accrual->payable_amount_computed,
+                    'meta' => array_merge(is_array($accrual->meta) ? $accrual->meta : [], [
+                        'settled_removed_order_at' => now()->toIso8601String(),
+                        'settled_removed_order' => true,
+                    ]),
+                ])->save();
+            }
+
+            // Не вызываем syncOrderSalaryPaidFromAccruals: OrderStatusService снова откроет статус по чек-листу.
+            if (Schema::hasTable('orders')) {
+                $payload = [
+                    'status' => 'closed',
+                    'is_active' => false,
+                    'updated_at' => now(),
+                ];
+                if ($markSalaryPaid && Schema::hasColumn('orders', 'salary_paid')) {
+                    $payload['salary_paid'] = round($paidSum, 2);
+                }
+                DB::table('orders')->where('id', $orderId)->update($payload);
+            }
+        });
+    }
+
+    /**
+     * @param  list<int|string>|null  $ids
+     * @return list<int>|null
+     */
+    private function normalizeIdList(?array $ids): ?array
+    {
+        if ($ids === null) {
+            return null;
+        }
+
+        $normalized = collect($ids)
+            ->map(fn (mixed $id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        return $normalized === [] ? null : $normalized;
     }
 }

@@ -25,6 +25,13 @@ class StoreSalaryPeriodRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        if ($this->filled('period_month') && ! $this->filled('period_start')) {
+            $month = (string) $this->input('period_month');
+            if (preg_match('/^\d{4}-\d{2}$/', $month) === 1) {
+                $this->merge(['period_start' => $month.'-01']);
+            }
+        }
+
         if (! $this->filled('period_type') || ! $this->filled('period_start')) {
             return;
         }
@@ -68,6 +75,7 @@ class StoreSalaryPeriodRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'period_month' => ['nullable', 'string', 'regex:/^\d{4}-\d{2}$/'],
             'period_start' => ['required', 'date'],
             'period_end' => ['required', 'date', 'after_or_equal:period_start'],
             'period_type' => ['required', 'string', Rule::in(['h1', 'h2'])],
@@ -81,7 +89,8 @@ class StoreSalaryPeriodRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'period_start.required' => 'Укажите дату начала периода.',
+            'period_month.regex' => 'Укажите месяц в формате ГГГГ-ММ.',
+            'period_start.required' => 'Укажите месяц или дату начала периода.',
             'period_end.required' => 'Укажите дату окончания периода.',
             'period_type.required' => 'Выберите тип периода (H1 или H2).',
         ];

@@ -360,4 +360,107 @@ class SalaryPayrollManagementTest extends TestCase
         $this->assertCount(1, $h2Rows);
         $this->assertSame($orderB, $h2Rows[0]['order_id']);
     }
+
+    public function test_period_can_be_created_from_month_and_half(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'visibility_areas' => json_encode(['dashboard', 'settings_motivation', 'finance_salary'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($user)->post(route('finance.salary.periods.store'), [
+            'period_month' => '2026-04',
+            'period_type' => 'h1',
+        ])->assertRedirect()->assertSessionDoesntHaveErrors();
+
+        $period = DB::table('salary_periods')->first();
+        $this->assertNotNull($period);
+        $this->assertSame('2026-04-01', substr((string) $period->period_start, 0, 10));
+        $this->assertSame('2026-04-15', substr((string) $period->period_end, 0, 10));
+        $this->assertSame('h1', $period->period_type);
+    }
+
+    public function test_soft_deleted_orders_are_hidden_from_salary_order_rows(): void
+    {
+        $this->assertTrue(Schema::hasColumn('orders', 'deleted_at'));
+
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'visibility_areas' => json_encode(['dashboard', 'settings_motivation', 'finance_salary'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $orderId = $this->insertOrderRow([
+            'manager_id' => $user->id,
+            'order_date' => '2026-05-05',
+            'delta' => 200000,
+            'salary_accrued' => 100000,
+            'customer_rate' => 300000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user)->post(route('finance.salary.periods.store'), [
+            'period_month' => '2026-05',
+            'period_type' => 'h1',
+        ])->assertRedirect();
+
+        $periodId = (int) DB::table('salary_periods')->value('id');
+        $this->assertSame(1, (int) DB::table('salary_accruals')->where('order_id', $orderId)->count());
+
+        DB::table('orders')->where('id', $orderId)->update(['deleted_at' => now()]);
+
+        $service = app(SalaryPayrollService::class);
+        $period = SalaryPeriod::query()->findOrFail($periodId);
+        $this->assertSame([], $service->orderRowsForPeriod($period));
+    }
+
+    public function test_settle_removed_order_closes_unpaid_accrual(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'visibility_areas' => json_encode(['dashboard', 'settings_motivation', 'finance_salary'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $orderId = $this->insertOrderRow([
+            'manager_id' => $user->id,
+            'order_date' => '2026-05-20',
+            'delta' => 359800,
+            'salary_accrued' => 179900,
+            'customer_rate' => 2240000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user)->post(route('finance.salary.periods.store'), [
+            'period_month' => '2026-05',
+            'period_type' => 'h2',
+        ])->assertRedirect();
+
+        $this->artisan('salary:settle-removed-order', ['orderId' => $orderId])
+            ->assertSuccessful();
+
+        $accrual = DB::table('salary_accruals')->where('order_id', $orderId)->first();
+        $this->assertNotNull($accrual);
+        $this->assertSame('0.00', number_format((float) $accrual->unpaid_amount, 2, '.', ''));
+        $this->assertSame('179900.00', number_format((float) $accrual->paid_amount_fact, 2, '.', ''));
+        $this->assertSame('closed', DB::table('orders')->where('id', $orderId)->value('status'));
+    }
 }

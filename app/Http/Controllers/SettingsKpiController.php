@@ -10,6 +10,7 @@ use App\Http\Requests\StoreSalaryUnscopedAdvanceRequest;
 use App\Http\Requests\UpdateKpiDeductionRuleRequest;
 use App\Http\Requests\UpdateKpiSettingsRequest;
 use App\Http\Requests\UpdateSalaryCoefficientRequest;
+use App\Models\Department;
 use App\Models\KpiDeductionRule;
 use App\Models\SalaryCoefficient;
 use App\Models\SalaryPeriod;
@@ -23,6 +24,7 @@ use App\Support\PaymentFormDictionary;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -82,12 +84,23 @@ class SettingsKpiController extends Controller
         $prunedPeriodsCount = $this->salaryPayrollService->pruneDuplicateDraftPeriods();
         $periods = $this->salaryPayrollService->periods();
         $activePeriod = $periods->firstWhere('id', (int) $request->integer('salary_period_id')) ?? $periods->first();
-        $selectedSalaryUserId = $request->filled('salary_user_id')
-            ? (int) $request->integer('salary_user_id')
-            : null;
+
+        $selectedSalaryUserIds = $this->normalizeRequestIdList($request->input('salary_user_ids'));
+        if ($selectedSalaryUserIds === null && $request->filled('salary_user_id')) {
+            $selectedSalaryUserIds = [(int) $request->integer('salary_user_id')];
+        }
+
+        $selectedDepartmentIds = $this->normalizeRequestIdList($request->input('salary_department_ids'));
+        if ($selectedDepartmentIds !== null) {
+            $departmentUserIds = $this->userIdsForDepartments($selectedDepartmentIds);
+            $selectedSalaryUserIds = $selectedSalaryUserIds === null
+                ? $departmentUserIds
+                : array_values(array_intersect($selectedSalaryUserIds, $departmentUserIds));
+        }
 
         return [
             'employees' => $this->employeesPayload(),
+            'departments' => $this->departmentsPayload(),
             'salaryCoefficients' => $this->salaryCoefficientsPayload(),
             'salaryPeriods' => $periods->map(fn (SalaryPeriod $period): array => [
                 'id' => $period->id,
@@ -100,9 +113,13 @@ class SettingsKpiController extends Controller
             ])->values(),
             'salaryPeriodsPrunedCount' => $prunedPeriodsCount > 0 ? $prunedPeriodsCount : null,
             'activeSalaryPeriodId' => $activePeriod?->id,
-            'activeSalaryUserId' => $selectedSalaryUserId,
-            'salaryPeriodUsers' => $this->salaryPayrollService->userSummariesForPeriod($activePeriod, $selectedSalaryUserId),
-            'salaryPeriodOrderRows' => $this->salaryPayrollService->orderRowsForPeriod($activePeriod, $selectedSalaryUserId),
+            'activeSalaryUserIds' => $selectedSalaryUserIds ?? [],
+            'activeSalaryDepartmentIds' => $selectedDepartmentIds ?? [],
+            'activeSalaryUserId' => ($selectedSalaryUserIds !== null && count($selectedSalaryUserIds) === 1)
+                ? $selectedSalaryUserIds[0]
+                : null,
+            'salaryPeriodUsers' => $this->salaryPayrollService->userSummariesForPeriod($activePeriod, $selectedSalaryUserIds),
+            'salaryPeriodOrderRows' => $this->salaryPayrollService->orderRowsForPeriod($activePeriod, $selectedSalaryUserIds),
             'ordersMissingSalaryAccrual' => $this->salaryPayrollService->ordersMissingSalaryAccrual(),
         ];
     }
@@ -342,7 +359,7 @@ class SettingsKpiController extends Controller
     }
 
     /**
-     * @param  array<string, scalar|null>  $parameters
+     * @param  array<string, scalar|list<int>|null>  $parameters
      */
     private function salaryRedirect(Request $request, array $parameters = []): RedirectResponse
     {
@@ -350,12 +367,20 @@ class SettingsKpiController extends Controller
             ? 'finance.salary.index'
             : 'settings.motivation.salary';
 
-        $salaryUserId = $request->filled('salary_user_id')
-            ? (int) $request->integer('salary_user_id')
-            : null;
+        if (! array_key_exists('salary_user_ids', $parameters)) {
+            $fromRequest = $this->normalizeRequestIdList($request->input('salary_user_ids'));
+            if ($fromRequest !== null) {
+                $parameters['salary_user_ids'] = $fromRequest;
+            } elseif ($request->filled('salary_user_id')) {
+                $parameters['salary_user_ids'] = [(int) $request->integer('salary_user_id')];
+            }
+        }
 
-        if ($salaryUserId !== null && ! array_key_exists('salary_user_id', $parameters)) {
-            $parameters['salary_user_id'] = $salaryUserId;
+        if (! array_key_exists('salary_department_ids', $parameters)) {
+            $departmentIds = $this->normalizeRequestIdList($request->input('salary_department_ids'));
+            if ($departmentIds !== null) {
+                $parameters['salary_department_ids'] = $departmentIds;
+            }
         }
 
         return to_route($routeName, $parameters);
@@ -366,7 +391,8 @@ class SettingsKpiController extends Controller
      */
     private function employeesPayload(): array
     {
-        return User::query()
+        $users = User::query()
+            ->with(['departments:id,name'])
             ->leftJoin('roles', 'roles.id', '=', 'users.role_id')
             ->where('users.is_active', true)
             ->orderBy('users.name')
@@ -375,13 +401,81 @@ class SettingsKpiController extends Controller
                 'users.name',
                 'users.email',
                 'roles.name as role_name',
-            ])
+            ]);
+
+        return $users
             ->map(fn (User $user): array => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
                 'role_name' => $user->role_name,
+                'department_ids' => $user->departments->pluck('id')->map(fn ($id): int => (int) $id)->values()->all(),
             ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array{id: int, name: string}>
+     */
+    private function departmentsPayload(): array
+    {
+        if (! Schema::hasTable('departments')) {
+            return [];
+        }
+
+        return Department::query()
+            ->when(
+                Schema::hasColumn('departments', 'is_active'),
+                fn ($query) => $query->where('is_active', true)
+            )
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Department $department): array => [
+                'id' => $department->id,
+                'name' => $department->name,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<int>|null
+     */
+    private function normalizeRequestIdList(mixed $value): ?array
+    {
+        if ($value === null || $value === '' || $value === []) {
+            return null;
+        }
+
+        $items = is_array($value) ? $value : (preg_split('/\s*,\s*/', (string) $value) ?: []);
+
+        $normalized = collect($items)
+            ->map(fn (mixed $id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        return $normalized === [] ? null : $normalized;
+    }
+
+    /**
+     * @param  list<int>  $departmentIds
+     * @return list<int>
+     */
+    private function userIdsForDepartments(array $departmentIds): array
+    {
+        if ($departmentIds === [] || ! Schema::hasTable('department_user')) {
+            return [];
+        }
+
+        return DB::table('department_user')
+            ->whereIn('department_id', $departmentIds)
+            ->pluck('user_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
             ->values()
             ->all();
     }
