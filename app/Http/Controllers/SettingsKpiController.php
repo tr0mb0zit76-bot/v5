@@ -103,6 +103,7 @@ class SettingsKpiController extends Controller
             'activeSalaryUserId' => $selectedSalaryUserId,
             'salaryPeriodUsers' => $this->salaryPayrollService->userSummariesForPeriod($activePeriod, $selectedSalaryUserId),
             'salaryPeriodOrderRows' => $this->salaryPayrollService->orderRowsForPeriod($activePeriod, $selectedSalaryUserId),
+            'ordersMissingSalaryAccrual' => $this->salaryPayrollService->ordersMissingSalaryAccrual(),
         ];
     }
 
@@ -261,9 +262,16 @@ class SettingsKpiController extends Controller
     public function recalculateSalaryPeriod(Request $request, SalaryPeriod $salaryPeriod): RedirectResponse
     {
         $this->assertSalaryModuleAccess($request);
-        $this->salaryPayrollService->recalculatePeriod($salaryPeriod);
 
-        return $this->salaryRedirect($request, ['salary_period_id' => $salaryPeriod->id]);
+        try {
+            $this->salaryPayrollService->recalculatePeriod($salaryPeriod);
+        } catch (\RuntimeException $exception) {
+            return $this->salaryRedirect($request, ['salary_period_id' => $salaryPeriod->id])
+                ->withErrors(['period' => $exception->getMessage()]);
+        }
+
+        return $this->salaryRedirect($request, ['salary_period_id' => $salaryPeriod->id])
+            ->with('flash', ['type' => 'success', 'message' => 'Период пересчитан.']);
     }
 
     public function approveSalaryPeriod(Request $request, SalaryPeriod $salaryPeriod): RedirectResponse
@@ -294,16 +302,25 @@ class SettingsKpiController extends Controller
             ])->withErrors(['period' => $exception->getMessage()]);
         }
 
-        return $this->salaryRedirect($request)->with('success', 'Зарплатный период удалён.');
+        return $this->salaryRedirect($request)->with('flash', [
+            'type' => 'success',
+            'message' => 'Зарплатный период удалён.',
+        ]);
     }
 
     public function storeSalaryPayout(
         StoreSalaryPayoutRequest $request,
         SalaryPeriod $salaryPeriod
     ): RedirectResponse {
-        $this->salaryPayrollService->createPayout($salaryPeriod, $request->validated(), $request->user()?->id);
+        try {
+            $this->salaryPayrollService->createPayout($salaryPeriod, $request->validated(), $request->user()?->id);
+        } catch (\RuntimeException $exception) {
+            return $this->salaryRedirect($request, ['salary_period_id' => $salaryPeriod->id])
+                ->withErrors(['payout' => $exception->getMessage()]);
+        }
 
-        return $this->salaryRedirect($request, ['salary_period_id' => $salaryPeriod->id]);
+        return $this->salaryRedirect($request, ['salary_period_id' => $salaryPeriod->id])
+            ->with('flash', ['type' => 'success', 'message' => 'Выплата проведена.']);
     }
 
     public function storeSalaryAdvanceWithoutPeriod(StoreSalaryUnscopedAdvanceRequest $request): RedirectResponse

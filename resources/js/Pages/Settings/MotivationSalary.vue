@@ -36,6 +36,37 @@
                 </Link>
         </nav>
 
+        <div
+            v-if="salaryFlashError"
+            class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100"
+        >
+            {{ salaryFlashError }}
+        </div>
+        <div
+            v-else-if="salaryFlashSuccess"
+            class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100"
+        >
+            {{ salaryFlashSuccess }}
+        </div>
+
+        <div
+            v-if="isFinanceModule && ordersMissingSalaryAccrual.length > 0"
+            class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"
+        >
+            <p class="font-medium">Есть заказы без зарплатного начисления</p>
+            <p class="mt-1 text-xs opacity-90">
+                Начисление идёт по <span class="font-medium">дате заказа</span> в полупериод H1/H2.
+                Создайте недостающий период («Создать и рассчитать») — например H2 мая для заказов с датой 16–31.05.
+            </p>
+            <ul class="mt-2 list-disc space-y-0.5 pl-5 text-xs">
+                <li v-for="row in ordersMissingSalaryAccrual.slice(0, 8)" :key="row.order_id">
+                    {{ row.order_number || `#${row.order_id}` }}
+                    · {{ formatSalaryPeriodDate(row.order_date) }}
+                    · {{ row.suggested_period_type.toUpperCase() }}
+                </li>
+            </ul>
+        </div>
+
         <section v-if="isFinanceModule" :class="`${crmPanel} p-5`">
             <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div class="space-y-1">
@@ -196,13 +227,15 @@
                                             type="number"
                                             min="0"
                                             step="0.01"
+                                            :max="Number(row.payable_left) > 0 ? Number(row.payable_left) : undefined"
                                             class="w-28 border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
                                             :disabled="!selectedSalaryPeriodId || selectedPeriod?.status === 'closed' || selectedPeriod?.status === 'draft'"
+                                            :placeholder="String(row.payable_left ?? '')"
                                         >
                                         <button
                                             type="button"
                                             class="rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                            :disabled="!selectedSalaryPeriodId || selectedPeriod?.status === 'closed' || selectedPeriod?.status === 'draft'"
+                                            :disabled="!selectedSalaryPeriodId || selectedPeriod?.status === 'closed' || selectedPeriod?.status === 'draft' || Number(row.payable_left) <= 0"
                                             @click="storeSalaryPayout(row.user_id, 'salary')"
                                         >
                                             Провести
@@ -553,7 +586,7 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
-import { Link, router, useForm } from '@inertiajs/vue3';
+import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmFieldFluid, crmPanel, crmSectionTitle } from '@/support/crmUi.js';
@@ -609,8 +642,23 @@ const props = defineProps({
         type: Number,
         default: null,
     },
+    ordersMissingSalaryAccrual: {
+        type: Array,
+        default: () => [],
+    },
 });
 
+const page = usePage();
+const salaryFlashError = computed(() => {
+    const errors = page.props.errors ?? {};
+
+    return errors.payout || errors.period || Object.values(errors)[0] || null;
+});
+const salaryFlashSuccess = computed(() => {
+    const flash = page.props.flash;
+
+    return flash?.type === 'success' ? (flash.message || null) : null;
+});
 const selectedSalaryPeriodId = ref(props.activeSalaryPeriodId ?? null);
 const selectedSalaryUserId = ref(props.activeSalaryUserId ?? null);
 const expandedEmployeeIds = ref([]);
@@ -878,9 +926,22 @@ function employeeOrderRows(userId) {
 
 function storeSalaryPayout(userId, type = 'salary') {
     if (!selectedSalaryPeriodId.value) return;
-    const amount = Number(payoutDrafts[userId] || 0);
+
+    const summary = props.salaryPeriodUsers.find((row) => Number(row.user_id) === Number(userId));
+    const drafted = Number(payoutDrafts[userId]);
+    const amount = Number.isFinite(drafted) && drafted > 0
+        ? drafted
+        : Number(summary?.payable_left || 0);
+
     if (!Number.isFinite(amount) || amount <= 0) {
-        window.alert('Укажите сумму выплаты больше 0.');
+        window.alert(type === 'salary'
+            ? 'Нет доступной суммы к выплате (или укажите сумму вручную).'
+            : 'Укажите сумму аванса больше 0.');
+        return;
+    }
+
+    if (type === 'salary' && summary && amount > Number(summary.payable_left) + 0.009) {
+        window.alert(`Сумма больше доступной к выплате (${summary.payable_left} ₽).`);
         return;
     }
 

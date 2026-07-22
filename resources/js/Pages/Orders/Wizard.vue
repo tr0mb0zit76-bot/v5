@@ -949,10 +949,36 @@ const maxActualDate = todayIsoDate();
 
 function onPerformerActualDateInput(performer, field) {
     performer[field] = clampActualDateToToday(performer[field]);
+    assertPerformerActualOrder(performer, field);
 }
 
 function onSplitActualDateInput(slot, field) {
     slot[field] = clampActualDateToToday(slot[field]);
+    assertSlotActualOrder(slot, field);
+}
+
+function assertPerformerActualOrder(performer, field) {
+    const loading = String(performer.loading_actual || '').trim();
+    const unloading = String(performer.unloading_actual || '').trim();
+
+    if (!loading || !unloading || loading <= unloading) {
+        return;
+    }
+
+    window.alert('Фактическая погрузка не может быть позже фактической выгрузки.');
+    performer[field] = '';
+}
+
+function assertSlotActualOrder(slot, field) {
+    const loading = String(slot.loading_actual || '').trim();
+    const unloading = String(slot.unloading_actual || '').trim();
+
+    if (!loading || !unloading || loading <= unloading) {
+        return;
+    }
+
+    window.alert('Фактическая погрузка не может быть позже фактической выгрузки.');
+    slot[field] = '';
 }
 
 function clampCompensationPercent(value) {

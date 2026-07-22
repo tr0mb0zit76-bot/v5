@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\SalaryPeriod;
 use App\Models\User;
+use App\Services\SalaryPayrollService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -231,5 +233,131 @@ class SalaryPayrollManagementTest extends TestCase
         $this->assertSame('179900.00', number_format((float) $accrual->salary_amount, 2, '.', ''));
 
         $this->assertSame('179900.00', number_format((float) DB::table('orders')->where('id', $orderId)->value('salary_accrued'), 2, '.', ''));
+    }
+
+    public function test_payout_over_available_returns_validation_error_not_500(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'visibility_areas' => json_encode(['dashboard', 'settings_motivation', 'finance_salary'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $this->insertOrderRow([
+            'manager_id' => $user->id,
+            'order_date' => '2026-02-20',
+            'delta' => 100000,
+            'salary_accrued' => 50000,
+            'customer_rate' => 200000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user)->post(route('finance.salary.periods.store'), [
+            'period_start' => '2026-02-16',
+            'period_end' => '2026-02-28',
+            'period_type' => 'h2',
+        ])->assertRedirect();
+
+        $periodId = (int) DB::table('salary_periods')->value('id');
+
+        $this->actingAs($user)->post(route('finance.salary.periods.payouts.store', $periodId), [
+            'user_id' => $user->id,
+            'amount' => 999999,
+            'payout_date' => '2026-02-25',
+            'type' => 'salary',
+        ])->assertRedirect()->assertSessionHasErrors('payout');
+
+        $this->assertSame(0, (int) DB::table('salary_payouts')->count());
+    }
+
+    public function test_order_rows_are_scoped_to_period_and_hide_fully_paid(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'visibility_areas' => json_encode(['dashboard', 'settings_motivation', 'finance_salary'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $orderA = $this->insertOrderRow([
+            'manager_id' => $user->id,
+            'order_date' => '2026-03-05',
+            'delta' => 200000,
+            'salary_accrued' => 100000,
+            'customer_rate' => 300000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $orderB = $this->insertOrderRow([
+            'manager_id' => $user->id,
+            'order_date' => '2026-03-20',
+            'delta' => 100000,
+            'salary_accrued' => 50000,
+            'customer_rate' => 150000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        foreach ([$orderA => '2026-03-10', $orderB => '2026-03-25'] as $orderId => $paidOn) {
+            DB::table('payment_schedules')->insert(array_filter([
+                'order_id' => $orderId,
+                'party' => 'customer',
+                'amount' => $orderId === $orderA ? 300000 : 150000,
+                'paid_amount' => Schema::hasColumn('payment_schedules', 'paid_amount')
+                    ? ($orderId === $orderA ? 300000 : 150000)
+                    : null,
+                'actual_date' => $paidOn,
+                'status' => 'paid',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ], fn (mixed $value): bool => $value !== null));
+        }
+
+        $this->actingAs($user)->post(route('finance.salary.periods.store'), [
+            'period_start' => '2026-03-01',
+            'period_end' => '2026-03-15',
+            'period_type' => 'h1',
+        ])->assertRedirect();
+        $periodH1 = (int) DB::table('salary_periods')->where('period_type', 'h1')->value('id');
+
+        $this->actingAs($user)->post(route('finance.salary.periods.store'), [
+            'period_start' => '2026-03-16',
+            'period_end' => '2026-03-31',
+            'period_type' => 'h2',
+        ])->assertRedirect();
+        $periodH2 = (int) DB::table('salary_periods')->where('period_type', 'h2')->value('id');
+
+        $this->actingAs($user)->post(route('finance.salary.periods.approve', $periodH1))->assertRedirect();
+
+        $accrualH1 = DB::table('salary_accruals')->where('period_id', $periodH1)->where('order_id', $orderA)->first();
+        $this->assertNotNull($accrualH1);
+
+        $this->actingAs($user)->post(route('finance.salary.periods.payouts.store', $periodH1), [
+            'user_id' => $user->id,
+            'amount' => (float) $accrualH1->salary_amount,
+            'payout_date' => '2026-03-20',
+            'type' => 'salary',
+        ])->assertRedirect()->assertSessionDoesntHaveErrors();
+
+        $service = app(SalaryPayrollService::class);
+        $periodModelH1 = SalaryPeriod::query()->findOrFail($periodH1);
+        $periodModelH2 = SalaryPeriod::query()->findOrFail($periodH2);
+
+        $h1Rows = $service->orderRowsForPeriod($periodModelH1);
+        $h2Rows = $service->orderRowsForPeriod($periodModelH2);
+
+        $this->assertSame([], $h1Rows, 'Fully paid accruals must not appear in order rows.');
+        $this->assertCount(1, $h2Rows);
+        $this->assertSame($orderB, $h2Rows[0]['order_id']);
     }
 }

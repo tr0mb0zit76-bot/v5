@@ -92,8 +92,20 @@ class SalaryPayrollService
         }
 
         DB::transaction(function () use ($period): void {
+            $orderIds = SalaryAccrual::query()
+                ->where('period_id', $period->id)
+                ->pluck('order_id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
             SalaryAccrual::query()->where('period_id', $period->id)->delete();
             $period->delete();
+
+            foreach ($orderIds as $orderId) {
+                $this->syncOrderSalaryPaidFromAccruals($orderId);
+            }
         });
     }
 
@@ -149,7 +161,19 @@ class SalaryPayrollService
                 throw new RuntimeException('Нельзя пересчитать период с уже проведёнными выплатами.');
             }
 
+            $previousOrderIds = SalaryAccrual::query()
+                ->where('period_id', $period->id)
+                ->pluck('order_id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
             SalaryAccrual::query()->where('period_id', $period->id)->delete();
+
+            foreach ($previousOrderIds as $orderId) {
+                $this->syncOrderSalaryPaidFromAccruals($orderId);
+            }
 
             if (! Schema::hasTable('orders')) {
                 return;
@@ -233,12 +257,28 @@ class SalaryPayrollService
             ]);
 
             $amountLeft = (float) $payload['amount'];
+            $userId = (int) $payload['user_id'];
+
             $accruals = SalaryAccrual::query()
-                ->where('user_id', (int) $payload['user_id'])
+                ->where('user_id', $userId)
                 ->orderBy('order_date_snapshot')
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
+
+            if ($type === 'salary') {
+                $availableTotal = round($accruals->sum(
+                    fn (SalaryAccrual $accrual): float => $this->availableToAllocateForAccrual($accrual, $period)
+                ), 2);
+
+                if ($amountLeft > $availableTotal + 0.009) {
+                    throw new RuntimeException(
+                        'Сумма выплаты превышает доступную к выплате (доступно '
+                        .number_format($availableTotal, 2, '.', '')
+                        .' ₽). Уже выплаченное по заказам не пропадает — уменьшите сумму или дождитесь оплаты заказчика.'
+                    );
+                }
+            }
 
             /** @var SalaryAccrual $accrual */
             foreach ($accruals as $accrual) {
@@ -262,7 +302,9 @@ class SalaryPayrollService
             }
 
             if ($type === 'salary' && $amountLeft > 0.009) {
-                throw new RuntimeException('Сумма выплаты превышает доступную сумму к выплате.');
+                throw new RuntimeException(
+                    'Сумма выплаты превышает доступную сумму к выплате.'
+                );
             }
 
             return $payout;
@@ -376,7 +418,9 @@ class SalaryPayrollService
         $rows = SalaryAccrual::query()
             ->leftJoin('orders', 'orders.id', '=', 'salary_accruals.order_id')
             ->leftJoin('users', 'users.id', '=', 'salary_accruals.user_id')
+            ->where('salary_accruals.period_id', $period->id)
             ->when($userId !== null, fn ($query) => $query->where('salary_accruals.user_id', $userId))
+            ->where('salary_accruals.unpaid_amount', '>', 0.009)
             ->select([
                 'salary_accruals.id',
                 'salary_accruals.period_id',
@@ -669,5 +713,51 @@ class SalaryPayrollService
     private function isCustomerFullyPaid(float $customerRate, float $paidAmount): bool
     {
         return $customerRate > 0 && $paidAmount + 0.009 >= $customerRate;
+    }
+
+    /**
+     * Заказы с менеджером без строки в salary_accruals (часто нет полупериода под order_date).
+     *
+     * @return list<array{order_id: int, order_number: string|null, order_date: string|null, manager_id: int, suggested_period_type: string}>
+     */
+    public function ordersMissingSalaryAccrual(int $limit = 25): array
+    {
+        if (! Schema::hasTable('orders') || ! Schema::hasTable('salary_accruals')) {
+            return [];
+        }
+
+        $query = DB::table('orders')
+            ->when(
+                Schema::hasColumn('orders', 'deleted_at'),
+                fn ($builder) => $builder->whereNull('orders.deleted_at')
+            )
+            ->whereNotNull('orders.manager_id')
+            ->whereNotNull('orders.order_date')
+            ->whereNotExists(function ($sub): void {
+                $sub->selectRaw('1')
+                    ->from('salary_accruals')
+                    ->whereColumn('salary_accruals.order_id', 'orders.id');
+            })
+            ->orderByDesc('orders.order_date')
+            ->orderByDesc('orders.id')
+            ->limit($limit)
+            ->get([
+                'orders.id',
+                'orders.order_number',
+                'orders.order_date',
+                'orders.manager_id',
+            ]);
+
+        return $query->map(function (object $row): array {
+            $day = Carbon::parse((string) $row->order_date)->day;
+
+            return [
+                'order_id' => (int) $row->id,
+                'order_number' => $row->order_number,
+                'order_date' => Carbon::parse((string) $row->order_date)->toDateString(),
+                'manager_id' => (int) $row->manager_id,
+                'suggested_period_type' => $day <= 15 ? 'h1' : 'h2',
+            ];
+        })->values()->all();
     }
 }

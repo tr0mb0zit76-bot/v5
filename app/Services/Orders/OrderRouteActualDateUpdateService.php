@@ -60,6 +60,8 @@ class OrderRouteActualDateUpdateService
             ]);
         }
 
+        $this->assertLoadingNotAfterUnloading($order, $stage, $routeType, $normalizedDate);
+
         $routePoint->forceFill(['actual_date' => $normalizedDate])->save();
         $this->syncPerformersJson($order, $stage, $kind, $normalizedDate);
 
@@ -187,5 +189,39 @@ class OrderRouteActualDateUpdateService
         }
 
         $order->forceFill(['performers' => $performers])->save();
+    }
+
+    private function assertLoadingNotAfterUnloading(
+        Order $order,
+        string $stage,
+        string $routeType,
+        string $normalizedDate,
+    ): void {
+        $loading = null;
+        $unloading = null;
+
+        $targetLeg = $order->legs->first(
+            fn ($leg): bool => PerformerRouteActualDates::stagesMatch((string) ($leg->description ?? 'leg_1'), $stage),
+        ) ?? $order->legs->sortBy('sequence')->first();
+
+        if ($targetLeg !== null) {
+            $points = $targetLeg->routePoints->sortBy('sequence')->values();
+            $loadingPoint = $points->first(fn (RoutePoint $point): bool => $point->type === 'loading');
+            $unloadingPoint = $points->filter(fn (RoutePoint $point): bool => $point->type === 'unloading')->last();
+            $loading = optional($loadingPoint?->actual_date)?->toDateString();
+            $unloading = optional($unloadingPoint?->actual_date)?->toDateString();
+        }
+
+        if ($routeType === 'loading') {
+            $loading = $normalizedDate;
+        } else {
+            $unloading = $normalizedDate;
+        }
+
+        if ($loading !== null && $unloading !== null && $loading > $unloading) {
+            throw ValidationException::withMessages([
+                'date' => 'Фактическая погрузка не может быть позже фактической выгрузки.',
+            ]);
+        }
     }
 }

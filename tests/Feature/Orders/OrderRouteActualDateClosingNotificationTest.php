@@ -10,6 +10,7 @@ use App\Models\RoutePoint;
 use App\Models\User;
 use App\Services\Orders\OrderRouteActualDateUpdateService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class OrderRouteActualDateClosingNotificationTest extends TestCase
@@ -75,6 +76,53 @@ class OrderRouteActualDateClosingNotificationTest extends TestCase
         $notification = $clerk->fresh()->unreadNotifications()->first();
         $this->assertSame('order_closing_documents_required', data_get($notification->data, 'kind'));
         $this->assertStringContainsString('ORD-1001', (string) data_get($notification->data, 'body'));
+    }
+
+    public function test_loading_actual_cannot_be_after_unloading_actual(): void
+    {
+        $actor = User::factory()->create(['email_verified_at' => now()]);
+        $customer = Contractor::query()->create([
+            'name' => 'ООО Клиент',
+            'type' => 'customer',
+        ]);
+
+        $order = Order::factory()->create([
+            'customer_id' => $customer->id,
+            'company_code' => 'AA',
+            'order_number' => 'ORD-INV',
+            'order_date' => '2026-05-20',
+        ]);
+
+        $leg = OrderLeg::query()->create([
+            'order_id' => $order->id,
+            'sequence' => 0,
+            'type' => 'transport',
+            'description' => 'leg_1',
+        ]);
+
+        RoutePoint::factory()->create([
+            'order_leg_id' => $leg->id,
+            'type' => 'loading',
+            'sequence' => 0,
+            'address' => 'Москва',
+        ]);
+
+        RoutePoint::factory()->create([
+            'order_leg_id' => $leg->id,
+            'type' => 'unloading',
+            'sequence' => 1,
+            'address' => 'Казань',
+            'actual_date' => '2026-05-21',
+        ]);
+
+        $this->expectException(ValidationException::class);
+
+        app(OrderRouteActualDateUpdateService::class)->apply(
+            $actor,
+            $order->fresh(['legs.routePoints']),
+            'loading_actual',
+            '2026-05-25',
+        );
     }
 
     public function test_route_service_does_not_notify_without_waybill(): void
