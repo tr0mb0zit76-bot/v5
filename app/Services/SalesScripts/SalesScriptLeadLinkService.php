@@ -8,7 +8,6 @@ use App\Models\User;
 use App\Support\LeadStatus;
 use App\Support\LeadViewAuthorization;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -17,6 +16,7 @@ class SalesScriptLeadLinkService
 {
     public function __construct(
         private readonly SalesScriptCrmActionService $crmActionService,
+        private readonly SalesScriptCaptureLeadMapper $captureLeadMapper,
     ) {}
 
     /**
@@ -74,7 +74,7 @@ class SalesScriptLeadLinkService
         }
 
         $session->loadMissing(['fieldValues.captureField', 'version.script']);
-        $fields = $this->fieldValuesByCode($session);
+        $fields = $this->captureLeadMapper->fieldsFromSession($session);
 
         $lead = DB::transaction(function () use ($session, $user, $title, $fields): Lead {
             $lead = Lead::query()->create([
@@ -85,23 +85,22 @@ class SalesScriptLeadLinkService
                 'responsible_id' => $user->id,
                 'title' => $this->resolveTitle($session, $fields, $title),
                 'description' => $this->description($session, $fields),
-                'loading_location' => $fields['route_from'] ?? null,
-                'unloading_location' => $fields['route_to'] ?? null,
-                'planned_shipping_date' => $this->dateValue($fields['loading_date'] ?? null),
-                'lead_qualification' => [
-                    'need' => $fields['cargo_type'] ?? null,
-                    'timeline' => $fields['decision_deadline'] ?? null,
-                ],
-                'metadata' => [
-                    'sales_script_play' => [
-                        'session_id' => $session->id,
-                        'script_title' => $session->version?->script?->title,
-                        'captured_fields' => $fields,
-                    ],
-                ],
                 'created_by' => $user->id,
                 'updated_by' => $user->id,
             ]);
+
+            $this->captureLeadMapper->applyToLead($lead, $fields, $user->id);
+
+            $metadata = is_array($lead->metadata) ? $lead->metadata : [];
+            $metadata['sales_script_play'] = [
+                'session_id' => $session->id,
+                'script_title' => $session->version?->script?->title,
+                'captured_fields' => $fields,
+            ];
+            $lead->forceFill([
+                'metadata' => $metadata,
+                'updated_by' => $user->id,
+            ])->save();
 
             $session->forceFill([
                 'lead_id' => $lead->id,
@@ -128,25 +127,6 @@ class SalesScriptLeadLinkService
         if (! $session->isComplete()) {
             throw new InvalidArgumentException('Сначала завершите разговор и зафиксируйте исход.');
         }
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function fieldValuesByCode(SalesScriptPlaySession $session): array
-    {
-        $values = [];
-
-        foreach ($session->fieldValues as $fieldValue) {
-            $code = $fieldValue->captureField?->code;
-            $value = trim((string) $fieldValue->value);
-
-            if (is_string($code) && $code !== '' && $value !== '') {
-                $values[$code] = $value;
-            }
-        }
-
-        return $values;
     }
 
     /**
@@ -193,19 +173,6 @@ class SalesScriptLeadLinkService
         }
 
         return Str::limit(implode("\n", $lines), 5000, '');
-    }
-
-    private function dateValue(?string $value): ?string
-    {
-        if (! filled($value)) {
-            return null;
-        }
-
-        try {
-            return Carbon::parse((string) $value)->toDateString();
-        } catch (\Throwable) {
-            return null;
-        }
     }
 
     private function nextLeadNumber(): string

@@ -154,6 +154,18 @@ class SalesScriptController extends Controller
                 'context' => $validated['trainer_profile_context'] ?? null,
                 'training_role_mode' => $validated['training_role_mode'] ?? 'manager_seller',
             ]);
+            $request->session()->forget('sales_script_play_return_lead_id');
+        } elseif (($validated['return_to'] ?? null) === 'lead' && isset($validated['lead_id'])) {
+            $session->update([
+                'is_trainer' => false,
+                'trainer_profile_key' => null,
+                'trainer_profile_title' => null,
+                'trainer_profile_context' => null,
+                'training_role_mode' => 'manager_seller',
+            ]);
+            $request->session()->put('sales_script_play_return', 'lead');
+            $request->session()->put('sales_script_play_return_lead_id', (int) $validated['lead_id']);
+            $request->session()->forget('sales_script_play_trainer_profile');
         } else {
             $session->update([
                 'is_trainer' => false,
@@ -163,6 +175,7 @@ class SalesScriptController extends Controller
                 'training_role_mode' => 'manager_seller',
             ]);
             $request->session()->forget('sales_script_play_return');
+            $request->session()->forget('sales_script_play_return_lead_id');
             $request->session()->forget('sales_script_play_trainer_profile');
         }
 
@@ -828,9 +841,18 @@ class SalesScriptController extends Controller
             'message' => 'Сессия сохранена. Спасибо за разметку — это улучшает подсказки для команды.',
         ];
 
-        $returnToTrainer = $request->session()->pull('sales_script_play_return') === 'trainer' || $session->is_trainer;
-        if ($returnToTrainer) {
+        $returnTo = $request->session()->pull('sales_script_play_return');
+        $returnLeadId = $request->session()->pull('sales_script_play_return_lead_id');
+
+        if ($returnTo === 'trainer' || $session->is_trainer) {
             return to_route('sales-assistant.trainer')->with('flash', $flash);
+        }
+
+        if ($returnTo === 'lead') {
+            $leadId = $session->lead_id ?? (is_numeric($returnLeadId) ? (int) $returnLeadId : null);
+            if ($leadId !== null) {
+                return to_route('leads.show', $leadId)->with('flash', $flash);
+            }
         }
 
         return to_route('scripts.sessions.show', $session)->with('flash', $flash);

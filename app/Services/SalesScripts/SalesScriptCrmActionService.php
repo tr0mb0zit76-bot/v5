@@ -18,6 +18,7 @@ class SalesScriptCrmActionService
 {
     public function __construct(
         private readonly TaskNumberGenerator $taskNumbers,
+        private readonly SalesScriptCaptureLeadMapper $captureLeadMapper,
     ) {}
 
     public function syncAfterCompletion(SalesScriptPlaySession $session): void
@@ -46,24 +47,22 @@ class SalesScriptCrmActionService
         ]);
 
         $lead = $this->resolveLead($session);
-        $fieldValues = $this->fieldValuesByCode($session);
+        $fieldValues = $this->captureLeadMapper->fieldsFromSession($session);
         $nextStepAt = $this->parseNextStepDate($fieldValues['next_step_date'] ?? null);
         $summary = $this->summary($session, $fieldValues);
 
-        if ($lead instanceof Lead && Schema::hasTable('lead_activities')) {
-            $lead->activities()->create([
-                'type' => 'note',
-                'subject' => $session->is_trainer ? 'Итог тренажёра' : 'Итог прохождения скрипта',
-                'content' => $summary,
-                'next_action_at' => $nextStepAt,
-                'created_by' => $session->user_id,
-            ]);
+        if ($lead instanceof Lead) {
+            $this->captureLeadMapper->applyToLead($lead, $fieldValues, $session->user_id);
+            $lead->refresh();
 
-            if ($nextStepAt instanceof CarbonInterface) {
-                $lead->forceFill([
-                    'next_contact_at' => $nextStepAt,
-                    'updated_by' => $session->user_id,
-                ])->save();
+            if (Schema::hasTable('lead_activities')) {
+                $lead->activities()->create([
+                    'type' => 'note',
+                    'subject' => $session->is_trainer ? 'Итог тренажёра' : 'Итог прохождения скрипта',
+                    'content' => $summary,
+                    'next_action_at' => $nextStepAt,
+                    'created_by' => $session->user_id,
+                ]);
             }
         }
 
@@ -95,28 +94,6 @@ class SalesScriptCrmActionService
         ]);
 
         $session->forceFill(['crm_synced_at' => now()])->save();
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function fieldValuesByCode(SalesScriptPlaySession $session): array
-    {
-        $values = [];
-
-        foreach ($session->fieldValues as $fieldValue) {
-            $code = $fieldValue->captureField?->code;
-            if (! is_string($code) || $code === '') {
-                continue;
-            }
-
-            $value = trim((string) $fieldValue->value);
-            if ($value !== '') {
-                $values[$code] = $value;
-            }
-        }
-
-        return $values;
     }
 
     private function resolveLead(SalesScriptPlaySession $session): ?Lead

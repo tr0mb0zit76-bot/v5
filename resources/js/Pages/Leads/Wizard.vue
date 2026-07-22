@@ -222,6 +222,7 @@
                     v-if="operationalBrief && selectedLeadId && businessProcessesEnabled && !processProgress"
                     :brief="operationalBrief"
                     :process-progress="processProgress"
+                    :lead-id="selectedLeadId"
                     @navigate-tab="activeTab = $event"
                     @focus-action="handleFocusAction"
                 />
@@ -249,6 +250,7 @@
                     v-else-if="operationalBrief"
                     :brief="operationalBrief"
                     :process-progress="processProgress"
+                    :lead-id="selectedLeadId"
                     @navigate-tab="activeTab = $event"
                     @focus-action="handleFocusAction"
                 />

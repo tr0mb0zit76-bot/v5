@@ -43,7 +43,7 @@
                 class="inline-flex items-center rounded-lg border border-emerald-400 bg-white px-3 py-2 text-sm font-medium text-emerald-900 hover:bg-emerald-50 dark:border-emerald-700 dark:bg-zinc-900 dark:text-emerald-100"
                 @click="startSalesScript(salesScript.version_id)"
             >
-                Скрипт «{{ salesScript.title }}»
+                По скрипту: {{ salesScript.title }}
             </button>
             <p
                 v-else-if="brief.health === 'ready_to_advance' && !primaryAction"
@@ -124,6 +124,7 @@ import CrmMarkdownView from '@/Components/Crm/CrmMarkdownView.vue';
 const props = defineProps({
     brief: { type: Object, default: null },
     processProgress: { type: Object, default: null },
+    leadId: { type: Number, default: null },
 });
 
 const emit = defineEmits(['navigate-tab', 'focus-action', 'focus-advance']);
@@ -251,8 +252,15 @@ function onActionClick(action) {
 }
 
 function startSalesScript(versionId) {
-    router.post(route('scripts.sessions.store'), {
+    const payload = {
         sales_script_version_id: versionId,
-    });
+    };
+
+    if (props.leadId) {
+        payload.lead_id = props.leadId;
+        payload.return_to = 'lead';
+    }
+
+    router.post(route('scripts.sessions.store'), payload);
 }
 </script>

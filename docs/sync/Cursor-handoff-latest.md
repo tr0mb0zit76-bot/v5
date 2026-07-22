@@ -3,7 +3,24 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-21 19:20 (ОТДАТЬ) · **HEAD:** `6290d73f` · **Ветка:** `master`
+**Обновлено:** 2026-07-22 13:46 (push) · **Ветка:** `master`
+
+### Итог сессии 2026-07-22 — скрипт ↔ лид
+
+| Блок | Статус |
+| --- | --- |
+| `SalesScriptCaptureLeadMapper` — capture → поля лида / qualification / `acquaintance_profile` | ✅ |
+| Sync при complete + live при `saveFieldValues`; prefill из лида расширен | ✅ |
+| Кнопка «По скрипту» на лиде: `lead_id` + `return_to=lead` → возврат на `leads.show` | ✅ |
+| PHPUnit: mapper + `SalesScriptCrmLinkTest` (6 тестов) | ✅ |
+| БП «Знакомство» / spawn child lead | ⏳ не начато |
+| Metrika cookies | ⏳ отложено |
+
+**Следующий шаг:** seed БП «Знакомство» + spawn; либо демо на лиде со скриптом этапа. `npm run build` после pull.
+
+---
+
+**Обновлено (архив):** 2026-07-21 19:20 (ОТДАТЬ) · **HEAD:** `6290d73f` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-21 вечер (ОТДАТЬ)
 

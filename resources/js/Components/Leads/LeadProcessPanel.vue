@@ -36,6 +36,7 @@
                 v-if="operationalBrief"
                 :brief="operationalBrief"
                 :process-progress="processProgress"
+                :lead-id="selectedLeadId"
                 @navigate-tab="emit('navigate-tab', $event)"
                 @focus-action="emit('focus-action', $event)"
                 @focus-advance="focusAdvanceControls"

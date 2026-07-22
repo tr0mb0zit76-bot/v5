@@ -24,6 +24,7 @@ class SalesScriptPlaySessionService
     public function __construct(
         private readonly SalesScriptPlayContextResolver $playContextResolver,
         private readonly SalesScriptConversationGuidanceService $conversationGuidance,
+        private readonly SalesScriptCaptureLeadMapper $captureLeadMapper,
     ) {}
 
     public function start(
@@ -70,6 +71,7 @@ class SalesScriptPlaySessionService
                 $session,
                 $entry,
                 $this->prefillFieldValues($resolvedLeadId),
+                syncToLead: false,
             );
 
             return $session->fresh(['currentNode', 'version.script']);
@@ -272,6 +274,7 @@ class SalesScriptPlaySessionService
         SalesScriptPlaySession $session,
         SalesScriptNode $node,
         array $fieldValuesByCode,
+        bool $syncToLead = true,
     ): void {
         if ($fieldValuesByCode === []) {
             return;
@@ -307,6 +310,22 @@ class SalesScriptPlaySessionService
                 );
             }
         });
+
+        if (! $syncToLead || $session->lead_id === null || ! Schema::hasTable('leads')) {
+            return;
+        }
+
+        $lead = Lead::query()->find($session->lead_id);
+        if ($lead instanceof Lead) {
+            $this->captureLeadMapper->applyToLead(
+                $lead,
+                array_filter(
+                    $fieldValuesByCode,
+                    fn (mixed $value): bool => is_string($value) && trim($value) !== '',
+                ),
+                $session->user_id,
+            );
+        }
     }
 
     public function complete(
@@ -390,18 +409,12 @@ class SalesScriptPlaySessionService
             return [];
         }
 
-        $lead = Lead::query()->with('counterparty:id,name')->find($leadId);
+        $lead = Lead::query()->find($leadId);
         if ($lead === null) {
             return [];
         }
 
-        return array_filter([
-            'client_name' => $lead->counterparty?->name ?: $lead->title,
-            'route_from' => $lead->loading_location,
-            'route_to' => $lead->unloading_location,
-            'loading_date' => $lead->planned_shipping_date?->toDateString(),
-            'decision_deadline' => $lead->next_contact_at?->toDateString(),
-        ], fn (mixed $value): bool => is_string($value) && trim($value) !== '');
+        return $this->captureLeadMapper->fieldsFromLead($lead);
     }
 
     /**

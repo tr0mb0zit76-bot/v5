@@ -22,7 +22,7 @@ class StoreSalesScriptPlaySessionRequest extends FormRequest
             'contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'lead_id' => ['nullable', 'integer', 'exists:leads,id'],
             'order_id' => ['nullable', 'integer', 'exists:orders,id'],
-            'return_to' => ['nullable', 'string', Rule::in(['trainer'])],
+            'return_to' => ['nullable', 'string', Rule::in(['trainer', 'lead'])],
             'trainer_profile_key' => ['nullable', 'string', 'max:100', Rule::requiredIf(fn (): bool => $this->input('return_to') === 'trainer')],
             'trainer_profile_title' => ['nullable', 'string', 'max:160', Rule::requiredIf(fn (): bool => $this->input('return_to') === 'trainer')],
             'trainer_profile_context' => ['nullable', 'string', 'max:4000', Rule::requiredIf(fn (): bool => $this->input('return_to') === 'trainer')],
