@@ -3,7 +3,36 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-22 19:25 · **HEAD:** `aa078a29` · **Ветка:** `master` · **тема:** зарплата
+**Обновлено:** 2026-07-22 22:19 (ОТДАТЬ) · **HEAD:** `16129764` · **Ветка:** `master`
+
+### Итог сессии 2026-07-22 ночь (ОТДАТЬ)
+
+| Блок | Статус |
+| --- | --- |
+| Зарплата: скрыть выплаченные / soft-deleted; «К выплате» = остаток | ✅ в `aa078a29` |
+| UI ЗП: месяц + H1/H2 + создать; мультисотрудники / подразделения | ✅ |
+| `salary:settle-removed-order {orderId}` (EXWL-1 = id **1**) | ✅ |
+| Портал заказчика / RFQ на лиде / УУ linked-order matching | ⏳ **только локально**, не в git |
+
+**На прод / второй ПК (ЗАБРАТЬ):**
+
+```text
+git pull
+npm run build
+php artisan optimize:clear
+php artisan salary:settle-removed-order 1
+# dry-run: php artisan salary:settle-removed-order 1 --dry-run
+```
+
+Миграций в зарплатных коммитах нет.
+
+**Не коммитить с этого ПК без явного решения:** незавершённые локальные правки портала, RFQ (`lead_rate_quotes`), УУ Reconcile matching.
+
+**Следующий шаг:** деплой ЗП + settle EXWL-1; либо добить и закоммитить портал/RFQ/УУ.
+
+---
+
+**Обновлено (архив):** 2026-07-22 19:25 · **HEAD:** `aa078a29` · **Ветка:** `master` · **тема:** зарплата
 
 ### Зарплата — дожим после `416b195f`
 
