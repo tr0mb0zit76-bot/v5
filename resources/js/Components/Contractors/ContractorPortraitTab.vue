@@ -458,7 +458,7 @@ defineExpose({
                 <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Последние контакты</div>
                 <button type="button" :class="crmBtnNeutral" @click="emit('record-interaction')">
                     <Plus class="h-4 w-4" />
-                    Зафиксировать итог
+                    Добавить запись
                 </button>
             </div>
             <ul v-if="recentInteractions.length" class="mt-3 space-y-2 text-sm">
@@ -484,7 +484,7 @@ defineExpose({
             <p v-else class="mt-3 text-sm text-zinc-500">
                 Итогов контактов пока нет.
                 <button type="button" class="font-medium text-sky-700 underline underline-offset-2 dark:text-sky-300" @click="emit('record-interaction')">
-                    Зафиксировать первый
+                    Добавить первую запись
                 </button>
             </p>
         </div>

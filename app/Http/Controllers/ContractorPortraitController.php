@@ -71,6 +71,7 @@ class ContractorPortraitController extends Controller
                 'objection_tags' => is_array($interaction->objection_tags) ? $interaction->objection_tags : [],
                 'contractor_contact_id' => $interaction->contractor_contact_id,
                 'contact_name' => $interaction->contact?->full_name,
+                'created_by' => $interaction->created_by,
                 'author_name' => $interaction->author?->name,
             ],
             'portrait' => $portrait,

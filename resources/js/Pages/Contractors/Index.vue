@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import {
     Building2,
@@ -785,12 +785,21 @@ function applyFormState(contractor, options = {}) {
 
 applyFormState(props.selectedContractor);
 
+onMounted(() => {
+    window.addEventListener('beforeunload', onContractorBeforeUnload);
+});
+
+onBeforeUnmount(() => {
+    window.removeEventListener('beforeunload', onContractorBeforeUnload);
+});
+
 watch(() => props.selectedContractor, (contractor, previousContractor) => {
     const prevId = previousContractor?.id ?? null;
     const nextId = contractor?.id ?? null;
     const resetTab = prevId !== nextId;
 
-    if (prevId === nextId && form.isDirty && Object.keys(form.errors ?? {}).length > 0) {
+    // Keep local edits when props refresh (e.g. after «Добавить запись» modal).
+    if (prevId === nextId && form.isDirty) {
         return;
     }
 
@@ -1314,7 +1323,28 @@ const isMobileStandalone = computed(() => {
 const totalOrdersCount = computed(() => props.selectedContractor?.orders?.length ?? 0);
 const relatedOrderDocumentsCount = computed(() => props.selectedContractor?.order_documents?.length ?? 0);
 
+function confirmDiscardUnsavedChanges() {
+    if (!form.isDirty) {
+        return true;
+    }
+
+    return window.confirm('У вас есть несохранённые изменения. Закрыть без сохранения?');
+}
+
+function onContractorBeforeUnload(event) {
+    if (!form.isDirty || !isContractorModalOpen.value) {
+        return;
+    }
+
+    event.preventDefault();
+    event.returnValue = '';
+}
+
 function openCreateForm() {
+    if (!confirmDiscardUnsavedChanges()) {
+        return;
+    }
+
     isCreateRouteDismissed.value = false;
     isDetailsModalDismissed.value = false;
     submitError.value = '';
@@ -1325,6 +1355,10 @@ function openCreateForm() {
 }
 
 function openContractor(contractorId) {
+    if (!confirmDiscardUnsavedChanges()) {
+        return;
+    }
+
     isCreateModalOpen.value = false;
     isCreateRouteDismissed.value = false;
     isDetailsModalDismissed.value = false;
@@ -1338,6 +1372,10 @@ function openContractor(contractorId) {
 }
 
 function closeContractorModal() {
+    if (!confirmDiscardUnsavedChanges()) {
+        return;
+    }
+
     if (isCreateModalOpen.value && !isCreateRoute.value && selectedContractorId.value === null) {
         isCreateModalOpen.value = false;
 
@@ -1693,6 +1731,12 @@ function removeContact(index) {
 }
 
 function addInteraction() {
+    if (selectedContractorId.value) {
+        showInteractionOutcomeModal.value = true;
+
+        return;
+    }
+
     form.interactions.push({
         id: null,
         contacted_at: '',
@@ -1706,6 +1750,32 @@ function addInteraction() {
     const next = new Set(expandedInteractionIndexes.value);
     next.add(index);
     expandedInteractionIndexes.value = next;
+}
+
+function onInteractionStored(payload) {
+    // Clean form: Inertia reload + applyFormState refreshes the list.
+    if (! form.isDirty) {
+        return;
+    }
+
+    const interaction = payload?.interaction;
+    if (!interaction?.id) {
+        return;
+    }
+
+    if (form.interactions.some((row) => Number(row.id) === Number(interaction.id))) {
+        return;
+    }
+
+    form.interactions.unshift({
+        id: interaction.id,
+        contacted_at: interaction.contacted_at ? String(interaction.contacted_at).slice(0, 16) : '',
+        channel: interaction.channel ?? 'phone',
+        subject: interaction.subject ?? '',
+        summary: interaction.summary ?? '',
+        created_by: interaction.created_by ?? page.props.auth?.user?.id ?? null,
+        author_name: interaction.author_name ?? page.props.auth?.user?.name ?? '',
+    });
 }
 
 function removeInteraction(index) {
@@ -3791,18 +3861,9 @@ function goToPage(pageNumber) {
                     <div v-else-if="activeTab === 'communications'" class="space-y-4">
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div class="min-w-0 flex-1 text-sm text-zinc-500 dark:text-zinc-400">
-                                Журнал общения: источник контекста для ассистента. Изменения в списке сохраняются кнопкой «Сохранить» карточки. «Зафиксировать итог» пишет в журнал сразу.
+                                Журнал общения: источник контекста для ассистента. Новая запись сохраняется сразу. Правки существующих строк — кнопкой «Сохранить» карточки.
                             </div>
                             <div class="flex shrink-0 flex-wrap items-center gap-2">
-                                <button
-                                    v-if="selectedContractorId"
-                                    type="button"
-                                    :class="crmBtnCreate"
-                                    @click="showInteractionOutcomeModal = true"
-                                >
-                                    <Plus class="h-4 w-4" />
-                                    Зафиксировать итог
-                                </button>
                                 <button type="button" :class="crmBtnCreate" @click="addInteraction">
                                     <Plus class="h-4 w-4" />
                                     Добавить запись
@@ -3948,6 +4009,7 @@ function goToPage(pageNumber) {
             :portrait-options="portraitOptions"
             :interaction-channels="interactionChannels"
             @close="showInteractionOutcomeModal = false"
+            @stored="onInteractionStored"
         />
     </div>
 </template>

@@ -68,6 +68,7 @@ class ContractorPortraitTest extends TestCase
         ]);
 
         $response->assertOk();
+        $response->assertJsonPath('interaction.created_by', $user->id);
         $response->assertJsonPath('portrait.typical_objections', ['price']);
         $this->assertGreaterThanOrEqual(
             ContractorPortraitCoverage::ASSISTANT_THRESHOLD,

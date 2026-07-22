@@ -121,7 +121,7 @@ async function submit() {
 <template>
     <Modal :show="show" max-width="2xl" @close="emit('close')">
         <section :class="crmModalFormShell">
-            <CrmModalHeader eyebrow="Контакт" title="Зафиксировать итог" @close="emit('close')" />
+            <CrmModalHeader eyebrow="Контакт" title="Добавить запись" @close="emit('close')" />
             <form :class="`${crmModalFormBody} space-y-4 px-6 pb-6 pt-2`" @submit.prevent="submit">
                 <div :class="crmModalFieldsWrap">
                     <div :class="`${crmModalFieldRow} crm-modal-field-row--wide`">
