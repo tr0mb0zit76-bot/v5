@@ -77,6 +77,13 @@
           @pinned-changed="onGridViewsPinnedChanged"
         />
       </div>
+
+      <GridRowStatus
+        :get-grid-api="() => gridApi"
+        :total-count="rows.length"
+        :selected-count="selectedContractorIds.length"
+        :quick-search="quickSearch"
+      />
     </div>
 
     <div
@@ -298,6 +305,7 @@ import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/sup
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import GridBulkIconActions from '@/Components/Grid/GridBulkIconActions.vue';
 import GridExportDialog from '@/Components/Grid/GridExportDialog.vue';
+import GridRowStatus from '@/Components/Grid/GridRowStatus.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';

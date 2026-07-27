@@ -103,23 +103,30 @@ final class CrmAppearance
      */
     public static function mergeValidated(array $validated, ?array $existing): array
     {
-        return array_merge(self::resolve($existing), array_filter([
-            'button_radius' => isset($validated['button_radius'])
-                ? self::normalizeButtonRadius($validated['button_radius'])
-                : null,
-            'primary_accent' => isset($validated['primary_accent'])
-                ? self::normalizePrimaryAccent($validated['primary_accent'])
-                : null,
-            'tab_style' => isset($validated['tab_style'])
-                ? self::normalizeTabStyle($validated['tab_style'])
-                : null,
-            'workspace_skin' => isset($validated['workspace_skin'])
-                ? self::normalizeWorkspaceSkin($validated['workspace_skin'])
-                : null,
-            'ag_grid_density' => isset($validated['ag_grid_density'])
-                ? self::normalizeAgGridDensity($validated['ag_grid_density'])
-                : null,
-        ], fn (?string $value): bool => $value !== null));
+        $existing = is_array($existing) ? $existing : [];
+
+        // Сначала существующий JSON (избранное меню и пр.), затем только поля оформления.
+        return array_merge(
+            $existing,
+            self::resolve($existing),
+            array_filter([
+                'button_radius' => isset($validated['button_radius'])
+                    ? self::normalizeButtonRadius($validated['button_radius'])
+                    : null,
+                'primary_accent' => isset($validated['primary_accent'])
+                    ? self::normalizePrimaryAccent($validated['primary_accent'])
+                    : null,
+                'tab_style' => isset($validated['tab_style'])
+                    ? self::normalizeTabStyle($validated['tab_style'])
+                    : null,
+                'workspace_skin' => isset($validated['workspace_skin'])
+                    ? self::normalizeWorkspaceSkin($validated['workspace_skin'])
+                    : null,
+                'ag_grid_density' => isset($validated['ag_grid_density'])
+                    ? self::normalizeAgGridDensity($validated['ag_grid_density'])
+                    : null,
+            ], fn (?string $value): bool => $value !== null),
+        );
     }
 
     private static function normalizeButtonRadius(mixed $value): ?string

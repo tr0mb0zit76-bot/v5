@@ -35,6 +35,22 @@ class CrmAppearanceTest extends TestCase
     }
 
     #[Test]
+    public function it_preserves_non_appearance_keys_when_merging(): void
+    {
+        $merged = CrmAppearance::mergeValidated(
+            ['ag_grid_density' => 'compact'],
+            [
+                'button_radius' => 'sharp',
+                'sidebar_favorite_keys' => ['orders', 'leads'],
+            ],
+        );
+
+        $this->assertSame('compact', $merged['ag_grid_density']);
+        $this->assertSame('sharp', $merged['button_radius']);
+        $this->assertSame(['orders', 'leads'], $merged['sidebar_favorite_keys']);
+    }
+
+    #[Test]
     public function it_accepts_sky_workspace_skin(): void
     {
         $resolved = CrmAppearance::resolve(['workspace_skin' => 'sky']);

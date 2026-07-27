@@ -59,9 +59,14 @@
                 />
             </div>
 
-            <div class="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+            <div class="flex shrink-0 items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
                 <span v-if="copyNotice" class="font-medium text-emerald-600 dark:text-emerald-400">{{ copyNotice }}</span>
-                <span>Двойной клик — документы заказа</span>
+                <GridRowStatus
+                    :get-grid-api="() => gridApi"
+                    :total-count="rows.length"
+                    :quick-search="quickSearch"
+                />
+                <span class="hidden sm:inline">Двойной клик — документы заказа</span>
             </div>
         </div>
 
@@ -181,6 +186,7 @@ import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import GridRowStatus from '@/Components/Grid/GridRowStatus.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import { useGridContextMenu } from '@/Components/Grid/useGridContextMenu.js';

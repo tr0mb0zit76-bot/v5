@@ -166,6 +166,84 @@ export function writeViewIdToUrl(viewId) {
     window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
+/** Явный сброс к пресету роли — не поднимать прошлое представление при следующем заходе. */
+export const GRID_VIEW_LAST_NONE = 'none';
+
+export function lastGridViewStorageKey(gridKey, userId) {
+    return `grid_view_last_${gridKey}_${userId}`;
+}
+
+/**
+ * Последнее применённое представление грида (id) или null, если не задано / сброшено к дефолту.
+ *
+ * @returns {number|null}
+ */
+export function readLastGridViewId(gridKey, userId) {
+    if (typeof window === 'undefined' || !gridKey || userId === null || userId === undefined || userId === '') {
+        return null;
+    }
+
+    try {
+        const raw = localStorage.getItem(lastGridViewStorageKey(gridKey, userId));
+
+        if (raw === null || raw === '' || raw === GRID_VIEW_LAST_NONE) {
+            return null;
+        }
+
+        const id = Number.parseInt(raw, 10);
+
+        return Number.isFinite(id) && id > 0 ? id : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * @param {string} gridKey
+ * @param {string|number} userId
+ * @param {number|null} viewId — null = запомнить «по умолчанию (роль)»
+ */
+export function writeLastGridViewId(gridKey, userId, viewId) {
+    if (typeof window === 'undefined' || !gridKey || userId === null || userId === undefined || userId === '') {
+        return;
+    }
+
+    try {
+        const key = lastGridViewStorageKey(gridKey, userId);
+
+        if (viewId === null || viewId === undefined) {
+            localStorage.setItem(key, GRID_VIEW_LAST_NONE);
+
+            return;
+        }
+
+        localStorage.setItem(key, String(viewId));
+    } catch {
+        // ignore quota / private mode
+    }
+}
+
+/**
+ * @param {() => unknown} getGridApi
+ * @param {number} [timeoutMs]
+ * @returns {Promise<object|null>}
+ */
+export async function waitForGridApi(getGridApi, timeoutMs = 4000) {
+    const started = Date.now();
+
+    while (Date.now() - started < timeoutMs) {
+        const api = typeof getGridApi === 'function' ? getGridApi() : null;
+
+        if (api) {
+            return api;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 40));
+    }
+
+    return typeof getGridApi === 'function' ? (getGridApi() ?? null) : null;
+}
+
 /**
  * @param {{
  *   columnStorageKey?: string|null,

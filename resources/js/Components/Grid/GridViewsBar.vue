@@ -9,8 +9,11 @@ import {
     fetchGridView,
     fetchGridViews,
     persistViewToLocalStorage,
+    readLastGridViewId,
     readViewIdFromUrl,
     updateGridView,
+    waitForGridApi,
+    writeLastGridViewId,
     writeViewIdToUrl,
 } from '@/support/gridViews.js';
 import { crmGridDropdown, crmGridToolbarBtn } from '@/support/crmUi.js';
@@ -93,12 +96,12 @@ function captureCurrentPayload() {
     };
 }
 
-function applyViewToGrid(view) {
+async function applyViewToGrid(view) {
     persistViewToLocalStorage(view, storageKeys.value, {
         quickSearchJsonWrapper: props.quickSearchJsonWrapper,
     });
 
-    const gridApi = props.getGridApi?.();
+    const gridApi = await waitForGridApi(props.getGridApi);
 
     if (gridApi) {
         if (Array.isArray(view.column_state) && view.column_state.length > 0) {
@@ -111,10 +114,11 @@ function applyViewToGrid(view) {
     emit('update:quickSearch', view.quick_search ?? '');
     activeViewId.value = view.id;
     writeViewIdToUrl(view.id);
+    writeLastGridViewId(props.gridKey, props.userId, view.id);
     emit('applied', view);
 }
 
-async function applyViewById(viewId) {
+async function applyViewById(viewId, { announce = true } = {}) {
     let view = views.value.find((item) => item.id === viewId) ?? null;
 
     if (!view) {
@@ -122,14 +126,20 @@ async function applyViewById(viewId) {
     }
 
     if (!view) {
-        showNotice('Представление не найдено');
+        if (announce) {
+            showNotice('Представление не найдено');
+        }
+        writeLastGridViewId(props.gridKey, props.userId, null);
 
         return;
     }
 
-    applyViewToGrid(view);
+    await applyViewToGrid(view);
     menuOpen.value = false;
-    showNotice(`Применено: ${view.name}`);
+
+    if (announce) {
+        showNotice(`Применено: ${view.name}`);
+    }
 }
 
 function openSaveModal(mode) {
@@ -147,6 +157,7 @@ async function handleSaveModalSubmit(formPayload) {
         if (saveModalMode.value === 'update' && activeView.value?.can_manage) {
             const updated = await updateGridView(activeView.value.id, payload);
             views.value = views.value.map((view) => (view.id === updated.id ? updated : view));
+            writeLastGridViewId(props.gridKey, props.userId, updated.id);
             showNotice('Представление сохранено');
         } else if (saveModalMode.value === 'share' && activeView.value?.can_manage) {
             const updated = await updateGridView(activeView.value.id, {
@@ -163,6 +174,7 @@ async function handleSaveModalSubmit(formPayload) {
             views.value = [...views.value, created].sort((left, right) => left.name.localeCompare(right.name, 'ru'));
             activeViewId.value = created.id;
             writeViewIdToUrl(created.id);
+            writeLastGridViewId(props.gridKey, props.userId, created.id);
             showNotice('Представление создано');
         }
 
@@ -220,6 +232,7 @@ async function removeView(view) {
     if (activeViewId.value === view.id) {
         activeViewId.value = null;
         writeViewIdToUrl(null);
+        writeLastGridViewId(props.gridKey, props.userId, null);
     }
 
     emit('pinned-changed');
@@ -230,22 +243,25 @@ function resetDefaults() {
     props.onResetDefaults?.();
     activeViewId.value = null;
     writeViewIdToUrl(null);
+    writeLastGridViewId(props.gridKey, props.userId, null);
     showNotice('Сброшено к пресету роли');
 }
 
-async function bootstrapFromUrl() {
-    const viewId = readViewIdFromUrl();
+async function bootstrapActiveView() {
+    const fromUrl = readViewIdFromUrl();
+    const fromMemory = readLastGridViewId(props.gridKey, props.userId);
+    const viewId = fromUrl ?? fromMemory;
 
     if (!viewId) {
         return;
     }
 
-    await applyViewById(viewId);
+    await applyViewById(viewId, { announce: false });
 }
 
 onMounted(async () => {
     await reloadViews();
-    await bootstrapFromUrl();
+    await bootstrapActiveView();
 });
 
 watch(
@@ -253,7 +269,7 @@ watch(
     async () => {
         activeViewId.value = null;
         await reloadViews();
-        await bootstrapFromUrl();
+        await bootstrapActiveView();
     },
 );
 </script>

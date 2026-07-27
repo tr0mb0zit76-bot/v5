@@ -132,4 +132,40 @@ class SidebarMenuFavoritesTest extends TestCase
         $this->assertArrayNotHasKey('sidebar_favorite_keys', $user->ui_preferences ?? []);
         $this->assertSame('rounded', $user->ui_preferences['button_radius'] ?? null);
     }
+
+    public function test_saving_appearance_preserves_sidebar_favorite_keys(): void
+    {
+        if (! Schema::hasColumn('users', 'ui_preferences')) {
+            $this->markTestSkipped('Колонка users.ui_preferences недоступна.');
+        }
+
+        $role = Role::query()->create([
+            'name' => 'manager_fav_keep',
+            'display_name' => 'Manager',
+            'visibility_areas' => ['dashboard', 'orders', 'leads'],
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'ui_preferences' => [
+                'sidebar_favorite_keys' => ['orders', 'leads'],
+                'button_radius' => 'rounded',
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->patch(route('profile.ui-preferences'), [
+                'ag_grid_density' => 'compact',
+                'primary_accent' => 'emerald',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $user->refresh();
+
+        $this->assertSame(['orders', 'leads'], $user->ui_preferences['sidebar_favorite_keys'] ?? []);
+        $this->assertSame('compact', $user->ui_preferences['ag_grid_density'] ?? null);
+        $this->assertSame('emerald', $user->ui_preferences['primary_accent'] ?? null);
+        $this->assertSame('rounded', $user->ui_preferences['button_radius'] ?? null);
+    }
 }

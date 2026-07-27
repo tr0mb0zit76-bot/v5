@@ -1,21 +1,29 @@
 <template>
   <div ref="gridSection" class="flex min-h-0 flex-1 flex-col gap-2">
-    <div class="flex shrink-0 flex-wrap items-center gap-2">
-      <div class="relative min-w-[220px] flex-1">
-        <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-        <input v-model="quickSearch" type="text" :class="crmGridSearchField" />
+    <div class="flex shrink-0 flex-wrap items-center justify-between gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="relative min-w-[220px] flex-1">
+          <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <input v-model="quickSearch" type="text" :class="crmGridSearchField" />
+        </div>
+
+        <GridViewsBar
+          grid-key="company_planning"
+          :user-id="userId"
+          :get-grid-api="() => gridApi"
+          :column-storage-key="storageKey"
+          :filter-storage-key="filterModelStorageKey"
+          :quick-search="quickSearch"
+          :on-reset-defaults="resetGridViewState"
+          @update:quick-search="quickSearch = $event"
+          @applied="onGridViewApplied"
+        />
       </div>
 
-      <GridViewsBar
-        grid-key="company_planning"
-        :user-id="userId"
+      <GridRowStatus
         :get-grid-api="() => gridApi"
-        :column-storage-key="storageKey"
-        :filter-storage-key="filterModelStorageKey"
+        :total-count="rows.length"
         :quick-search="quickSearch"
-        :on-reset-defaults="resetGridViewState"
-        @update:quick-search="quickSearch = $event"
-        @applied="onGridViewApplied"
       />
     </div>
 
@@ -66,6 +74,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import '@/Components/Grid/grid-theme.css';
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import { defaultGridDensity, resolveGridDensity } from '@/Components/Grid/grid-density';
+import GridRowStatus from '@/Components/Grid/GridRowStatus.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';

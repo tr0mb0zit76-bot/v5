@@ -101,6 +101,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 
 - Модель `grid_views`, API `GridViewController` (`/grid-views`, auth), сервис `GridViewService`, каталог `GridViewCatalog` (ключи гридов + URL с `?view=`).
 - UI: `resources/js/Components/Grid/GridViewsBar.vue`, клиент `resources/js/support/gridViews.js` (`fetch` с `redirect: 'manual'` — иначе DELETE при 302 на login ломается).
+- Без `?view=` поднимается последнее применённое представление (`localStorage` `grid_view_last_{gridKey}_{userId}`); сброс «По умолчанию (роль)» пишет `none`. Применение ждёт готовности grid API.
 - Избранное в сайдбаре: `HandleInertiaRequests` → `auth.user.pinned_grid_views`, блок в `CrmLayout.vue`.
 - Миграция: `2026_06_12_162154_create_grid_views_table.php` — **обязательна** (`php artisan migrate`), иначе грид заказов падает с `Unexpected token '<'`.
 

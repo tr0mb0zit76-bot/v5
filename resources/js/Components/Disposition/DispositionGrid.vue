@@ -54,7 +54,12 @@
             </div>
 
             <div class="flex flex-col items-end gap-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                <span>Показано: {{ displayedRowCount }} из {{ rows.length }} · «В пути»</span>
+                <GridRowStatus
+                    :get-grid-api="() => gridApi"
+                    :total-count="rows.length"
+                    :quick-search="quickSearch"
+                    suffix="«В пути»"
+                />
                 <span class="hidden text-[11px] sm:inline">
                     Клик — правка · Tab — следующая ячейка · Enter — сохранить
                 </span>
@@ -135,6 +140,7 @@ import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import GridRowStatus from '@/Components/Grid/GridRowStatus.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import { useGridContextMenu } from '@/Components/Grid/useGridContextMenu.js';
@@ -166,7 +172,6 @@ const gridApi = ref(null);
 const agGrid = ref(null);
 const gridPanel = ref(null);
 const bottomScrollbar = ref(null);
-const displayedRowCount = ref(0);
 
 const { bottomScrollbarWidth, gridContainerStyle, onBottomScrollbarScroll, refreshAgGridPanelLayout } = useAgGridHorizontalPanel({
     gridPanel,
@@ -259,11 +264,12 @@ function isPlannedArrivalPast(row) {
     return String(planned) < todayIso();
 }
 
-function refreshDisplayedRowCount() {
-    displayedRowCount.value = gridApi.value?.getDisplayedRowCount() ?? props.rows.length;
+function onFilterChanged() {
+    persistFilterModel(gridApi.value, filterModelStorageKey.value);
+    nextTick(() => {
+        refreshAgGridPanelLayout();
+    });
 }
-
-function buildDispositionQuickFilterHaystack(row) {
     if (!row) {
         return '';
     }
@@ -574,23 +580,7 @@ function onGridViewsPinnedChanged() {
     router.reload({ preserveScroll: true });
 }
 
-function onFilterChanged() {
-    persistFilterModel(gridApi.value, filterModelStorageKey.value);
-    refreshDisplayedRowCount();
-    nextTick(() => {
-        refreshAgGridPanelLayout();
-    });
-}
-
-function reapplyPersistedFilters() {
-    nextTick(() => {
-        loadAgGridFilterModel(gridApi.value, filterModelStorageKey.value);
-        refreshDisplayedRowCount();
-        refreshAgGridPanelLayout();
-    });
-}
-
-function loadDensity() {
+function buildDispositionQuickFilterHaystack(row) {
     currentDensity.value = readPersistedAgGridDensity(props.userId, page.props.auth?.user);
 }
 

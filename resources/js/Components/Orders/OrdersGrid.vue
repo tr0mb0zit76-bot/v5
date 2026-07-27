@@ -1,6 +1,6 @@
 <template>
   <div ref="gridSection" class="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-    <div class="flex shrink-0 items-center gap-2">
+    <div class="flex shrink-0 items-center justify-between gap-2">
       <div class="flex flex-wrap items-center gap-2">
         <div class="relative">
           <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
@@ -73,7 +73,14 @@
         />
       </div>
 
-      <span v-if="copyNotice" class="ml-auto text-xs font-medium text-emerald-600 dark:text-emerald-400">{{ copyNotice }}</span>
+      <div class="flex shrink-0 items-center gap-3">
+        <span v-if="copyNotice" class="text-xs font-medium text-emerald-600 dark:text-emerald-400">{{ copyNotice }}</span>
+        <GridRowStatus
+          :get-grid-api="() => gridApi"
+          :total-count="displayData.length"
+          :quick-search="quickSearch"
+        />
+      </div>
     </div>
 
     <div
@@ -248,6 +255,7 @@ import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/sup
 import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import GridExportDialog from '@/Components/Grid/GridExportDialog.vue';
+import GridRowStatus from '@/Components/Grid/GridRowStatus.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
