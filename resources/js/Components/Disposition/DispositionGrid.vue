@@ -270,39 +270,6 @@ function onFilterChanged() {
         refreshAgGridPanelLayout();
     });
 }
-    if (!row) {
-        return '';
-    }
-
-    const parts = [
-        row.order_number,
-        row.customer_name,
-        row.transport_type_label,
-        row.route_label,
-        row.planned_arrival_date,
-    ];
-
-    for (const [key, value] of Object.entries(row)) {
-        if (!key.startsWith('cell_')) {
-            continue;
-        }
-
-        if (!key.endsWith('_location') && !key.endsWith('_comment')) {
-            continue;
-        }
-
-        if (value == null || value === '') {
-            continue;
-        }
-
-        parts.push(String(value));
-    }
-
-    return parts
-        .filter((part) => part != null && String(part).trim() !== '')
-        .map((part) => String(part))
-        .join(' ');
-}
 
 function loadQuickSearch() {
     if (typeof window === 'undefined') {
@@ -581,6 +548,41 @@ function onGridViewsPinnedChanged() {
 }
 
 function buildDispositionQuickFilterHaystack(row) {
+    if (!row) {
+        return '';
+    }
+
+    const parts = [
+        row.order_number,
+        row.customer_name,
+        row.transport_type_label,
+        row.route_label,
+        row.planned_arrival_date,
+    ];
+
+    for (const [key, value] of Object.entries(row)) {
+        if (!key.startsWith('cell_')) {
+            continue;
+        }
+
+        if (!key.endsWith('_location') && !key.endsWith('_comment')) {
+            continue;
+        }
+
+        if (value == null || value === '') {
+            continue;
+        }
+
+        parts.push(String(value));
+    }
+
+    return parts
+        .filter((part) => part != null && String(part).trim() !== '')
+        .map((part) => String(part))
+        .join(' ');
+}
+
+function loadDensity() {
     currentDensity.value = readPersistedAgGridDensity(props.userId, page.props.auth?.user);
 }
 

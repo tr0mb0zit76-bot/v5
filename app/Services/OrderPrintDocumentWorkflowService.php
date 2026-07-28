@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\Pdf\PdfDocumentCertificationService;
 use App\Services\Pdf\PdfVerificationQrStampService;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\OrderOwnCompanySide;
 use App\Support\OrderPrintFormContext;
 use App\Support\PrintFormVerificationCode;
 use Illuminate\Http\UploadedFile;
@@ -683,13 +684,22 @@ class OrderPrintDocumentWorkflowService
             : null;
 
         if (($legStage === null || $legStage === '') && $carrierId === null && ! $routeLegsAsTableRows && ($verificationCode === null || $verificationCode === '')) {
-            return null;
+            $partyOnly = OrderOwnCompanySide::partyFromDocument($metadata);
+            if ($partyOnly === null) {
+                return null;
+            }
+
+            return new OrderPrintFormContext(
+                printParty: $partyOnly,
+                orderDocumentId: (int) $document->id,
+            );
         }
 
         return new OrderPrintFormContext(
             legStage: $legStage !== '' ? $legStage : null,
             carrierContractorId: $carrierId,
             routeLegsAsTableRows: $routeLegsAsTableRows,
+            printParty: OrderOwnCompanySide::partyFromDocument($metadata),
             carrierSlot: $carrierSlot,
             documentVerificationCode: ($verificationCode !== null && $verificationCode !== '') ? $verificationCode : null,
             orderDocumentId: (int) $document->id,

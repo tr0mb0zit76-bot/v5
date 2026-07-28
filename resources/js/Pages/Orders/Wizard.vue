@@ -812,6 +812,7 @@ function blankOrder() {
         manual_status: null,
         own_company_id: null,
         own_company_bank_account_id: null,
+        carrier_own_company_id: null,
         client_id: null,
         order_owner_id: null,
         dispatcher_id: null,
@@ -1043,6 +1044,7 @@ const form = useForm({
     own_company_bank_account_id: initialOrderPayload.value?.own_company_bank_account_id
         ? String(initialOrderPayload.value.own_company_bank_account_id)
         : null,
+    carrier_own_company_id: normalizeNullableNumber(initialOrderPayload.value?.carrier_own_company_id),
     client_id: normalizeNullableNumber(initialOrderPayload.value?.client_id),
     order_owner_id: defaultOrderOwnerId(),
     dispatcher_id: normalizeNullableNumber(initialOrderPayload.value?.dispatcher_id),
@@ -1229,10 +1231,39 @@ async function refreshSuggestedOrderNumber() {
 watch(() => form.own_company_id, () => {
     form.own_company_bank_account_id = null;
 
+    if (
+        form.carrier_own_company_id != null
+        && Number(form.carrier_own_company_id) === Number(form.own_company_id)
+    ) {
+        form.carrier_own_company_id = null;
+    }
+
     if (!isEditing.value && !orderNumberManual.value) {
         void refreshSuggestedOrderNumber();
     }
 });
+
+const withSubcontract = computed({
+    get() {
+        return form.carrier_own_company_id != null && Number(form.carrier_own_company_id) > 0;
+    },
+    set(enabled) {
+        if (!enabled) {
+            form.carrier_own_company_id = null;
+            return;
+        }
+        if (form.carrier_own_company_id == null) {
+            const firstOther = ownCompanyOptions.value.find(
+                (c) => Number(c.id) !== Number(form.own_company_id),
+            );
+            form.carrier_own_company_id = firstOther?.id ?? null;
+        }
+    },
+});
+
+const subcontractOwnCompanyOptions = computed(() => ownCompanyOptions.value.filter(
+    (c) => Number(c.id) !== Number(form.own_company_id),
+));
 
 watch(
     () => form.is_international_transport,
@@ -3385,6 +3416,8 @@ const mainTabContext = {
     showOwnCompanyBankAccountPicker,
     selectableOwnCompanyBankAccounts,
     ownCompanyBankAccountLabel,
+    withSubcontract,
+    subcontractOwnCompanyOptions,
     clientSearch,
     showClientResults,
     combinedClientResults,

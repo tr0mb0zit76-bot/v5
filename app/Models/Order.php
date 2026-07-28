@@ -53,6 +53,7 @@ class Order extends Model
         'customer_id',
         'own_company_id',
         'own_company_bank_account_id',
+        'carrier_own_company_id',
         'carrier_id',
         'driver_id',
         'ai_draft_id',
@@ -274,6 +275,16 @@ class Order extends Model
     public function ownCompany(): BelongsTo
     {
         return $this->belongsTo(Contractor::class, 'own_company_id');
+    }
+
+    /**
+     * Своя компания в заявке перевозчику при субподряде (иначе = ownCompany).
+     *
+     * @return BelongsTo<Contractor, $this>
+     */
+    public function carrierOwnCompany(): BelongsTo
+    {
+        return $this->belongsTo(Contractor::class, 'carrier_own_company_id');
     }
 
     /**

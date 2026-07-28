@@ -221,6 +221,9 @@ class OrderWizardOrderPresenter
             'own_company_bank_account_id' => Schema::hasColumn('orders', 'own_company_bank_account_id')
                 ? $order->own_company_bank_account_id
                 : null,
+            'carrier_own_company_id' => Schema::hasColumn('orders', 'carrier_own_company_id')
+                ? $order->carrier_own_company_id
+                : null,
             'responsible_id' => $this->resolveSerializedOrderOwnerId($order),
             'responsible_name' => $this->resolveSerializedOrderOwnerName($order),
             'order_owner_id' => $this->resolveSerializedOrderOwnerId($order),

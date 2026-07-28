@@ -26,7 +26,7 @@ final class OrderDocumentAccessAuthorization
             $order->loadMissing('documents');
 
             return OrderPrintWorkflowLock::orderHasPrintDocumentPendingApproval($order)
-                && $user->canSignDocumentsForOwnCompany($order->own_company_id);
+                && OrderOwnCompanySide::userCanSignAnySide($user, $order);
         }
 
         return false;

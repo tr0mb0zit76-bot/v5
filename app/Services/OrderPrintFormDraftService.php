@@ -21,6 +21,7 @@ use App\Support\ContractorPrimaryContactResolver;
 use App\Support\DocxPrintFormPlaceholderPreprocessor;
 use App\Support\DocxTextRunPlaceholderMerger;
 use App\Support\DocxVmlOverlayStylePatcher;
+use App\Support\OrderOwnCompanySide;
 use App\Support\OrderPrintFormContext;
 use App\Support\PaymentFormCodeLabel;
 use App\Support\PaymentScheduleSummaryFormatter;
@@ -113,6 +114,7 @@ class OrderPrintFormDraftService
         $mapping = collect($settings['variable_mapping'] ?? []);
         $orderForSnapshot = $this->loadOrderContext($order);
         $context = $this->normalizePrintContext($orderForSnapshot, $context);
+        $context = $this->ensurePrintPartyOnContext($context, $template);
         $snapshot = $this->buildSnapshot($orderForSnapshot, $context);
         $overlayPlaceholders = $this->overlayPlaceholderList($template);
         $cargoItems = $orderForSnapshot->relationLoaded('cargoItems') ? $orderForSnapshot->cargoItems : collect();
@@ -392,7 +394,10 @@ class OrderPrintFormDraftService
             ],
             'customer' => $this->contractorPayload($order->client),
             'carrier' => $this->contractorPayload($carrierContractor),
-            'own_company' => $this->contractorPayload($order->ownCompany, $order->own_company_bank_account_id),
+            'own_company' => $this->contractorPayload(
+                OrderOwnCompanySide::contractorForPrintParty($order, $context?->printParty),
+                OrderOwnCompanySide::bankAccountIdForPrintParty($order, $context?->printParty),
+            ),
             'manager' => $this->managerPayload($order->manager),
             'responsible' => $this->managerPayload($order->manager),
             'dispatcher' => $this->managerPayload($order->dispatcher),
@@ -1516,6 +1521,32 @@ class OrderPrintFormDraftService
         );
     }
 
+    private function ensurePrintPartyOnContext(?OrderPrintFormContext $context, PrintFormTemplate $template): ?OrderPrintFormContext
+    {
+        $party = OrderOwnCompanySide::partyFromDocument(null, $template);
+        if ($party === null) {
+            return $context;
+        }
+
+        if ($context === null) {
+            return new OrderPrintFormContext(printParty: $party);
+        }
+
+        if ($context->printParty !== null && $context->printParty !== '') {
+            return $context;
+        }
+
+        return new OrderPrintFormContext(
+            legStage: $context->legStage,
+            carrierContractorId: $context->carrierContractorId,
+            routeLegsAsTableRows: $context->routeLegsAsTableRows,
+            printParty: $party,
+            carrierSlot: $context->carrierSlot,
+            documentVerificationCode: $context->documentVerificationCode,
+            orderDocumentId: $context->orderDocumentId,
+        );
+    }
+
     private function firstCarrierContractorIdFromFinancialTerms(Order $order): ?int
     {
         if (! $order->relationLoaded('financialTerms')) {
@@ -1666,6 +1697,10 @@ class OrderPrintFormDraftService
     public function loadOrderContext(Order $order): Order
     {
         $relations = ['client', 'carrier', 'ownCompany', 'manager'];
+
+        if (OrderOwnCompanySide::hasCarrierOwnCompanyColumn()) {
+            $relations[] = 'carrierOwnCompany';
+        }
 
         if (Schema::hasColumn('orders', 'dispatcher_id')) {
             $relations[] = 'dispatcher';

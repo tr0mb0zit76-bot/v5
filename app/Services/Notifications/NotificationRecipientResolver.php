@@ -4,6 +4,7 @@ namespace App\Services\Notifications;
 
 use App\Models\Order;
 use App\Models\User;
+use App\Support\OrderOwnCompanySide;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\Schema;
 
@@ -39,7 +40,7 @@ class NotificationRecipientResolver
             ->where('id', '!=', $requester->id)
             ->with('signingOwnCompanies:id')
             ->get()
-            ->filter(fn (User $user): bool => $user->canSignDocumentsForOwnCompany($order->own_company_id))
+            ->filter(fn (User $user): bool => OrderOwnCompanySide::userCanSignAnySide($user, $order))
             ->values();
 
         return $recipients

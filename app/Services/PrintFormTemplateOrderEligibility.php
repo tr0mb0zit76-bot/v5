@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\PrintFormBasicTerm;
 use App\Models\PrintFormTemplate;
+use App\Support\OrderOwnCompanySide;
 use App\Support\PrintFormBasicTermsTableCloner;
 use App\Support\PrintFormTemplateTransportScope;
 use Illuminate\Support\Collection;
@@ -99,9 +100,16 @@ final class PrintFormTemplateOrderEligibility
         ?string $party = null,
         ?bool $isInternationalTransport = null,
     ): bool {
+        $effectiveParty = $party;
+        if ($effectiveParty === null || $effectiveParty === '') {
+            $effectiveParty = in_array($template->party, ['customer', 'carrier'], true)
+                ? $template->party
+                : null;
+        }
+
         return $this->isTemplateAvailableForContext(
             $template,
-            $order->own_company_id !== null ? (int) $order->own_company_id : null,
+            OrderOwnCompanySide::idForPrintParty($order, $effectiveParty),
             $isInternationalTransport ?? $order->isInternationalTransportEffective(),
             $party,
             $this->contractorIdsForOrder($order),

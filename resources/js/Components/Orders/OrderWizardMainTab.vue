@@ -17,6 +17,8 @@ const {
     showOwnCompanyBankAccountPicker,
     selectableOwnCompanyBankAccounts,
     ownCompanyBankAccountLabel,
+    withSubcontract,
+    subcontractOwnCompanyOptions,
     clientSearch,
     showClientResults,
     combinedClientResults,
@@ -51,7 +53,9 @@ const {
         <div class="grid gap-6 lg:grid-cols-2">
             <div class="space-y-4">
                 <div class="space-y-2">
-                    <label class="text-sm font-medium">Своя компания</label>
+                    <label class="text-sm font-medium">
+                        {{ form.carrier_own_company_id ? 'Генподрядчик (заявка заказчику)' : 'Своя компания' }}
+                    </label>
                     <select
                         v-model="form.own_company_id"
                         :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('own_company_id', form.own_company_id)]"
@@ -80,6 +84,41 @@ const {
                         </option>
                     </select>
                     <p v-if="form.errors.own_company_bank_account_id" class="text-xs text-rose-500">{{ form.errors.own_company_bank_account_id }}</p>
+                </div>
+
+                <div class="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+                    <label class="flex items-start gap-2 text-sm">
+                        <input
+                            v-model="withSubcontract"
+                            type="checkbox"
+                            class="mt-0.5 rounded border-zinc-300"
+                            :disabled="!isOrderFormEditable"
+                        />
+                        <span>
+                            <span class="font-medium">Субподряд (другая наша компания)</span>
+                            <span class="mt-0.5 block text-xs text-zinc-500">
+                                В заявке перевозчику подставятся реквизиты субподрядчика; заказчику — генподрядчика.
+                            </span>
+                        </span>
+                    </label>
+                    <div v-if="withSubcontract" class="space-y-2 pt-1">
+                        <label class="text-sm font-medium">Субподрядчик (заявка перевозчику)</label>
+                        <select
+                            v-model="form.carrier_own_company_id"
+                            :class="crmFieldFluid"
+                            :disabled="!isOrderFormEditable"
+                        >
+                            <option :value="null">Выберите компанию</option>
+                            <option
+                                v-for="company in subcontractOwnCompanyOptions"
+                                :key="company.id"
+                                :value="company.id"
+                            >
+                                {{ company.name }}
+                            </option>
+                        </select>
+                        <p v-if="form.errors.carrier_own_company_id" class="text-xs text-rose-500">{{ form.errors.carrier_own_company_id }}</p>
+                    </div>
                 </div>
 
                 <div class="space-y-2">

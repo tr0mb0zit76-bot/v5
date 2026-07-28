@@ -18,6 +18,7 @@ use App\Services\PrintFormTemplateOrderEligibility;
 use App\Support\AtiDictionaryOptionCatalog;
 use App\Support\CurrencyDictionary;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\OrderOwnCompanySide;
 use App\Support\PaymentFormDictionary;
 use App\Support\RoleAccess;
 use Illuminate\Http\Request;
@@ -316,20 +317,54 @@ class OrderWizardPagePresenter
             return collect();
         }
 
-        $ownCompanyId = $order?->own_company_id !== null ? (int) $order->own_company_id : null;
+        $customerOwnId = $order !== null
+            ? OrderOwnCompanySide::idForPrintParty($order, 'customer')
+            : null;
+        $carrierOwnId = $order !== null
+            ? OrderOwnCompanySide::idForPrintParty($order, 'carrier')
+            : null;
+        $ownCompanyId = match ($party) {
+            'carrier' => $carrierOwnId,
+            'customer' => $customerOwnId,
+            default => $customerOwnId,
+        };
         $isInternational = $order !== null
             ? $order->isInternationalTransportEffective()
             : false;
         $contractorIds = $order !== null ? $this->printFormTemplateEligibility->contractorIdsForOrder($order) : [];
 
         $filtered = $this->printFormTemplateCatalog()
-            ->filter(fn (array $template): bool => $this->printFormTemplateEligibility->isArrayTemplateAvailableForContext(
-                $template,
-                $ownCompanyId,
-                $isInternational,
-                $party,
-                $contractorIds,
-            ));
+            ->filter(function (array $template) use ($party, $customerOwnId, $carrierOwnId, $isInternational, $contractorIds): bool {
+                if ($party === null || $party === '') {
+                    return $this->printFormTemplateEligibility->isArrayTemplateAvailableForContext(
+                        $template,
+                        $customerOwnId,
+                        $isInternational,
+                        null,
+                        $contractorIds,
+                    ) || (
+                        $carrierOwnId !== null
+                        && $carrierOwnId !== $customerOwnId
+                        && $this->printFormTemplateEligibility->isArrayTemplateAvailableForContext(
+                            $template,
+                            $carrierOwnId,
+                            $isInternational,
+                            null,
+                            $contractorIds,
+                        )
+                    );
+                }
+
+                $sideOwnId = $party === 'carrier' ? $carrierOwnId : $customerOwnId;
+
+                return $this->printFormTemplateEligibility->isArrayTemplateAvailableForContext(
+                    $template,
+                    $sideOwnId,
+                    $isInternational,
+                    $party,
+                    $contractorIds,
+                );
+            });
 
         return $this->printFormTemplateEligibility
             ->preferOwnCompanySpecificTemplates($filtered, $ownCompanyId)
@@ -483,6 +518,9 @@ class OrderWizardPagePresenter
         $ensureIds = [];
         if ($order?->own_company_id) {
             $ensureIds[] = (int) $order->own_company_id;
+        }
+        if ($order?->carrier_own_company_id) {
+            $ensureIds[] = (int) $order->carrier_own_company_id;
         }
 
         return Contractor::query()

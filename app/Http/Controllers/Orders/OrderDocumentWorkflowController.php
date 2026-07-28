@@ -19,6 +19,7 @@ use App\Support\DocumentPreview;
 use App\Support\DocumentUploadBudget;
 use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\OrderOwnCompanySide;
 use App\Support\OrderPrintFormContext;
 use App\Support\OrderPrintWorkflowLock;
 use App\Support\OrderViewAuthorization;
@@ -111,7 +112,7 @@ class OrderDocumentWorkflowController extends Controller
 
     public function approve(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse
     {
-        $this->ensureCanApproveDocuments($request, $order);
+        $this->ensureCanApproveDocuments($request, $order, $orderDocument);
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
 
         try {
@@ -133,7 +134,7 @@ class OrderDocumentWorkflowController extends Controller
 
     public function reject(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse
     {
-        $this->ensureCanApproveDocuments($request, $order);
+        $this->ensureCanApproveDocuments($request, $order, $orderDocument);
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
 
         $validated = $request->validate([
@@ -210,13 +211,13 @@ class OrderDocumentWorkflowController extends Controller
             $user = $request->user();
             abort_if($user === null, 403);
             if ($user->hasSigningAuthority()) {
-                $this->ensureCanApproveDocuments($request, $order);
+                $this->ensureCanApproveDocuments($request, $order, $orderDocument);
                 $this->ensureCanViewOrderDocuments($request, $order);
             } else {
                 $this->ensureCanDiscardPendingApproval($request);
             }
         } elseif ($workflowStatus === OrderDocumentWorkflowStatus::APPROVED) {
-            $this->ensureCanApproveDocuments($request, $order);
+            $this->ensureCanApproveDocuments($request, $order, $orderDocument);
             $this->ensureCanViewOrderDocuments($request, $order);
         } else {
             $this->ensureCanEditOrder($request, $order);
@@ -304,7 +305,15 @@ class OrderDocumentWorkflowController extends Controller
 
         $settings = $template instanceof PrintFormTemplate && is_array($template->settings) ? $template->settings : [];
 
-        $canSign = $request->user()?->canSignDocumentsForOwnCompany($order->own_company_id) ?? false;
+        $canSign = $request->user() !== null
+            && OrderOwnCompanySide::userCanSignForParty(
+                $request->user(),
+                $order,
+                OrderOwnCompanySide::partyFromDocument(
+                    is_array($orderDocument->metadata) ? $orderDocument->metadata : null,
+                    $template instanceof PrintFormTemplate ? $template : null,
+                ),
+            );
         $canWorkflowApprove = $canSign && $workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL;
         $canWorkflowReject = $canWorkflowApprove;
 
@@ -717,7 +726,7 @@ class OrderDocumentWorkflowController extends Controller
         abort_if(OrderPrintWorkflowLock::allPrintWorkflowDocumentsFinalized($order), 403);
     }
 
-    private function ensureCanApproveDocuments(Request $request, Order $order): void
+    private function ensureCanApproveDocuments(Request $request, Order $order, ?OrderDocument $document = null): void
     {
         $user = $request->user();
 
@@ -725,7 +734,21 @@ class OrderDocumentWorkflowController extends Controller
             abort(403);
         }
 
-        abort_unless($user->canSignDocumentsForOwnCompany($order->own_company_id), 403);
+        if ($document !== null) {
+            $document->loadMissing('template');
+            abort_unless(OrderOwnCompanySide::userCanSignForParty(
+                $user,
+                $order,
+                OrderOwnCompanySide::partyFromDocument(
+                    is_array($document->metadata) ? $document->metadata : null,
+                    $document->template,
+                ),
+            ), 403);
+
+            return;
+        }
+
+        abort_unless(OrderOwnCompanySide::userCanSignAnySide($user, $order), 403);
     }
 
     private function ensureCanManagePrintWorkflow(Request $request): void

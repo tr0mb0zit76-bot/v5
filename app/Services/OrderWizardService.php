@@ -235,6 +235,10 @@ class OrderWizardService
             $attributes['order_owner_id'] = $orderOwnerId;
         }
 
+        if ($this->hasOrdersColumn('carrier_own_company_id')) {
+            $attributes['carrier_own_company_id'] = $this->resolveCarrierOwnCompanyId($validated);
+        }
+
         if ($this->hasOrdersColumn('dispatcher_id')) {
             $attributes['dispatcher_id'] = $dispatcherId;
         }
@@ -1186,6 +1190,30 @@ class OrderWizardService
         }
 
         return Contractor::query()->find($validated['own_company_id']);
+    }
+
+    /**
+     * Субподрядчик: другая наша компания для заявки перевозчику.
+     * Если совпадает с генподрядчиком — храним null (нет субподряда).
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function resolveCarrierOwnCompanyId(array $validated): ?int
+    {
+        $carrierOwnId = isset($validated['carrier_own_company_id'])
+            ? (int) $validated['carrier_own_company_id']
+            : 0;
+        $ownId = isset($validated['own_company_id']) ? (int) $validated['own_company_id'] : 0;
+
+        if ($carrierOwnId <= 0) {
+            return null;
+        }
+
+        if ($ownId > 0 && $carrierOwnId === $ownId) {
+            return null;
+        }
+
+        return $carrierOwnId;
     }
 
     /**

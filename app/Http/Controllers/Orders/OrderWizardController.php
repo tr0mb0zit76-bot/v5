@@ -30,6 +30,7 @@ use App\Support\OrderAgentLexicon;
 use App\Support\OrderDeleteAuthorization;
 use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\OrderLeadPrecalculationSnapshotResolver;
+use App\Support\OrderOwnCompanySide;
 use App\Support\OrderPrintFormContext;
 use App\Support\OrderViewAuthorization;
 use App\Support\PaymentFormDictionary;
@@ -344,7 +345,7 @@ class OrderWizardController extends Controller
             && ! $isSignerOnly;
         $canApproveOrderDocuments = $user !== null
             && $order !== null
-            && $user->canSignDocumentsForOwnCompany($order->own_company_id);
+            && OrderOwnCompanySide::userCanSignAnySide($user, $order);
 
         return Inertia::render('Orders/Wizard', $this->pagePresenter->props(
             $request,

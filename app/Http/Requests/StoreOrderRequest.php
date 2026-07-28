@@ -482,6 +482,7 @@ class StoreOrderRequest extends FormRequest
             'status' => ['required', Rule::in(['draft', 'pending', 'confirmed', 'new', 'in_progress', 'documents', 'payment', 'closed', 'completed', 'cancelled', 'disruption'])],
             'own_company_id' => $this->ownCompanyIdRules(),
             'own_company_bank_account_id' => ['nullable', 'string', 'max:100'],
+            'carrier_own_company_id' => $this->ownCompanyIdRules(),
             'client_id' => ['required', 'integer', 'exists:contractors,id'],
             'order_date' => ['required', 'date'],
             'order_owner_id' => ['nullable', 'integer', 'exists:users,id'],

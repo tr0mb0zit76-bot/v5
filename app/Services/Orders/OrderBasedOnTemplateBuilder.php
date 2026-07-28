@@ -35,6 +35,9 @@ class OrderBasedOnTemplateBuilder
                 ]
                 : null,
             'own_company_id' => $order->own_company_id,
+            'carrier_own_company_id' => Schema::hasColumn('orders', 'carrier_own_company_id')
+                ? $order->carrier_own_company_id
+                : null,
             'order_date' => now()->toDateString(),
             'status' => 'new',
             'manual_status' => 'new',
