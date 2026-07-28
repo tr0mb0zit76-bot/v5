@@ -698,6 +698,9 @@ class TaskController extends Controller
             'lead_id' => $task->lead_id,
             'lead_number' => $task->lead?->number,
             'lead_title' => $task->lead?->title,
+            'lead_show_url' => $task->lead_id
+                ? route('leads.show', ['lead' => $task->lead_id, 'standalone' => 1])
+                : null,
             'order_id' => $task->order_id,
             'contractor_id' => $task->contractor_id,
             'contractor_name' => $task->contractor?->name,

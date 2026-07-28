@@ -228,7 +228,13 @@ class LeadController extends Controller
             $relations[] = 'attachments.user:id,name';
         }
 
-        return $this->renderIndexPage($request, $lead->load($relations));
+        $lead = $lead->load($relations);
+
+        if ($this->wantsStandaloneLeadCard($request)) {
+            return $this->renderWizardPage($request, $lead);
+        }
+
+        return $this->renderIndexPage($request, $lead);
     }
 
     public function store(StoreLeadRequest $request): RedirectResponse
@@ -711,8 +717,23 @@ class LeadController extends Controller
         return Inertia::render('Leads/Wizard', [
             'selectedLead' => $selectedLead === null ? null : $this->serializeLead($selectedLead),
             'isCreating' => $isCreating,
+            'standalone' => true,
             ...$this->sharedWizardProps($selectedLead),
         ]);
+    }
+
+    /**
+     * Карточка без реестра лидов (чтобы не тянуть грид в фоне и вернуться назад, напр. в задачи).
+     */
+    private function wantsStandaloneLeadCard(Request $request): bool
+    {
+        if ($request->boolean('standalone')) {
+            return true;
+        }
+
+        $from = strtolower(trim((string) $request->query('from', '')));
+
+        return in_array($from, ['tasks', 'task'], true);
     }
 
     /**

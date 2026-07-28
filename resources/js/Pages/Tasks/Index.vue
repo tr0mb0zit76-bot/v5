@@ -267,8 +267,15 @@
                             >
                                 SLA: {{ formatDue(selectedTask.sla_deadline_at) }}
                             </span>
+                            <Link
+                                v-if="selectedTask.lead_id && selectedTask.lead_show_url"
+                                :href="selectedTask.lead_show_url"
+                                class="rounded-full border border-sky-200 px-2 py-1 text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:text-sky-300 dark:hover:bg-sky-950/40"
+                            >
+                                Лид: {{ selectedTask.lead_number || ('#' + selectedTask.lead_id) }}
+                            </Link>
                             <span
-                                v-if="selectedTask.lead_number"
+                                v-else-if="selectedTask.lead_number"
                                 class="rounded-full border border-zinc-200 px-2 py-1 dark:border-zinc-700"
                             >
                                 Лид: {{ selectedTask.lead_number }}

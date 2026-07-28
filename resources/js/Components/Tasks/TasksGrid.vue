@@ -92,7 +92,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { Rows3, Search } from 'lucide-vue-next';
@@ -400,6 +400,7 @@ const columnDefs = computed(() => [
     minWidth: 100,
     filter: 'agTextColumnFilter',
     valueFormatter: (p) => p.data?.lead_number || '—',
+    cellRenderer: leadLinkCellRenderer,
   },
   {
     headerName: 'Чеклист',
@@ -431,6 +432,48 @@ function formatDue(value) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date);
+}
+
+function openTaskLead(row) {
+  const url = row?.lead_show_url;
+  if (url) {
+    router.visit(url);
+    return;
+  }
+
+  if (!row?.lead_id) {
+    return;
+  }
+
+  router.get(route('leads.show', row.lead_id), { standalone: 1 });
+}
+
+function leadLinkCellRenderer(params) {
+  const wrap = document.createElement('div');
+  wrap.className = 'flex h-full items-center';
+
+  const leadId = params.data?.lead_id;
+  const label = params.data?.lead_number || (leadId ? `#${leadId}` : '');
+
+  if (!leadId || !label) {
+    wrap.textContent = '—';
+    return wrap;
+  }
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className =
+    'text-left font-medium text-sky-700 underline decoration-sky-300 underline-offset-2 hover:decoration-sky-700 dark:text-sky-300 dark:decoration-sky-700 dark:hover:decoration-sky-300';
+  btn.textContent = label;
+  btn.title = params.data?.lead_title ? `Открыть лид: ${params.data.lead_title}` : 'Открыть лид';
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openTaskLead(params.data);
+  });
+  wrap.appendChild(btn);
+
+  return wrap;
 }
 
 function onGridReady(params) {
@@ -524,6 +567,13 @@ function onCellContextMenu(params) {
       run: () => emit('row-dblclick', row),
     },
   ];
+
+  if (row.lead_id) {
+    items.push({
+      label: 'Открыть лид',
+      run: () => openTaskLead(row),
+    });
+  }
 
   if (row.can_mutate && row.status !== 'done') {
     if (row.status !== 'in_progress') {

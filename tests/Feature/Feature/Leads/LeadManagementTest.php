@@ -125,6 +125,28 @@ class LeadManagementTest extends TestCase
         );
     }
 
+    public function test_lead_show_standalone_renders_wizard_without_leads_grid(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $lead = Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'title' => 'Лид из задач',
+        ]);
+
+        $response = $this->actingAs($manager)->get(route('leads.show', [
+            'lead' => $lead,
+            'standalone' => 1,
+        ]));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Leads/Wizard')
+            ->where('standalone', true)
+            ->where('selectedLead.id', $lead->id)
+            ->missing('leads')
+        );
+    }
+
     public function test_lead_wizard_exposes_business_process_slugs(): void
     {
         $manager = $this->createUserWithRole('manager');

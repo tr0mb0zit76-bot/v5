@@ -5,11 +5,11 @@
                 <button
                     type="button"
                     :class="crmWizardBack"
-                    title="К реестру"
+                    :title="standalone ? 'Назад' : 'К реестру'"
                     @click="goBack"
                 >
                     <X class="h-5 w-5" />
-                    <span class="sr-only">К реестру</span>
+                    <span class="sr-only">{{ standalone ? 'Назад' : 'К реестру' }}</span>
                 </button>
                 <div class="min-w-0">
                     <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
@@ -619,6 +619,10 @@ const props = defineProps({
     },
     isCreating: Boolean,
     embedded: {
+        type: Boolean,
+        default: false,
+    },
+    standalone: {
         type: Boolean,
         default: false,
     },
