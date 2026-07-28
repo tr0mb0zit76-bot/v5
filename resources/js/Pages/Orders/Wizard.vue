@@ -1013,13 +1013,14 @@ function defaultOrderOwnerId() {
         return fromOrder;
     }
 
-    const fallbackUserId = normalizeNullableNumber(props.responsibleUsers?.[0]?.id);
-
-    if (fallbackUserId) {
-        return fallbackUserId;
+    // Текущий пользователь, не первый из алфавитного списка менеджеров —
+    // иначе заказ сохраняется «на чужое имя» и edit даёт 403 при scope=own.
+    const currentUserId = normalizeNullableNumber(props.currentUser?.id);
+    if (currentUserId) {
+        return currentUserId;
     }
 
-    return normalizeNullableNumber(props.currentUser?.id);
+    return normalizeNullableNumber(props.responsibleUsers?.[0]?.id);
 }
 
 function defaultCompensationPercents() {

@@ -62,6 +62,7 @@ export function useOrderWizardSubmit(deps) {
         return {
             status: form.status,
             own_company_id: form.own_company_id,
+            carrier_own_company_id: normalizeNullableNumber(form.carrier_own_company_id),
             own_company_bank_account_id: form.own_company_bank_account_id && String(form.own_company_bank_account_id).trim() !== ''
                 ? String(form.own_company_bank_account_id).trim()
                 : null,

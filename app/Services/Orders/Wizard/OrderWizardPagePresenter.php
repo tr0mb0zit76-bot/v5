@@ -729,24 +729,18 @@ class OrderWizardPagePresenter
 
         $users = $usersQuery
             ->get(['users.id', 'users.name'])
-            ->map(fn ($userRow): array => ['id' => $userRow->id, 'name' => $userRow->name])
+            ->map(fn ($userRow): array => ['id' => (int) $userRow->id, 'name' => (string) $userRow->name])
             ->values();
 
         $currentUserId = (int) $user->id;
-        if (! $users->contains(fn (array $row): bool => (int) $row['id'] === $currentUserId)) {
-            $users->prepend([
-                'id' => $user->id,
-                'name' => $user->name,
-            ]);
-        }
+        $users = $users
+            ->reject(fn (array $row): bool => (int) $row['id'] === $currentUserId)
+            ->values();
+        $users->prepend([
+            'id' => $currentUserId,
+            'name' => (string) $user->name,
+        ]);
 
-        if ($users->isNotEmpty()) {
-            return $users;
-        }
-
-        return collect([[
-            'id' => $user->id,
-            'name' => $user->name,
-        ]]);
+        return $users;
     }
 }

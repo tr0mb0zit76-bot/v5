@@ -60,6 +60,53 @@ class OrderWizardTest extends TestCase
         );
     }
 
+    public function test_order_create_lists_current_manager_first_among_responsible_users(): void
+    {
+        $managerRoleId = DB::table('roles')->where('name', 'manager')->value('id');
+        if ($managerRoleId === null) {
+            $managerRoleId = DB::table('roles')->insertGetId([
+                'name' => 'manager',
+                'display_name' => 'Manager',
+                'permissions' => json_encode([]),
+                'columns_config' => json_encode([]),
+                'visibility_areas' => json_encode(['orders', 'dashboard']),
+                'visibility_scopes' => json_encode(['orders' => 'own']),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } else {
+            DB::table('roles')->where('id', $managerRoleId)->update([
+                'visibility_areas' => json_encode(['orders', 'dashboard']),
+                'visibility_scopes' => json_encode(['orders' => 'own']),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $alphaFirst = User::factory()->create([
+            'name' => 'Ааа Альфа',
+            'role_id' => $managerRoleId,
+        ]);
+        $current = User::factory()->create([
+            'name' => 'Яя Текущий',
+            'role_id' => $managerRoleId,
+        ]);
+
+        $response = $this->actingAs($current)->get(route('orders.create'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Orders/Wizard')
+            ->where('responsibleUsers.0.id', $current->id)
+            ->where('currentUser.id', $current->id)
+            ->has('responsibleUsers', fn (Assert $users) => $users
+                ->has(0)
+                ->etc()
+            )
+        );
+
+        $this->assertNotSame($alphaFirst->id, $current->id);
+    }
+
     public function test_order_document_rules_allow_contract_type_and_print_template_workflow_flow(): void
     {
         $rules = (new StoreOrderRequest)->rules();
