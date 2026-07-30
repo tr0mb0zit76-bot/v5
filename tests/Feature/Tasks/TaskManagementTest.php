@@ -501,4 +501,92 @@ class TaskManagementTest extends TestCase
         $this->assertSoftDeleted('tasks', ['id' => $a->id]);
         $this->assertSoftDeleted('tasks', ['id' => $b->id]);
     }
+
+    public function test_tasks_index_includes_creator_name(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'display_name' => 'Supervisor',
+            'visibility_areas' => json_encode(['tasks', 'kanban']),
+            'visibility_scopes' => json_encode(['tasks' => 'all']),
+            'columns_config' => json_encode([]),
+            'permissions' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $creator = User::factory()->create([
+            'role_id' => $roleId,
+            'name' => 'Создатель Задач',
+        ]);
+
+        $assignee = User::factory()->create([
+            'role_id' => $roleId,
+            'name' => 'Исполнитель Задач',
+        ]);
+
+        Task::query()->create([
+            'number' => 'TSK-CREATOR-001',
+            'title' => 'С создателем',
+            'status' => 'new',
+            'priority' => 'medium',
+            'responsible_id' => $assignee->id,
+            'created_by' => $creator->id,
+        ]);
+
+        $this->actingAs($creator)
+            ->get(route('tasks.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Tasks/Index')
+                ->has('tasks', 1)
+                ->where('tasks.0.creator_name', 'Создатель Задач')
+                ->where('tasks.0.created_by', $creator->id)
+                ->where('tasks.0.responsible_name', 'Исполнитель Задач'));
+    }
+
+    public function test_task_inline_update_changes_responsible(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'display_name' => 'Supervisor',
+            'visibility_areas' => json_encode(['tasks', 'kanban']),
+            'visibility_scopes' => json_encode(['tasks' => 'all']),
+            'columns_config' => json_encode([]),
+            'permissions' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $owner = User::factory()->create([
+            'role_id' => $roleId,
+            'name' => 'Владелец',
+        ]);
+
+        $next = User::factory()->create([
+            'role_id' => $roleId,
+            'name' => 'Новый ответственный',
+        ]);
+
+        $task = Task::query()->create([
+            'number' => 'TSK-INLINE-RESP',
+            'title' => 'Смена ответственного',
+            'status' => 'new',
+            'priority' => 'medium',
+            'responsible_id' => $owner->id,
+            'created_by' => $owner->id,
+        ]);
+
+        $this->actingAs($owner)
+            ->patch(route('tasks.inline-update', $task), [
+                'field' => 'responsible_id',
+                'value' => $next->id,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('tasks', [
+            'id' => $task->id,
+            'responsible_id' => $next->id,
+        ]);
+    }
 }

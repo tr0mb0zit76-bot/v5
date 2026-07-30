@@ -37,7 +37,20 @@
             </button>
           </div>
         </div>
+
+        <GridBulkIconActions
+          :selected-count="selectedTaskIds.length"
+          :actions="bulkActions"
+          @action="onBulkAction"
+        />
     </div>
+
+    <GridRowStatus
+      :get-grid-api="() => gridApi"
+      :total-count="rows.length"
+      :selected-count="selectedTaskIds.length"
+      :quick-search="quickSearch"
+    />
 
     <div
       ref="gridPanel"
@@ -87,6 +100,85 @@
       :items="contextMenu.items"
       @close="closeRowContextMenu"
     />
+
+    <Teleport to="body">
+      <div
+        v-if="activeBulkModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        @click.self="closeBulkModal"
+      >
+        <div :class="`${crmModalPanel} w-full max-w-md shadow-2xl`">
+          <div class="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+            <div class="text-lg font-semibold">{{ bulkModalTitle }}</div>
+            <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Выбрано задач: {{ selectedTaskIds.length }}
+            </div>
+          </div>
+
+          <div class="space-y-3 p-5">
+            <select
+              v-if="activeBulkModal === 'assign'"
+              v-model="bulkResponsibleId"
+              class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            >
+              <option value="">Выберите ответственного</option>
+              <option v-for="user in users" :key="user.id" :value="String(user.id)">
+                {{ user.name }}
+              </option>
+            </select>
+
+            <select
+              v-else-if="activeBulkModal === 'status'"
+              v-model="bulkStatusValue"
+              class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            >
+              <option value="">Выберите статус</option>
+              <option v-for="option in statusOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+
+            <input
+              v-else-if="activeBulkModal === 'reschedule'"
+              v-model="bulkDueAt"
+              type="datetime-local"
+              class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            >
+
+            <p v-else-if="activeBulkModal === 'close'" class="text-sm text-zinc-600 dark:text-zinc-300">
+              Закрыть выбранные задачи (статус «Готово»)?
+            </p>
+
+            <p v-else-if="activeBulkModal === 'delete'" class="text-sm text-zinc-600 dark:text-zinc-300">
+              Удалить выбранные задачи? Это действие необратимо.
+            </p>
+
+            <p v-if="bulkError" class="text-sm text-rose-600 dark:text-rose-400">
+              {{ bulkError }}
+            </p>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
+            <button
+              type="button"
+              :class="crmBtnNeutral"
+              :disabled="bulkProcessing"
+              @click="closeBulkModal"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              :class="activeBulkModal === 'delete' || activeBulkModal === 'close' ? crmBtnDangerMuted : crmBtnCreate"
+              :disabled="bulkProcessing || selectedTaskIds.length === 0 || !canSubmitBulkModal"
+              @click="submitBulkModal"
+            >
+              {{ bulkProcessing ? 'Сохранение…' : bulkModalSubmitLabel }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -95,7 +187,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { Rows3, Search } from 'lucide-vue-next';
+import { CalendarClock, CheckCircle2, Rows3, Search, Trash2, UserRound, Workflow } from 'lucide-vue-next';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -108,12 +200,28 @@ import {
   schedulePersistAgGridDensityToProfile,
   writeLocalAgGridDensity,
 } from '@/support/agGridUserDensity.js';
+import GridBulkIconActions from '@/Components/Grid/GridBulkIconActions.vue';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import GridRowStatus from '@/Components/Grid/GridRowStatus.vue';
 import { AgSetListFilter, setListFilterParams } from '@/Components/Grid/agSetListFilter.js';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import { useGridContextMenu } from '@/Components/Grid/useGridContextMenu.js';
-import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
+import {
+  crmBtnCreate,
+  crmBtnDangerMuted,
+  crmBtnNeutral,
+  crmGridDropdown,
+  crmGridInnerPanel,
+  crmGridSearchField,
+  crmGridToolbarBtn,
+  crmModalPanel,
+} from '@/support/crmUi.js';
 import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
+import {
+  agGridFilteredMultiRowSelection,
+  pruneAgGridSelectionToDisplayed,
+} from '@/support/agGridRowSelection.js';
+import { confirmLargeBulkGridAction } from '@/support/gridBulkConfirm.js';
 import {
   agGridFilterModelStorageKey,
   createAgGridFilterModelPersister,
@@ -209,6 +317,17 @@ const responsibleFilterValues = computed(() => {
   return [...names].sort((a, b) => a.localeCompare(b, 'ru'));
 });
 
+const creatorFilterValues = computed(() => {
+  const names = new Set();
+
+  for (const row of props.rows ?? []) {
+    const name = String(row?.creator_name ?? '').trim();
+    names.add(name === '' ? '—' : name);
+  }
+
+  return [...names].sort((a, b) => a.localeCompare(b, 'ru'));
+});
+
 const statusFilterValues = computed(() =>
   props.statusOptions.map((option) => option.label),
 );
@@ -233,15 +352,204 @@ function canEditResponsible(row) {
   return Boolean(row.can_mutate) || props.canBulkMutateTasks;
 }
 
+const selectedTaskIds = ref([]);
+const activeBulkModal = ref(null);
+const bulkResponsibleId = ref('');
+const bulkStatusValue = ref('');
+const bulkDueAt = ref('');
+const bulkError = ref('');
+const bulkProcessing = ref(false);
+
+const bulkActions = computed(() => {
+  const actions = [];
+
+  if (props.canBulkMutateTasks) {
+    actions.push({
+      key: 'assign',
+      icon: UserRound,
+      title: 'Сменить ответственного',
+      label: 'Сменить ответственного',
+    });
+  }
+
+  actions.push(
+    {
+      key: 'status',
+      icon: Workflow,
+      title: 'Сменить статус',
+      label: 'Сменить статус',
+    },
+    {
+      key: 'reschedule',
+      icon: CalendarClock,
+      title: 'Перенести срок',
+      label: 'Перенести срок',
+    },
+    {
+      key: 'close',
+      icon: CheckCircle2,
+      title: 'Закрыть выбранные',
+      label: 'Закрыть',
+    },
+  );
+
+  if (props.canDeleteTasks) {
+    actions.push({
+      key: 'delete',
+      icon: Trash2,
+      title: 'Удалить выбранные',
+      label: 'Удалить',
+      danger: true,
+    });
+  }
+
+  return actions;
+});
+
+const bulkModalTitle = computed(() => {
+  if (activeBulkModal.value === 'assign') {
+    return 'Сменить ответственного';
+  }
+  if (activeBulkModal.value === 'status') {
+    return 'Сменить статус';
+  }
+  if (activeBulkModal.value === 'reschedule') {
+    return 'Перенести срок';
+  }
+  if (activeBulkModal.value === 'close') {
+    return 'Закрыть задачи';
+  }
+  if (activeBulkModal.value === 'delete') {
+    return 'Удалить задачи';
+  }
+
+  return '';
+});
+
+const bulkModalSubmitLabel = computed(() => {
+  if (activeBulkModal.value === 'delete') {
+    return 'Удалить';
+  }
+  if (activeBulkModal.value === 'close') {
+    return 'Закрыть';
+  }
+
+  return 'Применить';
+});
+
+const canSubmitBulkModal = computed(() => {
+  if (activeBulkModal.value === 'assign') {
+    return bulkResponsibleId.value !== '';
+  }
+  if (activeBulkModal.value === 'status') {
+    return bulkStatusValue.value !== '';
+  }
+  if (activeBulkModal.value === 'reschedule') {
+    return bulkDueAt.value !== '';
+  }
+  if (activeBulkModal.value === 'close' || activeBulkModal.value === 'delete') {
+    return true;
+  }
+
+  return false;
+});
+
+function onBulkAction(key) {
+  if (selectedTaskIds.value.length === 0) {
+    return;
+  }
+
+  bulkError.value = '';
+  bulkResponsibleId.value = '';
+  bulkStatusValue.value = '';
+  bulkDueAt.value = '';
+  activeBulkModal.value = key;
+}
+
+function closeBulkModal() {
+  if (bulkProcessing.value) {
+    return;
+  }
+
+  activeBulkModal.value = null;
+  bulkError.value = '';
+}
+
+function clearGridSelection() {
+  gridApi.value?.deselectAll();
+  selectedTaskIds.value = [];
+  emit('selection-changed', []);
+}
+
+function submitBulkModal() {
+  if (!activeBulkModal.value || selectedTaskIds.value.length === 0 || !canSubmitBulkModal.value) {
+    return;
+  }
+
+  const action = activeBulkModal.value;
+  const count = selectedTaskIds.value.length;
+
+  if (action === 'assign'
+    && !confirmLargeBulkGridAction(count, 'сменить ответственного у задач')) {
+    return;
+  }
+
+  if (action === 'close'
+    && !confirmLargeBulkGridAction(count, 'закрыть задачи')) {
+    return;
+  }
+
+  if (action === 'delete'
+    && !confirmLargeBulkGridAction(count, 'удалить задачи')) {
+    return;
+  }
+
+  const payload = {
+    task_ids: selectedTaskIds.value,
+    action: action === 'close' ? 'close' : action,
+  };
+
+  if (action === 'assign') {
+    payload.responsible_id = Number(bulkResponsibleId.value);
+  } else if (action === 'status') {
+    payload.status = bulkStatusValue.value;
+  } else if (action === 'reschedule') {
+    payload.due_at = bulkDueAt.value;
+  }
+
+  bulkProcessing.value = true;
+  bulkError.value = '';
+
+  router.post(route('tasks.bulk'), payload, {
+    preserveScroll: true,
+    only: ['tasks', 'quickFilters', 'selectedTask'],
+    onSuccess: () => {
+      activeBulkModal.value = null;
+      clearGridSelection();
+    },
+    onError: (errors) => {
+      const first = Object.values(errors ?? {})[0];
+      bulkError.value = Array.isArray(first) ? first[0] : (first || 'Не удалось выполнить массовое действие.');
+    },
+    onFinish: () => {
+      bulkProcessing.value = false;
+    },
+  });
+}
+
 const {
   contextMenu,
   closeContextMenu: closeRowContextMenu,
   openContextMenu,
 } = useGridContextMenu();
 
+const INLINE_EDITABLE_COL_IDS = new Set(['status', 'priority', 'responsible']);
+
 const gridOptions = {
   theme: 'legacy',
   localeText: agGridLocaleRu,
+  singleClickEdit: true,
+  stopEditingWhenCellsLoseFocus: true,
   getRowClass: (params) => {
     const row = params.data;
     if (!row || row.status === 'done') {
@@ -254,12 +562,9 @@ const gridOptions = {
     return '';
   },
   getRowId: (params) => String(params.data?.id ?? ''),
-  rowSelection: {
-    mode: 'multiRow',
-    checkboxes: true,
-    headerCheckbox: true,
+  rowSelection: agGridFilteredMultiRowSelection({
     enableClickSelection: true,
-  },
+  }),
   selectionColumnDef: {
     sortable: false,
     resizable: false,
@@ -272,6 +577,7 @@ const gridOptions = {
       .getSelectedRows()
       .map((r) => r?.id)
       .filter((id) => id !== undefined && id !== null);
+    selectedTaskIds.value = ids;
     emit('selection-changed', ids);
   },
   isExternalFilterPresent: () => quickSearch.value.trim().length > 0,
@@ -286,6 +592,7 @@ const gridOptions = {
       d.title,
       d.status_label,
       d.responsible_name,
+      d.creator_name,
       d.lead_number,
       d.lead_title,
       priorityLabels[d.priority] ?? d.priority,
@@ -383,6 +690,24 @@ const columnDefs = computed(() => [
       values: (props.users ?? []).map((user) => user.name),
     },
     cellClass: (params) => (canEditResponsible(params.data) ? 'tasks-grid-editable-cell' : ''),
+  },
+  {
+    colId: 'creator',
+    headerName: 'Создатель',
+    width: 160,
+    minWidth: 130,
+    filter: AgSetListFilter,
+    filterParams: setListFilterParams(creatorFilterValues.value),
+    filterValueGetter: (params) => {
+      const name = String(params.data?.creator_name ?? '').trim();
+
+      return name === '' ? '—' : name;
+    },
+    valueGetter: (params) => {
+      const name = String(params.data?.creator_name ?? '').trim();
+
+      return name === '' ? '—' : name;
+    },
   },
   {
     field: 'due_at',
@@ -497,6 +822,12 @@ function onGridReady(params) {
 
 function onGridFilterChanged() {
   persistFilterModel(gridApi.value, filterModelStorageKey.value);
+  pruneAgGridSelectionToDisplayed(gridApi.value);
+  const ids = (gridApi.value?.getSelectedRows() ?? [])
+    .map((r) => r?.id)
+    .filter((id) => id !== undefined && id !== null);
+  selectedTaskIds.value = ids;
+  emit('selection-changed', ids);
 }
 
 function reapplyPersistedFilters() {
@@ -506,7 +837,34 @@ function reapplyPersistedFilters() {
   });
 }
 
+function isInlineEditableColumn(event) {
+  const colId = event?.colDef?.colId ?? event?.colDef?.field;
+  if (!INLINE_EDITABLE_COL_IDS.has(colId) || !event?.data) {
+    return false;
+  }
+
+  const editable = event.colDef?.editable;
+
+  if (typeof editable === 'function') {
+    return Boolean(editable(event));
+  }
+
+  return Boolean(editable);
+}
+
 function onCellDoubleClicked(event) {
+  if (isInlineEditableColumn(event)) {
+    const colKey = event.column?.getColId?.() ?? event.colDef?.colId ?? event.colDef?.field;
+    if (colKey != null && event.rowIndex != null) {
+      event.api?.startEditingCell({
+        rowIndex: event.rowIndex,
+        colKey,
+      });
+    }
+
+    return;
+  }
+
   const id = event?.data?.id;
   if (id) {
     emit('row-dblclick', event.data);
@@ -598,7 +956,7 @@ function onCellContextMenu(params) {
     });
   }
 
-  if (props.canBulkMutateTasks) {
+  if (canEditResponsible(row)) {
     items.push({
       label: 'Назначить ответственного…',
       run: () => emit('assign-request', row),
@@ -656,12 +1014,26 @@ watch(quickSearch, (value) => {
   }
 
   gridApi.value?.onFilterChanged();
+  pruneAgGridSelectionToDisplayed(gridApi.value);
+  const ids = (gridApi.value?.getSelectedRows() ?? [])
+    .map((r) => r?.id)
+    .filter((id) => id !== undefined && id !== null);
+  selectedTaskIds.value = ids;
+  emit('selection-changed', ids);
 });
 
 watch(
   () => props.rows,
   () => {
     reapplyPersistedFilters();
+    nextTick(() => {
+      pruneAgGridSelectionToDisplayed(gridApi.value);
+      const ids = (gridApi.value?.getSelectedRows() ?? [])
+        .map((r) => r?.id)
+        .filter((id) => id !== undefined && id !== null);
+      selectedTaskIds.value = ids;
+      emit('selection-changed', ids);
+    });
   },
   { deep: true },
 );

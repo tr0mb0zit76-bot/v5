@@ -320,6 +320,11 @@ import {
     crmModalPanel,
 } from '@/support/crmUi.js';
 import {
+  agGridFilteredMultiRowSelection,
+  pruneAgGridSelectionToDisplayed,
+} from '@/support/agGridRowSelection.js';
+import { confirmLargeBulkGridAction } from '@/support/gridBulkConfirm.js';
+import {
   CRM_AG_GRID_DENSITY_CHANGED,
   readPersistedAgGridDensity,
   schedulePersistAgGridDensityToProfile,
@@ -477,12 +482,9 @@ const gridOptions = {
   animateRows: false,
   preventDefaultOnContextMenu: true,
   getRowId: (params) => String(params.data?.id ?? ''),
-  rowSelection: {
-    mode: 'multiRow',
-    checkboxes: true,
-    headerCheckbox: true,
+  rowSelection: agGridFilteredMultiRowSelection({
     enableClickSelection: false,
-  },
+  }),
   selectionColumnDef: {
     pinned: 'left',
     sortable: false,
@@ -1014,6 +1016,7 @@ const loadPersistedFilterModel = () => {
 
 const onFilterChanged = () => {
   persistFilterModel();
+  pruneAgGridSelectionToDisplayed(gridApi.value);
 };
 
 const registerGridScrollbarWidthSync = (api) => {
@@ -1077,6 +1080,7 @@ watch(quickSearch, (value) => {
   }
 
   gridApi.value.setGridOption('quickFilterText', value);
+  pruneAgGridSelectionToDisplayed(gridApi.value);
 });
 
 watch(
@@ -1156,6 +1160,11 @@ function massUpdateOwnerUrl() {
 
 async function submitBulkOwnerChange() {
   if (selectedContractorIds.value.length === 0) {
+    return;
+  }
+
+  const count = selectedContractorIds.value.length;
+  if (!confirmLargeBulkGridAction(count, 'сменить владельца у контрагентов')) {
     return;
   }
 

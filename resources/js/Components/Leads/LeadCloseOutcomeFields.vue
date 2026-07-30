@@ -116,7 +116,7 @@ const headingShort = computed(() => (props.terminalOutcome === 'won' ? 'Выиг
 
 const hint = computed(() =>
     props.terminalOutcome === 'won'
-        ? 'Опционально — поможет аналитике Outcome Intelligence.'
+        ? 'Опционально — поможет коучингу по итогам сделок.'
         : 'Обязательно при закрытии лида как проигранного.',
 );
 

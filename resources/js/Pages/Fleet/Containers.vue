@@ -1,7 +1,7 @@
 <template>
     <div :class="`${crmPanel} p-8`">
         <h1 :class="crmPageTitleSm">Контейнера</h1>
-        <p :class="`${crmPageLead} mt-2`">Раздел в разработке.</p>
+        <p :class="`${crmPageLead} mt-2`">Раздел в разработке — карточек контейнеров пока нет. Редактирование доступно в «Авто» и «Водители».</p>
     </div>
 </template>
 

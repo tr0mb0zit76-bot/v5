@@ -42,12 +42,14 @@
                 v-if="hasSalesCoachingInsights"
                 compact
                 :insights="salesCoachingInsights"
+                @expand-change="refreshLeadsGridLayout"
             />
             <LeadAttentionPanel
                 v-if="hasLeadAttentionQueue"
                 compact
                 :queue="leadAttentionQueue"
                 @open-lead="handleRowDblClick"
+                @expand-change="refreshLeadsGridLayout"
             />
         </div>
 

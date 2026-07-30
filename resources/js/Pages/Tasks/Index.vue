@@ -31,72 +31,6 @@
             </template>
         </CrmPageHeader>
 
-        <div v-if="selectedTaskIds.length > 0" class="flex shrink-0 flex-wrap items-center gap-2">
-            <button
-                v-if="canDeleteTasks && selectedTaskIds.length > 0"
-                type="button"
-                :class="crmBtnDangerMuted"
-                @click="bulkDeleteSelected"
-            >
-                Удалить выбранные ({{ selectedTaskIds.length }})
-            </button>
-            <button
-                v-if="selectedTaskIds.length > 0"
-                type="button"
-                :class="crmBtnDangerMuted"
-                @click="bulkCloseSelected"
-            >
-                Закрыть выбранные ({{ selectedTaskIds.length }})
-            </button>
-            <template v-if="canBulkMutateTasks && selectedTaskIds.length > 0">
-                <select
-                    v-model="bulkAssignUserId"
-                    :class="crmFieldWide"
-                >
-                    <option :value="null" disabled>Назначить на…</option>
-                    <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
-                </select>
-                <button
-                    type="button"
-                    :class="crmBtnNeutral"
-                    :disabled="!bulkAssignUserId"
-                    @click="bulkAssignSelected"
-                >
-                    Назначить выбранные
-                </button>
-            </template>
-            <template v-if="selectedTaskIds.length > 0">
-                <select
-                    v-model="bulkStatus"
-                    :class="crmFieldWide"
-                >
-                    <option value="" disabled>Статус для выбранных…</option>
-                    <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                </select>
-                <button
-                    type="button"
-                    :class="crmBtnNeutral"
-                    :disabled="!bulkStatus"
-                    @click="bulkSetStatus"
-                >
-                    Применить статус
-                </button>
-                <input
-                    v-model="bulkDueAt"
-                    type="datetime-local"
-                    :class="crmFieldWide"
-                >
-                <button
-                    type="button"
-                    :class="crmBtnNeutral"
-                    :disabled="!bulkDueAt"
-                    @click="bulkRescheduleDue"
-                >
-                    Перенести срок
-                </button>
-            </template>
-        </div>
-
         <div class="flex shrink-0 flex-wrap items-center gap-3 border-b border-zinc-200 pb-2 dark:border-zinc-800">
             <div class="flex flex-wrap gap-2">
             <button
@@ -133,7 +67,6 @@
                 :can-bulk-mutate-tasks="canBulkMutateTasks"
                 :can-delete-tasks="canDeleteTasks"
                 @row-dblclick="handleRowDblClick"
-                @selection-changed="onTaskSelectionChanged"
                 @quick-status="onQuickStatus"
                 @quick-reschedule-due="onQuickRescheduleDue"
                 @assign-request="onAssignRequest"
@@ -471,7 +404,7 @@ import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
-import { crmBtnCreate, crmBtnDangerMuted, crmBtnNeutral, crmBtnSecondaryOutline, crmFieldFluid, crmFieldWide, crmGridPanel, crmModalFieldLabel, crmModalFieldRow, crmModalFieldsWrap, crmModalFieldStack } from '@/support/crmUi.js';
+import { crmBtnCreate, crmBtnDangerMuted, crmBtnNeutral, crmBtnSecondaryOutline, crmFieldFluid, crmGridPanel, crmModalFieldLabel, crmModalFieldRow, crmModalFieldsWrap, crmModalFieldStack } from '@/support/crmUi.js';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import ContractorAsyncSearchSelect from '@/Components/Crm/ContractorAsyncSearchSelect.vue';
 import Modal from '@/Components/Modal.vue';
@@ -575,53 +508,8 @@ watch([activeFilter, filterResponsibleId], () => {
     }
 });
 
-const selectedTaskIds = ref([]);
-const bulkAssignUserId = ref(null);
-const bulkStatus = ref('');
-const bulkDueAt = ref('');
 const assignOneTask = ref(null);
 const assignOneUserId = ref(null);
-
-function onTaskSelectionChanged(ids) {
-    selectedTaskIds.value = Array.isArray(ids) ? ids : [];
-}
-
-function bulkCloseSelected() {
-    if (!selectedTaskIds.value.length) {
-        return;
-    }
-    router.post(route('tasks.bulk'), {
-        task_ids: selectedTaskIds.value,
-        action: 'close',
-    }, {
-        preserveScroll: true,
-        onSuccess: () => {
-            selectedTaskIds.value = [];
-        },
-    });
-}
-
-function bulkDeleteSelected() {
-    if (!selectedTaskIds.value.length || !canDeleteTasks.value) {
-        return;
-    }
-
-    const count = selectedTaskIds.value.length;
-    if (!window.confirm(`Удалить выбранные задачи (${count})? Это действие нельзя отменить.`)) {
-        return;
-    }
-
-    router.post(route('tasks.bulk'), {
-        task_ids: selectedTaskIds.value,
-        action: 'delete',
-    }, {
-        preserveScroll: true,
-        onSuccess: () => {
-            selectedTaskIds.value = [];
-            isTaskDetailDismissed.value = true;
-        },
-    });
-}
 
 function deleteTask(task) {
     if (!task?.id || !canDeleteTasks.value) {
@@ -637,59 +525,6 @@ function deleteTask(task) {
         preserveScroll: true,
         onSuccess: () => {
             isTaskDetailDismissed.value = true;
-        },
-    });
-}
-
-function bulkAssignSelected() {
-    if (!selectedTaskIds.value.length || !bulkAssignUserId.value) {
-        return;
-    }
-    router.post(route('tasks.bulk'), {
-        task_ids: selectedTaskIds.value,
-        action: 'assign',
-        responsible_id: bulkAssignUserId.value,
-    }, {
-        preserveScroll: true,
-        onSuccess: () => {
-            selectedTaskIds.value = [];
-            bulkAssignUserId.value = null;
-        },
-    });
-}
-
-function bulkSetStatus() {
-    if (!selectedTaskIds.value.length || !bulkStatus.value) {
-        return;
-    }
-    router.post(route('tasks.bulk'), {
-        task_ids: selectedTaskIds.value,
-        action: 'status',
-        status: bulkStatus.value,
-    }, {
-        preserveScroll: true,
-        only: ['tasks', 'quickFilters', 'selectedTask'],
-        onSuccess: () => {
-            selectedTaskIds.value = [];
-            bulkStatus.value = '';
-        },
-    });
-}
-
-function bulkRescheduleDue() {
-    if (!selectedTaskIds.value.length || !bulkDueAt.value) {
-        return;
-    }
-    router.post(route('tasks.bulk'), {
-        task_ids: selectedTaskIds.value,
-        action: 'reschedule',
-        due_at: bulkDueAt.value,
-    }, {
-        preserveScroll: true,
-        only: ['tasks', 'quickFilters', 'selectedTask'],
-        onSuccess: () => {
-            selectedTaskIds.value = [];
-            bulkDueAt.value = '';
         },
     });
 }
@@ -773,16 +608,35 @@ function confirmAssignOne() {
     if (!assignOneTask.value?.id || !assignOneUserId.value) {
         return;
     }
-    router.post(route('tasks.bulk'), {
-        task_ids: [assignOneTask.value.id],
-        action: 'assign',
-        responsible_id: assignOneUserId.value,
+
+    const taskId = assignOneTask.value.id;
+    const responsibleId = assignOneUserId.value;
+    const onSuccess = () => {
+        assignOneTask.value = null;
+        assignOneUserId.value = null;
+    };
+
+    if (canBulkMutateTasks.value) {
+        router.post(route('tasks.bulk'), {
+            task_ids: [taskId],
+            action: 'assign',
+            responsible_id: responsibleId,
+        }, {
+            preserveScroll: true,
+            only: ['tasks', 'quickFilters', 'selectedTask'],
+            onSuccess,
+        });
+
+        return;
+    }
+
+    router.patch(route('tasks.inline-update', taskId), {
+        field: 'responsible_id',
+        value: responsibleId,
     }, {
         preserveScroll: true,
-        onSuccess: () => {
-            assignOneTask.value = null;
-            assignOneUserId.value = null;
-        },
+        only: ['tasks', 'quickFilters', 'selectedTask'],
+        onSuccess,
     });
 }
 

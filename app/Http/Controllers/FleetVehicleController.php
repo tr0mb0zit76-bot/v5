@@ -199,6 +199,7 @@ class FleetVehicleController extends Controller
     {
         return [
             'id' => $vehicle->id,
+            'show_url' => route('fleet.vehicles.show', $vehicle),
             'owner_contractor_id' => $vehicle->owner_contractor_id,
             'owner_name' => $vehicle->owner?->name,
             'tractor_brand' => $vehicle->tractor_brand,

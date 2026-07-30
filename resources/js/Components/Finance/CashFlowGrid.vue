@@ -39,49 +39,12 @@
                     </select>
                 </div>
 
-                <div class="relative">
-                    <button
-                        type="button"
-                        :class="`${crmGridToolbarBtn} gap-1.5 px-3 py-2 text-xs`"
-                        :disabled="!props.canRecordPayment || selectedPaymentScheduleIds.length === 0"
-                        title="Групповые действия с выбранными строками"
-                        @click="togglePaymentRunActionsMenu"
-                    >
-                        Действия
-                        <span v-if="selectedPaymentScheduleIds.length > 0" class="text-xs text-zinc-500 dark:text-zinc-400">
-                            {{ selectedPaymentScheduleIds.length }}
-                        </span>
-                    </button>
-                    <div
-                        v-if="showPaymentRunActionsMenu"
-                        :class="crmGridDropdown"
-                    >
-                        <button
-                            type="button"
-                            class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-zinc-800"
-                            :disabled="selectedPaymentScheduleIds.length === 0"
-                            @click="markSelectedForToday"
-                        >
-                            <span>Поставить на сегодня</span>
-                        </button>
-                        <button
-                            type="button"
-                            class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-zinc-800"
-                            :disabled="selectedPaymentScheduleIds.length === 0"
-                            @click="openPaymentRunDateModal"
-                        >
-                            <span>Поставить на дату…</span>
-                        </button>
-                        <button
-                            type="button"
-                            class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-rose-300 dark:hover:bg-rose-950/30"
-                            :disabled="selectedPaymentScheduleIds.length === 0"
-                            @click="clearSelectedPaymentRun"
-                        >
-                            <span>Снять план оплаты</span>
-                        </button>
-                    </div>
-                </div>
+                <GridBulkIconActions
+                    v-if="props.canRecordPayment"
+                    :selected-count="selectedPaymentScheduleIds.length"
+                    :actions="paymentRunBulkActions"
+                    @action="onPaymentRunBulkAction"
+                />
 
                 <button
                     type="button"
@@ -249,7 +212,7 @@ import axios from 'axios';
 import { router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { Download, Printer, Rows3, Search } from 'lucide-vue-next';
+import { Download, CalendarClock, CalendarDays, Ban, Printer, Rows3, Search } from 'lucide-vue-next';
 import { gridDensityOptions, resolveGridDensity, defaultGridDensity } from '@/Components/Grid/grid-density.js';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import {
@@ -267,10 +230,12 @@ import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/sup
 import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
 import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
 import { cashFlowRowDisplayAmount, cashFlowRowStatusLabel } from '@/support/cashFlowJournalStats.js';
+import GridBulkIconActions from '@/Components/Grid/GridBulkIconActions.vue';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import { useGridContextMenu } from '@/Components/Grid/useGridContextMenu.js';
+import { confirmLargeBulkGridAction } from '@/support/gridBulkConfirm.js';
 import { PRINT_DOCUMENT_BASE_STYLES, printHtmlDocument } from '@/support/printHtmlDocument.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -340,13 +305,34 @@ const presetFilterModels = {
 
 const currentDensity = ref(defaultGridDensity);
 const showDensityMenu = ref(false);
-const showPaymentRunActionsMenu = ref(false);
 const showPaymentRunDateModal = ref(false);
 const paymentRunDateInput = ref('');
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
 const currentWorkMode = ref('due');
 const selectedRows = ref([]);
+
+const paymentRunBulkActions = computed(() => ([
+    {
+        key: 'today',
+        icon: CalendarDays,
+        title: 'Поставить на сегодня',
+        label: 'На сегодня',
+    },
+    {
+        key: 'date',
+        icon: CalendarClock,
+        title: 'Поставить на дату…',
+        label: 'На дату',
+    },
+    {
+        key: 'clear',
+        icon: Ban,
+        title: 'Снять план оплаты',
+        label: 'Снять план',
+        danger: true,
+    },
+]));
 
 const quickSearch = ref('');
 const agGrid = ref(null);
@@ -1135,8 +1121,16 @@ function applyPaymentRunPatch(ids, payload) {
 }
 
 function markSelectedForToday() {
-    showPaymentRunActionsMenu.value = false;
-    applyPaymentRunPatch(selectedPaymentScheduleIds.value, {
+    const ids = selectedPaymentScheduleIds.value;
+    if (ids.length === 0) {
+        return;
+    }
+
+    if (!confirmLargeBulkGridAction(ids.length, 'поставить в план оплаты на сегодня строки')) {
+        return;
+    }
+
+    applyPaymentRunPatch(ids, {
         payment_run_date: todayIsoDate(),
     });
 }
@@ -1146,7 +1140,6 @@ function openPaymentRunDateModal() {
         return;
     }
 
-    showPaymentRunActionsMenu.value = false;
     paymentRunDateInput.value = todayIsoDate();
     showPaymentRunDateModal.value = true;
 }
@@ -1160,26 +1153,56 @@ function markSelectedForDate() {
         return;
     }
 
-    applyPaymentRunPatch(selectedPaymentScheduleIds.value, {
+    const ids = selectedPaymentScheduleIds.value;
+    if (ids.length === 0) {
+        return;
+    }
+
+    if (!confirmLargeBulkGridAction(ids.length, 'поставить в план оплаты на дату строки')) {
+        return;
+    }
+
+    applyPaymentRunPatch(ids, {
         payment_run_date: paymentRunDateInput.value,
     });
     showPaymentRunDateModal.value = false;
 }
 
 function clearSelectedPaymentRun() {
-    showPaymentRunActionsMenu.value = false;
-    applyPaymentRunPatch(selectedPaymentScheduleIds.value, {
+    const ids = selectedPaymentScheduleIds.value;
+    if (ids.length === 0) {
+        return;
+    }
+
+    if (!confirmLargeBulkGridAction(ids.length, 'снять план оплаты со строк')) {
+        return;
+    }
+
+    applyPaymentRunPatch(ids, {
         clear: true,
     });
 }
 
-function togglePaymentRunActionsMenu() {
-    if (!props.canRecordPayment || selectedPaymentScheduleIds.value.length === 0) {
+function onPaymentRunBulkAction(key) {
+    if (selectedPaymentScheduleIds.value.length === 0) {
         return;
     }
 
-    showPaymentRunActionsMenu.value = !showPaymentRunActionsMenu.value;
-    showDensityMenu.value = false;
+    if (key === 'today') {
+        markSelectedForToday();
+
+        return;
+    }
+
+    if (key === 'date') {
+        openPaymentRunDateModal();
+
+        return;
+    }
+
+    if (key === 'clear') {
+        clearSelectedPaymentRun();
+    }
 }
 
 watch(quickSearch, (value) => {
@@ -1236,7 +1259,6 @@ const applyDensity = (densityKey) => {
 
 const toggleDensityMenu = () => {
     showDensityMenu.value = !showDensityMenu.value;
-    showPaymentRunActionsMenu.value = false;
 };
 
 const onGlobalDensityChanged = (event) => {

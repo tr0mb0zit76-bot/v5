@@ -28,30 +28,43 @@
         </div>
 
         <div v-else class="flex flex-wrap items-start justify-between gap-2">
-            <div class="min-w-0">
-                <h2
-                    :class="compact
-                        ? 'text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-900 dark:text-amber-200'
-                        : 'text-sm font-semibold uppercase tracking-[0.2em] text-amber-900 dark:text-amber-200'"
-                >
-                    Требует внимания
-                </h2>
-                <p
-                    :class="compact
-                        ? 'mt-0.5 text-[11px] leading-snug text-amber-900/80 dark:text-amber-200/80'
-                        : 'mt-1 text-xs text-amber-900/80 dark:text-amber-200/80'"
-                >
-                    {{ queue.total }} {{ leadWord(queue.total) }} с просроченным этапом, пропущенным контактом или без ответа на письмо.
-                </p>
-            </div>
-            <div class="flex items-center gap-3">
+            <button
+                type="button"
+                class="flex min-w-0 flex-1 items-start justify-between gap-2 text-left"
+                :aria-expanded="panelOpen"
+                @click="togglePanel"
+            >
+                <div class="min-w-0">
+                    <h2
+                        :class="compact
+                            ? 'text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-900 dark:text-amber-200'
+                            : 'text-sm font-semibold uppercase tracking-[0.2em] text-amber-900 dark:text-amber-200'"
+                    >
+                        Требует внимания
+                    </h2>
+                    <p
+                        :class="compact
+                            ? 'mt-0.5 text-[11px] leading-snug text-amber-900/80 dark:text-amber-200/80'
+                            : 'mt-1 text-xs text-amber-900/80 dark:text-amber-200/80'"
+                    >
+                        {{ queue.total }} {{ leadWord(queue.total) }}
+                        <span v-if="panelOpen"> с просроченным этапом, пропущенным контактом или без ответа на письмо.</span>
+                        <span v-else> · нажмите, чтобы раскрыть</span>
+                    </p>
+                </div>
+                <ChevronDown
+                    class="mt-0.5 h-4 w-4 shrink-0 text-amber-800 transition-transform dark:text-amber-200"
+                    :class="panelOpen ? 'rotate-180' : ''"
+                />
+            </button>
+            <div v-if="panelOpen" class="flex items-center gap-3">
                 <button
                     v-if="queue.items.length > collapsedLimit"
                     type="button"
                     class="text-xs font-medium text-amber-900 underline underline-offset-2 dark:text-amber-200"
-                    @click="expanded = !expanded"
+                    @click="listExpanded = !listExpanded"
                 >
-                    {{ expanded ? 'Свернуть' : `Показать все ${queue.total}` }}
+                    {{ listExpanded ? 'Свернуть список' : `Показать все ${queue.total}` }}
                 </button>
                 <Link
                     v-if="showAllLink"
@@ -64,10 +77,10 @@
         </div>
 
         <ul
-            v-if="variant !== 'summary'"
+            v-if="variant !== 'summary' && panelOpen"
             :class="[
                 compact ? 'mt-2 space-y-1.5' : 'mt-3 space-y-2',
-                expanded ? (compact ? 'max-h-40 overflow-y-auto pr-1' : 'max-h-80 overflow-y-auto pr-1') : '',
+                listExpanded ? (compact ? 'max-h-40 overflow-y-auto pr-1' : 'max-h-80 overflow-y-auto pr-1') : '',
             ]"
         >
             <li
@@ -109,8 +122,11 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
+import { ChevronDown } from 'lucide-vue-next';
+
+const PANEL_STORAGE_KEY = 'leads_attention_panel_expanded';
 
 const props = defineProps({
     queue: {
@@ -136,18 +152,40 @@ const props = defineProps({
     },
 });
 
-const emit = defineEmits(['open-lead']);
-const expanded = ref(false);
+const emit = defineEmits(['open-lead', 'expand-change']);
+const listExpanded = ref(false);
+const panelOpen = ref(readPanelPreference());
 
 const visibleItems = computed(() => {
     const items = props.queue?.items ?? [];
 
-    if (expanded.value) {
+    if (listExpanded.value) {
         return items;
     }
 
     return items.slice(0, props.collapsedLimit);
 });
+
+function readPanelPreference() {
+    try {
+        return localStorage.getItem(PANEL_STORAGE_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+function togglePanel() {
+    panelOpen.value = !panelOpen.value;
+}
+
+watch(panelOpen, (value) => {
+    try {
+        localStorage.setItem(PANEL_STORAGE_KEY, value ? '1' : '0');
+    } catch {
+        /* ignore */
+    }
+    emit('expand-change', value);
+}, { immediate: true });
 
 function leadWord(count) {
     const mod10 = count % 10;

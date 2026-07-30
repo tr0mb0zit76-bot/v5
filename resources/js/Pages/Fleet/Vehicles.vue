@@ -85,7 +85,10 @@ function handleRowDblClick(row) {
     if (row?.id) {
         isCreateOpen.value = false;
         isModalDismissed.value = false;
-        router.get(route('fleet.vehicles.show', row.id, {}, false), {}, {
+        const showUrl = typeof row?.show_url === 'string' && row.show_url !== ''
+            ? row.show_url
+            : route('fleet.vehicles.show', row.id, {}, false);
+        router.get(showUrl, {}, {
             preserveScroll: true,
             preserveState: true,
             only: modalOpenKeys,

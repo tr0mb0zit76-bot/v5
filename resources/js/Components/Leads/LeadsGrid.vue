@@ -328,6 +328,11 @@ import {
     crmModalPanel,
 } from '@/support/crmUi.js';
 import {
+  agGridFilteredMultiRowSelection,
+  pruneAgGridSelectionToDisplayed,
+} from '@/support/agGridRowSelection.js';
+import { confirmLargeBulkGridAction } from '@/support/gridBulkConfirm.js';
+import {
     CRM_AG_GRID_DENSITY_CHANGED,
     readPersistedAgGridDensity,
     schedulePersistAgGridDensityToProfile,
@@ -713,12 +718,9 @@ const gridOptions = {
   stopEditingWhenCellsLoseFocus: true,
   getRowId: (params) => String(params.data?.id ?? ''),
   getRowClass: (params) => (params.data?.is_stage_overdue ? 'ag-row-lead-stage-overdue' : ''),
-  rowSelection: {
-    mode: 'multiRow',
-    checkboxes: true,
-    headerCheckbox: true,
+  rowSelection: agGridFilteredMultiRowSelection({
     enableClickSelection: false,
-  },
+  }),
   selectionColumnDef: {
     pinned: 'left',
     sortable: false,
@@ -1314,6 +1316,7 @@ const loadPersistedFilterModel = () => {
 
 const onFilterChanged = () => {
   persistFilterModel();
+  pruneAgGridSelectionToDisplayed(gridApi.value);
 };
 
 const onGridReady = async (params) => {
@@ -1460,17 +1463,30 @@ async function submitBulkModal() {
     return;
   }
 
+  const count = selectedLeadIds.value.length;
+  const action = activeBulkModal.value;
+
+  if (action === 'responsible_id'
+    && !confirmLargeBulkGridAction(count, 'сменить ответственного у лидов')) {
+    return;
+  }
+
+  if (action === 'delete'
+    && !confirmLargeBulkGridAction(count, 'удалить лиды')) {
+    return;
+  }
+
   bulkProcessing.value = true;
   bulkError.value = '';
 
   try {
     const payload = {
       lead_ids: selectedLeadIds.value,
-      action: activeBulkModal.value,
+      action,
     };
 
-    if (activeBulkModal.value !== 'delete') {
-      payload.value = bulkValueForAction(activeBulkModal.value);
+    if (action !== 'delete') {
+      payload.value = bulkValueForAction(action);
     }
 
     await axios.post(route('leads.mass-update'), payload);
@@ -1493,6 +1509,7 @@ async function submitBulkModal() {
 watch(quickSearch, (value) => {
   if (gridApi.value) {
     gridApi.value.setGridOption('quickFilterText', value);
+    pruneAgGridSelectionToDisplayed(gridApi.value);
   }
 
   localStorage.setItem(filtersStorageKey.value, JSON.stringify({

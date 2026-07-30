@@ -649,6 +649,7 @@ class TaskController extends Controller
     {
         $loads = [
             'responsible:id,name',
+            'creator:id,name',
             'lead:id,number,title',
             'contractor:id,name',
         ];
@@ -695,6 +696,8 @@ class TaskController extends Controller
             'completed_at' => optional($task->completed_at)?->toIso8601String(),
             'responsible_id' => $task->responsible_id,
             'responsible_name' => $task->responsible?->name,
+            'created_by' => $task->created_by,
+            'creator_name' => $task->creator?->name,
             'lead_id' => $task->lead_id,
             'lead_number' => $task->lead?->number,
             'lead_title' => $task->lead?->title,

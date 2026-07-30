@@ -45,7 +45,7 @@
       </div>
 
       <div class="text-xs text-zinc-500 dark:text-zinc-400">
-        Двойной клик по строке открывает карточку ТС
+        Двойной клик или кнопка «Изменить» открывает карточку ТС
       </div>
     </div>
 
@@ -186,7 +186,7 @@ function onCellContextMenu(params) {
 
   if (row?.id) {
     items.push({
-      label: 'Открыть карточку',
+      label: 'Редактировать карточку',
       run: () => emit('row-dblclick', row),
     });
   }
@@ -199,7 +199,7 @@ function onCellContextMenu(params) {
   openContextMenu(ev, items);
 }
 
-const columnStorageKey = computed(() => `fleet_vehicles_grid_columns_v2_${props.userId}`);
+const columnStorageKey = computed(() => `fleet_vehicles_grid_columns_v3_${props.userId}`);
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
 
@@ -239,6 +239,19 @@ const defaultColDef = {
 function buildBaseVehicleColumnDefs() {
   return [
     { field: 'id', headerName: 'ID', width: 56, minWidth: 48, maxWidth: 72, filter: false, floatingFilter: false, suppressHeaderFilterButton: true, getQuickFilterText: () => '' },
+    {
+      colId: 'actions',
+      headerName: '',
+      width: 52,
+      minWidth: 52,
+      maxWidth: 56,
+      sortable: false,
+      filter: false,
+      floatingFilter: false,
+      resizable: false,
+      suppressHeaderMenuButton: true,
+      cellRenderer: editVehicleCellRenderer,
+    },
     { field: 'owner_name', headerName: 'Владелец', flex: 1, minWidth: 160, floatingFilter: true },
     { field: 'tractor_brand', headerName: 'Марка тягача', width: 130 },
     { field: 'trailer_brand', headerName: 'Марка прицепа', width: 130 },
@@ -246,6 +259,30 @@ function buildBaseVehicleColumnDefs() {
     { field: 'trailer_plate', headerName: 'Номер прицепа', width: 120 },
     { field: 'documents_count', headerName: 'Док.', width: 72, filter: 'agNumberColumnFilter' },
   ];
+}
+
+function editVehicleCellRenderer(params) {
+  const wrap = document.createElement('div');
+  wrap.className = 'flex h-full items-center justify-center';
+
+  if (!params.data?.id) {
+    return wrap;
+  }
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'inline-flex h-7 w-7 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50';
+  btn.title = 'Редактировать карточку';
+  btn.setAttribute('aria-label', 'Редактировать карточку');
+  btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>';
+  btn.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    emit('row-dblclick', params.data);
+  });
+  wrap.appendChild(btn);
+
+  return wrap;
 }
 
 let columnSaveTimeout = null;
@@ -300,9 +337,9 @@ const columnDefs = computed(() => {
     return raw;
   }
 
-  const fields = raw.map((c) => c.field);
+  const fields = raw.map((c) => c.field ?? c.colId);
   const { orderedFields, byColId } = buildLayoutIndex(fields, saved);
-  const byField = new Map(raw.map((d) => [d.field, d]));
+  const byField = new Map(raw.map((d) => [d.field ?? d.colId, d]));
 
   return orderedFields
     .map((field) => {

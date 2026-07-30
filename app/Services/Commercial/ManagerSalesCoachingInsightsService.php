@@ -240,7 +240,7 @@ final class ManagerSalesCoachingInsightsService
         }
 
         if ($idleQualLost >= 2 && $lostTotal > 0 && $idleQualLost >= ($lostTotal * 0.3)) {
-            $recommendations[] = 'На этапе квалификации часто долгое «молчание» без задач и событий в ленте — это не подготовка, а простой. Ставьте next step и фиксируйте контакт в лиде.';
+            $recommendations[] = 'На этапе квалификации часто долгое «молчание» без задач и событий в ленте — это не подготовка, а простой. Ставьте следующий шаг и фиксируйте контакт в лиде.';
         }
 
         if (($hygieneGapCounts['no_proposal_sent'] ?? 0) >= 3) {
