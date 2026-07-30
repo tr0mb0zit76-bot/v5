@@ -29,6 +29,7 @@ use App\Http\Controllers\Integrations\AstralEpdWebhookController;
 use App\Http\Controllers\Integrations\OneCFreshEtrnController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadOfferMailController;
+use App\Http\Controllers\LeadRateQuoteController;
 use App\Http\Controllers\LoadBoardController;
 use App\Http\Controllers\LoadingPlannerController;
 use App\Http\Controllers\MailMailboxController;
@@ -268,6 +269,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/leads/{lead}/attachments', 'storeAttachment')->name('leads.attachments.store');
         Route::delete('/leads/{lead}/attachments/{leadAttachment}', 'destroyAttachment')->name('leads.attachments.destroy');
         Route::get('/leads/{lead}/attachments/{leadAttachment}/download', 'downloadAttachment')->name('leads.attachments.download');
+        Route::post('/leads/{lead}/rate-quotes', [LeadRateQuoteController::class, 'store'])->name('leads.rate-quotes.store');
+        Route::post('/leads/{lead}/rate-quotes/{quote}/select', [LeadRateQuoteController::class, 'select'])->name('leads.rate-quotes.select');
         Route::get('/leads/{lead}/templates/{printFormTemplate}/draft', 'generateCommercialDraft')->name('leads.templates.generate-draft');
         Route::post('/leads/{lead}/convert', 'convert')->name('leads.convert');
         Route::post('/leads/{lead}/spawn-transport', 'spawnTransportFromAcquaintance')->name('leads.spawn-transport');

@@ -141,12 +141,14 @@ This project has domain-specific skills available. You MUST activate the relevan
 - `TaskController::syncLinkedLeadStatus` не перезаписывает закрытые лиды (`LeadStatus::isClosed`).
 - Терминальный этап БП: `LeadBusinessProcessService::progressPayload` → 100%; playbook без `auto_create_task` на terminal.
 - **Playbook этапов БП:** `BusinessProcessPlaybook`, `BusinessProcessDefaultPlaybookLibrary`, `BusinessProcessPlaybookSeederService`; поля на `business_process_stages` (`coaching_hint`, `sales_script_id`); сидер `php artisan business-processes:seed-playbooks`; UI — `Settings/BusinessProcesses/Index.vue` (`CrmMarkdownEditor`).
+- **RFQ / котировки перевозчиков:** таблица `lead_rate_quotes`, `LeadRateQuoteService`, `LeadRateQuoteController` (`leads.rate-quotes.*`); UI вкладка Финансы — `LeadWizardRateQuotes.vue`. Выбор котировки → `calculated_cost` + `carrier_payment_form` + первый `performers[]`.
 - MCP (`/mcp/crm`): `LeadMcpService` — `search_leads`, `get_lead`, `update_lead_field`, `create_lead_next_step`; gate `requireLeadsArea` / `findAccessibleLead`.
 
 ### Дашборд и меню
 
 - Дашборд по подразделению: `users.sees_company_dashboard`, `UserDashboardDepartmentScope`, `DashboardMetricsService` (scope отдела vs вся компания).
 - Избранное в сайдбаре: `SidebarMenuCatalog`, `SidebarMenuFavoritesResolver`, `ProfileController::updateSidebarFavorites` (`profile.sidebar-favorites`).
+- **CRM Work Area (вкладки):** `crmWorkArea.js` + `CrmWorkAreaTabs` / `CrmWorkAreaPageHost` — до 3 live-модулей (лиды/задачи/заказы), poll ~45 с; concurrency — `OptimisticConcurrency` + `expected_updated_at` на inline.
 
 ### Считалка (маржа в переговорах)
 
@@ -183,6 +185,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Транспортные типы (ТН / ЭТрН / CMR / ТСД) — одна группа: `OrderDocumentTransportTypes`, слот `waybill` с `accepted_types` waybill|etrn|cmr.
 - **Наличные (`cash`):** закрывающие слоты (УПД / СФ / акт) **не создаются**; у **перевозчика** при `cash` также **нет** слота «Заявка перевозчику» в обязательном чек-листе (заявка заказчика при cash остаётся; + общий слот ТСД). Форма оплаты: заказчик — `customer_payment_form`; перевозчик — `contractors_costs` / `leg_costs`; подрядчик — `additional_costs.payment_form`.
 - Закрытие сделки: `OrderStatusService` → `checklistForOrder()` — все пункты чек-листа должны быть `completed`.
+- **Портал заказчика** (invite-link): `OrderCustomerPortalController` + `OrderCustomerPortalPresentationService` — `trip_status`, `route_milestones` (план/факт точек); UI `Portal/CustomerDocuments.vue`.
 - Документация: `docs/documents-user-guide.md`, `docs/documents-regulation.md`; карточка `docs/sync/v5-local-Components-Documents-Registry.md`; публикация в Книгу: `php scripts/mcp-prod-upsert-documents.php`.
 
 ### HTML-шаблоны КП (GrapesJS)

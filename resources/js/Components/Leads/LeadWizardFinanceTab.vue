@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import LeadWizardRateQuotes from '@/Components/Leads/LeadWizardRateQuotes.vue';
 import { crmFieldFluid, crmLabel } from '@/support/crmUi.js';
 
 const targetPrice = defineModel('targetPrice', { type: [Number, String, null], default: null });
@@ -9,6 +10,8 @@ const customerPaymentForm = defineModel('customerPaymentForm', { type: [String, 
 const carrierPaymentForm = defineModel('carrierPaymentForm', { type: [String, null], default: null });
 
 const props = defineProps({
+    leadId: { type: [Number, String, null], default: null },
+    rateQuotes: { type: Array, default: () => [] },
     currencyOptions: { type: Array, default: () => [] },
     paymentFormOptions: { type: Array, default: () => [] },
     expectedMargin: { type: [Number, String, null], default: null },
@@ -105,6 +108,13 @@ function formatMoney(value) {
                 </div>
             </div>
         </section>
+
+        <LeadWizardRateQuotes
+            :lead-id="leadId"
+            :quotes="rateQuotes"
+            :currency-options="currencyOptions"
+            :payment-form-options="paymentFormOptions"
+        />
 
         <section
             v-if="routePriceBenchmark?.available"

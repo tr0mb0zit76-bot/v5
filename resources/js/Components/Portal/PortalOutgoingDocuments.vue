@@ -2,16 +2,23 @@
 defineProps({
     documents: { type: Array, default: () => [] },
     heading: { type: String, default: 'Документы от нас' },
+    hint: {
+        type: String,
+        default: 'Файлы от нас для скачивания (счета, закрывающие и другие исходящие документы).',
+    },
+    showEmpty: { type: Boolean, default: false },
+    emptyText: { type: String, default: 'Пока нет файлов.' },
 });
 </script>
 
 <template>
-    <section v-if="documents.length > 0" class="space-y-3">
+    <section v-if="documents.length > 0 || showEmpty" class="space-y-3">
         <h2 class="text-sm font-medium text-zinc-800">{{ heading }}</h2>
-        <p class="text-xs text-zinc-500">
-            Файлы от нас для скачивания (счета, закрывающие и другие исходящие документы).
-        </p>
-        <ul class="divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white">
+        <p class="text-xs text-zinc-500">{{ hint }}</p>
+        <ul
+            v-if="documents.length > 0"
+            class="divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white"
+        >
             <li
                 v-for="doc in documents"
                 :key="doc.id"
@@ -35,5 +42,11 @@ defineProps({
                 </a>
             </li>
         </ul>
+        <p
+            v-else
+            class="rounded-xl border border-dashed border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-500"
+        >
+            {{ emptyText }}
+        </p>
     </section>
 </template>

@@ -393,6 +393,8 @@
                 v-model:calculated-cost="form.calculated_cost"
                 v-model:customer-payment-form="form.customer_payment_form"
                 v-model:carrier-payment-form="form.carrier_payment_form"
+                :lead-id="selectedLeadId"
+                :rate-quotes="props.selectedLead?.rate_quotes ?? []"
                 :currency-options="currencyOptions"
                 :payment-form-options="paymentFormOptions"
                 :expected-margin="form.expected_margin"
@@ -865,6 +867,21 @@ watch(() => props.selectedLead?.id ?? null, (leadId, previousLeadId) => {
 
     resetFormFromProps();
 }, { immediate: true });
+
+watch(
+    () => props.selectedLead?.rate_quotes?.map((quote) => `${quote.id}:${quote.status}:${quote.rate}`).join('|') ?? '',
+    (signature, previous) => {
+        if (previous === undefined || signature === previous || !props.selectedLead?.id) {
+            return;
+        }
+
+        form.calculated_cost = props.selectedLead.calculated_cost ?? form.calculated_cost;
+        form.carrier_payment_form = props.selectedLead.carrier_payment_form ?? form.carrier_payment_form;
+        if (Array.isArray(props.selectedLead.performers)) {
+            form.performers = props.selectedLead.performers;
+        }
+    },
+);
 
 watch(() => props.leadTemplate, () => {
     if (!props.selectedLead?.id) {

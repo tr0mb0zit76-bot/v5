@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Contractor;
 use App\Models\Order;
+use App\Models\OrderLeg;
 use App\Models\OrderPortalInvite;
+use App\Models\RoutePoint;
 use App\Models\User;
 use App\Services\OrderCustomerPortalDocumentService;
 use App\Services\OrderPortalInviteService;
@@ -71,7 +73,58 @@ class OrderCustomerPortalTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Portal/CustomerDocuments')
                 ->where('status', 'open')
-                ->where('customer.name', 'ООО Заказчик'));
+                ->where('customer.name', 'ООО Заказчик')
+                ->where('trip_status.code', 'draft')
+                ->where('order.status_label', 'Новый заказ')
+                ->has('route_milestones'));
+    }
+
+    public function test_customer_portal_exposes_route_milestones_with_plan_and_fact(): void
+    {
+        if (! Schema::hasTable('order_portal_invites') || ! Schema::hasTable('route_points')) {
+            $this->markTestSkipped('Required tables are not applied.');
+        }
+
+        [$invite, $token, $order] = $this->createCustomerInvite(withOrder: true);
+
+        $order->forceFill(['status' => 'in_progress'])->save();
+
+        $leg = OrderLeg::query()->create([
+            'order_id' => $order->id,
+            'sequence' => 0,
+            'type' => 'transport',
+        ]);
+
+        RoutePoint::query()->create([
+            'order_leg_id' => $leg->id,
+            'type' => 'loading',
+            'sequence' => 0,
+            'address' => 'Москва, склад 1',
+            'planned_date' => '2026-07-20',
+            'actual_date' => '2026-07-20',
+        ]);
+
+        RoutePoint::query()->create([
+            'order_leg_id' => $leg->id,
+            'type' => 'unloading',
+            'sequence' => 1,
+            'address' => 'Казань, склад 2',
+            'planned_date' => '2026-07-22',
+            'actual_date' => null,
+        ]);
+
+        $this->get(route('portal.customer.show', ['token' => $token]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Portal/CustomerDocuments')
+                ->where('trip_status.code', 'in_progress')
+                ->where('trip_status.label', 'Выполняется')
+                ->where('route_milestones.0.title', 'Погрузка')
+                ->where('route_milestones.0.planned_date', '2026-07-20')
+                ->where('route_milestones.0.actual_date', '2026-07-20')
+                ->where('route_milestones.1.title', 'Выгрузка')
+                ->where('route_milestones.1.planned_date', '2026-07-22')
+                ->where('route_milestones.1.actual_date', null));
     }
 
     public function test_customer_portal_page_rejects_expired_invite(): void

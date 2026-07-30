@@ -23,6 +23,7 @@ use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\LeadAttachment;
 use App\Models\LeadOffer;
+use App\Models\LeadRateQuote;
 use App\Models\PrintFormTemplate;
 use App\Models\ProposalHtmlTemplate;
 use App\Models\Task;
@@ -46,6 +47,7 @@ use App\Services\Leads\LeadAcquaintanceSpawnService;
 use App\Services\Leads\LeadBasedOnTemplateBuilder;
 use App\Services\Leads\LeadGridMutationService;
 use App\Services\Leads\LeadOperationalBriefService;
+use App\Services\Leads\LeadRateQuoteService;
 use App\Services\Leads\LeadRoutePriceBenchmarkService;
 use App\Services\Leads\TaskLeadTemplateBuilder;
 use App\Services\PrintFormDraftResponseBuilder;
@@ -101,6 +103,7 @@ class LeadController extends Controller
         private readonly LeadGridMutationService $leadGridMutationService,
         private readonly LeadPrecalculationService $leadPrecalculationService,
         private readonly ImportCostCalculatorService $importCostCalculatorService,
+        private readonly LeadRateQuoteService $leadRateQuoteService,
     ) {}
 
     public function searchPrecalculationTnVed(SearchImportCostTnVedRequest $request): JsonResponse
@@ -227,6 +230,10 @@ class LeadController extends Controller
 
         if (Schema::hasTable('lead_attachments')) {
             $relations[] = 'attachments.user:id,name';
+        }
+
+        if (Schema::hasTable('lead_rate_quotes')) {
+            $relations[] = 'rateQuotes.contractor:id,name';
         }
 
         $lead = $lead->load($relations);
@@ -1545,6 +1552,9 @@ class LeadController extends Controller
                     && filled($offer->payload['rendered_html'] ?? null),
                 'sent_at' => optional($offer->sent_at)?->toIso8601String(),
             ])->values()->all(),
+            'rate_quotes' => Schema::hasTable('lead_rate_quotes') && $lead->relationLoaded('rateQuotes')
+                ? $lead->rateQuotes->map(fn (LeadRateQuote $quote): array => $this->leadRateQuoteService->serialize($quote))->values()->all()
+                : [],
             'orders' => $lead->orders->map(fn ($order): array => [
                 'id' => $order->id,
                 'order_number' => $order->order_number,

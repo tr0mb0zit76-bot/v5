@@ -3,7 +3,34 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-30 17:06 (ОТДАТЬ) · **HEAD:** `3f3f460` · **Ветка:** `master`
+**Обновлено:** 2026-07-30 19:35 · **Ветка:** `master` · **тема:** RFQ + портал заказчика
+
+### Итог — RFQ на лиде + портал (после work-area)
+
+| Блок | Статус |
+| --- | --- |
+| RFQ: `lead_rate_quotes`, UI Финансы, выбор → ставка/исполнитель | ✅ |
+| Портал: `trip_status` + `route_milestones` (план/факт), empty-state документов | ✅ |
+| CRM Work Area (вкладки, live-гриды) | ✅ уже в `3f3f460` |
+| Echo вместо poll / multi-tab одного модуля | ⏳ не в этом релизе |
+| УУ expedition matching в разнесении | ❌ отложено (в git не ушло) |
+
+**На прод / второй ПК:**
+
+```text
+git pull
+php artisan migrate --force
+npm run build
+php artisan optimize:clear
+# smoke work-area: лиды→задачи→лиды; лид→задача→закрыть
+# RFQ: лид → Финансы → добавить котировку → Выбрать
+```
+
+**Следующий шаг:** smoke на проде; Echo/multi-tab — позже.
+
+---
+
+**Обновлено (архив):** 2026-07-30 17:06 (ОТДАТЬ) · **HEAD:** `3f3f460` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-30 (ОТДАТЬ) — CRM Work Area
 

@@ -218,6 +218,14 @@ class Lead extends Model
     }
 
     /**
+     * @return HasMany<LeadRateQuote, $this>
+     */
+    public function rateQuotes(): HasMany
+    {
+        return $this->hasMany(LeadRateQuote::class)->latest('id');
+    }
+
+    /**
      * @return HasMany<Order, $this>
      */
     public function orders(): HasMany

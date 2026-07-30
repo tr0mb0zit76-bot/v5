@@ -7,6 +7,11 @@ const props = defineProps({
     documentSlots: { type: Array, default: () => [] },
     readonly: { type: Boolean, default: false },
     documentUploadHint: { type: String, default: '' },
+    heading: { type: String, default: 'Документы' },
+    hint: {
+        type: String,
+        default: 'Подгрузите заявку с вашей подписью. После завершения перевозки подгрузите закрывающие документы.',
+    },
     uploadRouteName: { type: String, default: 'portal.carrier.documents.store' },
 });
 
@@ -120,10 +125,8 @@ async function uploadSlot(slot) {
 <template>
     <section v-if="documentSlots.length" class="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50/80 p-4">
         <div>
-            <h2 class="text-sm font-semibold text-zinc-900">Документы</h2>
-            <p class="mt-1 text-xs text-zinc-500">
-                Подгрузите заявку с вашей подписью. После завершения перевозки подгрузите закрывающие документы.
-            </p>
+            <h2 class="text-sm font-semibold text-zinc-900">{{ heading }}</h2>
+            <p class="mt-1 text-xs text-zinc-500">{{ hint }}</p>
             <p v-if="documentUploadHint" class="mt-2 text-xs text-zinc-500">{{ documentUploadHint }}</p>
         </div>
 

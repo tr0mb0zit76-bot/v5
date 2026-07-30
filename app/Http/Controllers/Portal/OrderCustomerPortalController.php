@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\OrderPortalInvite;
 use App\Services\OrderCustomerPortalDocumentService;
+use App\Services\OrderCustomerPortalPresentationService;
 use App\Services\OrderPortalInviteAccessService;
 use App\Services\OrderPortalInviteService;
 use App\Services\OrderPortalOutgoingDocumentService;
@@ -27,6 +28,7 @@ class OrderCustomerPortalController extends Controller
         private readonly OrderPortalInviteAccessService $inviteAccessService,
         private readonly OrderCustomerPortalDocumentService $portalDocumentService,
         private readonly OrderPortalOutgoingDocumentService $outgoingDocumentService,
+        private readonly OrderCustomerPortalPresentationService $presentationService,
     ) {}
 
     public function show(Request $request, string $token): Response
@@ -85,7 +87,7 @@ class OrderCustomerPortalController extends Controller
         abort_if($invite->isRevoked(), 410, 'Ссылка отозвана.');
         abort_if($invite->isExpired(), 410, 'Ссылка истекла.');
 
-        $invite->loadMissing(['order.documents', 'contractor']);
+        $invite->loadMissing(['order.documents', 'order.legs.routePoints', 'contractor']);
 
         if (! $allowClosed && $this->inviteAccessService->isInviteClosed($invite->order, $invite)) {
             abort(410, 'Ссылка закрыта: перевозка завершена.');
@@ -106,14 +108,20 @@ class OrderCustomerPortalController extends Controller
 
         $canUploadDocuments = $this->inviteAccessService->canUploadDocuments($order, $invite);
         $unloadingActual = $this->inviteAccessService->unloadingActualForInvite($order, $invite);
+        $tripStatus = $this->presentationService->tripStatus($order);
+        $routeMilestones = $this->presentationService->routeMilestones($order);
 
         return [
             'status' => $canUploadDocuments ? 'open' : 'closed',
             'link_validity_hint' => $this->inviteAccessService->linkValidityHint(),
             'unloading_actual' => $unloadingActual,
             'can_upload_documents' => $canUploadDocuments,
+            'trip_status' => $tripStatus,
+            'route_milestones' => $routeMilestones,
             'order' => [
                 'order_number' => $order->order_number,
+                'status' => $tripStatus['code'],
+                'status_label' => $tripStatus['label'],
                 'loading_date' => optional($order->loading_date)?->toDateString(),
                 'unloading_date' => optional($order->unloading_date)?->toDateString(),
             ],
