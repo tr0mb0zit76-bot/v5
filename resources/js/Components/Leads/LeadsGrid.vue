@@ -299,6 +299,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage, router } from '@inertiajs/vue3';
 import axios from 'axios';
+import { concurrencyPayload, concurrencyConflictMessage, isConcurrencyConflict } from '@/support/gridConcurrency.js';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { Megaphone, Rows3, Search, Settings2, Trash2, UserRound, Workflow, X } from 'lucide-vue-next';
@@ -1375,6 +1376,7 @@ async function saveGridField(row, field, value) {
     const response = await axios.patch(route('leads.grid-field.update', row.id), {
       field,
       value,
+      ...concurrencyPayload(row),
     });
 
     const updatedLead = response.data?.lead;
@@ -1385,7 +1387,9 @@ async function saveGridField(row, field, value) {
 
     emit('grid-updated');
   } catch (error) {
-    const message = error?.response?.data?.message ?? 'Не удалось сохранить изменение.';
+    const message = isConcurrencyConflict(error)
+      ? concurrencyConflictMessage(error)
+      : (error?.response?.data?.message ?? 'Не удалось сохранить изменение.');
     window.alert(message);
     router.reload({ only: ['leads'], preserveScroll: true });
   }

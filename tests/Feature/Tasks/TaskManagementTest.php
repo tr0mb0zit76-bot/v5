@@ -103,6 +103,89 @@ class TaskManagementTest extends TestCase
                 ->where('selectedTask.title', 'Детальный просмотр'));
     }
 
+    public function test_task_show_standalone_skips_grid_payload_and_keeps_return_to(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor_standalone_task',
+            'display_name' => 'Supervisor',
+            'visibility_areas' => json_encode(['tasks']),
+            'visibility_scopes' => json_encode(['tasks' => 'all']),
+            'columns_config' => json_encode([]),
+            'permissions' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+        ]);
+
+        $task = Task::query()->create([
+            'number' => 'TSK-STANDALONE',
+            'title' => 'Задача поверх лида',
+            'status' => 'new',
+            'priority' => 'medium',
+            'responsible_id' => $user->id,
+            'created_by' => $user->id,
+        ]);
+
+        $returnTo = '/leads/42?tab=next';
+
+        $this->actingAs($user)
+            ->get(route('tasks.show', [
+                'task' => $task,
+                'standalone' => 1,
+                'return_to' => $returnTo,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Tasks/Index')
+                ->where('standalone', true)
+                ->where('return_to', $returnTo)
+                ->where('selectedTask.id', $task->id)
+                ->where('tasks', []));
+    }
+
+    public function test_task_show_standalone_rejects_external_return_to(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor_standalone_task_safe',
+            'display_name' => 'Supervisor',
+            'visibility_areas' => json_encode(['tasks']),
+            'visibility_scopes' => json_encode(['tasks' => 'all']),
+            'columns_config' => json_encode([]),
+            'permissions' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+        ]);
+
+        $task = Task::query()->create([
+            'number' => 'TSK-STANDALONE-SAFE',
+            'title' => 'Безопасный return_to',
+            'status' => 'new',
+            'priority' => 'medium',
+            'responsible_id' => $user->id,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('tasks.show', [
+                'task' => $task,
+                'standalone' => 1,
+                'return_to' => 'https://evil.example/phish',
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Tasks/Index')
+                ->where('standalone', true)
+                ->where('return_to', null)
+                ->where('selectedTask.id', $task->id));
+    }
+
     public function test_store_task_creates_row(): void
     {
         $roleId = DB::table('roles')->insertGetId([

@@ -20,6 +20,7 @@ class UpdateLeadGridFieldRequest extends FormRequest
         return [
             'field' => ['required', 'string', Rule::in(['source', 'responsible_id', 'status'])],
             'value' => ['nullable'],
+            'expected_updated_at' => ['nullable', 'string', 'max:64'],
         ];
     }
 

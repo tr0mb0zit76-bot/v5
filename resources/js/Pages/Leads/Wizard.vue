@@ -1403,7 +1403,22 @@ async function mergePortraitFromQualification() {
 
 function addActivity() { form.activities.push({ type: 'note', subject: '', content: '', next_action_at: '' }); }
 function removeActivity(index) { form.activities.splice(index, 1); }
-function openTask(taskId) { router.get(route('tasks.index'), taskId ? { task: taskId } : {}); }
+function openTask(taskId) {
+    if (!taskId) {
+        return;
+    }
+
+    const returnTo = typeof window !== 'undefined'
+        ? `${window.location.pathname}${window.location.search}`
+        : (selectedLeadId.value ? route('leads.show', selectedLeadId.value) : route('leads.index'));
+
+    router.get(route('tasks.show', taskId), {
+        standalone: 1,
+        return_to: returnTo,
+    }, {
+        preserveScroll: true,
+    });
+}
 
 async function onAttachmentSelected(event) {
     const files = event.target?.files;

@@ -183,9 +183,13 @@
                 scroll-region
             >
                 <div v-if="mainFill" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-                    <slot />
+                    <CrmWorkAreaPageHost>
+                        <slot />
+                    </CrmWorkAreaPageHost>
                 </div>
-                <slot v-else />
+                <CrmWorkAreaPageHost v-else>
+                    <slot />
+                </CrmWorkAreaPageHost>
             </main>
 
             <nav class="fixed bottom-0 left-0 right-0 z-50 border-t border-zinc-200 bg-white/95 px-2 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
@@ -278,7 +282,27 @@
                 </p>
                 <div v-for="item in menuItems" :key="item.key" class="space-y-1">
                     <div class="flex items-center gap-1">
+                        <Link
+                            v-if="menuHrefFor(item.key)"
+                            :href="menuHrefFor(item.key)"
+                            class="crm-nav-link relative flex min-w-0 flex-1 items-center gap-3 px-3 py-2"
+                            :class="activeKey === item.key ? 'crm-nav-link--active' : ''"
+                            :title="collapsed ? item.label : false"
+                            @click="onMenuLinkClick(item.key, $event)"
+                        >
+                            <span class="relative inline-flex shrink-0">
+                                <component :is="item.icon" class="h-5 w-5" />
+                                <span
+                                    v-if="menuBadgeFor(item.key) > 0"
+                                    class="absolute -right-1.5 -top-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-rose-600 px-0.5 text-[9px] font-bold leading-none text-white"
+                                >
+                                    {{ menuBadgeFor(item.key) > 99 ? '99+' : menuBadgeFor(item.key) }}
+                                </span>
+                            </span>
+                            <span v-if="!collapsed" class="truncate text-sm font-medium">{{ item.label }}</span>
+                        </Link>
                         <button
+                            v-else
                             type="button"
                             class="crm-nav-link relative flex min-w-0 flex-1 items-center gap-3 px-3 py-2"
                             :class="activeKey === item.key ? 'crm-nav-link--active' : ''"
@@ -328,11 +352,11 @@
                         <div v-for="child in item.children" :key="child.key" class="space-y-1">
                             <div class="flex items-center gap-1">
                                 <Link
-                                    v-if="child.href && !child.disabled"
-                                    :href="child.href"
+                                    v-if="(child.href || menuHrefFor(child.key)) && !child.disabled"
+                                    :href="child.href || menuHrefFor(child.key)"
                                     class="crm-nav-link flex min-w-0 flex-1 items-center px-3 py-2 text-left"
                                     :class="isMenuChildActive(child) ? 'crm-nav-link--active' : ''"
-                                    @click="mobileMenuOpen = false"
+                                    @click="onMenuLinkClick(child.key, $event)"
                                 >
                                     <span v-if="!collapsed" class="min-w-0 flex-1">
                                         <span class="block truncate">{{ child.label }}</span>
@@ -350,7 +374,7 @@
                                     class="crm-nav-link flex min-w-0 flex-1 items-center px-3 py-2 text-left"
                                     :class="isMenuChildActive(child) ? 'crm-nav-link--active' : ''"
                                     :disabled="child.disabled"
-                                    @click="child.disabled ? undefined : handleMenuSelect(child.key)"
+                                    @click="child.disabled ? undefined : handleMenuSelect(child.key, $event)"
                                 >
                                     <span v-if="!collapsed" class="min-w-0 flex-1">
                                         <span class="block truncate">{{ child.label }}</span>
@@ -397,10 +421,20 @@
                                     :key="grandChild.key"
                                     class="flex items-center gap-1"
                                 >
-                                    <button
+                                    <Link
+                                        v-if="menuHrefFor(grandChild.key)"
+                                        :href="menuHrefFor(grandChild.key)"
                                         class="crm-nav-link flex min-w-0 flex-1 items-center px-3 py-2 text-left"
                                         :class="(activeSubKey === grandChild.key || activeLeafKey === grandChild.key) ? 'crm-nav-link--active' : ''"
-                                        @click="handleMenuSelect(grandChild.key)"
+                                        @click="onMenuLinkClick(grandChild.key, $event)"
+                                    >
+                                        {{ grandChild.label }}
+                                    </Link>
+                                    <button
+                                        v-else
+                                        class="crm-nav-link flex min-w-0 flex-1 items-center px-3 py-2 text-left"
+                                        :class="(activeSubKey === grandChild.key || activeLeafKey === grandChild.key) ? 'crm-nav-link--active' : ''"
+                                        @click="handleMenuSelect(grandChild.key, $event)"
                                     >
                                         {{ grandChild.label }}
                                     </button>
@@ -492,7 +526,7 @@
                     :class="isFlyoutNavKeyActive(row)
                         ? 'bg-zinc-100 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
                         : 'text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-800/80'"
-                    @click="selectFlyoutNav(row)"
+                    @click="selectFlyoutNav(row, $event)"
                 >
                     {{ row.label }}
                 </button>
@@ -528,6 +562,7 @@
                     ? 'flex h-0 flex-col overflow-hidden pb-[88px] md:pb-[96px]'
                     : 'overflow-y-auto pb-[88px] lg:flex lg:h-0 lg:flex-col lg:overflow-hidden md:pb-[96px]'"
             >
+                <CrmWorkAreaTabs v-if="!showMobileAppShell" />
                 <div
                     v-if="flashBanner"
                     class="mb-3 shrink-0 rounded-lg border px-3 py-2 text-sm"
@@ -539,9 +574,13 @@
                     {{ flashBanner.message }}
                 </div>
                 <div v-if="mainFill" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-                    <slot />
+                    <CrmWorkAreaPageHost>
+                        <slot />
+                    </CrmWorkAreaPageHost>
                 </div>
-                <slot v-else />
+                <CrmWorkAreaPageHost v-else>
+                    <slot />
+                </CrmWorkAreaPageHost>
             </main>
 
             <footer
@@ -628,6 +667,14 @@ import {
 } from 'lucide-vue-next';
 import CrmAgentPanel from '@/Components/Layout/CrmAgentPanel.vue';
 import CrmCommandBar from '@/Components/Layout/CrmCommandBar.vue';
+import CrmWorkAreaPageHost from '@/Components/Layout/CrmWorkAreaPageHost.vue';
+import CrmWorkAreaTabs from '@/Components/Layout/CrmWorkAreaTabs.vue';
+import {
+    bindCrmWorkAreaVisit,
+    ensureCrmWorkAreaInertiaBridge,
+    isWorkAreaMenuKey,
+    openOrActivate,
+} from '@/support/crmWorkArea.js';
 import ThemeToggle from '@/Components/Layout/ThemeToggle.vue';
 import CrmAppearanceModal from '@/Components/Crm/CrmAppearanceModal.vue';
 import DocumentUploadOptimizeModal from '@/Components/Documents/DocumentUploadOptimizeModal.vue';
@@ -1563,6 +1610,8 @@ onMounted(() => {
     allowMobileBrowserCabinet.value = readMobileBrowserBypassFromStorage();
     updateMobileEnvironment();
     document.documentElement.classList.add('crm-layout-scroll-lock');
+    bindCrmWorkAreaVisit(visitInertiaPath);
+    ensureCrmWorkAreaInertiaBridge(router);
 
     window.addEventListener('resize', updateMobileEnvironment);
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -1663,17 +1712,46 @@ function isFlyoutNavKeyActive(row) {
     return row.key === props.activeSubKey || row.key === props.activeLeafKey || row.key === props.activeKey;
 }
 
-function selectFlyoutNav(row) {
-    closeCollapsedFlyout();
+function menuHrefFor(key) {
+    return MENU_ROUTES[key] ?? null;
+}
 
-    if (row.href) {
+function isModifiedMenuClick(event) {
+    if (!event) {
+        return false;
+    }
+
+    return event.ctrlKey
+        || event.metaKey
+        || event.shiftKey
+        || event.altKey
+        || event.button === 1;
+}
+
+/**
+ * Link click: Ctrl/Cmd/middle → native browser tab; else work area / Inertia.
+ */
+function onMenuLinkClick(key, event) {
+    if (isModifiedMenuClick(event)) {
         mobileMenuOpen.value = false;
-        visitInertiaPath(row.href);
-
         return;
     }
 
-    handleMenuSelect(row.key);
+    event.preventDefault();
+    handleMenuSelect(key, event);
+}
+
+function selectFlyoutNav(row, event) {
+    closeCollapsedFlyout();
+    mobileMenuOpen.value = false;
+
+    const href = row.href || menuHrefFor(row.key);
+    if (href && isModifiedMenuClick(event)) {
+        window.open(href, '_blank');
+        return;
+    }
+
+    handleMenuSelect(row.key, event);
 }
 
 function isMobileNavItemActive(key) {
@@ -1700,14 +1778,26 @@ function handleMenuSelect(key, event) {
 
     closeCollapsedFlyout();
 
-    if (['settings', 'administration', 'configuration', 'motivation', 'finance', 'fleet', 'sales-assistant', 'planning', 'modules', 'favorites'].includes(key)) {
+    if (['settings', 'administration', 'configuration', 'motivation', 'finance', 'fleet', 'sales-assistant', 'planning', 'modules', 'favorites', 'own-fleet', 'reports'].includes(key)) {
         toggleMenuGroup(key);
     }
 
-    if (MENU_ROUTES[key]) {
-        mobileMenuOpen.value = false;
-        visitInertiaPath(MENU_ROUTES[key]);
+    const href = MENU_ROUTES[key]
+        ?? (typeof event?.currentTarget?.getAttribute === 'function'
+            ? event.currentTarget.getAttribute('href')
+            : null);
+    if (!href) {
+        return;
     }
+
+    mobileMenuOpen.value = false;
+
+    if (isWorkAreaMenuKey(key)) {
+        openOrActivate(key, href);
+        return;
+    }
+
+    visitInertiaPath(href);
 }
 
 const agentPanelOpen = ref(false);

@@ -1,5 +1,6 @@
 ﻿<template>
     <div class="flex min-h-0 flex-1 flex-col gap-2">
+        <template v-if="!isStandalone">
         <CrmPageHeader
             :lead="`Контроль задач менеджеров. Всего: ${(tasks ?? []).length}`"
             title="Задачи"
@@ -74,6 +75,7 @@
                 @cell-save="handleCellSave"
             />
         </div>
+        </template>
 
         <Modal :show="assignOneTask !== null" max-width="sm" @close="assignOneTask = null">
             <section class="space-y-4 bg-white p-6 dark:bg-zinc-900">
@@ -409,6 +411,7 @@ import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import ContractorAsyncSearchSelect from '@/Components/Crm/ContractorAsyncSearchSelect.vue';
 import Modal from '@/Components/Modal.vue';
 import TasksGrid from '@/Components/Tasks/TasksGrid.vue';
+import { concurrencyPayload, inertiaConcurrencyHandlers } from '@/support/gridConcurrency.js';
 import { ChevronDown, Plus } from 'lucide-vue-next';
 
 defineOptions({
@@ -462,6 +465,14 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    standalone: {
+        type: Boolean,
+        default: false,
+    },
+    return_to: {
+        type: String,
+        default: null,
+    },
 });
 
 const tasks = ref(props.tasks ?? []);
@@ -473,9 +484,25 @@ const contractorOptions = computed(() => props.contractorOptions ?? []);
 const canBulkMutateTasks = computed(() => props.can_bulk_mutate_tasks === true);
 const canDeleteTasks = computed(() => props.can_delete_tasks === true);
 const canCreateLeads = computed(() => props.can_create_leads === true);
+const isStandalone = computed(() => props.standalone === true || page.props.standalone === true);
+const returnToPath = computed(() => {
+    const raw = props.return_to ?? page.props.return_to ?? null;
+    if (typeof raw !== 'string' || raw === '') {
+        return null;
+    }
+    if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('://')) {
+        return null;
+    }
+    return raw;
+});
 
-watch(() => page.props.tasks, (next) => {
+watch(() => props.tasks, (next) => {
     tasks.value = next ?? [];
+});
+watch(() => page.props.tasks, (next) => {
+    if (props.tasks === undefined) {
+        tasks.value = next ?? [];
+    }
 });
 
 const selectedTask = computed(() => page.props.selectedTask ?? null);
@@ -534,11 +561,18 @@ function handleCellSave({ row, field, value }) {
         return;
     }
 
+    const expected = concurrencyPayload(row);
+    const onConflict = () => {
+        router.reload({ only: ['tasks', 'quickFilters'], preserveScroll: true });
+    };
+    const visitOpts = {
+        preserveScroll: true,
+        only: ['tasks', 'quickFilters', 'selectedTask'],
+        ...inertiaConcurrencyHandlers(onConflict),
+    };
+
     if (field === 'status') {
-        router.patch(route('tasks.status.update', row.id), { status: value }, {
-            preserveScroll: true,
-            only: ['tasks', 'quickFilters', 'selectedTask'],
-        });
+        router.patch(route('tasks.status.update', row.id), { status: value, ...expected }, visitOpts);
 
         return;
     }
@@ -549,27 +583,19 @@ function handleCellSave({ row, field, value }) {
                 task_ids: [row.id],
                 action: 'assign',
                 responsible_id: value,
-            }, {
-                preserveScroll: true,
-                only: ['tasks', 'quickFilters', 'selectedTask'],
-            });
+                ...expected,
+            }, visitOpts);
 
             return;
         }
 
-        router.patch(route('tasks.inline-update', row.id), { field, value }, {
-            preserveScroll: true,
-            only: ['tasks', 'quickFilters', 'selectedTask'],
-        });
+        router.patch(route('tasks.inline-update', row.id), { field, value, ...expected }, visitOpts);
 
         return;
     }
 
     if (field === 'priority') {
-        router.patch(route('tasks.inline-update', row.id), { field, value }, {
-            preserveScroll: true,
-            only: ['tasks', 'quickFilters', 'selectedTask'],
-        });
+        router.patch(route('tasks.inline-update', row.id), { field, value, ...expected }, visitOpts);
     }
 }
 
@@ -719,6 +745,23 @@ function handleRowDblClick(row) {
 
 function closeTaskDetailModal() {
     isTaskDetailDismissed.value = true;
+
+    if (returnToPath.value) {
+        router.visit(returnToPath.value, {
+            preserveScroll: true,
+        });
+        return;
+    }
+
+    if (isStandalone.value) {
+        if (typeof window !== 'undefined' && window.history.length > 1) {
+            window.history.back();
+            return;
+        }
+        router.visit(route('leads.index'));
+        return;
+    }
+
     router.get(route('tasks.index'), {}, {
         preserveScroll: true,
         preserveState: true,

@@ -134,18 +134,28 @@ defineOptions({
 });
 
 const page = usePage();
+const props = defineProps({
+    leads: { type: Array, default: undefined },
+    leadColumns: { type: Array, default: undefined },
+    salesCoachingInsights: { type: [Object, Array], default: undefined },
+    leadAttentionQueue: { type: [Object, Array], default: undefined },
+    selectedLead: { type: Object, default: undefined },
+    isCreating: { type: Boolean, default: undefined },
+    leadTemplate: { type: Object, default: undefined },
+    featureUnavailable: { type: Boolean, default: undefined },
+});
 const leadSummariesRef = ref(null);
 const leadsGridRef = ref(null);
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
-const rows = computed(() => page.props.leads ?? []);
-const salesCoachingInsights = computed(() => page.props.salesCoachingInsights ?? null);
-const leadAttentionQueue = computed(() => page.props.leadAttentionQueue ?? null);
-const availableColumns = computed(() => page.props.leadColumns ?? []);
+const rows = computed(() => props.leads ?? page.props.leads ?? []);
+const salesCoachingInsights = computed(() => props.salesCoachingInsights ?? page.props.salesCoachingInsights ?? null);
+const leadAttentionQueue = computed(() => props.leadAttentionQueue ?? page.props.leadAttentionQueue ?? null);
+const availableColumns = computed(() => props.leadColumns ?? page.props.leadColumns ?? []);
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
-const featureUnavailable = computed(() => Boolean(page.props.featureUnavailable));
-const selectedLead = computed(() => page.props.selectedLead ?? null);
-const isCreateRoute = computed(() => Boolean(page.props.isCreating));
-const leadTemplate = computed(() => page.props.leadTemplate ?? null);
+const featureUnavailable = computed(() => Boolean(props.featureUnavailable ?? page.props.featureUnavailable));
+const selectedLead = computed(() => props.selectedLead ?? page.props.selectedLead ?? null);
+const isCreateRoute = computed(() => Boolean(props.isCreating ?? page.props.isCreating));
+const leadTemplate = computed(() => props.leadTemplate ?? page.props.leadTemplate ?? null);
 const isCreateModalOpen = ref(false);
 const isLeadModalDismissed = ref(false);
 const isVoiceIntakeOpen = ref(false);

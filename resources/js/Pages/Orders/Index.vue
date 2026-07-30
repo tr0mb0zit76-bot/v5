@@ -191,6 +191,7 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnCreate, crmGridPanel } from '@/support/crmUi.js';
 import OrdersGrid from '@/Components/Orders/OrdersGrid.vue';
 import OrderDocumentsModal from '@/Components/Orders/OrderDocumentsModal.vue';
+import { concurrencyPayload, inertiaConcurrencyHandlers } from '@/support/gridConcurrency.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'orders', mainFill: true }, () => page),
@@ -201,8 +202,15 @@ const mobileSearch = ref('');
 const mobileSort = ref('id_desc');
 const mobileSortOptions = MOBILE_SORT_OPTIONS;
 
+const props = defineProps({
+    rows: { type: Array, default: undefined },
+    orderColumns: { type: Array, default: undefined },
+    orderInlineEditableFields: { type: Array, default: undefined },
+    roleKey: { type: String, default: undefined },
+});
+
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
-const roleKey = computed(() => page.props.roleKey ?? page.props.auth?.user?.role?.name ?? 'manager');
+const roleKey = computed(() => props.roleKey ?? page.props.roleKey ?? page.props.auth?.user?.role?.name ?? 'manager');
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const canUseLoadBoard = computed(() => {
     const role = page.props.auth?.user?.role ?? {};
@@ -210,9 +218,9 @@ const canUseLoadBoard = computed(() => {
 
     return Boolean(role.is_admin) || role.name === 'admin' || areas.includes('load_board');
 });
-const availableColumns = computed(() => page.props.orderColumns ?? []);
-const orderInlineEditableFields = computed(() => page.props.orderInlineEditableFields ?? []);
-const rows = computed(() => page.props.rows ?? []);
+const availableColumns = computed(() => props.orderColumns ?? page.props.orderColumns ?? []);
+const orderInlineEditableFields = computed(() => props.orderInlineEditableFields ?? page.props.orderInlineEditableFields ?? []);
+const rows = computed(() => props.rows ?? page.props.rows ?? []);
 const orderDateFrom = ref(null);
 const orderDateTo = ref(null);
 
@@ -338,10 +346,14 @@ const handleCellSave = (event) => {
         _method: 'patch',
         field: event.field,
         value: event.value,
+        ...concurrencyPayload(event.row),
     }, {
         preserveScroll: true,
         preserveState: true,
         only: ['rows'],
+        ...inertiaConcurrencyHandlers(() => {
+            router.reload({ only: ['rows'], preserveScroll: true });
+        }),
     });
 };
 

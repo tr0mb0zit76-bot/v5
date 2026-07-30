@@ -3,7 +3,41 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-22 22:19 (ОТДАТЬ) · **HEAD:** `16129764` · **Ветка:** `master`
+**Обновлено:** 2026-07-30 17:06 (ОТДАТЬ) · **HEAD:** *(после push)* · **Ветка:** `master`
+
+### Итог сессии 2026-07-30 (ОТДАТЬ) — CRM Work Area
+
+| Блок | Статус |
+| --- | --- |
+| Лид → задача: `tasks.show?standalone=1&return_to=` без грида; закрытие → назад на лид | ✅ |
+| Меню = `<Link>`; Ctrl/Cmd/middle = вкладка браузера | ✅ |
+| Полоска вкладок + store `crmWorkArea.js` | ✅ |
+| Live-host: до **3 модулей-гридов** (лиды / задачи / заказы) в RAM; soft-switch без Inertia | ✅ |
+| Poll ~45 с (и при активации) partial reload строк; document.hidden — пауза | ✅ |
+| Optimistic concurrency: `expected_updated_at` на inline лиды/задачи/заказы | ✅ |
+| Self-check: `node scripts/self-check-crm-work-area.mjs` | ✅ |
+
+**Лимит «3»** = три **экрана-модуля** (не три карточки лида). Внутри «Лиды» карточек сколько угодно. 4-й live-модуль вытесняет LRU из RAM; открыть можно — просто remount.
+
+**На прод / второй ПК (ЗАБРАТЬ):**
+
+```text
+git pull
+npm run build
+php artisan optimize:clear
+# smoke: лиды→задачи→лиды (второй переход мгновенный); лид→задача→закрыть → остаёшься на лиде
+# node scripts/self-check-crm-work-area.mjs
+```
+
+Миграций нет.
+
+**Ключевые файлы:** `resources/js/support/crmWorkArea.js`, `CrmWorkAreaPageHost.vue`, `CrmWorkAreaTabs.vue`, `CrmLayout.vue`, `app/Support/OptimisticConcurrency.php`, `gridConcurrency.js`.
+
+**Следующий шаг:** ручной smoke на локали/проде; при необходимости Echo вместо poll; multi-tab одного модуля (несколько «Заказы») — не в этом релизе.
+
+---
+
+**Обновлено (архив):** 2026-07-22 22:19 (ОТДАТЬ) · **HEAD:** `16129764` · **Ветка:** `master`
 
 ### Итог сессии 2026-07-22 ночь (ОТДАТЬ)
 

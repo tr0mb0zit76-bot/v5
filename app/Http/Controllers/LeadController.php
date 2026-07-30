@@ -66,6 +66,7 @@ use App\Support\LeadStatus;
 use App\Support\LeadStatusAutoAdvance;
 use App\Support\LeadTableColumns;
 use App\Support\LeadViewAuthorization;
+use App\Support\OptimisticConcurrency;
 use App\Support\PaymentFormDictionary;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
@@ -813,6 +814,7 @@ class LeadController extends Controller
                     'target_currency' => $lead->target_currency,
                     'has_offer' => $lead->offers->isNotEmpty(),
                     'created_at' => optional($lead->created_at)->toIso8601String(),
+                    'updated_at' => optional($lead->updated_at)->toIso8601String(),
                     'next_contact_at' => optional($lead->next_contact_at)?->toIso8601String(),
                     'process_name' => null,
                     'current_stage_name' => null,
@@ -946,6 +948,7 @@ class LeadController extends Controller
             'inline_editable_fields' => $request->user() !== null
                 ? $this->leadGridMutationService->inlineEditableFields($lead, $request->user())
                 : [],
+            'updated_at' => optional($lead->updated_at)?->toIso8601String(),
         ];
     }
 
@@ -1623,6 +1626,8 @@ class LeadController extends Controller
     {
         abort_unless($this->hasLeadsFeatureTables(), 404);
         abort_unless($this->canAccessLead($request, $lead), 403);
+
+        OptimisticConcurrency::assertUnchanged($lead, $request->input('expected_updated_at'));
 
         $result = $this->leadGridMutationService->applyField(
             $lead,

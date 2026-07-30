@@ -24,6 +24,7 @@ class UpdateInlineOrderFieldRequest extends FormRequest
         return [
             'field' => ['required', 'string', Rule::in(OrderInlineFieldCatalog::allowedFields())],
             'value' => ['nullable'],
+            'expected_updated_at' => ['nullable', 'string', 'max:64'],
         ];
     }
 

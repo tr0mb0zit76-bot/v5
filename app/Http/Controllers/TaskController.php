@@ -25,6 +25,7 @@ use App\Services\TaskSlaService;
 use App\Support\ActivityEventType;
 use App\Support\LeadStatus;
 use App\Support\LeadViewAuthorization;
+use App\Support\OptimisticConcurrency;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
 use App\Support\TaskViewAuthorization;
@@ -65,8 +66,31 @@ class TaskController extends Controller
 
         abort_unless($this->canAccessTaskRow($request, $taskModel), 403);
 
+        $standalone = $request->boolean('standalone');
+        $returnTo = $this->safeReturnToPath($request->input('return_to'));
+
+        if ($standalone) {
+            return Inertia::render('Tasks/Index', [
+                'tasks' => [],
+                'selectedTask' => $this->formatTaskRow($taskModel),
+                'quickFilters' => [],
+                'statusOptions' => TaskStatus::options(),
+                'users' => $this->activeUsers(),
+                'leadOptions' => [],
+                'contractorOptions' => [],
+                'attachmentBaseUrl' => route('tasks.index'),
+                'can_bulk_mutate_tasks' => RoleAccess::canBulkMutateTasks($request->user()),
+                'can_delete_tasks' => RoleAccess::canDeleteTask($request->user()),
+                'can_create_leads' => $this->canCreateLeads($request),
+                'standalone' => true,
+                'return_to' => $returnTo,
+            ]);
+        }
+
         return Inertia::render('Tasks/Index', array_merge($this->tasksPageSharedData($request), [
             'selectedTask' => $this->formatTaskRow($taskModel),
+            'standalone' => false,
+            'return_to' => null,
         ]));
     }
 
@@ -214,6 +238,8 @@ class TaskController extends Controller
 
     public function inlineUpdate(UpdateTaskInlineRequest $request, Task $task): RedirectResponse
     {
+        OptimisticConcurrency::assertUnchanged($task, $request->input('expected_updated_at'));
+
         $field = $request->string('field')->toString();
         $value = $request->input('value');
 
@@ -737,6 +763,7 @@ class TaskController extends Controller
                 'author_name' => $event->user?->name,
                 'created_at' => optional($event->created_at)?->toIso8601String(),
             ])->values()->all() : [],
+            'updated_at' => optional($task->updated_at)?->toIso8601String(),
         ];
     }
 
@@ -980,5 +1007,26 @@ class TaskController extends Controller
             'description' => $description,
             'meta' => $meta,
         ]);
+    }
+
+    /**
+     * Только относительный путь того же origin (без open-redirect).
+     */
+    private function safeReturnToPath(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $path = trim($value);
+        if ($path === '' || ! str_starts_with($path, '/') || str_starts_with($path, '//')) {
+            return null;
+        }
+
+        if (str_contains($path, '://')) {
+            return null;
+        }
+
+        return $path;
     }
 }

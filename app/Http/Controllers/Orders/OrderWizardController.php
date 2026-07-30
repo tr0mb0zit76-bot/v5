@@ -26,6 +26,7 @@ use App\Services\Orders\Wizard\OrderWizardPagePresenter;
 use App\Services\OrderWizardService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\ContractorIdentity;
+use App\Support\OptimisticConcurrency;
 use App\Support\OrderAgentLexicon;
 use App\Support\OrderDeleteAuthorization;
 use App\Support\OrderDocumentAccessAuthorization;
@@ -151,6 +152,8 @@ class OrderWizardController extends Controller
         OrderInlineFieldUpdateService $orderInlineFieldUpdateService,
     ): RedirectResponse {
         abort_unless($this->orderAuthorization->canEditOrder($request, $order), 403);
+
+        OptimisticConcurrency::assertUnchanged($order, $request->input('expected_updated_at'));
 
         $payload = $request->validatedPayload();
         $user = $request->user();

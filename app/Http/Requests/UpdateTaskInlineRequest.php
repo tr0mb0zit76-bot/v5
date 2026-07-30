@@ -48,6 +48,7 @@ class UpdateTaskInlineRequest extends FormRequest
                     ['integer', 'exists:users,id'],
                 ),
             ],
+            'expected_updated_at' => ['nullable', 'string', 'max:64'],
         ];
     }
 
