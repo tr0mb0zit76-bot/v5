@@ -3,15 +3,14 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-30 19:55 (ОТДАТЬ) · **Ветка:** `master` · **тема:** ресайз панелей + RFQ/портал/контейнеры
+**Обновлено:** 2026-07-30 19:59 (ОТДАТЬ) · **Ветка:** `master` · **тема:** страница 403 + ресайз панелей
 
 ### Итог сессии 2026-07-30 вечер (ОТДАТЬ)
 
 | Блок | Статус |
 | --- | --- |
-| Панели до ⅔ экрана: мессенджер, ИИ-ассистент, колокольчик | ✅ |
-| Ресайз + localStorage: `usePersistedPanelSize.js` | ✅ |
-| Двойной щелчок по иконке масштаба — сброс размера | ✅ |
+| Страница 403: «У вас нет прав доступа» + пояснение + ссылки | ✅ |
+| Панели до ⅔ экрана + ресайз/localStorage | ✅ `9159bf5a` |
 | Контейнеры флота (как ТС/водители) | ✅ `9cdbe763` |
 | RFQ + портал заказчика | ✅ `cc082123` |
 | УУ expedition matching | ❌ отложено |
@@ -23,14 +22,14 @@ git pull
 php artisan migrate --force
 npm run build
 php artisan optimize:clear
-# smoke: потянуть размер мессенджера / ассистента / колокольчика → перезагрузка → размер сохранился
-# RFQ: лид → Финансы → котировка → Выбрать
-# контейнеры: Парк → Контейнеры
+# smoke: открыть раздел без прав → 403 с русским текстом
+# smoke: ресайз мессенджера / ассистента / колокольчика
+# RFQ / контейнеры — как ранее
 ```
 
-**Ключевые файлы:** `resources/js/composables/usePersistedPanelSize.js`, `CrmAgentPanel.vue`, `CrmCommandBar.vue`, `CrmNotificationBell.vue`.
+**Ключевые файлы:** `resources/views/errors/403.blade.php`, `tests/Feature/HttpErrorPagesTest.php`, `usePersistedPanelSize.js`.
 
-**Следующий шаг:** smoke UI ресайза; Echo/multi-tab — позже.
+**Следующий шаг:** smoke 403 и ресайза; Echo/multi-tab — позже.
 
 ---
 
