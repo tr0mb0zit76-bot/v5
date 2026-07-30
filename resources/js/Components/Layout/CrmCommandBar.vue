@@ -14,9 +14,25 @@
                 @click.self="closeChatPanel"
             >
                 <div
-                    class="mx-auto mt-auto flex h-[min(78vh,760px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+                    class="mx-auto mt-auto flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+                    :style="messengerPanelStyle"
                     @click.stop
                 >
+                    <div class="relative shrink-0 select-none">
+                        <div class="flex justify-center py-2">
+                            <div class="h-1 w-12 rounded-full bg-zinc-300 dark:bg-zinc-600" />
+                        </div>
+                        <button
+                            type="button"
+                            class="absolute right-2 top-1.5 flex h-7 w-7 cursor-nesw-resize items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                            title="Потяните для изменения размера (до ¾ ширины и ⅔ высоты экрана). Двойной щелчок — сброс."
+                            aria-label="Изменить размер окна"
+                            @mousedown.stop.prevent="startMessengerResize"
+                            @dblclick.stop.prevent="resetMessengerPanelSize"
+                        >
+                            <Scaling class="h-4 w-4" />
+                        </button>
+                    </div>
                     <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
                         <div>
                             <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Мессенджер</div>
@@ -714,6 +730,7 @@ import axios from 'axios';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import CrmNotificationBell from '@/Components/Layout/CrmNotificationBell.vue';
+import { usePersistedPanelSize } from '@/composables/usePersistedPanelSize.js';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import { formatConversationPreview } from '@/support/messengerConversationText.js';
 import { appendUniqueMessage, createClientMessageId, formatMessengerFileSize } from '@/support/messengerMessages.js';
@@ -726,6 +743,7 @@ import {
     Paperclip,
     Receipt,
     Reply,
+    Scaling,
     ScrollText,
     Search,
     SendHorizontal,
@@ -735,6 +753,20 @@ import {
     Users,
     X,
 } from 'lucide-vue-next';
+
+const {
+    panelStyle: messengerPanelStyle,
+    startResize: startMessengerResize,
+    resetPanelSize: resetMessengerPanelSize,
+} = usePersistedPanelSize({
+    storageKey: 'crm_messenger_panel_size_v1',
+    minWidth: 480,
+    minHeight: 320,
+    maxWidthRatio: 0.75,
+    maxHeightRatio: 2 / 3,
+    defaultWidth: (maxW) => Math.min(1152, maxW),
+    defaultHeight: (maxH) => Math.min(720, maxH),
+});
 
 const props = defineProps({
     agentMessageCount: { type: Number, default: 0 },

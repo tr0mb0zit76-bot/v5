@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
-import { Bell } from 'lucide-vue-next';
+import { Bell, Scaling } from 'lucide-vue-next';
+import { usePersistedPanelSize } from '@/composables/usePersistedPanelSize.js';
 import { coerceHttpsUrl, visitInertiaPath } from '@/support/inertiaHttpsVisit.js';
 import { copyTextToClipboard } from '@/support/copyTextToClipboard.js';
 
@@ -25,6 +26,22 @@ const localBadges = ref({ total: 0, orders: 0, tasks: 0 });
 let pollTimer = null;
 let lastPolledTotal = 0;
 let copyToastTimeout = null;
+
+const {
+    panelStyle: notificationPanelStyle,
+    startResize: startNotificationResize,
+    resetPanelSize: resetNotificationPanelSize,
+} = usePersistedPanelSize({
+    storageKey: 'crm_notification_bell_size_v1',
+    minWidth: 280,
+    minHeight: 200,
+    maxWidthRatio: 0.5,
+    maxHeightRatio: 2 / 3,
+    widthDeltaFactor: 1,
+    heightGrowUp: true,
+    defaultWidth: (maxW) => Math.min(416, maxW),
+    defaultHeight: (maxH) => Math.min(480, maxH),
+});
 
 const authUser = computed(() => page.props.auth?.user ?? null);
 
@@ -318,23 +335,34 @@ watch(authUser, (u) => {
         <div
             v-if="open"
             :class="[
-                'absolute z-[70] rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900',
-                props.large
-                    ? 'bottom-full left-0 mb-2 w-[min(26rem,calc(100vw-1.5rem))]'
-                    : 'right-0 mt-2 w-[min(100vw-2rem,22rem)]',
+                'absolute z-[70] flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900',
+                props.large ? 'bottom-full left-0 mb-2' : 'right-0 mt-2',
             ]"
+            :style="notificationPanelStyle"
         >
-            <div class="flex items-center justify-between border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
+            <div class="relative flex shrink-0 items-center justify-between border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
                 <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Уведомления</div>
-                <button
-                    type="button"
-                    class="text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-                    @click="markAllRead"
-                >
-                    Прочитать все
-                </button>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        class="text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+                        @click="markAllRead"
+                    >
+                        Прочитать все
+                    </button>
+                    <button
+                        type="button"
+                        class="flex h-7 w-7 cursor-nesw-resize items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                        title="Потяните для изменения размера (до ½ ширины и ⅔ высоты экрана). Двойной щелчок — сброс."
+                        aria-label="Изменить размер окна"
+                        @mousedown.stop.prevent="startNotificationResize"
+                        @dblclick.stop.prevent="resetNotificationPanelSize"
+                    >
+                        <Scaling class="h-3.5 w-3.5" />
+                    </button>
+                </div>
             </div>
-            <div class="max-h-80 overflow-y-auto">
+            <div class="min-h-0 flex-1 overflow-y-auto">
                 <div v-if="loading" class="px-3 py-6 text-center text-xs text-zinc-500">Загрузка…</div>
                 <div v-else-if="items.length === 0" class="px-3 py-6 text-center text-xs text-zinc-500">Пока пусто</div>
                 <template v-else>

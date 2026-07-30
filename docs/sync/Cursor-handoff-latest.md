@@ -3,7 +3,38 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-30 19:35 · **Ветка:** `master` · **тема:** RFQ + портал заказчика
+**Обновлено:** 2026-07-30 19:55 (ОТДАТЬ) · **Ветка:** `master` · **тема:** ресайз панелей + RFQ/портал/контейнеры
+
+### Итог сессии 2026-07-30 вечер (ОТДАТЬ)
+
+| Блок | Статус |
+| --- | --- |
+| Панели до ⅔ экрана: мессенджер, ИИ-ассистент, колокольчик | ✅ |
+| Ресайз + localStorage: `usePersistedPanelSize.js` | ✅ |
+| Двойной щелчок по иконке масштаба — сброс размера | ✅ |
+| Контейнеры флота (как ТС/водители) | ✅ `9cdbe763` |
+| RFQ + портал заказчика | ✅ `cc082123` |
+| УУ expedition matching | ❌ отложено |
+
+**На прод / второй ПК (ЗАБРАТЬ):**
+
+```text
+git pull
+php artisan migrate --force
+npm run build
+php artisan optimize:clear
+# smoke: потянуть размер мессенджера / ассистента / колокольчика → перезагрузка → размер сохранился
+# RFQ: лид → Финансы → котировка → Выбрать
+# контейнеры: Парк → Контейнеры
+```
+
+**Ключевые файлы:** `resources/js/composables/usePersistedPanelSize.js`, `CrmAgentPanel.vue`, `CrmCommandBar.vue`, `CrmNotificationBell.vue`.
+
+**Следующий шаг:** smoke UI ресайза; Echo/multi-tab — позже.
+
+---
+
+**Обновлено (архив):** 2026-07-30 19:35 · **тема:** RFQ + портал заказчика
 
 ### Итог — RFQ на лиде + портал (после work-area)
 
