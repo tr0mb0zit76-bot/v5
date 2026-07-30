@@ -92,7 +92,7 @@ final class SidebarMenuCatalog
             'fleet-vehicles' => 'Авто',
             'fleet-trips' => 'Рейсы',
             'fleet-efficiency' => 'Эффективность',
-            'fleet-containers' => 'Контейнера',
+            'fleet-containers' => 'Контейнеры',
             'fleet-drivers' => 'Водители',
             'documents' => 'Документы',
             'claims' => 'Претензии',

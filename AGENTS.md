@@ -202,6 +202,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Виртуальный перевозчик «Собственный парк» (`OwnFleetCatalog`, `OwnFleetContractorService`) — **не** own company в заказе (`is_own_company=false`, исключён из `Contractor::ownCompanyProfiles()`).
 - Рейсы (`fleet_trips`): создаются при сохранении заказа только если `performers[].execution_mode === own_fleet` (`FleetTripService::syncPlannedTripsFromOrder`); смена на внешнего перевозчика рейс **не удаляет**.
 - Мастер: верхняя кнопка «Собственный парк» в поиске перевозчика (`Wizard.vue` → `selectOwnFleetPerformer`); дубль из списка контрагентов скрыт с `078b41d`.
+- **Справочники (область `drivers`):** ТС `fleet.vehicles.*`, водители `fleet.drivers.*` / `drivers.index`, контейнеры `fleet.containers.*` — грид + модальный wizard + документы (`FleetEntityDocumentsSection`).
 - Карточка / runbook: `docs/sync/v5-local-Components-Fleet-Own-Fleet.md`.
 - PHPUnit: `.env.testing` → `DB_DATABASE=u_tromb_test` (не рабочая `u_tromb`).
 

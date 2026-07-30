@@ -19,6 +19,7 @@ use App\Http\Controllers\External\ExternalInviteController;
 use App\Http\Controllers\FinanceDocumentController;
 use App\Http\Controllers\FinanceIndexController;
 use App\Http\Controllers\FinanceReconciliationController;
+use App\Http\Controllers\FleetContainerController;
 use App\Http\Controllers\FleetDriverController;
 use App\Http\Controllers\FleetEfficiencyController;
 use App\Http\Controllers\FleetTripController;
@@ -639,9 +640,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/contractors-search', 'search')->name('contractors.search');
         });
 
-    Route::get('/fleet/containers', function () {
-        return Inertia::render('Fleet/Containers');
-    })->middleware('visibility.area:drivers')->name('fleet.containers.index');
+    Route::controller(FleetContainerController::class)->middleware('visibility.area:drivers')->group(function () {
+        Route::get('/fleet/containers', 'index')->name('fleet.containers.index');
+        Route::post('/fleet/containers', 'store')->name('fleet.containers.store');
+        Route::get('/fleet/containers/{fleetContainer}', 'show')->name('fleet.containers.show');
+        Route::patch('/fleet/containers/{fleetContainer}', 'update')->name('fleet.containers.update');
+        Route::post('/fleet/containers/{fleetContainer}/documents', 'storeDocument')->name('fleet.containers.documents.store');
+        Route::delete('/fleet/containers/{fleetContainer}/documents/{fleetContainerDocument}', 'destroyDocument')->name('fleet.containers.documents.destroy');
+        Route::get('/fleet/containers/{fleetContainer}/documents/{fleetContainerDocument}/download', 'downloadDocument')->name('fleet.containers.documents.download');
+        Route::get('/fleet/containers/{fleetContainer}/documents/{fleetContainerDocument}/preview', 'previewDocument')->name('fleet.containers.documents.preview');
+    });
 
     Route::controller(FleetVehicleController::class)->middleware('visibility.area:drivers')->group(function () {
         Route::get('/fleet/vehicles', 'index')->name('fleet.vehicles.index');

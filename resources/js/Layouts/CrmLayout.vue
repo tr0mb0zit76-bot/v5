@@ -1310,7 +1310,7 @@ const menuItems = computed(() => {
             visibilityArea: 'drivers',
             children: [
                 { key: 'fleet-vehicles', label: 'Авто' },
-                { key: 'fleet-containers', label: 'Контейнера' },
+                { key: 'fleet-containers', label: 'Контейнеры' },
                 { key: 'fleet-drivers', label: 'Водители' },
             ],
         },

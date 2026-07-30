@@ -9,7 +9,7 @@ const props = defineProps({
     entityKind: {
         type: String,
         required: true,
-        validator: (value) => ['driver', 'vehicle'].includes(value),
+        validator: (value) => ['driver', 'vehicle', 'container'].includes(value),
     },
     entityId: { type: Number, required: true },
     documents: { type: Array, default: () => [] },
@@ -36,13 +36,20 @@ const uploadForm = useForm({
 
 const pendingFileName = computed(() => uploadForm.file?.name ?? null);
 
-const storeRouteName = computed(() => (
-    props.entityKind === 'driver' ? 'fleet.drivers.documents.store' : 'fleet.vehicles.documents.store'
-));
+const documentsRoutePrefix = computed(() => {
+    if (props.entityKind === 'driver') {
+        return 'fleet.drivers.documents';
+    }
 
-const destroyRouteName = computed(() => (
-    props.entityKind === 'driver' ? 'fleet.drivers.documents.destroy' : 'fleet.vehicles.documents.destroy'
-));
+    if (props.entityKind === 'container') {
+        return 'fleet.containers.documents';
+    }
+
+    return 'fleet.vehicles.documents';
+});
+
+const storeRouteName = computed(() => `${documentsRoutePrefix.value}.store`);
+const destroyRouteName = computed(() => `${documentsRoutePrefix.value}.destroy`);
 
 function formatAddedAt(iso) {
     if (!iso) {
