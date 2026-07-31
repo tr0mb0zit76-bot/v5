@@ -345,7 +345,17 @@ async function upsertLiveEntry({ key, menuKey, componentName, page, refreshOnly 
         return false;
     }
 
-    const mod = await loader();
+    let mod;
+    try {
+        mod = await loader();
+    } catch {
+        return false;
+    }
+
+    if (!mod?.default) {
+        return false;
+    }
+
     let entry = findLiveEntry(key);
 
     const now = Date.now();
@@ -438,6 +448,70 @@ export function softActivateLive(key) {
     // Background poll (startLiveRefreshLoop) keeps rows fresh while tabs stay mounted.
 
     return true;
+}
+
+const LIVE_INDEX_PATH_TO_MENU = {
+    '/leads': 'leads',
+    '/tasks': 'tasks',
+    '/orders': 'orders',
+    '/load-board': 'load-board',
+};
+
+/**
+ * Soft-activate an already-mounted live screen for this URL (no Inertia visit / no progress bar).
+ * @param {string|URL} url
+ * @returns {boolean}
+ */
+export function softActivateForUrl(url) {
+    let normalized = '';
+    try {
+        if (url instanceof URL) {
+            normalized = normalizeUrl(`${url.pathname}${url.search}`);
+        } else if (typeof url === 'string' && url !== '') {
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                const parsed = new URL(url);
+                normalized = normalizeUrl(`${parsed.pathname}${parsed.search}`);
+            } else {
+                normalized = normalizeUrl(url);
+            }
+        }
+    } catch {
+        return false;
+    }
+
+    if (normalized === '') {
+        return false;
+    }
+
+    const pathOnly = normalized.split('?')[0];
+
+    const liveByUrl = state.liveEntries.find((entry) => {
+        const entryUrl = normalizeUrl(entry.url);
+        return entryUrl === normalized || entryUrl.split('?')[0] === pathOnly;
+    });
+    if (liveByUrl && softActivateLive(liveByUrl.key)) {
+        return true;
+    }
+
+    const tab = state.tabs.find((item) => {
+        const tabUrl = normalizeUrl(item.url);
+        return tabUrl === normalized || tabUrl.split('?')[0] === pathOnly;
+    });
+    if (tab && softActivateLive(tab.id)) {
+        return true;
+    }
+
+    const caseId = parseLoadBoardCaseId(normalized, {});
+    if (caseId && softActivateLive(loadBoardCaseTabId(caseId))) {
+        return true;
+    }
+
+    const menuKey = LIVE_INDEX_PATH_TO_MENU[pathOnly];
+    if (menuKey && softActivateLive(menuKey)) {
+        return true;
+    }
+
+    return false;
 }
 
 /**
@@ -730,6 +804,7 @@ export function useCrmWorkArea() {
         activateTab,
         closeTab,
         softActivateLive,
+        softActivateForUrl,
         refreshLiveEntry,
         registerOrUpdateTabFromPage,
     };
@@ -754,12 +829,47 @@ export function ensureCrmWorkAreaInertiaBridge(inertiaRouter) {
 
     bindCrmWorkAreaInertiaPage(() => inertiaRouter.page ?? null);
 
+    // Cancel Inertia GET navigations that we can fulfill from RAM (kills the progress bar).
+    state._unsubscribeBefore = inertiaRouter.on('before', (event) => {
+        const visit = event.detail?.visit;
+        if (!visit) {
+            return;
+        }
+
+        const method = String(visit.method ?? 'get').toLowerCase();
+        if (method !== 'get') {
+            return;
+        }
+
+        // Partial reloads / polls must reach the server.
+        if ((Array.isArray(visit.only) && visit.only.length > 0)
+            || (Array.isArray(visit.except) && visit.except.length > 0)) {
+            return;
+        }
+
+        const rawUrl = visit.url instanceof URL
+            ? `${visit.url.pathname}${visit.url.search}`
+            : visit.url;
+
+        if (softActivateForUrl(rawUrl)) {
+            return false;
+        }
+    });
+
     state._unsubscribeSuccess = inertiaRouter.on('success', (event) => {
         registerOrUpdateTabFromPage(event.detail.page);
     });
 
     if (inertiaRouter.page) {
         registerOrUpdateTabFromPage(inertiaRouter.page);
+    }
+
+    // Warm live page chunks so the first hydrate does not race tab clicks.
+    for (const componentName of Object.values(LIVE_GRID_COMPONENT_BY_MENU)) {
+        const loader = resolvePageLoader(componentName);
+        if (loader) {
+            void loader();
+        }
     }
 
     startLiveRefreshLoop();
@@ -850,6 +960,12 @@ export function selfCheckCrmWorkArea() {
     }
     if (!softActivateLive('leads') || state.liveVisibleKey !== 'leads') {
         errors.push('softActivateLive leads failed');
+    }
+    if (!softActivateForUrl('/tasks') || state.liveVisibleKey !== 'tasks') {
+        errors.push('softActivateForUrl /tasks failed');
+    }
+    if (!softActivateForUrl('/leads') || state.liveVisibleKey !== 'leads') {
+        errors.push('softActivateForUrl /leads failed');
     }
 
     __crmWorkAreaReset();

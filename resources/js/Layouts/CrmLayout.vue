@@ -282,7 +282,7 @@
                 </p>
                 <div v-for="item in menuItems" :key="item.key" class="space-y-1">
                     <div class="flex items-center gap-1">
-                        <Link
+                        <a
                             v-if="menuHrefFor(item.key)"
                             :href="menuHrefFor(item.key)"
                             class="crm-nav-link relative flex min-w-0 flex-1 items-center gap-3 px-3 py-2"
@@ -300,7 +300,7 @@
                                 </span>
                             </span>
                             <span v-if="!collapsed" class="truncate text-sm font-medium">{{ item.label }}</span>
-                        </Link>
+                        </a>
                         <button
                             v-else
                             type="button"
@@ -351,7 +351,7 @@
                     >
                         <div v-for="child in item.children" :key="child.key" class="space-y-1">
                             <div class="flex items-center gap-1">
-                                <Link
+                                <a
                                     v-if="(child.href || menuHrefFor(child.key)) && !child.disabled"
                                     :href="child.href || menuHrefFor(child.key)"
                                     class="crm-nav-link flex min-w-0 flex-1 items-center px-3 py-2 text-left"
@@ -368,7 +368,7 @@
                                         </span>
                                     </span>
                                     <span v-else class="truncate">{{ child.label }}</span>
-                                </Link>
+                                </a>
                                 <button
                                     v-else
                                     class="crm-nav-link flex min-w-0 flex-1 items-center px-3 py-2 text-left"
@@ -421,7 +421,7 @@
                                     :key="grandChild.key"
                                     class="flex items-center gap-1"
                                 >
-                                    <Link
+                                    <a
                                         v-if="menuHrefFor(grandChild.key)"
                                         :href="menuHrefFor(grandChild.key)"
                                         class="crm-nav-link flex min-w-0 flex-1 items-center px-3 py-2 text-left"
@@ -429,7 +429,7 @@
                                         @click="onMenuLinkClick(grandChild.key, $event)"
                                     >
                                         {{ grandChild.label }}
-                                    </Link>
+                                    </a>
                                     <button
                                         v-else
                                         class="crm-nav-link flex min-w-0 flex-1 items-center px-3 py-2 text-left"
@@ -674,6 +674,7 @@ import {
     ensureCrmWorkAreaInertiaBridge,
     isWorkAreaMenuKey,
     openOrActivate,
+    softActivateForUrl,
 } from '@/support/crmWorkArea.js';
 import ThemeToggle from '@/Components/Layout/ThemeToggle.vue';
 import CrmAppearanceModal from '@/Components/Crm/CrmAppearanceModal.vue';
@@ -1589,7 +1590,12 @@ onMounted(() => {
     allowMobileBrowserCabinet.value = readMobileBrowserBypassFromStorage();
     updateMobileEnvironment();
     document.documentElement.classList.add('crm-layout-scroll-lock');
-    bindCrmWorkAreaVisit(visitInertiaPath);
+    bindCrmWorkAreaVisit((href) => {
+        if (softActivateForUrl(href)) {
+            return;
+        }
+        visitInertiaPath(href);
+    });
     ensureCrmWorkAreaInertiaBridge(router);
 
     window.addEventListener('resize', updateMobileEnvironment);
