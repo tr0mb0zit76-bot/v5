@@ -3,7 +3,43 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-30 19:59 (ОТДАТЬ) · **Ветка:** `master` · **тема:** страница 403 + ресайз панелей
+**Обновлено:** 2026-07-31 14:44 (ОТДАТЬ) · **HEAD:** `640290a3` · **Ветка:** `master` · **тема:** work-area soft-switch + роли visibility
+
+### Итог сессии 2026-07-31 (ОТДАТЬ)
+
+| Блок | Статус |
+| --- | --- |
+| Кейсы биржи как отдельные вкладки work-area | ✅ `18349426` |
+| Роли: тонкие области (`claims`, finance/modules children) | ✅ `3d3c89ab` |
+| Роли: parent `modules`/`settings` не открывает всех детей | ✅ `5cfe6770` |
+| Soft-switch: без remount / без refresh на клик; visibility-стек | ✅ `5a094a7a` |
+| Soft-switch: меню `<a>` + Inertia `before` cancel (нет NProgress) | ✅ `640290a3` |
+
+**Live в RAM:** лиды / задачи / заказы / борд (+ кейсы борда), max **3**; poll ~45 с; soft-switch без сети.
+
+**Корневая причина полоски загрузки:** Inertia `<Link>` перезаписывал `@click` → всегда `router.visit`. Исправлено.
+
+**На прод / второй ПК (ЗАБРАТЬ):**
+
+```text
+git pull
+npm run build
+php artisan optimize:clear
+# smoke soft-switch: Лиды → Задачи (полоска ок) → снова Лиды — БЕЗ полоски NProgress
+# smoke меню: клик по уже открытому live-модулю — мгновенно
+# smoke роли: роль только с modules_import_cost — остальные модули скрыты
+# node scripts/self-check-crm-work-area.mjs
+```
+
+Миграций нет.
+
+**Ключевые файлы:** `resources/js/support/crmWorkArea.js`, `CrmWorkAreaPageHost.vue`, `CrmLayout.vue`, `app/Support/RoleAccess.php`, `resources/js/support/crmVisibility.js`.
+
+**Следующий шаг:** smoke soft-switch на локали/проде; Echo вместо poll — позже; УУ expedition matching — отложено.
+
+---
+
+**Обновлено (архив):** 2026-07-30 19:59 (ОТДАТЬ) · **тема:** страница 403 + ресайз панелей
 
 ### Итог сессии 2026-07-30 вечер (ОТДАТЬ)
 
