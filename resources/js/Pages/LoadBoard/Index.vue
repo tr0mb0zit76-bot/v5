@@ -342,6 +342,7 @@
                             style="height: 100%; width: 100%;"
                             @grid-ready="onGridReady"
                             @row-clicked="onGridRowClicked"
+                            @row-double-clicked="onGridRowDoubleClicked"
                             @filter-changed="onFilterChanged"
                             @column-visible="saveColumnState"
                             @column-resized="saveColumnState"
@@ -422,6 +423,7 @@ import {
     crmLabelCompact,
     crmPanel,
 } from '@/support/crmUi.js';
+import { openLoadBoardCase } from '@/support/crmWorkArea.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -835,6 +837,13 @@ function onGridRowClicked(event) {
     }
 }
 
+function onGridRowDoubleClicked(event) {
+    if (event.data?.id) {
+        selectedPostId.value = event.data.id;
+        openLoadBoardCase(event.data, route('load-board.cases.show', event.data.id));
+    }
+}
+
 function onGridViewApplied() {
     gridViewsRevision.value++;
 
@@ -863,6 +872,13 @@ function buildRowContextMenuItems(post) {
             label: 'Открыть детали',
             run: () => {
                 selectedPostId.value = post.id;
+            },
+        },
+        {
+            label: 'Открыть во вкладке',
+            run: () => {
+                selectedPostId.value = post.id;
+                openLoadBoardCase(post, route('load-board.cases.show', post.id));
             },
         },
         {

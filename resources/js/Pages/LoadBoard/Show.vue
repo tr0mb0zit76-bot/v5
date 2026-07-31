@@ -32,7 +32,12 @@ import { computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import LoadBoardPostCard from '@/Components/LoadBoard/LoadBoardPostCard.vue';
+import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnNeutral } from '@/support/crmUi.js';
+
+defineOptions({
+    layout: (h, page) => h(CrmLayout, { activeKey: 'load-board' }, () => page),
+});
 
 const props = defineProps({
     post: { type: Object, required: true },

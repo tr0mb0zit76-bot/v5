@@ -2,8 +2,9 @@ import { computed, markRaw, reactive } from 'vue';
 import axios from 'axios';
 
 /**
- * CUBA-like work area: tabs + up to 3 live grid instances (leads/tasks/orders).
- * Soft-switch between live grids without Inertia wait; background poll keeps rows fresh.
+ * CUBA-like work area: module tabs + entity tabs (load-board cases) + up to 3 live pages.
+ * Soft-switch between live entries without Inertia wait; background poll keeps props fresh.
+ * Live keys = tab.id (module menuKey or load-board-case:{id}).
  * ponytail: max live = 3 (product ceiling); upgrade = Echo events instead of poll.
  */
 export const WORK_AREA_MAX_TABS = 10;
@@ -94,7 +95,7 @@ const COMPONENT_TO_MENU_KEY = {
     'Claims/Index': 'claims',
     'Mail/Index': 'mail',
     'LoadBoard/Index': 'load-board',
-    'LoadBoard/Show': 'load-board',
+    // LoadBoard/Show → entity tab (see registerLoadBoardCaseTab), not module overwrite
     'Pipeline/Index': 'pipeline',
     'CompanyPlanning/Index': 'company-planning',
     'CompanyPlanning/Show': 'company-planning',
@@ -142,10 +143,12 @@ const MENU_KEY_TITLES = {
     'reports-overview': 'Отчёты',
 };
 
+const LOAD_BOARD_CASE_LIVE_REFRESH = ['post', 'advisor', 'carrierPool'];
+
 const state = reactive({
     tabs: [],
     activeId: null,
-    /** @type {Array<{ menuKey: string, componentName: string, component: object, props: object, url: string, lastTouchedAt: number }>} */
+    /** @type {Array<{ key: string, menuKey: string, componentName: string, component: object, props: object, url: string, lastTouchedAt: number, refreshOnly?: string[] | null }>} */
     liveEntries: [],
     /** @type {string | null} */
     liveVisibleKey: null,
@@ -215,16 +218,43 @@ export function titleForMenuKey(menuKey) {
     return MENU_KEY_TITLES[menuKey] ?? menuKey;
 }
 
-function findTabByMenuKey(menuKey) {
-    return state.tabs.find((tab) => tab.menuKey === menuKey) ?? null;
+/** Module tab only (not load-board-case entity tabs that share menuKey). */
+function findModuleTab(menuKey) {
+    return state.tabs.find((tab) => tab.id === menuKey && !tab.entityType)
+        ?? state.tabs.find((tab) => tab.menuKey === menuKey && !tab.entityType)
+        ?? null;
 }
 
 function findTabById(id) {
     return state.tabs.find((tab) => tab.id === id) ?? null;
 }
 
-function findLiveEntry(menuKey) {
-    return state.liveEntries.find((entry) => entry.menuKey === menuKey) ?? null;
+function findLiveEntry(key) {
+    return state.liveEntries.find((entry) => entry.key === key) ?? null;
+}
+
+export function loadBoardCaseTabId(postId) {
+    return `load-board-case:${Number(postId)}`;
+}
+
+function shortenTitle(text, max = 28) {
+    const value = String(text ?? '').trim();
+    if (value === '') {
+        return '';
+    }
+
+    return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+function parseLoadBoardCaseId(url, props = {}) {
+    const fromProps = Number(props?.post?.id);
+    if (Number.isFinite(fromProps) && fromProps > 0) {
+        return fromProps;
+    }
+
+    const match = normalizeUrl(url).match(/\/load-board\/cases\/(\d+)/);
+
+    return match ? Number(match[1]) : null;
 }
 
 function evictOldestTabsIfNeeded() {
@@ -233,7 +263,7 @@ function evictOldestTabsIfNeeded() {
         if (!victim) {
             break;
         }
-        removeLiveEntry(victim.menuKey);
+        removeLiveEntry(victim.id);
         const index = state.tabs.findIndex((tab) => tab.id === victim.id);
         if (index >= 0) {
             state.tabs.splice(index, 1);
@@ -241,32 +271,32 @@ function evictOldestTabsIfNeeded() {
     }
 }
 
-function removeLiveEntry(menuKey) {
-    const index = state.liveEntries.findIndex((entry) => entry.menuKey === menuKey);
+function removeLiveEntry(key) {
+    const index = state.liveEntries.findIndex((entry) => entry.key === key);
     if (index >= 0) {
         state.liveEntries.splice(index, 1);
     }
-    if (state.liveVisibleKey === menuKey) {
+    if (state.liveVisibleKey === key) {
         state.liveVisibleKey = null;
     }
 }
 
-function evictOldestLiveIfNeeded(keepMenuKey) {
+function evictOldestLiveIfNeeded(keepKey) {
     while (state.liveEntries.length >= WORK_AREA_MAX_LIVE) {
         const victim = [...state.liveEntries]
-            .filter((entry) => entry.menuKey !== keepMenuKey && entry.menuKey !== state.liveVisibleKey)
+            .filter((entry) => entry.key !== keepKey && entry.key !== state.liveVisibleKey)
             .sort((a, b) => a.lastTouchedAt - b.lastTouchedAt)[0]
-            ?? state.liveEntries.find((entry) => entry.menuKey !== keepMenuKey);
+            ?? state.liveEntries.find((entry) => entry.key !== keepKey);
 
         if (!victim) {
             break;
         }
-        removeLiveEntry(victim.menuKey);
+        removeLiveEntry(victim.key);
     }
 }
 
-function touchLive(menuKey) {
-    const entry = findLiveEntry(menuKey);
+function touchLive(key) {
+    const entry = findLiveEntry(key);
     if (entry) {
         entry.lastTouchedAt = Date.now();
     }
@@ -282,6 +312,52 @@ function pushHistoryUrl(url) {
     if (target !== current) {
         window.history.pushState({}, '', target);
     }
+}
+
+/**
+ * @returns {Promise<boolean>}
+ */
+async function upsertLiveEntry({ key, menuKey, componentName, page, refreshOnly = null }) {
+    const url = normalizeUrl(page.url);
+    const loader = pageLoaders[`../Pages/${componentName}.vue`];
+    if (!loader) {
+        state.liveVisibleKey = null;
+
+        return false;
+    }
+
+    const mod = await loader();
+    let entry = findLiveEntry(key);
+
+    if (!entry) {
+        evictOldestLiveIfNeeded(key);
+        entry = reactive({
+            key,
+            menuKey,
+            componentName,
+            component: markRaw(mod.default),
+            props: reactive({ ...(page.props ?? {}) }),
+            url,
+            lastTouchedAt: Date.now(),
+            refreshOnly,
+        });
+        state.liveEntries.push(entry);
+    } else {
+        Object.assign(entry.props, page.props ?? {});
+        entry.url = url;
+        entry.menuKey = menuKey;
+        entry.componentName = componentName;
+        entry.component = markRaw(mod.default);
+        entry.lastTouchedAt = Date.now();
+        if (refreshOnly) {
+            entry.refreshOnly = refreshOnly;
+        }
+    }
+
+    state.liveVisibleKey = key;
+    touchLive(key);
+
+    return true;
 }
 
 /**
@@ -303,65 +379,87 @@ async function hydrateLiveFromPage(page) {
         return false;
     }
 
-    const loader = pageLoaders[`../Pages/${componentName}.vue`];
-    if (!loader) {
-        state.liveVisibleKey = null;
+    return upsertLiveEntry({
+        key: menuKey,
+        menuKey,
+        componentName,
+        page,
+        refreshOnly: LIVE_REFRESH_ONLY[menuKey] ?? null,
+    });
+}
+
+export function softActivateLive(key) {
+    const entry = findLiveEntry(key);
+    if (!entry) {
         return false;
     }
 
-    const mod = await loader();
-    let entry = findLiveEntry(menuKey);
+    state.liveVisibleKey = key;
+    touchLive(key);
 
-    if (!entry) {
-        evictOldestLiveIfNeeded(menuKey);
-        entry = reactive({
-            menuKey,
-            componentName,
-            component: markRaw(mod.default),
-            props: reactive({ ...(page.props ?? {}) }),
-            url,
-            lastTouchedAt: Date.now(),
-        });
-        state.liveEntries.push(entry);
+    const tab = findTabById(key) ?? findModuleTab(key);
+    if (tab) {
+        tab.url = entry.url;
+        state.activeId = tab.id;
     } else {
-        Object.assign(entry.props, page.props ?? {});
-        entry.url = url;
-        entry.componentName = componentName;
-        entry.component = markRaw(mod.default);
-        entry.lastTouchedAt = Date.now();
+        state.activeId = key;
     }
 
-    state.liveVisibleKey = menuKey;
-    touchLive(menuKey);
+    pushHistoryUrl(entry.url);
+    scheduleLiveRefresh(key);
 
     return true;
 }
 
-export function softActivateLive(menuKey) {
-    const entry = findLiveEntry(menuKey);
-    if (!entry) {
-        return false;
+function registerLoadBoardCaseTab(page) {
+    const url = normalizeUrl(page.url);
+    const postId = parseLoadBoardCaseId(url, page.props ?? {});
+    if (!postId) {
+        state.liveVisibleKey = null;
+
+        return null;
     }
 
-    state.liveVisibleKey = menuKey;
-    state.activeId = menuKey;
-    touchLive(menuKey);
+    const tabId = loadBoardCaseTabId(postId);
+    const title = shortenTitle(page.props?.post?.title) || `Груз #${postId}`;
+    let tab = findTabById(tabId);
 
-    const tab = findTabByMenuKey(menuKey);
     if (tab) {
-        tab.url = entry.url;
-        state.activeId = tab.id;
+        tab.url = url;
+        tab.title = title;
+        tab.component = page.component;
+    } else {
+        state.tabs.push({
+            id: tabId,
+            menuKey: 'load-board',
+            entityType: 'load-board-case',
+            entityId: postId,
+            title,
+            url,
+            component: page.component,
+        });
+        evictOldestTabsIfNeeded();
     }
 
-    pushHistoryUrl(entry.url);
-    scheduleLiveRefresh(menuKey);
+    state.activeId = tabId;
+    void upsertLiveEntry({
+        key: tabId,
+        menuKey: 'load-board',
+        componentName: page.component,
+        page,
+        refreshOnly: LOAD_BOARD_CASE_LIVE_REFRESH,
+    });
 
-    return true;
+    return findTabById(tabId);
 }
 
 export function registerOrUpdateTabFromPage(page) {
     if (!page || page.props?.standalone === true) {
         return null;
+    }
+
+    if (page.component === 'LoadBoard/Show') {
+        return registerLoadBoardCaseTab(page);
     }
 
     const component = page.component;
@@ -373,7 +471,7 @@ export function registerOrUpdateTabFromPage(page) {
     }
 
     const title = titleForMenuKey(menuKey);
-    const existing = findTabByMenuKey(menuKey);
+    const existing = findModuleTab(menuKey);
 
     if (existing) {
         // Keep live grid index URL when navigating to wizard within module.
@@ -397,7 +495,37 @@ export function registerOrUpdateTabFromPage(page) {
 
     void hydrateLiveFromPage(page);
 
-    return findTabByMenuKey(menuKey);
+    return findModuleTab(menuKey);
+}
+
+/**
+ * Open / soft-activate a load-board case as its own work-area tab.
+ * @param {number|{id?: number}} postOrId
+ * @param {string} [href]
+ */
+export function openLoadBoardCase(postOrId, href) {
+    const postId = Number(typeof postOrId === 'object' ? postOrId?.id : postOrId);
+    if (!Number.isFinite(postId) || postId <= 0) {
+        return;
+    }
+
+    const tabId = loadBoardCaseTabId(postId);
+    const target = href || `/load-board/cases/${postId}`;
+
+    if (softActivateLive(tabId)) {
+        return;
+    }
+
+    const existing = findTabById(tabId);
+    if (existing) {
+        state.activeId = existing.id;
+        state.liveVisibleKey = null;
+        visitPath(existing.url || target);
+
+        return;
+    }
+
+    visitPath(target);
 }
 
 export function openOrActivate(menuKey, href) {
@@ -410,7 +538,7 @@ export function openOrActivate(menuKey, href) {
         return;
     }
 
-    const existing = findTabByMenuKey(menuKey);
+    const existing = findModuleTab(menuKey);
     if (existing) {
         state.activeId = existing.id;
         const target = existing.url || href;
@@ -433,7 +561,7 @@ export function activateTab(id) {
         return;
     }
 
-    if (isLiveGridMenuKey(tab.menuKey) && softActivateLive(tab.menuKey)) {
+    if (softActivateLive(tab.id)) {
         return;
     }
 
@@ -457,7 +585,7 @@ export function closeTab(id, options = {}) {
     const closing = state.tabs[index];
     const wasActive = state.activeId === id;
     state.tabs.splice(index, 1);
-    removeLiveEntry(closing.menuKey);
+    removeLiveEntry(closing.id);
 
     if (!wasActive) {
         return;
@@ -475,7 +603,7 @@ export function closeTab(id, options = {}) {
         return;
     }
 
-    if (isLiveGridMenuKey(neighbor.menuKey) && softActivateLive(neighbor.menuKey)) {
+    if (softActivateLive(neighbor.id)) {
         return;
     }
 
@@ -483,18 +611,18 @@ export function closeTab(id, options = {}) {
     visitPath(neighbor.url);
 }
 
-export async function refreshLiveEntry(menuKey) {
-    const entry = findLiveEntry(menuKey);
-    if (!entry || state._refreshing.has(menuKey)) {
+export async function refreshLiveEntry(key) {
+    const entry = findLiveEntry(key);
+    if (!entry || state._refreshing.has(key)) {
         return;
     }
 
-    const only = LIVE_REFRESH_ONLY[menuKey];
+    const only = entry.refreshOnly ?? LIVE_REFRESH_ONLY[entry.menuKey];
     if (!only?.length) {
         return;
     }
 
-    state._refreshing.add(menuKey);
+    state._refreshing.add(key);
 
     try {
         const inertiaPage = getInertiaPage?.() ?? null;
@@ -510,9 +638,9 @@ export async function refreshLiveEntry(menuKey) {
         });
 
         if (data?.props && typeof data.props === 'object') {
-            for (const key of only) {
-                if (Object.prototype.hasOwnProperty.call(data.props, key)) {
-                    entry.props[key] = data.props[key];
+            for (const propKey of only) {
+                if (Object.prototype.hasOwnProperty.call(data.props, propKey)) {
+                    entry.props[propKey] = data.props[propKey];
                 }
             }
             entry.lastTouchedAt = Date.now();
@@ -520,12 +648,12 @@ export async function refreshLiveEntry(menuKey) {
     } catch {
         /* poll is best-effort */
     } finally {
-        state._refreshing.delete(menuKey);
+        state._refreshing.delete(key);
     }
 }
 
-function scheduleLiveRefresh(menuKey) {
-    void refreshLiveEntry(menuKey);
+function scheduleLiveRefresh(key) {
+    void refreshLiveEntry(key);
 }
 
 export function startLiveRefreshLoop() {
@@ -539,7 +667,7 @@ export function startLiveRefreshLoop() {
         }
 
         for (const entry of state.liveEntries) {
-            void refreshLiveEntry(entry.menuKey);
+            void refreshLiveEntry(entry.key);
         }
     }, WORK_AREA_LIVE_REFRESH_MS);
 }
@@ -553,6 +681,7 @@ export function useCrmWorkArea() {
         maxTabs: WORK_AREA_MAX_TABS,
         maxLive: WORK_AREA_MAX_LIVE,
         openOrActivate,
+        openLoadBoardCase,
         activateTab,
         closeTab,
         softActivateLive,
@@ -621,13 +750,9 @@ export function selfCheckCrmWorkArea() {
         url: '/leads/9',
         props: {},
     });
-    const leads = findTabByMenuKey('leads');
+    const leads = findModuleTab('leads');
     if (!leads || state.tabs.length !== 2) {
         errors.push('update leads in place failed');
-    }
-    // Wizard must not wipe live index URL permanently — live entry keeps /leads
-    if (leads && findLiveEntry('leads') && leads.url === '/leads/9' && findLiveEntry('leads').url === '/leads') {
-        // tab url may track wizard; live url stays on index — OK either way for soft restore
     }
 
     registerOrUpdateTabFromPage({
@@ -635,7 +760,7 @@ export function selfCheckCrmWorkArea() {
         url: '/tasks/1?standalone=1',
         props: { standalone: true },
     });
-    if (state.tabs.length !== 2 || findTabByMenuKey('tasks')?.url === '/tasks/1?standalone=1') {
+    if (state.tabs.length !== 2 || findModuleTab('tasks')?.url === '/tasks/1?standalone=1') {
         errors.push('standalone must not register/update tabs');
     }
 
@@ -646,6 +771,54 @@ export function selfCheckCrmWorkArea() {
 
     if (WORK_AREA_MAX_LIVE !== 3) {
         errors.push('max live must be 3');
+    }
+
+    __crmWorkAreaReset();
+
+    registerOrUpdateTabFromPage({
+        component: 'LoadBoard/Index',
+        url: '/load-board',
+        props: {},
+    });
+    registerOrUpdateTabFromPage({
+        component: 'LoadBoard/Show',
+        url: '/load-board/cases/42',
+        props: { post: { id: 42, title: 'Москва → Казань длинный заголовок для усечения' } },
+    });
+    registerOrUpdateTabFromPage({
+        component: 'LoadBoard/Show',
+        url: '/load-board/cases/7',
+        props: { post: { id: 7, title: 'Второй кейс' } },
+    });
+
+    const board = findModuleTab('load-board');
+    const case42 = findTabById(loadBoardCaseTabId(42));
+    const case7 = findTabById(loadBoardCaseTabId(7));
+    if (!board || board.url !== '/load-board') {
+        errors.push('load-board index tab must stay when opening cases');
+    }
+    if (!case42 || !case7 || state.tabs.length !== 3) {
+        errors.push('load-board cases must be separate entity tabs');
+    }
+    if (state.activeId !== loadBoardCaseTabId(7)) {
+        errors.push('last opened case must be active');
+    }
+    if (case42 && case42.title.length > 28) {
+        errors.push('case tab title must be shortened');
+    }
+
+    registerOrUpdateTabFromPage({
+        component: 'LoadBoard/Index',
+        url: '/load-board',
+        props: {},
+    });
+    if (state.tabs.length !== 3 || !findTabById(loadBoardCaseTabId(42))) {
+        errors.push('returning to index must not drop case tabs');
+    }
+
+    closeTab(loadBoardCaseTabId(42), { navigate: false });
+    if (findTabById(loadBoardCaseTabId(42)) || state.tabs.length !== 2) {
+        errors.push('closing case tab must leave index + other case');
     }
 
     __crmWorkAreaReset();

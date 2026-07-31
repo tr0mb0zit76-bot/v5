@@ -14,13 +14,14 @@
                     </div>
                     <h2 class="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">{{ post.title }}</h2>
                     <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ routeSummary(post) }}</p>
-                    <Link
+                    <button
                         v-if="!fullPage"
-                        :href="route('load-board.cases.show', post.id)"
+                        type="button"
                         class="mt-2 inline-flex text-sm font-medium text-indigo-700 hover:underline dark:text-indigo-300"
+                        @click="openCaseInWorkArea"
                     >
                         Открыть страницу кейса
-                    </Link>
+                    </button>
                 </div>
                 <div class="text-right text-xs text-zinc-500 dark:text-zinc-400">
                     <div>Продавец: {{ post.seller?.name ?? '—' }}</div>
@@ -530,6 +531,7 @@ import {
     crmPanel,
 } from '@/support/crmUi.js';
 import { dictionarySelectionLabel } from '@/support/wizardDictionaryHelpers.js';
+import { openLoadBoardCase } from '@/support/crmWorkArea.js';
 
 const props = defineProps({
     post: { type: Object, required: true },
@@ -569,6 +571,10 @@ const candidateCarrierLabel = ref('');
 const rateInsights = ref(null);
 const advisorPayload = ref(null);
 const advisorLoading = ref(false);
+
+function openCaseInWorkArea() {
+    openLoadBoardCase(props.post, route('load-board.cases.show', props.post.id));
+}
 
 const advisorState = computed(() => props.advisor ?? advisorPayload.value);
 const carrierPoolState = computed(() => {
