@@ -597,6 +597,7 @@ import {
     resolveLeadBusinessProcessSlug,
 } from '@/support/leadWizardTabs.js';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
+import { hasModulesSubmoduleAccess } from '@/support/crmVisibility.js';
 import {
     crmBtnCreate,
     crmBtnDangerMuted,
@@ -816,7 +817,7 @@ const canUseHowMuchFits = computed(() => {
     const role = page.props.auth?.user?.role ?? {};
     const areas = role.visibility_areas ?? [];
 
-    return Boolean(role.is_admin) || role.name === 'admin' || areas.includes('modules_how_much_fits') || areas.includes('modules');
+    return Boolean(role.is_admin) || role.name === 'admin' || hasModulesSubmoduleAccess(areas, 'modules_how_much_fits');
 });
 
 watch(

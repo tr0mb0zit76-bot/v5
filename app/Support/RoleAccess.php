@@ -682,11 +682,15 @@ class RoleAccess
         }
 
         $moduleKeys = static::modulesComponentKeys();
-        if (in_array($required, $moduleKeys, true) && in_array('modules', $areas, true)) {
-            return true;
+        if (in_array($required, $moduleKeys, true)) {
+            return static::hasModulesSubmoduleAccess($areas, $required);
         }
 
         if ($required === 'modules') {
+            if (in_array('modules', $areas, true)) {
+                return true;
+            }
+
             foreach ($moduleKeys as $key) {
                 if (in_array($key, $areas, true)) {
                     return true;
@@ -721,14 +725,62 @@ class RoleAccess
         }
 
         if ($required === 'settings_system' || $required === 'settings_motivation') {
-            if (in_array('settings', $areas, true)) {
-                return true;
-            }
-
-            return in_array($required, $areas, true);
+            return static::hasSettingsSubmoduleAccess($areas, $required);
         }
 
         return in_array($required, $areas, true);
+    }
+
+    /**
+     * Доступ к подразделу настроек: явная область или легаси «только settings» без уточнения.
+     *
+     * @param  list<string>  $areas
+     */
+    public static function hasSettingsSubmoduleAccess(array $areas, string $submoduleKey): bool
+    {
+        if (! in_array($submoduleKey, ['settings_system', 'settings_motivation'], true)) {
+            return false;
+        }
+
+        if (in_array($submoduleKey, $areas, true)) {
+            return true;
+        }
+
+        if (! in_array('settings', $areas, true)) {
+            return false;
+        }
+
+        // Parent «settings» alone = full; with any child listed = selective.
+        return ! in_array('settings_system', $areas, true)
+            && ! in_array('settings_motivation', $areas, true);
+    }
+
+    /**
+     * Доступ к подмодулю «Модули»: явная область или легаси «только modules» без уточнения компонентов.
+     *
+     * @param  list<string>  $areas
+     */
+    public static function hasModulesSubmoduleAccess(array $areas, string $submoduleKey): bool
+    {
+        if (! in_array($submoduleKey, static::modulesComponentKeys(), true)) {
+            return false;
+        }
+
+        if (in_array($submoduleKey, $areas, true)) {
+            return true;
+        }
+
+        if (! in_array('modules', $areas, true)) {
+            return false;
+        }
+
+        foreach (static::modulesComponentKeys() as $key) {
+            if (in_array($key, $areas, true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

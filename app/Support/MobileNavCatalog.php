@@ -93,7 +93,7 @@ final class MobileNavCatalog
             }
 
             if ($key === 'trainer') {
-                if (isset($areaSet['sales_assistant_trainer']) || isset($areaSet['scripts'])) {
+                if (RoleAccess::hasSalesAssistantSubmoduleAccess($visibleAreas, 'sales_assistant_trainer')) {
                     $out[] = $key;
                 }
 

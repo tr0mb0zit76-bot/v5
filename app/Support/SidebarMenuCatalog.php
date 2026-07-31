@@ -219,10 +219,10 @@ final class SidebarMenuCatalog
             'sales-assistant-book' => RoleAccess::hasSalesAssistantSubmoduleAccess($areas, 'sales_assistant_book'),
             'sales-assistant-counter' => RoleAccess::hasSalesAssistantSubmoduleAccess($areas, 'sales_assistant_counter'),
             'modules' => self::hasAnyModulesRoute($areas),
-            'modules-how-much-fits' => isset($areaSet['modules']) || isset($areaSet['modules_how_much_fits']),
-            'modules-how-much-costs' => isset($areaSet['modules']) || isset($areaSet['modules_how_much_costs']),
-            'modules-import-cost' => isset($areaSet['modules']) || isset($areaSet['modules_import_cost']),
-            'modules-proposal-templates' => isset($areaSet['modules']) || isset($areaSet['modules_proposal_templates']),
+            'modules-how-much-fits' => RoleAccess::hasModulesSubmoduleAccess($areas, 'modules_how_much_fits'),
+            'modules-how-much-costs' => RoleAccess::hasModulesSubmoduleAccess($areas, 'modules_how_much_costs'),
+            'modules-import-cost' => RoleAccess::hasModulesSubmoduleAccess($areas, 'modules_import_cost'),
+            'modules-proposal-templates' => RoleAccess::hasModulesSubmoduleAccess($areas, 'modules_proposal_templates'),
             'settings' => self::hasSettingsSystemAccess($areas) || self::hasSettingsMotivationAccess($areas),
             'users', 'business-processes', 'table-presets', 'dictionaries', 'templates', 'mcp-integrations', 'system', 'order-numbering', 'ai-analytics' => self::hasSettingsSystemAccess($areas),
             'roles' => false,
@@ -234,19 +234,9 @@ final class SidebarMenuCatalog
     /**
      * @param  list<string>  $areas
      */
-    private static function hasLegacyAllSettingsAccess(array $areas): bool
-    {
-        return in_array('settings', $areas, true)
-            && ! in_array('settings_system', $areas, true)
-            && ! in_array('settings_motivation', $areas, true);
-    }
-
-    /**
-     * @param  list<string>  $areas
-     */
     private static function hasSettingsSystemAccess(array $areas): bool
     {
-        return self::hasLegacyAllSettingsAccess($areas) || in_array('settings_system', $areas, true);
+        return RoleAccess::hasSettingsSubmoduleAccess($areas, 'settings_system');
     }
 
     /**
@@ -254,7 +244,7 @@ final class SidebarMenuCatalog
      */
     private static function hasSettingsMotivationAccess(array $areas): bool
     {
-        return self::hasLegacyAllSettingsAccess($areas) || in_array('settings_motivation', $areas, true);
+        return RoleAccess::hasSettingsSubmoduleAccess($areas, 'settings_motivation');
     }
 
     /**

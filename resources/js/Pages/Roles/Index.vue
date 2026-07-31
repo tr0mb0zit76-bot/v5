@@ -440,6 +440,7 @@ import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmPageTitleSm, crmPanel } from '@/support/crmUi.js';
+import { hasSalesAssistantSubmoduleAccess } from '@/support/crmVisibility.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'roles' }, () => page),
@@ -804,13 +805,13 @@ function candidateMobileNavKeysForRole(role) {
             }
 
             if (key === 'trainer') {
-                return areas.includes('sales_assistant_trainer') || areas.includes('scripts');
+                return hasSalesAssistantSubmoduleAccess(areas, 'sales_assistant_trainer');
             }
 
             if (key === 'finance') {
-                return areas.includes('finance')
+                return areas.includes('payment_schedules')
                     || areas.includes('finance_salary')
-                    || areas.includes('budgeting');
+                    || areas.includes('finance_payment_reconcile');
             }
 
             return areas.includes(key);

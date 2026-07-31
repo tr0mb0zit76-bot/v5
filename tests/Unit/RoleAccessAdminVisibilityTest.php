@@ -24,12 +24,20 @@ class RoleAccessAdminVisibilityTest extends TestCase
         }
     }
 
-    public function test_legacy_settings_grants_settings_system_access(): void
+    public function test_legacy_settings_alone_grants_all_settings_submodules(): void
     {
-        $areas = ['dashboard', 'settings', 'settings_motivation'];
+        $areas = ['dashboard', 'settings'];
 
         $this->assertTrue(RoleAccess::hasVisibilityArea($areas, 'settings_system'));
         $this->assertTrue(RoleAccess::hasVisibilityArea($areas, 'settings_motivation'));
+    }
+
+    public function test_selective_settings_does_not_grant_unchecked_submodule(): void
+    {
+        $areas = ['dashboard', 'settings', 'settings_motivation'];
+
+        $this->assertTrue(RoleAccess::hasVisibilityArea($areas, 'settings_motivation'));
+        $this->assertFalse(RoleAccess::hasVisibilityArea($areas, 'settings_system'));
     }
 
     public function test_explicit_settings_system_grants_access(): void

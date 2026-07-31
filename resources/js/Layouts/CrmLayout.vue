@@ -629,7 +629,7 @@
 
 <script setup>
 import { computed, onBeforeMount, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue';
-import { hasSalesAssistantSubmoduleAccess } from '@/support/crmVisibility.js';
+import { hasModulesSubmoduleAccess, hasOwnFleetSubmoduleAccess, hasSalesAssistantSubmoduleAccess, hasSettingsSubmoduleAccess } from '@/support/crmVisibility.js';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
@@ -875,17 +875,11 @@ function menuBadgeFor(key) {
 }
 const visibleAreas = computed(() => authUser.value?.role?.visibility_areas ?? []);
 const isAdminUser = computed(() => Boolean(authUser.value?.role?.is_admin) || authUser.value?.role?.name === 'admin');
-const hasLegacyAllSettingsAccess = computed(() => {
-    const areas = visibleAreas.value;
-    return areas.includes('settings') && !areas.includes('settings_system') && !areas.includes('settings_motivation');
-});
 const hasSettingsSystemAccess = computed(() => {
-    const areas = visibleAreas.value;
-    return isAdminUser.value || hasLegacyAllSettingsAccess.value || areas.includes('settings_system');
+    return isAdminUser.value || hasSettingsSubmoduleAccess(visibleAreas.value, 'settings_system');
 });
 const hasSettingsMotivationAccess = computed(() => {
-    const areas = visibleAreas.value;
-    return isAdminUser.value || hasLegacyAllSettingsAccess.value || areas.includes('settings_motivation');
+    return isAdminUser.value || hasSettingsSubmoduleAccess(visibleAreas.value, 'settings_motivation');
 });
 const hasFinanceSalaryAccess = computed(() => isAdminUser.value || visibleAreas.value.includes('finance_salary'));
 const hasManagementAccess = computed(() => isAdminUser.value || Boolean(authUser.value?.belongs_to_management));
@@ -1075,8 +1069,7 @@ function mobileNavItemsLegacy() {
         }
 
         if (item.key === 'trainer') {
-            return visibleAreas.value.includes('sales_assistant_trainer')
-                || visibleAreas.value.includes('scripts');
+            return hasSalesAssistantSubmoduleAccess(visibleAreas.value, 'sales_assistant_trainer');
         }
 
         if (item.key === 'finance') {
@@ -1320,9 +1313,10 @@ const menuItems = computed(() => {
             icon: Route,
             visibilityArea: 'own_fleet',
             children: [
-                { key: 'fleet-trips', label: 'Рейсы' },
-                { key: 'fleet-efficiency', label: 'Эффективность' },
-            ],
+                { key: 'fleet-trips', area: 'fleet_trips', label: 'Рейсы' },
+                { key: 'fleet-efficiency', area: 'fleet_efficiency', label: 'Эффективность' },
+            ].filter((part) => isAdmin || hasOwnFleetSubmoduleAccess(areas, part.area))
+                .map(({ key, label }) => ({ key, label })),
         },
         { key: 'documents', label: 'Документы', icon: FileText, visibilityArea: 'documents' },
         ...(page.props.crm_features?.order_claims?.enabled
@@ -1395,11 +1389,7 @@ const menuItems = computed(() => {
                 { area: 'modules_proposal_templates', key: 'modules-proposal-templates', label: 'Шаблоны КП' },
             ];
             const moduleChildren = moduleParts.filter((part) => {
-                if (isAdmin || areas.includes('modules') || areas.includes(part.area)) {
-                    return true;
-                }
-
-                return false;
+                return isAdmin || hasModulesSubmoduleAccess(areas, part.area);
             });
 
             return moduleChildren.length > 0
@@ -1493,7 +1483,8 @@ const menuItems = computed(() => {
         }
 
         if (item.key === 'own-fleet') {
-            return visibleAreas.value.includes('own_fleet')
+            return (item.children?.length ?? 0) > 0
+                || visibleAreas.value.includes('own_fleet')
                 || visibleAreas.value.includes('fleet_trips')
                 || visibleAreas.value.includes('fleet_efficiency')
                 || visibleAreas.value.includes('drivers');
