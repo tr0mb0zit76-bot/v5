@@ -11,24 +11,44 @@ export const WORK_AREA_MAX_TABS = 10;
 /** Product ceiling: rarely more than 3 grids per user. */
 export const WORK_AREA_MAX_LIVE = 3;
 export const WORK_AREA_LIVE_REFRESH_MS = 45_000;
+/** Data age for background poll; soft-switch never waits on network. */
+export const WORK_AREA_LIVE_STALE_MS = 45_000;
 
-export const LIVE_GRID_MENU_KEYS = new Set(['leads', 'tasks', 'orders']);
+export const LIVE_GRID_MENU_KEYS = new Set(['leads', 'tasks', 'orders', 'load-board']);
 
 const LIVE_GRID_COMPONENT_BY_MENU = {
     leads: 'Leads/Index',
     tasks: 'Tasks/Index',
     orders: 'Orders/Index',
+    'load-board': 'LoadBoard/Index',
 };
 
 const LIVE_REFRESH_ONLY = {
     leads: ['leads', 'leadAttentionQueue', 'salesCoachingInsights'],
     tasks: ['tasks', 'quickFilters'],
     orders: ['rows'],
+    'load-board': ['posts', 'activePostsCount'],
 };
 
 const pageLoaders = typeof import.meta.glob === 'function'
     ? import.meta.glob('../Pages/**/*.vue')
     : {};
+
+function resolvePageLoader(componentName) {
+    if (typeof componentName !== 'string' || componentName === '') {
+        return null;
+    }
+
+    const relative = `../Pages/${componentName}.vue`;
+    if (pageLoaders[relative]) {
+        return pageLoaders[relative];
+    }
+
+    const suffix = `/Pages/${componentName}.vue`;
+    const match = Object.keys(pageLoaders).find((key) => key.endsWith(suffix));
+
+    return match ? pageLoaders[match] : null;
+}
 
 /** @type {(href: string) => void} */
 let visitPath = (href) => {
@@ -319,15 +339,16 @@ function pushHistoryUrl(url) {
  */
 async function upsertLiveEntry({ key, menuKey, componentName, page, refreshOnly = null }) {
     const url = normalizeUrl(page.url);
-    const loader = pageLoaders[`../Pages/${componentName}.vue`];
+    const loader = resolvePageLoader(componentName);
     if (!loader) {
-        state.liveVisibleKey = null;
-
+        // Don't tear down an already-visible live screen if this hydrate cannot resolve.
         return false;
     }
 
     const mod = await loader();
     let entry = findLiveEntry(key);
+
+    const now = Date.now();
 
     if (!entry) {
         evictOldestLiveIfNeeded(key);
@@ -338,7 +359,8 @@ async function upsertLiveEntry({ key, menuKey, componentName, page, refreshOnly 
             component: markRaw(mod.default),
             props: reactive({ ...(page.props ?? {}) }),
             url,
-            lastTouchedAt: Date.now(),
+            lastTouchedAt: now,
+            lastFetchedAt: now,
             refreshOnly,
         });
         state.liveEntries.push(entry);
@@ -346,9 +368,13 @@ async function upsertLiveEntry({ key, menuKey, componentName, page, refreshOnly 
         Object.assign(entry.props, page.props ?? {});
         entry.url = url;
         entry.menuKey = menuKey;
-        entry.componentName = componentName;
-        entry.component = markRaw(mod.default);
-        entry.lastTouchedAt = Date.now();
+        // Keep the same component constructor when only props/url change — remount feels like a reload.
+        if (entry.componentName !== componentName) {
+            entry.componentName = componentName;
+            entry.component = markRaw(mod.default);
+        }
+        entry.lastTouchedAt = now;
+        entry.lastFetchedAt = now;
         if (refreshOnly) {
             entry.refreshOnly = refreshOnly;
         }
@@ -390,7 +416,7 @@ async function hydrateLiveFromPage(page) {
 
 export function softActivateLive(key) {
     const entry = findLiveEntry(key);
-    if (!entry) {
+    if (!entry?.component) {
         return false;
     }
 
@@ -406,9 +432,28 @@ export function softActivateLive(key) {
     }
 
     pushHistoryUrl(entry.url);
-    scheduleLiveRefresh(key);
+    syncInertiaClientUrl(entry.url);
+
+    // Instant by design: never kick a network refresh on tab click.
+    // Background poll (startLiveRefreshLoop) keeps rows fresh while tabs stay mounted.
 
     return true;
+}
+
+/**
+ * Keep Inertia's client URL in sync after history.pushState so usePage().url matches the tab.
+ * Does not change component/props — live host owns the visible page.
+ */
+function syncInertiaClientUrl(url) {
+    const inertiaPage = getInertiaPage?.() ?? null;
+    if (!inertiaPage || typeof inertiaPage !== 'object') {
+        return;
+    }
+
+    const target = normalizeUrl(url);
+    if (normalizeUrl(inertiaPage.url ?? '') !== target) {
+        inertiaPage.url = target;
+    }
 }
 
 function registerLoadBoardCaseTab(page) {
@@ -519,7 +564,6 @@ export function openLoadBoardCase(postOrId, href) {
     const existing = findTabById(tabId);
     if (existing) {
         state.activeId = existing.id;
-        state.liveVisibleKey = null;
         visitPath(existing.url || target);
 
         return;
@@ -566,7 +610,8 @@ export function activateTab(id) {
     }
 
     state.activeId = tab.id;
-    state.liveVisibleKey = null;
+    // Keep the current live screen until Inertia success hydrates the target —
+    // clearing liveVisibleKey here unmounts RAM and feels like a full reload.
     const current = typeof window !== 'undefined'
         ? `${window.location.pathname}${window.location.search}`
         : '';
@@ -607,7 +652,6 @@ export function closeTab(id, options = {}) {
         return;
     }
 
-    state.liveVisibleKey = null;
     visitPath(neighbor.url);
 }
 
@@ -643,17 +687,13 @@ export async function refreshLiveEntry(key) {
                     entry.props[propKey] = data.props[propKey];
                 }
             }
-            entry.lastTouchedAt = Date.now();
+            entry.lastFetchedAt = Date.now();
         }
     } catch {
         /* poll is best-effort */
     } finally {
         state._refreshing.delete(key);
     }
-}
-
-function scheduleLiveRefresh(key) {
-    void refreshLiveEntry(key);
 }
 
 export function startLiveRefreshLoop() {
@@ -666,7 +706,12 @@ export function startLiveRefreshLoop() {
             return;
         }
 
+        const now = Date.now();
         for (const entry of state.liveEntries) {
+            const fetchedAt = entry.lastFetchedAt ?? 0;
+            if (now - fetchedAt < WORK_AREA_LIVE_STALE_MS) {
+                continue;
+            }
             void refreshLiveEntry(entry.key);
         }
     }, WORK_AREA_LIVE_REFRESH_MS);
@@ -771,6 +816,40 @@ export function selfCheckCrmWorkArea() {
 
     if (WORK_AREA_MAX_LIVE !== 3) {
         errors.push('max live must be 3');
+    }
+
+    // Soft-activate must reuse live entry without requiring a network refresh path.
+    state.liveEntries.push(reactive({
+        key: 'leads',
+        menuKey: 'leads',
+        componentName: 'Leads/Index',
+        component: markRaw({ name: 'FakeLeads' }),
+        props: reactive({ leads: [] }),
+        url: '/leads',
+        lastTouchedAt: Date.now(),
+        lastFetchedAt: Date.now(),
+        refreshOnly: LIVE_REFRESH_ONLY.leads,
+    }));
+    state.liveEntries.push(reactive({
+        key: 'tasks',
+        menuKey: 'tasks',
+        componentName: 'Tasks/Index',
+        component: markRaw({ name: 'FakeTasks' }),
+        props: reactive({ tasks: [] }),
+        url: '/tasks',
+        lastTouchedAt: Date.now(),
+        lastFetchedAt: Date.now(),
+        refreshOnly: LIVE_REFRESH_ONLY.tasks,
+    }));
+    state.tabs.splice(0, state.tabs.length,
+        { id: 'leads', menuKey: 'leads', title: 'Лиды', url: '/leads', component: 'Leads/Index' },
+        { id: 'tasks', menuKey: 'tasks', title: 'Задачи', url: '/tasks', component: 'Tasks/Index' },
+    );
+    if (!softActivateLive('tasks') || state.liveVisibleKey !== 'tasks') {
+        errors.push('softActivateLive tasks failed');
+    }
+    if (!softActivateLive('leads') || state.liveVisibleKey !== 'leads') {
+        errors.push('softActivateLive leads failed');
     }
 
     __crmWorkAreaReset();
