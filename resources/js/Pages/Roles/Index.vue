@@ -471,6 +471,7 @@ const childAreaMap = {
         'modules_how_much_fits',
         'modules_how_much_costs',
         'modules_import_cost',
+        'modules_proposal_templates',
     ],
 };
 const salesBookPermissionKeys = ['sales_book_read', 'sales_book_comment', 'sales_book_write'];
@@ -489,9 +490,9 @@ const visibilityGroupDefinitions = [
     {
         id: 'sales',
         label: 'Продажи',
-        description: 'Дашборд, лиды, заказы, биржа, контрагенты, ТС, задачи, канбан, pipeline',
+        description: 'Дашборд, лиды, заказы, претензии, биржа, контрагенты, ТС, задачи, канбан, pipeline',
         collapsible: true,
-        keys: ['dashboard', 'leads', 'mail', 'orders', 'load_board', 'pipeline', 'contractors', 'drivers', 'tasks', 'kanban'],
+        keys: ['dashboard', 'leads', 'mail', 'orders', 'claims', 'load_board', 'pipeline', 'contractors', 'drivers', 'tasks', 'kanban'],
         groupScopeKeys: ['orders', 'load_board', 'pipeline', 'leads', 'tasks', 'kanban', 'contractors'],
     },
     {
@@ -502,11 +503,18 @@ const visibilityGroupDefinitions = [
         keys: ['own_fleet'],
     },
     {
+        id: 'planning',
+        label: 'Планирование',
+        description: 'План компании (диспозиция — через заказы; УУ/бюджет — флаг на пользователе)',
+        collapsible: true,
+        keys: ['company_planning'],
+    },
+    {
         id: 'finance',
         label: 'Финансы и аналитика',
-        description: 'Документы, зарплата, график оплат',
+        description: 'Документы, график оплат, разнос выписки, зарплата. Бюджет и УУ — на карточке пользователя',
         collapsible: true,
-        keys: ['documents', 'finance_salary', 'payment_schedules'],
+        keys: ['documents', 'payment_schedules', 'finance_payment_reconcile', 'finance_salary'],
         groupScopeKeys: ['documents', 'payment_schedules'],
     },
     {

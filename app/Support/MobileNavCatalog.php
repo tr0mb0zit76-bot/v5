@@ -59,11 +59,12 @@ final class MobileNavCatalog
 
     /**
      * Какие пункты доступны роли с учётом областей видимости (как в CrmLayout).
+     * Флаги УУ/бюджета — с пользователя (не области роли).
      *
      * @param  list<string>  $visibleAreas
      * @return list<string>
      */
-    public static function candidateKeys(bool $isAdmin, array $visibleAreas): array
+    public static function candidateKeys(bool $isAdmin, array $visibleAreas, bool $hasBudgeting = false, bool $hasManagementAccounting = false): array
     {
         $areaSet = array_flip($visibleAreas);
 
@@ -100,9 +101,11 @@ final class MobileNavCatalog
             }
 
             if ($key === 'finance') {
-                if (isset($areaSet['finance'])
+                if (isset($areaSet['payment_schedules'])
                     || isset($areaSet['finance_salary'])
-                    || isset($areaSet['budgeting'])) {
+                    || isset($areaSet['finance_payment_reconcile'])
+                    || $hasBudgeting
+                    || $hasManagementAccounting) {
                     $out[] = $key;
                 }
 

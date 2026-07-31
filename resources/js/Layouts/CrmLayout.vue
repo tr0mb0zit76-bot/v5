@@ -1080,9 +1080,9 @@ function mobileNavItemsLegacy() {
         }
 
         if (item.key === 'finance') {
-            return visibleAreas.value.includes('finance')
+            return visibleAreas.value.includes('payment_schedules')
                 || visibleAreas.value.includes('finance_salary')
-                || visibleAreas.value.includes('budgeting');
+                || visibleAreas.value.includes('finance_payment_reconcile');
         }
 
         return visibleAreas.value.includes(item.key);
@@ -1326,18 +1326,17 @@ const menuItems = computed(() => {
         },
         { key: 'documents', label: 'Документы', icon: FileText, visibilityArea: 'documents' },
         ...(page.props.crm_features?.order_claims?.enabled
-            ? [{ key: 'claims', label: 'Претензии', icon: Scale, visibilityArea: 'orders' }]
+            ? [{ key: 'claims', label: 'Претензии', icon: Scale, visibilityArea: 'claims' }]
             : []),
         { key: 'mail', label: 'Почта', icon: Mail, visibilityArea: 'mail' },
         {
             key: 'finance',
             label: 'Финансы',
             icon: Wallet,
-            visibilityArea: 'documents',
             children: (() => {
                 const children = [];
 
-                if (visibleAreas.value.includes('documents') || visibleAreas.value.includes('payment_schedules')) {
+                if (visibleAreas.value.includes('payment_schedules')) {
                     children.push({ key: 'finance-cashflow', label: 'График оплат' });
                     children.push({ key: 'finance-reconciliation', label: 'Акты сверок' });
                 }
@@ -1397,13 +1396,6 @@ const menuItems = computed(() => {
             ];
             const moduleChildren = moduleParts.filter((part) => {
                 if (isAdmin || areas.includes('modules') || areas.includes(part.area)) {
-                    return true;
-                }
-
-                if (
-                    part.area === 'modules_proposal_templates'
-                    && (areas.includes('settings') || areas.includes('settings_system'))
-                ) {
                     return true;
                 }
 
@@ -1493,7 +1485,7 @@ const menuItems = computed(() => {
         }
 
         if (item.key === 'finance') {
-            return (item.children?.length ?? 0) > 0 || hasManagementAccess.value;
+            return (item.children?.length ?? 0) > 0;
         }
 
         if (item.key === 'fleet') {
@@ -1520,10 +1512,6 @@ const menuItems = computed(() => {
         }
 
         if (item.key === 'modules') {
-            return (item.children?.length ?? 0) > 0;
-        }
-
-        if (item.key === 'finance') {
             return (item.children?.length ?? 0) > 0;
         }
 

@@ -121,7 +121,7 @@ class OrderClaimTest extends TestCase
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'manager',
             'display_name' => 'Manager',
-            'visibility_areas' => json_encode(['orders']),
+            'visibility_areas' => json_encode(['orders', 'claims']),
             'created_at' => now(),
             'updated_at' => now(),
         ]);

@@ -23,7 +23,7 @@ class OrderClaimController extends Controller
     {
         $user = $request->user();
         abort_if($user === null, 403);
-        abort_unless(RoleAccess::canAccessVisibilityArea($user, 'orders'), 403);
+        abort_unless(RoleAccess::canAccessVisibilityArea($user, 'claims'), 403);
         abort_unless($this->claims->featureEnabled($user), 404);
 
         $filters = [

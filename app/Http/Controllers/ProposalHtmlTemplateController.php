@@ -255,7 +255,7 @@ class ProposalHtmlTemplateController extends Controller
 
     private function canManage(Request $request): bool
     {
-        return RoleAccess::canAccessSettingsSystem($request->user());
+        return RoleAccess::canAccessVisibilityArea($request->user(), 'modules_proposal_templates');
     }
 
     private function canAccessLead(Request $request, Lead $lead): bool

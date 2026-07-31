@@ -35,4 +35,12 @@ class RoleAccessModulesTest extends TestCase
 
         $this->assertContains('sales_assistant_counter', $expanded);
     }
+
+    #[Test]
+    public function it_expands_legacy_modules_area_with_proposal_templates(): void
+    {
+        $expanded = RoleAccess::expandLegacyModulesVisibilityAreas(['modules']);
+
+        $this->assertContains('modules_proposal_templates', $expanded);
+    }
 }

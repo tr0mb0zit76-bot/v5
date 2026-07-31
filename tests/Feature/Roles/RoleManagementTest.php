@@ -25,8 +25,14 @@ class RoleManagementTest extends TestCase
             ->has('permissionOptions')
             ->has('visibilityAreaOptions')
             ->where('visibilityAreaOptions', fn ($options): bool => collect($options)->contains(
-                fn ($row): bool => ($row['key'] ?? '') === 'load_board'
-            ))
+                fn ($row): bool => ($row['key'] ?? '') === 'claims'
+            )
+                && collect($options)->contains(
+                    fn ($row): bool => ($row['key'] ?? '') === 'modules_proposal_templates'
+                )
+                && collect($options)->contains(
+                    fn ($row): bool => ($row['key'] ?? '') === 'finance_payment_reconcile'
+                ))
             ->has('visibilityScopeOptions', 3)
         );
     }

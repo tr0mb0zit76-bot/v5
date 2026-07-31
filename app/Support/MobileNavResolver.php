@@ -42,7 +42,12 @@ final class MobileNavResolver
             $roleDefaultKeys = $mergedDefaults !== [] ? $mergedDefaults : null;
         }
 
-        $candidates = MobileNavCatalog::candidateKeys($isAdmin, $visibleAreas);
+        $candidates = MobileNavCatalog::candidateKeys(
+            $isAdmin,
+            $visibleAreas,
+            $user->belongsToManagement(),
+            RoleAccess::canAccessManagementAccounting($user),
+        );
 
         $userKeys = $user->mobile_nav_keys;
         if (! is_array($userKeys) || $userKeys === []) {

@@ -50,6 +50,7 @@ final class SidebarMenuCatalog
             'modules-how-much-fits' => '/modules/how-much-fits',
             'modules-how-much-costs' => '/modules/how-much-costs',
             'modules-import-cost' => '/modules/import-cost',
+            'modules-proposal-templates' => '/modules/proposal-templates',
             'sales-assistant-scripts' => '/scripts',
             'sales-assistant-book' => '/sales-assistant/book',
             'sales-assistant-book-quiz-analytics' => '/sales-assistant/book/quiz-analytics',
@@ -111,6 +112,7 @@ final class SidebarMenuCatalog
             'modules-how-much-fits' => 'Сколько влезет?',
             'modules-how-much-costs' => 'Сколько стоит?',
             'modules-import-cost' => 'Растаможка',
+            'modules-proposal-templates' => 'Шаблоны КП',
             'sales-assistant-scripts' => 'Скрипты',
             'sales-assistant-book' => 'Книга продаж',
             'sales-assistant-book-quiz-analytics' => 'Статистика тестов',
@@ -200,10 +202,10 @@ final class SidebarMenuCatalog
             'fleet-trips' => RoleAccess::hasOwnFleetSubmoduleAccess($areas, 'fleet_trips'),
             'fleet-efficiency' => RoleAccess::hasOwnFleetSubmoduleAccess($areas, 'fleet_efficiency'),
             'documents' => isset($areaSet['documents']),
-            'claims' => isset($areaSet['orders']) && CrmFeatureCatalog::isEnabled('order_claims', $user),
+            'claims' => isset($areaSet['claims']) && CrmFeatureCatalog::isEnabled('order_claims', $user),
             'mail' => isset($areaSet['mail']),
             'finance' => self::hasAnyFinanceRoute($areas, $user),
-            'finance-cashflow', 'finance-reconciliation' => isset($areaSet['documents']) || isset($areaSet['payment_schedules']),
+            'finance-cashflow', 'finance-reconciliation' => isset($areaSet['payment_schedules']),
             'finance-salary' => isset($areaSet['finance_salary']),
             'finance-budgeting' => $user->belongsToManagement(),
             'finance-management-accounting' => $user->canManagementAccounting(),
@@ -220,6 +222,7 @@ final class SidebarMenuCatalog
             'modules-how-much-fits' => isset($areaSet['modules']) || isset($areaSet['modules_how_much_fits']),
             'modules-how-much-costs' => isset($areaSet['modules']) || isset($areaSet['modules_how_much_costs']),
             'modules-import-cost' => isset($areaSet['modules']) || isset($areaSet['modules_import_cost']),
+            'modules-proposal-templates' => isset($areaSet['modules']) || isset($areaSet['modules_proposal_templates']),
             'settings' => self::hasSettingsSystemAccess($areas) || self::hasSettingsMotivationAccess($areas),
             'users', 'business-processes', 'table-presets', 'dictionaries', 'templates', 'mcp-integrations', 'system', 'order-numbering', 'ai-analytics' => self::hasSettingsSystemAccess($areas),
             'roles' => false,
@@ -285,6 +288,7 @@ final class SidebarMenuCatalog
         return in_array('modules', $areas, true)
             || in_array('modules_how_much_fits', $areas, true)
             || in_array('modules_how_much_costs', $areas, true)
-            || in_array('modules_import_cost', $areas, true);
+            || in_array('modules_import_cost', $areas, true)
+            || in_array('modules_proposal_templates', $areas, true);
     }
 }

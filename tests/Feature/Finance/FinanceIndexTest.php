@@ -29,7 +29,7 @@ class FinanceIndexTest extends TestCase
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'manager',
-            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'payment_schedules'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
@@ -122,7 +122,7 @@ class FinanceIndexTest extends TestCase
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'admin',
-            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'payment_schedules'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'all'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
@@ -186,7 +186,7 @@ class FinanceIndexTest extends TestCase
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'manager',
-            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'payment_schedules'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
@@ -249,7 +249,7 @@ class FinanceIndexTest extends TestCase
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'manager',
-            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'payment_schedules'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
@@ -312,7 +312,7 @@ class FinanceIndexTest extends TestCase
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'admin',
-            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'payment_schedules'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'all'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
@@ -373,7 +373,7 @@ class FinanceIndexTest extends TestCase
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'admin',
-            'visibility_areas' => json_encode(['dashboard', 'documents', 'finance_salary'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'finance_salary', 'payment_schedules'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'all'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
@@ -436,7 +436,7 @@ class FinanceIndexTest extends TestCase
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'admin',
-            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'payment_schedules'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'all'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
@@ -514,7 +514,7 @@ class FinanceIndexTest extends TestCase
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'admin',
-            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'payment_schedules'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'all'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
@@ -577,7 +577,7 @@ class FinanceIndexTest extends TestCase
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'admin',
-            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'payment_schedules'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'all'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
@@ -648,7 +648,7 @@ class FinanceIndexTest extends TestCase
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'manager',
-            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'payment_schedules'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
@@ -711,7 +711,7 @@ class FinanceIndexTest extends TestCase
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'manager',
-            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'payment_schedules'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
@@ -779,7 +779,7 @@ class FinanceIndexTest extends TestCase
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'manager',
-            'visibility_areas' => json_encode(['documents'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['payment_schedules'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
@@ -799,7 +799,7 @@ class FinanceIndexTest extends TestCase
     {
         $managerRoleId = DB::table('roles')->insertGetId([
             'name' => 'manager',
-            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'payment_schedules'], JSON_THROW_ON_ERROR),
             'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
@@ -851,8 +851,11 @@ class FinanceIndexTest extends TestCase
 
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'dept_finance_'.uniqid(),
-            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
-            'visibility_scopes' => json_encode(['orders' => 'department'], JSON_THROW_ON_ERROR),
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'payment_schedules'], JSON_THROW_ON_ERROR),
+            'visibility_scopes' => json_encode([
+                'orders' => 'department',
+                'payment_schedules' => 'department',
+            ], JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
         ]);

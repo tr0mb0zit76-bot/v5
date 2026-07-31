@@ -488,7 +488,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('visibility.area:orders')
         ->name('orders.activity-timeline');
 
-    Route::middleware('visibility.area:orders')->group(function (): void {
+    Route::middleware('visibility.area:claims')->group(function (): void {
         Route::get('/claims', [OrderClaimController::class, 'index'])->name('claims.index');
         Route::post('/orders/{order}/claims', [OrderClaimController::class, 'store'])->name('orders.claims.store');
         Route::patch('/orders/{order}/claims/{claim}', [OrderClaimController::class, 'update'])->name('orders.claims.update');
@@ -693,7 +693,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('visibility.area:orders')
         ->name('fleet.options.drivers');
 
-    Route::get('/finance', FinanceIndexController::class)->middleware('visibility.area.any:documents|payment_schedules|finance_salary')->name('finance.index');
+    Route::get('/finance', FinanceIndexController::class)->middleware('visibility.area.any:payment_schedules|finance_salary|finance_payment_reconcile')->name('finance.index');
     Route::get('/finance/reconciliation', [FinanceReconciliationController::class, 'index'])
         ->middleware('visibility.area:payment_schedules')
         ->name('finance.reconciliation.index');
