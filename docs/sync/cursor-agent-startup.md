@@ -92,7 +92,8 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1
 
 | Что | Канон | После `git pull` на каждом ПК |
 | --- | --- | --- |
-| **Vite HMR** | порт **5174**, `strictPort: true` в `vite.config.js` | `npm run dev` → `http://127.0.0.1:5174/`. В `.env` (не в git): `VITE_DEV_SERVER_URL=http://127.0.0.1:5174` — см. `.env.example` |
+| **Хосты витрина+CRM** | один origin: `https://v5.local` | в `.env`: `APP_URL=https://v5.local`, `CRM_DOMAIN=v5.local`, `SHOWCASE_DOMAIN=v5.local`; в `hosts` и OSPanel — только `v5.local` (не `crm.aa.local`) |
+| **Vite HMR** | порт **5174**, `strictPort: true` в `vite.config.js` | `npm run dev` → `http://127.0.0.1:5174/`. В `.env`: `VITE_DEV_SERVER_URL=http://127.0.0.1:5174`. На **HTTPS** витрине/`v5.local` не оставляйте `public/hot` (mixed content) — либо `http://v5.local`, либо `npm run build` без hot |
 | **optimizeDeps** | только JS-пакеты; **не** включать `*.css` (иначе Vite падает на pre-bundle) | уже в `vite.config.js` |
 | Другой проект на том же ПК | свой порт (часто 5173) | не менять порт CRM на 5173 |
 | PHP deps | `composer.lock` | при смене lock: `composer install` |
@@ -101,6 +102,8 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1
 | Тесты | `.env.testing` → `u_tromb_test` | не путать с рабочей БД |
 | OSPanel DB | `DB_HOST=127.0.1.21` (типично) | свой `.env` |
 | MCP | Я.Диск / `sync-cursor-mcp-from-yandex.ps1` | не коммитить токены |
+
+**Локальные URL:** витрина `https://v5.local/`, кабинет `https://v5.local/login` (и `/dashboard`). На проде по-прежнему split: лендинг `avtoaliyans.ru`, CRM `crm.avtoaliyans.ru`.
 
 Laravel в dev читает URL из `public/hot` (его пишет Vite). Порт в `vite.config.js` — источник правды; строка в `.env` нужна, чтобы оба ПК не расходились «на глаз».
 
@@ -183,6 +186,18 @@ Backlog: `docs/sync/v5-local-Components-Code-Audit-2026-07.md`.
 
 Промпты: `agents/architecture/` + rdudov **04** + **05**. Skill: `.cursor/skills/architecture-protocol/SKILL.md`.  
 Отчёты: `docs/architecture-reports/` (gitignore). Шкала **A–D**.
+
+## Субагент-архитектор (планы разработки)
+
+Проектирование **новой** фичи / эпика из ТЗ (не оценка as-is).
+
+| Действие | Команда |
+| --- | --- |
+| В чате | **архитектор**, `/software-architect`, «спроектируй», «план реализации» |
+| Skill | `.cursor/skills/software-architect/SKILL.md` |
+| Промпт Task | `agents/architecture/10_software_architect_planner.md` |
+
+Выход: дизайн-док (сервисы, фазы, RBAC, приёмка, тесты). Код — только после «реализуй».
 
 ---
 

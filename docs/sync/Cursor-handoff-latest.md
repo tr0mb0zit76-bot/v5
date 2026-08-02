@@ -3,7 +3,41 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-07-31 14:44 (ОТДАТЬ) · **HEAD:** `640290a3` · **Ветка:** `master` · **тема:** work-area soft-switch + роли visibility
+**Обновлено:** 2026-08-02 16:05 (ОТДАТЬ) · **HEAD:** `c6fd9c61` · **Ветка:** `master` · **тема:** отчёт Менеджеры + skill архитектора
+
+### Итог сессии 2026-08-02 (ОТДАТЬ)
+
+| Блок | Статус |
+| --- | --- |
+| Отчёты → Менеджеры: режимы `period` / `snapshot` / `compare` | ✅ |
+| Фильтры: отдел, multi user, группы метрик (localStorage) | ✅ |
+| `ManagerTeamReportService` + `ManagerTeamMetricCatalog` | ✅ |
+| Drill-down ячейки → JSON + модалка | ✅ |
+| PHPUnit `ManagerTeamReportTest` (8) | ✅ |
+| Skill субагента-архитектора `.cursor/skills/software-architect/` | ✅ |
+| Промпт `agents/architecture/10_software_architect_planner.md` | ✅ |
+
+**На прод / второй ПК (ЗАБРАТЬ):**
+
+```text
+git pull
+npm run build
+php artisan optimize:clear
+# smoke: Отчёты → Менеджеры → Результаты / Воронка сейчас / Период к периоду
+# smoke: фильтр менеджеров + чипы метрик → Обновить
+# smoke: клик по ячейке → модалка списка → переход в карточку
+# архитектор: в чате «архитектор» / /software-architect
+```
+
+Миграций нет.
+
+**Ключевые файлы:** `app/Services/Reports/ManagerTeamReportService.php`, `ManagerTeamMetricCatalog.php`, `ReportsController.php`, `resources/js/Pages/Reports/Index.vue`, `tests/Feature/Reports/ManagerTeamReportTest.php`, `.cursor/skills/software-architect/`.
+
+**Следующий шаг:** smoke UI отчёта; persist метрик в profile — опционально; фаза 3 (KPI/Excel) — вне scope. Локально не в commit: `.env.example` / PublicSite / `u_tromb_test` (случайный файл).
+
+---
+
+**Обновлено (архив):** 2026-07-31 14:44 (ОТДАТЬ) · **тема:** work-area soft-switch + роли visibility
 
 ### Итог сессии 2026-07-31 (ОТДАТЬ)
 

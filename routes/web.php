@@ -242,6 +242,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->middleware('visibility.area:dashboard')->name('dashboard');
 
     Route::get('/reports', [ReportsController::class, 'index'])->middleware('visibility.area:reports')->name('reports.index');
+    Route::get('/reports/managers/drill-down', [ReportsController::class, 'managersDrillDown'])
+        ->middleware('visibility.area:reports')
+        ->name('reports.managers.drill-down');
 
     Route::controller(LeadController::class)->middleware('visibility.area:leads')->group(function () {
         Route::get('/leads', 'index')->name('leads.index');

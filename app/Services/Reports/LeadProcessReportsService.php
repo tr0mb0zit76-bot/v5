@@ -152,6 +152,7 @@ class LeadProcessReportsService
             'lead_id' => $lead->id,
             'lead_number' => $lead->number,
             'lead_title' => $lead->title,
+            'responsible_id' => $lead->responsible_id !== null ? (int) $lead->responsible_id : null,
             'responsible_name' => $lead->responsible?->name,
             'process_name' => $lead->businessProcess?->name,
             'stage_name' => $lead->businessProcessStage?->name,
