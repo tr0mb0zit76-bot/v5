@@ -207,7 +207,8 @@ return [
     ],
 
     'improvement_loop' => [
-        'max_tokens' => max(512, min(4096, (int) env('AI_IMPROVEMENT_LOOP_MAX_TOKENS', 2000))),
+        // Стратег отдаёт JSON с несколькими идеями; 2000 токенов на проде обрезало ответ mid-JSON → 0 гипотез.
+        'max_tokens' => max(1024, min(8192, (int) env('AI_IMPROVEMENT_LOOP_MAX_TOKENS', 4096))),
         'temperature' => (float) env('AI_IMPROVEMENT_LOOP_TEMPERATURE', 0.3),
     ],
 

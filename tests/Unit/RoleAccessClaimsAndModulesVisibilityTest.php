@@ -105,12 +105,11 @@ class RoleAccessClaimsAndModulesVisibilityTest extends TestCase
     }
 
     #[Test]
-    public function sidebar_respects_selective_settings(): void
+    public function sidebar_improvement_requires_reports_area(): void
     {
         $user = new User;
-        $areas = ['settings', 'settings_motivation'];
 
-        $this->assertTrue(SidebarMenuCatalog::isKeyAccessibleForAreas('motivation', $areas, $user));
-        $this->assertFalse(SidebarMenuCatalog::isKeyAccessibleForAreas('users', $areas, $user));
+        $this->assertFalse(SidebarMenuCatalog::isKeyAccessibleForAreas('improvement', ['tasks'], $user));
+        $this->assertTrue(SidebarMenuCatalog::isKeyAccessibleForAreas('improvement', ['reports'], $user));
     }
 }

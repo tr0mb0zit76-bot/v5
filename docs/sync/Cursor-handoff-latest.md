@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-03 (сессия) · **Ветка:** `master` · **тема:** Контур улучшений L0–L5
+**Обновлено:** 2026-08-03 · **Ветка:** `master` · **тема:** Контур улучшений — меню в Планирование
 
 ### Итог сессии 2026-08-03 — Improvement Loop L0–L5
 
@@ -14,6 +14,7 @@
 | L5 HITL → script node `body_variant_b` + A/B | ✅ |
 | L5 MCP `get_improvement_loop_insights` | ✅ |
 | PHPUnit Improvement/* | ✅ |
+| Меню: **Планирование → Улучшения** (не Отчёты) | ✅ |
 
 **На прод:**
 

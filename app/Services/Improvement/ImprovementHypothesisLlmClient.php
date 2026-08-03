@@ -50,9 +50,24 @@ final class ImprovementHypothesisLlmClient
     public function generateIdeas(array $pains): array
     {
         $user = 'Список возражений клиентов: '.json_encode($pains, JSON_UNESCAPED_UNICODE);
-        $raw = $this->call(ImprovementHypothesisPrompts::STRATEGIST, $user);
-        $ideas = $this->decodeJsonList($raw);
 
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            $raw = $this->call(ImprovementHypothesisPrompts::STRATEGIST, $user, $attempt);
+            $mapped = $this->mapIdeaRows($this->decodeJsonList($raw));
+            if ($mapped !== []) {
+                return $mapped;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @param  list<mixed>  $ideas
+     * @return list<array{category: string, text: string, short_reason: string}>
+     */
+    private function mapIdeaRows(array $ideas): array
+    {
         return array_values(array_filter(array_map(function (mixed $item): ?array {
             if (! is_array($item)) {
                 return null;
@@ -64,8 +79,8 @@ final class ImprovementHypothesisLlmClient
 
             return [
                 'category' => $this->normalizeCategory((string) ($item['category'] ?? 'script')),
-                'text' => $text,
-                'short_reason' => trim((string) ($item['short_reason'] ?? '')),
+                'text' => mb_substr($text, 0, 500),
+                'short_reason' => mb_substr(trim((string) ($item['short_reason'] ?? '')), 0, 200),
             ];
         }, $ideas)));
     }
@@ -213,7 +228,28 @@ final class ImprovementHypothesisLlmClient
             }
         }
 
-        return [];
+        // Обрезанный mid-JSON ответ: вытаскиваем только полные объекты с полем text.
+        return $this->recoverIdeaObjectsFromTruncatedJson($raw);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function recoverIdeaObjectsFromTruncatedJson(string $raw): array
+    {
+        if (! preg_match_all('/\{[^{}]*"text"\s*:\s*"(?:\\\\.|[^"\\\\])*"[^{}]*\}/u', $raw, $matches)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($matches[0] as $chunk) {
+            $item = json_decode($chunk, true);
+            if (is_array($item) && trim((string) ($item['text'] ?? '')) !== '') {
+                $out[] = $item;
+            }
+        }
+
+        return $out;
     }
 
     private function extractJson(string $raw): string
@@ -222,9 +258,27 @@ final class ImprovementHypothesisLlmClient
         if (str_starts_with($trim, '```')) {
             $trim = preg_replace('/^```(?:json)?\s*/i', '', $trim) ?? $trim;
             $trim = preg_replace('/\s*```$/', '', $trim) ?? $trim;
+            $trim = trim($trim);
         }
 
-        return trim($trim);
+        if ($trim === '') {
+            return $trim;
+        }
+
+        if (str_starts_with($trim, '{') || str_starts_with($trim, '[')) {
+            return $trim;
+        }
+
+        $obj = strpos($trim, '{');
+        $arr = strpos($trim, '[');
+        $startCandidates = array_values(array_filter([$obj, $arr], fn (int|false $p): bool => $p !== false));
+        if ($startCandidates === []) {
+            return $trim;
+        }
+
+        $start = min($startCandidates);
+
+        return substr($trim, $start);
     }
 
     private function normalizeCategory(string $category): string

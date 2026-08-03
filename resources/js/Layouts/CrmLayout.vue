@@ -1239,6 +1239,9 @@ const menuItems = computed(() => {
     if (hasCompanyPlanningAccess.value) {
         planningChildren.push({ key: 'company-planning', label: 'План компании' });
     }
+    if ((isAdmin || areas.includes('reports')) && page.props.crm_features?.improvement_loop?.enabled) {
+        planningChildren.push({ key: 'improvement', label: 'Улучшения' });
+    }
     const planningItem =
         planningChildren.length > 0
             ? {
@@ -1359,9 +1362,6 @@ const menuItems = computed(() => {
 
             if (isAdmin || areas.includes('reports')) {
                 reportChildren.push({ key: 'reports-overview', label: 'Сводные отчёты' });
-                if (page.props.crm_features?.improvement_loop?.enabled) {
-                    reportChildren.push({ key: 'improvement', label: 'Улучшения' });
-                }
             }
 
             if (hasSettingsSystemAccess.value) {

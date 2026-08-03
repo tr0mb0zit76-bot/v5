@@ -26,7 +26,9 @@ const props = defineProps({
     script_nodes: { type: Array, default: () => [] },
 });
 
-defineOptions({ layout: CrmLayout });
+defineOptions({
+    layout: (h, page) => h(CrmLayout, { activeKey: 'planning', activeSubKey: 'improvement' }, () => page),
+});
 
 const tabs = [
     { key: 'signals', label: 'Сигналы' },

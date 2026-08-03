@@ -302,7 +302,7 @@ Observe → Diagnose → Propose → Experiment → Measure → Decide → Memor
 3. **Эксперименты** (L2)
 4. **История** (L3: verdicts + adoptions)
 
-Меню: рядом с Отчётами / после Outcome Intelligence.  
+Меню: **Планирование → Улучшения** (`/improvement`).  
 Не дублировать полный coaching dashboard — smart-link «открыть в коучинге» при необходимости.
 
 ---

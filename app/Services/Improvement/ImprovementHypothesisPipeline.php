@@ -74,6 +74,23 @@ final class ImprovementHypothesisPipeline
             }
 
             $ideas = $this->llm->generateIdeas($pains);
+            if ($ideas === []) {
+                $run->update([
+                    'status' => ImprovementPipelineRun::STATUS_FAILED,
+                    'signals_used' => $openSignals->count(),
+                    'duration_ms' => $this->elapsedMs($started),
+                    'error_summary' => 'Стратег не вернул разборчивые гипотезы (пустой/обрезанный JSON).',
+                    'meta' => ['snippets' => count($snippets), 'pains' => count($pains), 'ideas' => 0],
+                ]);
+
+                return [
+                    'status' => 'failed',
+                    'run_id' => $run->id,
+                    'created' => 0,
+                    'message' => 'Стратег не вернул гипотезы. Повторите запуск.',
+                ];
+            }
+
             $validated = $this->llm->validateIdeas($ideas);
             $scored = $this->llm->scoreIdeas($validated !== [] ? $validated : $ideas);
 
