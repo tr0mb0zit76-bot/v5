@@ -13,7 +13,7 @@
 - [[Orders]] · [[Leads]] · [[Contractors]] · [[Sales Assistant]] · [[Sales Book]] · [[Sales Scripts Editor]]
 - [[Finance]] · [[Management Accounting]] · [[Fleet]] · [[Mail]] · [[Documents]]
 - [[Tasks and Kanban]] · [[Reports]] · [[Roles and Users]] · [[Settings]]
-- [[Utility Modules]] · [[Import Cost Calculator]] · [[Commercial Roadmap]] · [[Integrations]]
+- [[Utility Modules]] · [[Import Cost Calculator]] · [[Commercial Roadmap]] · [[Integrations]] · [[Improvement Loop]]
 
 ## Сквозные слои
 
@@ -38,6 +38,7 @@
 | Компонент | Файл sync |
 | --- | --- |
 | **Commercial roadmap (1–5)** | `v5-local-Components-Commercial-Roadmap.md` |
+| **Контур улучшений** | `v5-local-Components-Improvement-Loop.md` |
 | **Собственный парк / Рейсы** | `v5-local-Components-Fleet-Own-Fleet.md` |
 | **Документы / реестр / track received** | `v5-local-Components-Documents-Registry.md` |
 | **Книга продаж** | `v5-local-Components-Sales-Book.md` |

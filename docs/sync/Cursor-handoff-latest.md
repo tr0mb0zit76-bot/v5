@@ -3,7 +3,36 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-02 16:05 (ОТДАТЬ) · **HEAD:** `3653e7f9` · **Ветка:** `master` · **тема:** отчёт Менеджеры + skill архитектора
+**Обновлено:** 2026-08-03 (сессия) · **Ветка:** `master` · **тема:** Контур улучшений L0–L5
+
+### Итог сессии 2026-08-03 — Improvement Loop L0–L5
+
+| Блок | Статус |
+| --- | --- |
+| L0–L4 | ✅ |
+| L5 мультидомен (sales/documents/fleet/finance) | ✅ |
+| L5 HITL → script node `body_variant_b` + A/B | ✅ |
+| L5 MCP `get_improvement_loop_insights` | ✅ |
+| PHPUnit Improvement/* | ✅ |
+
+**На прод:**
+
+```text
+git pull
+php artisan migrate --force
+npm run build
+php artisan optimize:clear
+php artisan improvement:collect-signals
+# smoke: /improvement фильтр доменов; История → внедрить в узел скрипта
+```
+
+Миграции: `131025`, `134803`, `141015` (meta на adoptions).
+
+**Следующий шаг:** smoke UI; Bayesian/seq early-stop и silent body overwrite — не делаем.
+
+---
+
+**Обновлено (архив):** 2026-08-02 16:05 (ОТДАТЬ) · **HEAD:** `3653e7f9` · **тема:** отчёт Менеджеры + skill архитектора
 
 ### Итог сессии 2026-08-02 (ОТДАТЬ)
 

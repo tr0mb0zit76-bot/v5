@@ -994,6 +994,22 @@ class RoleAccess
     }
 
     /**
+     * Контур улучшений — admin / supervisor / область reports.
+     */
+    public static function canAccessImprovementLoop(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin() || $user->hasRole('supervisor')) {
+            return true;
+        }
+
+        return static::hasVisibilityArea(static::userVisibilityAreas($user), 'reports');
+    }
+
+    /**
      * Экспорт реестров из AG Grid в Excel — администратор, руководитель или право «Отчёты».
      */
     public static function canExportGrid(?User $user): bool

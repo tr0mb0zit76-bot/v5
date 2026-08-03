@@ -42,6 +42,7 @@ final class McpToolDomainRegistry
         'get_sales_script_coaching_insights' => ['domain' => 'trainer', 'cross' => ['sales_book', 'analytics']],
         'get_manager_sales_coaching_insights' => ['domain' => 'analytics', 'cross' => ['leads']],
         'get_head_of_sales_insights' => ['domain' => 'analytics', 'cross' => ['leads', 'orders', 'reports']],
+        'get_improvement_loop_insights' => ['domain' => 'analytics', 'cross' => ['leads', 'finance', 'fleet', 'orders']],
         'get_ai_usage_insights' => ['domain' => 'analytics', 'cross' => ['sales_book', 'trainer']],
         'get_print_form_templates_insights' => ['domain' => 'settings', 'cross' => []],
         'get_print_form_basic_terms' => ['domain' => 'settings', 'cross' => []],

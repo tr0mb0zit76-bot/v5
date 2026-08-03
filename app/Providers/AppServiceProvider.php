@@ -5,12 +5,14 @@ namespace App\Providers;
 use App\Contracts\Inference\ChatCompletionClient;
 use App\Contracts\Inference\ToolAwareChatCompletionClient;
 use App\Models\ContractorInsightDraft;
+use App\Models\Lead;
 use App\Models\SalesScript;
 use App\Models\SalesScriptNode;
 use App\Models\SalesScriptPlaySession;
 use App\Models\SalesScriptTransition;
 use App\Models\SalesScriptVersion;
 use App\Models\Task;
+use App\Observers\LeadImprovementExperimentObserver;
 use App\Policies\ContractorInsightDraftPolicy;
 use App\Policies\SalesScriptNodePolicy;
 use App\Policies\SalesScriptPlaySessionPolicy;
@@ -146,6 +148,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SalesScriptTransition::class, SalesScriptTransitionPolicy::class);
         Gate::policy(SalesScriptPlaySession::class, SalesScriptPlaySessionPolicy::class);
         Gate::policy(Task::class, TaskPolicy::class);
+
+        Lead::observe(LeadImprovementExperimentObserver::class);
     }
 
     private function configureGeneratedUrls(?Request $request): void

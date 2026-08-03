@@ -206,6 +206,11 @@ return [
         'auto_extract_from_inbound_mail' => (bool) env('AI_INSIGHT_DRAFTS_AUTO_EXTRACT', false),
     ],
 
+    'improvement_loop' => [
+        'max_tokens' => max(512, min(4096, (int) env('AI_IMPROVEMENT_LOOP_MAX_TOKENS', 2000))),
+        'temperature' => (float) env('AI_IMPROVEMENT_LOOP_TEMPERATURE', 0.3),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Аналитика взаимодействий с AI (обезличенные промпты в БД)

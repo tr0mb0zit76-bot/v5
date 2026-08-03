@@ -969,6 +969,7 @@ const MENU_ROUTES = {
     'finance-management-accounting': '/finance/management-accounting',
     reports: '/reports',
     'reports-overview': '/reports',
+    improvement: '/improvement',
     trainer: '/sales-assistant/trainer',
     modules: '/modules',
     'sales-assistant-counter': '/sales-assistant/counter',
@@ -1358,6 +1359,9 @@ const menuItems = computed(() => {
 
             if (isAdmin || areas.includes('reports')) {
                 reportChildren.push({ key: 'reports-overview', label: 'Сводные отчёты' });
+                if (page.props.crm_features?.improvement_loop?.enabled) {
+                    reportChildren.push({ key: 'improvement', label: 'Улучшения' });
+                }
             }
 
             if (hasSettingsSystemAccess.value) {

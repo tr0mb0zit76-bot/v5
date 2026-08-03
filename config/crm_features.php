@@ -21,4 +21,9 @@ return [
         'enabled' => env('CRM_FEATURE_ORDER_CLAIMS', true),
         'depends' => ['orders'],
     ],
+    'improvement_loop' => [
+        'label' => 'Контур улучшений (сигналы → гипотезы → A/B)',
+        'enabled' => env('CRM_FEATURE_IMPROVEMENT_LOOP', true),
+        'depends' => [],
+    ],
 ];

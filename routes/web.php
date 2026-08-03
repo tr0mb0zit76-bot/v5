@@ -26,6 +26,7 @@ use App\Http\Controllers\FleetTripController;
 use App\Http\Controllers\FleetVehicleController;
 use App\Http\Controllers\GridViewController;
 use App\Http\Controllers\ImportCostCalculatorController;
+use App\Http\Controllers\ImprovementLoopController;
 use App\Http\Controllers\Integrations\AstralEpdWebhookController;
 use App\Http\Controllers\Integrations\OneCFreshEtrnController;
 use App\Http\Controllers\LeadController;
@@ -245,6 +246,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/reports/managers/drill-down', [ReportsController::class, 'managersDrillDown'])
         ->middleware('visibility.area:reports')
         ->name('reports.managers.drill-down');
+
+    Route::middleware('visibility.area:reports')->prefix('improvement')->name('improvement.')->group(function () {
+        Route::get('/', [ImprovementLoopController::class, 'index'])->name('index');
+        Route::post('/signals/collect', [ImprovementLoopController::class, 'collectSignals'])->name('signals.collect');
+        Route::post('/signals/{signal}/dismiss', [ImprovementLoopController::class, 'dismissSignal'])->name('signals.dismiss');
+        Route::post('/pipeline/run', [ImprovementLoopController::class, 'runPipeline'])->name('pipeline.run');
+        Route::post('/hypotheses/{hypothesis}/accept', [ImprovementLoopController::class, 'acceptHypothesis'])->name('hypotheses.accept');
+        Route::post('/hypotheses/{hypothesis}/reject', [ImprovementLoopController::class, 'rejectHypothesis'])->name('hypotheses.reject');
+        Route::post('/hypotheses/{hypothesis}/experiments', [ImprovementLoopController::class, 'storeExperiment'])->name('experiments.store');
+        Route::post('/experiments/{experiment}/start', [ImprovementLoopController::class, 'startExperiment'])->name('experiments.start');
+        Route::post('/experiments/{experiment}/complete', [ImprovementLoopController::class, 'completeExperiment'])->name('experiments.complete');
+        Route::post('/experiments/{experiment}/cancel', [ImprovementLoopController::class, 'cancelExperiment'])->name('experiments.cancel');
+        Route::post('/adoptions/{adoption}/apply-script-node', [ImprovementLoopController::class, 'applyAdoptionToScriptNode'])->name('adoptions.apply-script-node');
+    });
 
     Route::controller(LeadController::class)->middleware('visibility.area:leads')->group(function () {
         Route::get('/leads', 'index')->name('leads.index');

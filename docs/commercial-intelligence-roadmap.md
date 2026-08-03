@@ -7,6 +7,7 @@
 
 - [commercial-intelligence-phase-0-1.md](./commercial-intelligence-phase-0-1.md) — что уже в проде по фазам 0–1 (краткая выжимка).
 - [ai-platform-architecture.md](./ai-platform-architecture.md) — целевой ИИ-контур (фаза 6+ опирается на него).
+- [improvement-loop-architecture.md](./improvement-loop-architecture.md) — **Контур улучшений** (Observe→…→Adopt), домен продажи, фазы L0–L3.
 - [nextcloud-install.md](./nextcloud-install.md) — NC только как WebDAV/хранилище.
 
 **Легенда статусов:** ✅ сделано · 🚧 в работе · 📋 черновик (scope не зафиксирован) · 🔴 **P0** — наивысший приоритет текущих спринтов
@@ -380,6 +381,7 @@
 | 2026-06-03 | **Отображение писем:** `MailHtmlSanitizer::toPlainText`, iframe для HTML; CSS из `<style>` больше не показывается как текст |
 | 2026-06-03 | **Вложения входящих** — отложены (MIME ATI и др.) |
 | 2026-07-20 | Очередь модулей после ядра: Claims (Юрик) → RFQ → Playbooks → portal заказчика; см. [product-modules-roadmap.md](./product-modules-roadmap.md) |
+| 2026-08-03 | **Контур улучшений (Improvement Loop):** не «4 промпта», а петля Observe→Diagnose→Propose→Experiment→Measure→Adopt; ТЗ AI-Оркестратор = слой Propose (L1); A/B v0 = L2; см. [improvement-loop-architecture.md](./improvement-loop-architecture.md) |
 
 ---
 

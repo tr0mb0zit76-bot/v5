@@ -16,6 +16,7 @@ use App\Mcp\Tools\ExtractOrderDraftFromDocumentTool;
 use App\Mcp\Tools\GetAiUsageInsightsTool;
 use App\Mcp\Tools\GetContractorTool;
 use App\Mcp\Tools\GetHeadOfSalesInsightsTool;
+use App\Mcp\Tools\GetImprovementLoopInsightsTool;
 use App\Mcp\Tools\GetLeadTool;
 use App\Mcp\Tools\GetMailSyncStatusTool;
 use App\Mcp\Tools\GetMailThreadTool;
@@ -155,6 +156,7 @@ class CrmServer extends Server
         ValidateSalesScriptGraphTool::class,
         GetManagerSalesCoachingInsightsTool::class,
         GetHeadOfSalesInsightsTool::class,
+        GetImprovementLoopInsightsTool::class,
         GetPrintFormBasicTermsTool::class,
         GetPrintFormTemplatesInsightsTool::class,
         UpsertPrintFormBasicTermsTool::class,
