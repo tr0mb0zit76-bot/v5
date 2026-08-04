@@ -649,6 +649,11 @@ class OrderPrintDocumentWorkflowService
 
     private function resolveMetadataParty(PrintFormTemplate $template): string
     {
+        $resolved = OrderOwnCompanySide::partyFromDocument(null, $template);
+        if ($resolved !== null) {
+            return $resolved;
+        }
+
         $p = $template->party ?? null;
         if (is_string($p) && $p !== '' && in_array($p, ['customer', 'carrier', 'internal'], true)) {
             return $p;

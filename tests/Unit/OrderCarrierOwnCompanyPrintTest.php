@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\Contractor;
 use App\Models\Order;
+use App\Models\PrintFormTemplate;
 use App\Services\OrderPrintFormDraftService;
 use App\Support\OrderOwnCompanySide;
 use App\Support\OrderPrintFormContext;
@@ -41,6 +42,18 @@ class OrderCarrierOwnCompanyPrintTest extends TestCase
         ]);
 
         $this->assertSame(10, OrderOwnCompanySide::idForPrintParty($order, 'carrier'));
+    }
+
+    public function test_party_from_document_resolves_internal_carrier_oriented_template(): void
+    {
+        $template = new PrintFormTemplate([
+            'party' => 'internal',
+            'settings' => [
+                'variables' => ['dp_basic_terms_row_text', 'lp_inn'],
+            ],
+        ]);
+
+        $this->assertSame('carrier', OrderOwnCompanySide::partyFromDocument(null, $template));
     }
 
     public function test_print_snapshot_swaps_own_company_by_print_party(): void

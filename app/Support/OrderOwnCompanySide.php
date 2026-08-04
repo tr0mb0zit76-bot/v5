@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\PrintFormBasicTerm;
 use App\Models\PrintFormTemplate;
 use App\Models\User;
+use App\Services\PrintFormTemplateOrderEligibility;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -138,6 +139,17 @@ final class OrderOwnCompanySide
             PrintFormBasicTerm::PARTY_CARRIER,
         ], true)) {
             return $fromTemplate;
+        }
+
+        if ($template instanceof PrintFormTemplate) {
+            $eligibility = app(PrintFormTemplateOrderEligibility::class);
+            $effective = $eligibility->effectivePrintParty($eligibility->templateToArray($template));
+            if (in_array($effective, [
+                PrintFormBasicTerm::PARTY_CUSTOMER,
+                PrintFormBasicTerm::PARTY_CARRIER,
+            ], true)) {
+                return $effective;
+            }
         }
 
         return null;

@@ -28,6 +28,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -57,10 +58,14 @@ class OrderDocumentWorkflowController extends Controller
             'carrier_slot' => ['nullable', 'integer', 'min:1', 'max:9'],
             'route_legs_as_table_rows' => ['nullable', 'boolean'],
             'is_international_transport' => ['nullable', 'boolean'],
+            'own_company_id' => $this->ownCompanyIdRules(),
+            'carrier_own_company_id' => $this->ownCompanyIdRules(),
         ]);
 
         $template = PrintFormTemplate::query()->findOrFail($validated['print_form_template_id']);
-        $order->loadMissing(['legs', 'legs.contractorAssignment']);
+        $order->loadMissing(['legs', 'legs.contractorAssignment', 'ownCompany', 'carrierOwnCompany']);
+
+        $this->syncOwnCompanySidesFromPrintRequest($order, $validated);
 
         $party = isset($validated['print_party']) && in_array($validated['print_party'], ['customer', 'carrier'], true)
             ? $validated['print_party']
@@ -724,6 +729,73 @@ class OrderDocumentWorkflowController extends Controller
 
         $order->loadMissing('documents');
         abort_if(OrderPrintWorkflowLock::allPrintWorkflowDocumentsFinalized($order), 403);
+    }
+
+    /**
+     * Подхватываем «свою компанию» / субподрядчика из формы мастера, если ещё не сохранили заказ.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function syncOwnCompanySidesFromPrintRequest(Order $order, array $validated): void
+    {
+        $updates = [];
+
+        if (array_key_exists('own_company_id', $validated) && Schema::hasColumn('orders', 'own_company_id')) {
+            $ownId = $validated['own_company_id'] !== null ? (int) $validated['own_company_id'] : null;
+            if ($ownId !== null && $ownId <= 0) {
+                $ownId = null;
+            }
+
+            if ((int) ($order->own_company_id ?? 0) !== (int) ($ownId ?? 0)) {
+                $order->own_company_id = $ownId;
+                $updates['own_company_id'] = $ownId;
+                $order->unsetRelation('ownCompany');
+            }
+        }
+
+        if (array_key_exists('carrier_own_company_id', $validated) && Schema::hasColumn('orders', 'carrier_own_company_id')) {
+            $carrierOwnId = $validated['carrier_own_company_id'] !== null
+                ? (int) $validated['carrier_own_company_id']
+                : null;
+            if ($carrierOwnId !== null && $carrierOwnId <= 0) {
+                $carrierOwnId = null;
+            }
+
+            $ownId = (int) ($order->own_company_id ?? 0);
+            if ($carrierOwnId !== null && $ownId > 0 && $carrierOwnId === $ownId) {
+                $carrierOwnId = null;
+            }
+
+            if ((int) ($order->carrier_own_company_id ?? 0) !== (int) ($carrierOwnId ?? 0)) {
+                $order->carrier_own_company_id = $carrierOwnId;
+                $updates['carrier_own_company_id'] = $carrierOwnId;
+                $order->unsetRelation('carrierOwnCompany');
+            }
+        }
+
+        if ($updates !== []) {
+            Order::query()->whereKey($order->id)->update($updates);
+        }
+    }
+
+    /**
+     * @return list<string|Rule>
+     */
+    private function ownCompanyIdRules(): array
+    {
+        $rules = ['nullable', 'integer'];
+
+        if (! Schema::hasTable('contractors')) {
+            return $rules;
+        }
+
+        if (Schema::hasColumn('contractors', 'is_own_company')) {
+            $rules[] = Rule::exists('contractors', 'id')->where('is_own_company', true);
+        } else {
+            $rules[] = Rule::exists('contractors', 'id');
+        }
+
+        return $rules;
     }
 
     private function ensureCanApproveDocuments(Request $request, Order $order, ?OrderDocument $document = null): void

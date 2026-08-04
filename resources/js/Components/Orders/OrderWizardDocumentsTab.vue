@@ -369,6 +369,14 @@ watch(
     { immediate: true, deep: true },
 );
 
+watch(
+    () => [props.ownCompanyId, props.carrierOwnCompanyId, props.isInternationalTransport],
+    () => {
+        syncInvalidTemplateSelections();
+        ensureDefaultTemplateSelection();
+    },
+);
+
 function printCreateDisabledReason(slot, party) {
     if (!props.isOrderFormEditable) {
         return 'Карточка закрыта для правок: все печатные формы финализированы.';
@@ -425,6 +433,16 @@ function createPrintWorkflow(slot, party) {
         print_form_template_id: templateId,
         print_party: party,
     };
+
+    if (props.ownCompanyId != null && props.ownCompanyId !== '') {
+        payload.own_company_id = Number(props.ownCompanyId);
+    }
+
+    if (props.carrierOwnCompanyId != null && props.carrierOwnCompanyId !== '') {
+        payload.carrier_own_company_id = Number(props.carrierOwnCompanyId);
+    } else if (party === 'carrier') {
+        payload.carrier_own_company_id = null;
+    }
 
     if (slot.orderLegStage) {
         payload.order_leg_stage = slot.orderLegStage;
