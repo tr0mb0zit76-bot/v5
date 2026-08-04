@@ -829,7 +829,9 @@ export function ensureCrmWorkAreaInertiaBridge(inertiaRouter) {
 
     bindCrmWorkAreaInertiaPage(() => inertiaRouter.page ?? null);
 
-    // Cancel Inertia GET navigations that we can fulfill from RAM (kills the progress bar).
+    // Cancel Inertia GET only when soft-switch actually changes the visible live screen.
+    // Same-URL GET (Redirect::back after ★ / profile patch, re-click current module) must proceed
+    // so shared auth.sidebar_favorites and other always-props refresh — otherwise избранное «сбрасывается» в UI.
     state._unsubscribeBefore = inertiaRouter.on('before', (event) => {
         const visit = event.detail?.visit;
         if (!visit) {
@@ -851,9 +853,16 @@ export function ensureCrmWorkAreaInertiaBridge(inertiaRouter) {
             ? `${visit.url.pathname}${visit.url.search}`
             : visit.url;
 
-        if (softActivateForUrl(rawUrl)) {
-            return false;
+        const previousKey = state.liveVisibleKey;
+        if (!softActivateForUrl(rawUrl)) {
+            return;
         }
+
+        if (previousKey === state.liveVisibleKey) {
+            return;
+        }
+
+        return false;
     });
 
     state._unsubscribeSuccess = inertiaRouter.on('success', (event) => {
@@ -966,6 +975,11 @@ export function selfCheckCrmWorkArea() {
     }
     if (!softActivateForUrl('/leads') || state.liveVisibleKey !== 'leads') {
         errors.push('softActivateForUrl /leads failed');
+    }
+    // Same-key soft-activate must keep liveVisibleKey (Redirect::back / auth refresh path).
+    const beforeSame = state.liveVisibleKey;
+    if (!softActivateForUrl('/leads') || state.liveVisibleKey !== beforeSame) {
+        errors.push('softActivateForUrl same-key must keep visible key');
     }
 
     __crmWorkAreaReset();

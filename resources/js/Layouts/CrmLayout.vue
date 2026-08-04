@@ -929,6 +929,8 @@ function toggleSidebarFavorite(key) {
 
     router.patch(route('profile.sidebar-favorites'), { sidebar_favorite_keys: next }, {
         preserveScroll: true,
+        preserveState: true,
+        only: ['auth'],
         onError: (errors) => {
             const messages = Object.values(errors ?? {}).flat().filter(Boolean);
             sidebarFavoriteError.value = messages.length
