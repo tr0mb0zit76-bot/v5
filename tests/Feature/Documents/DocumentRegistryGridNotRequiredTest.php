@@ -52,9 +52,9 @@ class DocumentRegistryGridNotRequiredTest extends TestCase
                 ->where('rows.0.column_applicable.carrier_upd', false)
                 ->where('rows.0.column_applicable.carrier_act', false)
                 ->where('rows.0.column_applicable.carrier_invoice_factura', false)
-                ->where('rows.0.column_applicable.carrier_request', true)
+                ->where('rows.0.column_applicable.carrier_request', false)
                 ->where('rows.0.column_applicable.customer_upd', false)
-                ->where('rows.0.column_applicable.customer_request', true),
+                ->where('rows.0.column_applicable.customer_request', false),
             );
     }
 
@@ -102,7 +102,7 @@ class DocumentRegistryGridNotRequiredTest extends TestCase
                 ->where('rows.0.column_applicable.transport_docs', false)
                 ->where('rows.0.needs_track_received_date_carrier', false)
                 ->where('rows.0.column_applicable.customer_upd', false)
-                ->where('rows.0.column_applicable.customer_request', true),
+                ->where('rows.0.column_applicable.customer_request', false),
             );
     }
 

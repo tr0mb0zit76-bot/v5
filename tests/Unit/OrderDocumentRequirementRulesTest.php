@@ -33,11 +33,12 @@ class OrderDocumentRequirementRulesTest extends TestCase
         ]);
 
         $this->assertNull(collect($rules)->firstWhere('key', 'customer_closing:customer-all'));
-        $this->assertNotNull(collect($rules)->firstWhere('key', 'customer_request:customer-all'));
+        $this->assertNull(collect($rules)->firstWhere('key', 'customer_request:customer-all'));
+        $this->assertNotNull(collect($rules)->firstWhere('key', 'waybill'));
     }
 
     #[Test]
-    public function cash_to_cash_deal_requires_customer_request_and_transport_only(): void
+    public function cash_to_cash_deal_requires_transport_only(): void
     {
         $performers = [[
             'stage' => 'leg_1',
@@ -50,12 +51,12 @@ class OrderDocumentRequirementRulesTest extends TestCase
             'carriers' => [15 => 'cash'],
         ]);
 
-        $this->assertNotNull(collect($rules)->firstWhere('key', 'customer_request:customer-all'));
+        $this->assertNull(collect($rules)->firstWhere('key', 'customer_request:customer-all'));
         $this->assertNull(collect($rules)->firstWhere('key', 'carrier_request:carrier-15'));
         $this->assertNotNull(collect($rules)->firstWhere('key', 'waybill'));
         $this->assertNull(collect($rules)->firstWhere('key', 'customer_closing:customer-all'));
         $this->assertNull(collect($rules)->firstWhere('key', 'carrier_closing:carrier-15'));
-        $this->assertCount(2, $rules);
+        $this->assertCount(1, $rules);
     }
 
     #[Test]
@@ -134,6 +135,30 @@ class OrderDocumentRequirementRulesTest extends TestCase
         ]);
 
         $document = new OrderDocument([
+            'type' => 'act',
+            'status' => 'signed',
+            'metadata' => ['party' => 'customer'],
+        ]);
+
+        $checklist = $service->checklistForDocuments([$document], $rules);
+
+        $this->assertNull(collect($checklist)->firstWhere('key', 'customer_request:customer-all'));
+        $this->assertNull(collect($checklist)->firstWhere('key', 'customer_closing:customer-all'));
+        $this->assertNotNull(collect($checklist)->firstWhere('key', 'waybill'));
+        $this->assertFalse(collect($checklist)->firstWhere('key', 'waybill')['completed']);
+    }
+
+    #[Test]
+    public function non_cash_customer_request_completes_with_signed_contract_request(): void
+    {
+        $service = app(OrderDocumentRequirementService::class);
+
+        $rules = OrderDocumentRequirementSlotBuilder::buildRules([], 'single_request', [], [
+            'customer' => 'vat_20',
+            'carriers' => [],
+        ]);
+
+        $document = new OrderDocument([
             'type' => 'contract_request',
             'status' => 'signed',
             'metadata' => ['party' => 'customer'],
@@ -142,8 +167,9 @@ class OrderDocumentRequirementRulesTest extends TestCase
         $checklist = $service->checklistForDocuments([$document], $rules);
         $customerRequest = collect($checklist)->firstWhere('key', 'customer_request:customer-all');
 
+        $this->assertNotNull($customerRequest);
         $this->assertTrue($customerRequest['completed']);
-        $this->assertNull(collect($checklist)->firstWhere('key', 'customer_closing:customer-all'));
+        $this->assertNotNull(collect($checklist)->firstWhere('key', 'customer_closing:customer-all'));
     }
 
     #[Test]
@@ -221,7 +247,7 @@ class OrderDocumentRequirementRulesTest extends TestCase
     }
 
     #[Test]
-    public function own_fleet_carrier_only_with_cash_customer_requires_only_request_and_transport(): void
+    public function own_fleet_carrier_only_with_cash_customer_requires_only_transport(): void
     {
         $performers = [[
             'stage' => 'leg_1',
@@ -242,12 +268,12 @@ class OrderDocumentRequirementRulesTest extends TestCase
             'carriers' => [99 => 'cash'],
         ]);
 
-        $this->assertNotNull(collect($rules)->firstWhere('key', 'customer_request:customer-all'));
+        $this->assertNull(collect($rules)->firstWhere('key', 'customer_request:customer-all'));
         $this->assertNull(collect($rules)->firstWhere('key', 'customer_closing:customer-all'));
         $this->assertNotNull(collect($rules)->firstWhere('key', 'waybill'));
         $this->assertNull(collect($rules)->firstWhere('key', 'carrier_request:carrier-99'));
         $this->assertNull(collect($rules)->firstWhere('key', 'contractor_closing:contractor-32-cost-vat'));
-        $this->assertCount(2, $rules);
+        $this->assertCount(1, $rules);
     }
 
     #[Test]

@@ -48,6 +48,11 @@ final class OrderDocumentRequirementSlotBuilder
         $carrierPaymentForms = is_array($paymentContext['carriers'] ?? null) ? $paymentContext['carriers'] : [];
 
         foreach (self::customerRequestSlots($performers, $mode) as $slot) {
+            // Наличка заказчику: заявка не в обязательном чек-листе (как у перевозчика; остаётся ТСД).
+            if (! self::closingRequiredForPaymentForm($customerPaymentForm)) {
+                continue;
+            }
+
             $rules[] = self::requestRule('customer', $slot, 'customer_request', 'Заявка заказчика', self::REQUEST_TYPES);
         }
 
@@ -168,7 +173,7 @@ final class OrderDocumentRequirementSlotBuilder
     }
 
     /**
-     * Собственный парк: заявка заказчику, ТСД/ТН; закрывающие заказчику — по форме оплаты (нал — только заявка).
+     * Собственный парк: ТСД/ТН; заявка и закрывающие заказчику — только при безнале.
      * Без заявок и закрывающих перевозчика и подрядчиков.
      *
      * @param  array{customer?: string|null, carriers?: array<int, string|null>}  $paymentContext
@@ -189,11 +194,10 @@ final class OrderDocumentRequirementSlotBuilder
 
         $customerPaymentForm = isset($paymentContext['customer']) ? (string) $paymentContext['customer'] : null;
 
-        $rules = [
-            self::requestRule('customer', $customerSlot, 'customer_request', 'Заявка заказчика', self::REQUEST_TYPES),
-        ];
+        $rules = [];
 
         if (self::closingRequiredForPaymentForm($customerPaymentForm)) {
+            $rules[] = self::requestRule('customer', $customerSlot, 'customer_request', 'Заявка заказчика', self::REQUEST_TYPES);
             $rules[] = self::requestRule(
                 'customer',
                 $customerSlot,
@@ -377,6 +381,10 @@ final class OrderDocumentRequirementSlotBuilder
         return $slots;
     }
 
+    /**
+     * Безнал / неизвестная форма: нужны заявка и закрывающие.
+     * Наличка (`cash`): в обязательном чек-листе только транспортный слот (waybill).
+     */
     private static function closingRequiredForPaymentForm(?string $paymentForm): bool
     {
         return ! PaymentScheduleCashBasis::isCash($paymentForm);

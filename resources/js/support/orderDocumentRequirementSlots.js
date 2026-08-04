@@ -64,8 +64,10 @@ function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_r
 
     const customerPaymentForm = paymentContext?.customer ?? null;
 
-    const rules = [
-        {
+    const rules = [];
+
+    if (closingRequiredForPaymentForm(customerPaymentForm)) {
+        rules.push({
             key: `customer_request:${customerSlot.slotKey}`,
             label: 'Заявка заказчика',
             description: 'Загружаемый файл: статус «Отправлен» или «Подписан». Печатная форма: финальный PDF и подписи по шаблону.',
@@ -76,10 +78,7 @@ function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_r
             contractor_id: customerSlot.contractorId,
             order_leg_stage: customerSlot.orderLegStage,
             counterparty_label: customerSlot.contractorName,
-        },
-    ];
-
-    if (closingRequiredForPaymentForm(customerPaymentForm)) {
+        });
         rules.push({
             key: `customer_closing:${customerSlot.slotKey}`,
             label: 'Закрывающий документ заказчику',
@@ -287,6 +286,11 @@ export function buildDocumentRequirementRules(
     const carrierPaymentForms = paymentContext?.carriers ?? {};
 
     customerRequestSlots(performers, mode).forEach((slot) => {
+        // Наличка заказчику: заявка не в обязательном чек-листе (как у перевозчика; остаётся ТСД).
+        if (!closingRequiredForPaymentForm(customerPaymentForm)) {
+            return;
+        }
+
         rules.push({
             key: `customer_request:${slot.slotKey}`,
             label: `Заявка заказчика${slot.labelSuffix}`,
