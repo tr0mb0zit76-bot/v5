@@ -228,19 +228,36 @@ export function preferOwnCompanySpecificTemplates(templates, ownCompanyId) {
     return specific;
 }
 
-export function filterPrintFormTemplates(catalog, context, party) {
-    const list = Array.isArray(catalog) ? catalog : [];
+export function ownCompanyIdForPrintParty(context, party) {
+    if (party === 'carrier') {
+        const carrierOwnCompanyId = context?.carrierOwnCompanyId;
+
+        if (carrierOwnCompanyId != null && carrierOwnCompanyId !== '') {
+            return Number(carrierOwnCompanyId);
+        }
+    }
+
     const ownCompanyId = context?.ownCompanyId ?? null;
 
+    return ownCompanyId != null && ownCompanyId !== '' ? Number(ownCompanyId) : null;
+}
+
+export function filterPrintFormTemplates(catalog, context, party) {
+    const list = Array.isArray(catalog) ? catalog : [];
+    const ownCompanyId = ownCompanyIdForPrintParty(context, party);
+    const partyContext = { ...context, ownCompanyId, party };
+
     const filtered = list
-        .filter((template) => templateMatchesOrderContext(template, { ...context, party }))
-        .sort((left, right) => templateSpecificityScore(right, context) - templateSpecificityScore(left, context));
+        .filter((template) => templateMatchesOrderContext(template, partyContext))
+        .sort((left, right) => templateSpecificityScore(right, partyContext) - templateSpecificityScore(left, partyContext));
 
     return preferOwnCompanySpecificTemplates(filtered, ownCompanyId);
 }
 
 export function defaultTemplateForContext(catalog, context, party) {
     const filtered = filterPrintFormTemplates(catalog, context, party);
+    const ownCompanyId = ownCompanyIdForPrintParty(context, party);
+    const partyContext = { ...context, ownCompanyId, party };
 
     if (filtered.length === 0) {
         return null;
@@ -250,7 +267,7 @@ export function defaultTemplateForContext(catalog, context, party) {
 
     if (defaults.length > 0) {
         return defaults.sort(
-            (left, right) => templateSpecificityScore(right, context) - templateSpecificityScore(left, context),
+            (left, right) => templateSpecificityScore(right, partyContext) - templateSpecificityScore(left, partyContext),
         )[0];
     }
 
@@ -259,6 +276,7 @@ export function defaultTemplateForContext(catalog, context, party) {
 
 export function buildPrintFormTemplateContext({
     ownCompanyId = null,
+    carrierOwnCompanyId = null,
     isInternationalTransport = false,
     performers = [],
     additionalCosts = [],
@@ -289,6 +307,9 @@ export function buildPrintFormTemplateContext({
 
     return {
         ownCompanyId: ownCompanyId != null && ownCompanyId !== '' ? Number(ownCompanyId) : null,
+        carrierOwnCompanyId: carrierOwnCompanyId != null && carrierOwnCompanyId !== ''
+            ? Number(carrierOwnCompanyId)
+            : null,
         isInternationalTransport: Boolean(isInternationalTransport),
         contractorIds: normalizeContractorIds(contractorIds),
     };

@@ -9,6 +9,8 @@ use App\Models\User;
 use App\Services\PrintFormTemplateOrderEligibility;
 use App\Support\PrintFormTemplateTransportScope;
 use App\Support\RoleAccess;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class PrintFormTemplateOrderEligibilityTest extends TestCase
@@ -232,5 +234,77 @@ class PrintFormTemplateOrderEligibilityTest extends TestCase
 
         $this->assertFalse($eligibility->isTemplateAvailableForOrder($template, $order, 'customer'));
         $this->assertTrue($eligibility->isTemplateAvailableForOrder($template, $order, 'carrier'));
+    }
+
+    public function test_carrier_slot_uses_carrier_own_company_not_customer_side_company(): void
+    {
+        if (! Schema::hasColumn('orders', 'carrier_own_company_id')) {
+            $this->markTestSkipped('carrier_own_company_id column missing');
+        }
+
+        $customerOwnId = DB::table('contractors')->insertGetId([
+            'type' => 'both',
+            'name' => 'ООО Генподрядчик',
+            'inn' => '1111111111',
+            'is_active' => true,
+            'is_own_company' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierOwnId = DB::table('contractors')->insertGetId([
+            'type' => 'both',
+            'name' => 'ООО Субподрядчик',
+            'inn' => '2222222222',
+            'is_active' => true,
+            'is_own_company' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $order = Order::factory()->create([
+            'own_company_id' => $customerOwnId,
+            'carrier_own_company_id' => $carrierOwnId,
+            'is_international_transport' => false,
+        ]);
+
+        $customerSideTemplate = PrintFormTemplate::query()->create([
+            'name' => 'Заявка перевозчик генподряд',
+            'code' => 'carrier-gen-'.uniqid(),
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'carrier',
+            'source_type' => 'system',
+            'vue_component' => 'SystemPrintFormTemplate',
+            'own_company_id' => $customerOwnId,
+            'transport_scope' => PrintFormTemplateTransportScope::DOMESTIC,
+            'is_active' => true,
+            'is_default' => true,
+            'file_path' => 'templates/carrier-gen.docx',
+            'file_disk' => 'local',
+        ]);
+
+        $carrierSideTemplate = PrintFormTemplate::query()->create([
+            'name' => 'ДЗ перевозчик субподряд',
+            'code' => 'carrier-sub-'.uniqid(),
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'carrier',
+            'source_type' => 'system',
+            'vue_component' => 'SystemPrintFormTemplate',
+            'own_company_id' => $carrierOwnId,
+            'transport_scope' => PrintFormTemplateTransportScope::DOMESTIC,
+            'is_active' => true,
+            'is_default' => true,
+            'file_path' => 'templates/carrier-sub.docx',
+            'file_disk' => 'local',
+        ]);
+
+        $eligibility = app(PrintFormTemplateOrderEligibility::class);
+
+        $this->assertFalse($eligibility->isTemplateAvailableForOrder($customerSideTemplate, $order, 'carrier'));
+        $this->assertTrue($eligibility->isTemplateAvailableForOrder($carrierSideTemplate, $order, 'carrier'));
     }
 }

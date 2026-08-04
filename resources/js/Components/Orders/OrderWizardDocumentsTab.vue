@@ -61,6 +61,7 @@ const props = defineProps({
     printFormTemplateOptionsCustomer: { type: Array, default: () => [] },
     printFormTemplateOptionsCarrier: { type: Array, default: () => [] },
     ownCompanyId: { type: [Number, String, null], default: null },
+    carrierOwnCompanyId: { type: [Number, String, null], default: null },
     isInternationalTransport: { type: Boolean, default: false },
     customerId: { type: [Number, String, null], default: null },
     documentTypeOptions: { type: Array, default: () => [] },
@@ -88,6 +89,7 @@ const carrierSlots = computed(() => carrierPrintSlots(props.performers));
 
 const printFormTemplateContext = computed(() => buildPrintFormTemplateContext({
     ownCompanyId: props.ownCompanyId,
+    carrierOwnCompanyId: props.carrierOwnCompanyId,
     isInternationalTransport: props.isInternationalTransport,
     performers: props.performers,
     additionalCosts: props.additionalCosts,

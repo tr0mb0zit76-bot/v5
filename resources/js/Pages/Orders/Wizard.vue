@@ -104,6 +104,7 @@
                 :print-form-template-options-customer="printFormTemplateOptionsCustomer"
                 :print-form-template-options-carrier="printFormTemplateOptionsCarrier"
                 :own-company-id="form.own_company_id"
+                :carrier-own-company-id="form.carrier_own_company_id"
                 :is-international-transport="form.is_international_transport"
                 :customer-id="form.client_id"
                 :customer-payment-form="form.financial_term.client_payment_form"
