@@ -11,6 +11,7 @@ defineProps({
     counterpartyTarget: { type: Object, required: true },
     counterpartyForm: { type: Object, required: true },
     inlineContractorSaving: { type: Boolean, default: false },
+    inlineContractorError: { type: String, default: '' },
     crmFieldFluid: { type: String, required: true },
     crmBtnNeutral: { type: String, required: true },
     crmBtnCreate: { type: String, required: true },
@@ -33,6 +34,12 @@ const emit = defineEmits(['close', 'create']);
                 <CrmModalHeader title="Новый контрагент" @close="emit('close')" />
 
                 <div class="space-y-3 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800 sm:px-6">
+                    <p
+                        v-if="inlineContractorError"
+                        class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200"
+                    >
+                        {{ inlineContractorError }}
+                    </p>
                     <div :class="crmModalFieldsWrap">
                         <div :class="`${crmModalFieldRow} crm-modal-field-row--full`">
                             <label :class="crmModalFieldLabel">Название</label>
@@ -45,7 +52,13 @@ const emit = defineEmits(['close', 'create']);
                         </div>
                         <div :class="crmModalFieldRow">
                             <label :class="crmModalFieldLabel">ИНН</label>
-                            <input v-model="counterpartyForm.inn" type="text" :class="crmFieldFluid" />
+                            <input
+                                v-model="counterpartyForm.inn"
+                                type="text"
+                                inputmode="numeric"
+                                autocomplete="off"
+                                :class="crmFieldFluid"
+                            />
                         </div>
                         <div :class="crmModalFieldRow">
                             <label :class="crmModalFieldLabel">КПП</label>

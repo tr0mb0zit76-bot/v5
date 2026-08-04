@@ -136,6 +136,7 @@
         :counterparty-form="counterpartyForm"
         :counterparty-name-input="counterpartyNameInput"
         :inline-contractor-saving="inlineContractorSaving"
+        :inline-contractor-error="inlineContractorError"
         :crm-field-fluid="crmFieldFluid"
         :crm-btn-neutral="crmBtnNeutral"
         :crm-btn-create="crmBtnCreate"
@@ -548,6 +549,7 @@ const {
     showCounterpartyModal,
     counterpartyNameInput,
     inlineContractorSaving,
+    inlineContractorError,
     counterpartyTarget,
     counterpartyForm,
     openCounterpartyModal,

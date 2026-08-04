@@ -1,5 +1,10 @@
-import { nextTick, ref } from 'vue';
+import { nextTick, ref, watch } from 'vue';
 import { useForm } from '@inertiajs/vue3';
+import {
+    ensureContractorPartyAutofill,
+    isCompleteContractorInn,
+    normalizedContractorInn,
+} from '@/support/contractorPartyAutofill.js';
 import { isVirtualOwnFleetContractor } from '@/support/ownFleetCatalog.js';
 
 export function useOrderWizardCounterpartyModal(deps) {
@@ -8,6 +13,9 @@ export function useOrderWizardCounterpartyModal(deps) {
     const showCounterpartyModal = ref(false);
     const counterpartyNameInput = ref(null);
     const inlineContractorSaving = ref(false);
+    const inlineContractorError = ref('');
+    const counterpartyInnLookupTimer = ref(null);
+    const counterpartyLastAutofilledInn = ref('');
     const counterpartyTarget = ref({ kind: 'client', index: null });
     const counterpartyForm = useForm({
         name: '',
@@ -20,7 +28,59 @@ export function useOrderWizardCounterpartyModal(deps) {
         type: 'customer',
     });
 
+    async function lookupCounterpartyByInn() {
+        const normalizedInn = normalizedContractorInn(counterpartyForm.inn);
+        if (!isCompleteContractorInn(normalizedInn)) {
+            return;
+        }
+
+        if (normalizedInn === counterpartyLastAutofilledInn.value && String(counterpartyForm.name ?? '').trim() !== '') {
+            return;
+        }
+
+        counterpartyForm.inn = normalizedInn;
+        const filled = await ensureContractorPartyAutofill(counterpartyForm, {
+            force: normalizedInn !== counterpartyLastAutofilledInn.value,
+        });
+
+        if (filled) {
+            counterpartyLastAutofilledInn.value = normalizedInn;
+            inlineContractorError.value = '';
+        }
+    }
+
+    watch(() => counterpartyForm.inn, (inn) => {
+        if (!showCounterpartyModal.value) {
+            return;
+        }
+
+        clearTimeout(counterpartyInnLookupTimer.value);
+
+        const normalizedInn = normalizedContractorInn(inn);
+        if (isCompleteContractorInn(normalizedInn) && counterpartyForm.inn !== normalizedInn) {
+            counterpartyForm.inn = normalizedInn;
+        }
+
+        if (!isCompleteContractorInn(normalizedInn)) {
+            counterpartyLastAutofilledInn.value = '';
+
+            return;
+        }
+
+        if (normalizedInn === counterpartyLastAutofilledInn.value && String(counterpartyForm.name ?? '').trim() !== '') {
+            return;
+        }
+
+        counterpartyInnLookupTimer.value = window.setTimeout(() => {
+            void lookupCounterpartyByInn();
+        }, 500);
+    });
+
     async function openCounterpartyModal(options = {}) {
+        inlineContractorError.value = '';
+        counterpartyForm.clearErrors();
+        counterpartyForm.reset();
+        counterpartyLastAutofilledInn.value = '';
         counterpartyTarget.value = {
             kind: options.kind === 'performer-slot'
                 ? 'performer-slot'
@@ -37,14 +97,35 @@ export function useOrderWizardCounterpartyModal(deps) {
     }
 
     function closeCounterpartyModal() {
+        clearTimeout(counterpartyInnLookupTimer.value);
         showCounterpartyModal.value = false;
+        inlineContractorError.value = '';
+        counterpartyForm.clearErrors();
+        counterpartyLastAutofilledInn.value = '';
         counterpartyTarget.value = { kind: 'client', index: null };
     }
 
     async function createInlineCounterparty() {
+        inlineContractorError.value = '';
+        counterpartyForm.clearErrors();
         inlineContractorSaving.value = true;
 
         try {
+            if (isCompleteContractorInn(counterpartyForm.inn) && !String(counterpartyForm.name ?? '').trim()) {
+                const filled = await ensureContractorPartyAutofill(counterpartyForm);
+                if (!filled) {
+                    inlineContractorError.value = 'Не удалось получить данные по ИНН. Укажите название вручную.';
+
+                    return;
+                }
+            }
+
+            if (!String(counterpartyForm.name ?? '').trim()) {
+                inlineContractorError.value = 'Укажите название контрагента или корректный ИНН.';
+
+                return;
+            }
+
             const response = await fetch(route('orders.contractors.store'), {
                 method: 'POST',
                 headers: {
@@ -56,11 +137,19 @@ export function useOrderWizardCounterpartyModal(deps) {
                 body: JSON.stringify(counterpartyForm.data()),
             });
 
+            const payload = await response.json().catch(() => ({}));
+
             if (!response.ok) {
-                throw new Error(`Inline contractor creation failed with status ${response.status}`);
+                if (response.status === 422 && payload.errors) {
+                    const first = Object.values(payload.errors).flat()[0];
+                    inlineContractorError.value = first || 'Проверьте введённые данные.';
+                } else {
+                    inlineContractorError.value = payload.message || 'Не удалось создать контрагента.';
+                }
+
+                return;
             }
 
-            const payload = await response.json();
             const contractor = payload.contractor;
 
             contractors.value.unshift(contractor);
@@ -73,9 +162,11 @@ export function useOrderWizardCounterpartyModal(deps) {
             counterpartyForm.reset();
             counterpartyForm.type = 'customer';
             showCounterpartyModal.value = false;
+            counterpartyLastAutofilledInn.value = '';
             counterpartyTarget.value = { kind: 'client', index: null };
         } catch (error) {
             console.error(error);
+            inlineContractorError.value = 'Не удалось создать контрагента.';
         } finally {
             inlineContractorSaving.value = false;
         }
@@ -85,6 +176,7 @@ export function useOrderWizardCounterpartyModal(deps) {
         showCounterpartyModal,
         counterpartyNameInput,
         inlineContractorSaving,
+        inlineContractorError,
         counterpartyTarget,
         counterpartyForm,
         openCounterpartyModal,
