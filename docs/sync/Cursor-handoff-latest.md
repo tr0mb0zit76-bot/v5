@@ -3,7 +3,37 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-03 · **Ветка:** `master` · **тема:** Контур улучшений — меню в Планирование
+**Обновлено:** 2026-08-06 16:12 (ОТДАТЬ) · **Ветка:** `master` · **тема:** снятие 1С Fresh + разведка обмена с БП
+
+### Итог сессии 2026-08-06 (ОТДАТЬ)
+
+| Блок | Статус |
+| --- | --- |
+| Разведка `Exchange/CRM/1С` | ⚠️ только `ConfigDumpInfo.xml` (оглавление БП), полной выгрузки файлов нет |
+| Цель обмена | заказы CRM → реализации 1С; оплаты из 1С → разнесение без XLSX |
+| Решение | **обычный 1С (не Fresh)**; для гейта нужна полная «Выгрузить конфигурацию в файлы» |
+| Вырезка **1С Fresh** из CRM | ✅ маршруты `/integrations/1c-fresh/*`, middleware, контроллер, HMAC/token env, тесты |
+| Astral ЭПД webhook | ✅ оставлен |
+| `one_c_summary` в гриде заказов | ✅ оставлен (буфер, не Fresh) |
+
+**На второй ПК (ЗАБРАТЬ):**
+
+```text
+git pull
+php artisan optimize:clear
+# smoke: route:list --path=integrations → только astral + mcp-integrations
+# 1С: выгрузить конфигурацию БП в файлы в Exchange/CRM/1С/bp-dump/ (не один ConfigDumpInfo)
+```
+
+Миграций нет.
+
+**Ключевые файлы (удалено):** `OneCFreshEtrnController`, `VerifyOneCFreshToken`, `OneCFreshStatusPushRequest`; правки `routes/web.php`, `bootstrap/app.php`, `config/epd.php`, `.env.example`, `EpdIntegrationEndpointsTest`.
+
+**Следующий шаг:** полная выгрузка конфигурации БП в файлы → контракт гейта on-prem (реализация + поступления на РС). Из `.env` / prod можно убрать устаревшие `EPD_1C_FRESH_*`.
+
+---
+
+**Обновлено (архив):** 2026-08-03 · **Ветка:** `master` · **тема:** Контур улучшений — меню в Планирование
 
 ### Итог сессии 2026-08-03 — Improvement Loop L0–L5
 

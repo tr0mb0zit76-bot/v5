@@ -16,7 +16,6 @@ use App\Http\Middleware\ReconnectOnPreparedStatementError;
 use App\Http\Middleware\RejectExternalFromInternalRoutes;
 use App\Http\Middleware\RequireMcpBearerToken;
 use App\Http\Middleware\VerifyAstralEpdWebhookSignature;
-use App\Http\Middleware\VerifyOneCFreshToken;
 use App\Support\UserFacingDatabaseMessageResolver;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -47,7 +46,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'can.manage.sales.scripts' => EnsureCanManageSalesScripts::class,
             'mcp.bearer' => RequireMcpBearerToken::class,
             'verify.astral.epd.signature' => VerifyAstralEpdWebhookSignature::class,
-            'verify.onec.token' => VerifyOneCFreshToken::class,
         ]);
 
         $middleware->web(append: [
@@ -61,7 +59,6 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('api', ReconnectOnPreparedStatementError::class);
         $middleware->validateCsrfTokens(except: [
             'integrations/astral/epd/webhook',
-            'integrations/1c-fresh/etrn-status',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

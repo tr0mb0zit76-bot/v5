@@ -28,7 +28,6 @@ use App\Http\Controllers\GridViewController;
 use App\Http\Controllers\ImportCostCalculatorController;
 use App\Http\Controllers\ImprovementLoopController;
 use App\Http\Controllers\Integrations\AstralEpdWebhookController;
-use App\Http\Controllers\Integrations\OneCFreshEtrnController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadOfferMailController;
 use App\Http\Controllers\LeadRateQuoteController;
@@ -942,19 +941,6 @@ Route::prefix('integrations')->group(function () {
     Route::post('/astral/epd/webhook', AstralEpdWebhookController::class)
         ->middleware('verify.astral.epd.signature')
         ->name('integrations.astral.epd.webhook');
-
-    Route::middleware(['throttle:integration-onec', 'verify.onec.token'])->group(function () {
-        Route::post('/1c-fresh/etrn/create-from-order', [OneCFreshEtrnController::class, 'createFromOrder'])
-            ->name('integrations.onec-fresh.etrn.create-from-order');
-        Route::get('/1c-fresh/etrn-journal', [OneCFreshEtrnController::class, 'journal'])
-            ->name('integrations.onec-fresh.etrn-journal');
-        Route::get('/1c-fresh/orders/{order}/etrn-documents', [OneCFreshEtrnController::class, 'index'])
-            ->name('integrations.onec-fresh.orders.etrn-documents');
-        Route::get('/1c-fresh/orders/{order}/etrn-latest-draft', [OneCFreshEtrnController::class, 'latestDraft'])
-            ->name('integrations.onec-fresh.orders.etrn-latest-draft');
-        Route::post('/1c-fresh/etrn-status', [OneCFreshEtrnController::class, 'pushStatus'])
-            ->name('integrations.onec-fresh.etrn-status');
-    });
 });
 
 require __DIR__.'/auth.php';

@@ -42,18 +42,4 @@ return [
         'webhook_secret' => env('EPD_OPERATOR_WEBHOOK_SECRET'),
     ],
 
-    'integration' => [
-        'one_c_fresh_token' => env('EPD_1C_FRESH_TOKEN'),
-        'one_c_fresh_hmac_secret' => env('EPD_1C_FRESH_HMAC_SECRET'),
-        'one_c_fresh_require_hmac' => filter_var(
-            env('EPD_1C_FRESH_REQUIRE_HMAC', false),
-            FILTER_VALIDATE_BOOL,
-        ),
-        'one_c_fresh_signature_ttl_seconds' => (int) env('EPD_1C_FRESH_SIGNATURE_TTL_SECONDS', 300),
-        'one_c_fresh_allowed_ips' => array_values(array_filter(array_map(
-            'trim',
-            explode(',', (string) env('EPD_1C_FRESH_ALLOWED_IPS', '')),
-        ))),
-    ],
-
 ];
