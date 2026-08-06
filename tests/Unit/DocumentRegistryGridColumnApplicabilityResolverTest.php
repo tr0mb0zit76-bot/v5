@@ -28,8 +28,8 @@ class DocumentRegistryGridColumnApplicabilityResolverTest extends TestCase
         $this->assertFalse($map['customer_upd']);
         $this->assertFalse($map['customer_act']);
         $this->assertFalse($map['carrier_upd']);
-        $this->assertFalse($map['customer_request']);
-        $this->assertFalse($map['carrier_request']);
+        $this->assertTrue($map['customer_request']);
+        $this->assertTrue($map['carrier_request']);
     }
 
     #[Test]
@@ -53,7 +53,7 @@ class DocumentRegistryGridColumnApplicabilityResolverTest extends TestCase
         $this->assertFalse($map['carrier_upd']);
         $this->assertFalse($map['carrier_request']);
         $this->assertFalse($map['carrier_contract_request']);
-        $this->assertFalse($map['customer_request']);
+        $this->assertTrue($map['customer_request']);
     }
 
     #[Test]

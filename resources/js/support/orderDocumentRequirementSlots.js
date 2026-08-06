@@ -66,19 +66,20 @@ function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_r
 
     const rules = [];
 
+    rules.push({
+        key: `customer_request:${customerSlot.slotKey}`,
+        label: 'Заявка заказчика',
+        description: 'Загружаемый файл: статус «Отправлен» или «Подписан». Печатная форма: финальный PDF и подписи по шаблону.',
+        party: 'customer',
+        accepted_types: REQUEST_TYPES,
+        slot_kind: 'customer_request',
+        slot_key: customerSlot.slotKey,
+        contractor_id: customerSlot.contractorId,
+        order_leg_stage: customerSlot.orderLegStage,
+        counterparty_label: customerSlot.contractorName,
+    });
+
     if (closingRequiredForPaymentForm(customerPaymentForm)) {
-        rules.push({
-            key: `customer_request:${customerSlot.slotKey}`,
-            label: 'Заявка заказчика',
-            description: 'Загружаемый файл: статус «Отправлен» или «Подписан». Печатная форма: финальный PDF и подписи по шаблону.',
-            party: 'customer',
-            accepted_types: REQUEST_TYPES,
-            slot_kind: 'customer_request',
-            slot_key: customerSlot.slotKey,
-            contractor_id: customerSlot.contractorId,
-            order_leg_stage: customerSlot.orderLegStage,
-            counterparty_label: customerSlot.contractorName,
-        });
         rules.push({
             key: `customer_closing:${customerSlot.slotKey}`,
             label: 'Закрывающий документ заказчику',
@@ -286,11 +287,6 @@ export function buildDocumentRequirementRules(
     const carrierPaymentForms = paymentContext?.carriers ?? {};
 
     customerRequestSlots(performers, mode).forEach((slot) => {
-        // Наличка заказчику: заявка не в обязательном чек-листе (как у перевозчика; остаётся ТСД).
-        if (!closingRequiredForPaymentForm(customerPaymentForm)) {
-            return;
-        }
-
         rules.push({
             key: `customer_request:${slot.slotKey}`,
             label: `Заявка заказчика${slot.labelSuffix}`,
@@ -329,11 +325,6 @@ export function buildDocumentRequirementRules(
             ? (carrierPaymentForms[Number(slot.contractorId)] ?? null)
             : null;
 
-        // Наличка перевозчику: заявка не в обязательном чек-листе (как и закрывающие).
-        if (!closingRequiredForPaymentForm(carrierPaymentForm)) {
-            return;
-        }
-
         rules.push({
             key: `carrier_request:${slot.slotKey}`,
             label: `Заявка перевозчику${slot.labelSuffix}`,
@@ -346,13 +337,8 @@ export function buildDocumentRequirementRules(
             order_leg_stage: slot.orderLegStage,
             counterparty_label: slot.contractorName,
         });
-    });
 
-    carrierRequestSlots(performers, mode).forEach((slot) => {
-        const carrierPaymentForm = slot.contractorId != null
-            ? (carrierPaymentForms[Number(slot.contractorId)] ?? null)
-            : null;
-
+        // Наличка: закрывающие не обязательны; заявка нужна для сканов/оригиналов и сроков оплаты.
         if (!closingRequiredForPaymentForm(carrierPaymentForm)) {
             return;
         }

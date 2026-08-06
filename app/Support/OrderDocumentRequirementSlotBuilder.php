@@ -48,11 +48,6 @@ final class OrderDocumentRequirementSlotBuilder
         $carrierPaymentForms = is_array($paymentContext['carriers'] ?? null) ? $paymentContext['carriers'] : [];
 
         foreach (self::customerRequestSlots($performers, $mode) as $slot) {
-            // Наличка заказчику: заявка не в обязательном чек-листе (как у перевозчика; остаётся ТСД).
-            if (! self::closingRequiredForPaymentForm($customerPaymentForm)) {
-                continue;
-            }
-
             $rules[] = self::requestRule('customer', $slot, 'customer_request', 'Заявка заказчика', self::REQUEST_TYPES);
         }
 
@@ -75,20 +70,9 @@ final class OrderDocumentRequirementSlotBuilder
                 : null;
             $carrierPaymentForm = $contractorId !== null ? ($carrierPaymentForms[$contractorId] ?? null) : null;
 
-            // Наличка перевозчику: заявка не в обязательном чек-листе (как и закрывающие).
-            if (! self::closingRequiredForPaymentForm($carrierPaymentForm)) {
-                continue;
-            }
-
             $rules[] = self::requestRule('carrier', $slot, 'carrier_request', 'Заявка перевозчику', self::REQUEST_TYPES);
-        }
 
-        foreach (self::carrierRequestSlots($performers, $mode) as $slot) {
-            $contractorId = isset($slot['contractorId']) && (int) $slot['contractorId'] > 0
-                ? (int) $slot['contractorId']
-                : null;
-            $carrierPaymentForm = $contractorId !== null ? ($carrierPaymentForms[$contractorId] ?? null) : null;
-
+            // Наличка: закрывающие не обязательны; заявка нужна для сканов/оригиналов и сроков оплаты.
             if (self::closingRequiredForPaymentForm($carrierPaymentForm)) {
                 $rules[] = self::requestRule(
                     'carrier',
@@ -173,7 +157,7 @@ final class OrderDocumentRequirementSlotBuilder
     }
 
     /**
-     * Собственный парк: ТСД/ТН; заявка и закрывающие заказчику — только при безнале.
+     * Собственный парк: ТСД/ТН + заявка заказчика; закрывающие заказчику — только при безнале.
      * Без заявок и закрывающих перевозчика и подрядчиков.
      *
      * @param  array{customer?: string|null, carriers?: array<int, string|null>}  $paymentContext
@@ -196,8 +180,9 @@ final class OrderDocumentRequirementSlotBuilder
 
         $rules = [];
 
+        $rules[] = self::requestRule('customer', $customerSlot, 'customer_request', 'Заявка заказчика', self::REQUEST_TYPES);
+
         if (self::closingRequiredForPaymentForm($customerPaymentForm)) {
-            $rules[] = self::requestRule('customer', $customerSlot, 'customer_request', 'Заявка заказчика', self::REQUEST_TYPES);
             $rules[] = self::requestRule(
                 'customer',
                 $customerSlot,
