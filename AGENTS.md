@@ -173,7 +173,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Расчёт `planned_date`: событие (`basis`) + сдвиг, либо якорь через `PaymentInstallmentPlanner`; даты погрузки/выгрузки — `OrderRouteMilestoneDateResolver` (факт точки → план → performers → колонка заказа); синхронизация при сохранении мастера и факта на точке; **наличка** — `PaymentScheduleCashBasis` (базисы документов → `unloading`).
 - Частичные оплаты: `PaymentScheduleSettlementStatus`, колонка «К оплате» в `CashFlowGrid.vue`; после деплоя правок — `payment-schedules:sync-settlement-amounts`.
 - FTTN по сканам — авто (`OrderDocumentRequirementService::paymentPackageAttachedAt`); при **наличке** базис `fttn` → срок от выгрузки (`PaymentScheduleCashBasis`).
-- Квиток / OTTN — вручную: `track_received_date_*` (в т.ч. **наличка + ottn** / `fttn_receipt`); стороны раздельно.
+- Квиток / OTTN — вручную: `track_received_date_*`; при **наличке перевозчику** `ottn`/`fttn_receipt` → срок от ТСД (`waybill`), без ручной даты получения.
 - UI: `PaymentTermsWizardBlock.vue`, `orderPaymentScheduleUi.js` (`applyInstallmentScheduleInPlace` — без deep-watch циклов); грид — `CashFlowGrid.vue`, даты **дд.мм.гггг**.
 - Миграция: `2026_06_08_155321_add_installment_sequence_to_payment_schedules_table.php`.
 
@@ -183,7 +183,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Дата получения оригиналов: `track_received_date_customer_request/closing` и `track_received_date_carrier_request/closing` — отдельно заявка (ottn) и закрывающие (fttn_receipt); clerk в реестре (`PATCH documents/orders/{id}/track-received`) и в таблице учёта (`OrderSignedDocumentsTable.vue`); легаси `track_received_date_customer/carrier` — сводка (max); `orderTrackingDates.js`.
 - Слоты обязательных документов: `OrderDocumentRequirementSlotBuilder`, зеркало на фронте `orderDocumentRequirementSlots.js`.
 - Транспортные типы (ТН / ЭТрН / CMR / ТСД) — одна группа: `OrderDocumentTransportTypes`, слот `waybill` с `accepted_types` waybill|etrn|cmr.
-- **Наличные (`cash`):** закрывающие слоты (УПД / СФ / акт) **не создаются**; слоты **заявок** остаются (сканы/оригиналы и сроки оплаты). Форма оплаты: заказчик — `customer_payment_form`; перевозчик — `contractors_costs` / `leg_costs`; подрядчик — `additional_costs.payment_form` (при cash закрывающие подрядчику тоже не создаются). + общий слот ТСД.
+- **Наличные (`cash`):** закрывающие слоты (УПД / СФ / акт) **не создаются**; у **заказчика** слот заявки остаётся; у **перевозчика** при cash слота заявки **нет** (срок оплаты от ТСД). Форма оплаты: заказчик — `customer_payment_form`; перевозчик — `contractors_costs` / `leg_costs`; подрядчик — `additional_costs.payment_form`. + общий слот ТСД.
 - Закрытие сделки: `OrderStatusService` → `checklistForOrder()` — все пункты чек-листа должны быть `completed`.
 - **Портал заказчика** (invite-link): `OrderCustomerPortalController` + `OrderCustomerPortalPresentationService` — `trip_status`, `route_milestones` (план/факт точек); UI `Portal/CustomerDocuments.vue`.
 - Документация: `docs/documents-user-guide.md`, `docs/documents-regulation.md`; карточка `docs/sync/v5-local-Components-Documents-Registry.md`; публикация в Книгу: `php scripts/mcp-prod-upsert-documents.php`.

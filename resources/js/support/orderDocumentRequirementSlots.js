@@ -325,6 +325,11 @@ export function buildDocumentRequirementRules(
             ? (carrierPaymentForms[Number(slot.contractorId)] ?? null)
             : null;
 
+        // Нал перевозчику: заявка не в чек-листе; срок оплаты от ТСД/ТН.
+        if (!closingRequiredForPaymentForm(carrierPaymentForm)) {
+            return;
+        }
+
         rules.push({
             key: `carrier_request:${slot.slotKey}`,
             label: `Заявка перевозчику${slot.labelSuffix}`,
@@ -337,11 +342,6 @@ export function buildDocumentRequirementRules(
             order_leg_stage: slot.orderLegStage,
             counterparty_label: slot.contractorName,
         });
-
-        // Наличка: закрывающие не обязательны; заявка нужна для сканов/оригиналов и сроков оплаты.
-        if (!closingRequiredForPaymentForm(carrierPaymentForm)) {
-            return;
-        }
 
         rules.push({
             key: `carrier_closing:${slot.slotKey}`,

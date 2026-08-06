@@ -98,18 +98,30 @@ function carrierTrackBasisKindsForRow(contractorId, contractorsCosts) {
     if (Number.isFinite(normalizedContractorId) && normalizedContractorId > 0) {
         const cost = costs.find((row) => Number(row?.contractor_id) === normalizedContractorId);
 
+        if (isCashPaymentForm(cost?.payment_form)) {
+            return { ottn: false, fttn_receipt: false };
+        }
+
         return scheduleTrackBasisKinds(cost?.payment_schedule);
     }
 
     const merged = { ottn: false, fttn_receipt: false };
 
     for (const cost of costs) {
+        if (isCashPaymentForm(cost?.payment_form)) {
+            continue;
+        }
+
         const kinds = scheduleTrackBasisKinds(cost?.payment_schedule);
         merged.ottn = merged.ottn || kinds.ottn;
         merged.fttn_receipt = merged.fttn_receipt || kinds.fttn_receipt;
     }
 
     return merged;
+}
+
+function isCashPaymentForm(paymentForm) {
+    return String(paymentForm ?? '').trim().toLowerCase() === 'cash';
 }
 
 /**
@@ -260,7 +272,9 @@ export function buildOrderTrackingDateRows(context) {
     }
 
     const carrierCosts = Array.isArray(context.contractorsCosts) ? context.contractorsCosts : [];
-    const carrierSchedulesNeeding = carrierCosts.filter((cost) => scheduleNeedsTrackReceived(cost?.payment_schedule));
+    const carrierSchedulesNeeding = carrierCosts.filter(
+        (cost) => !isCashPaymentForm(cost?.payment_form) && scheduleNeedsTrackReceived(cost?.payment_schedule),
+    );
 
     if (carrierSchedulesNeeding.length > 0) {
         const basisLabels = new Set();

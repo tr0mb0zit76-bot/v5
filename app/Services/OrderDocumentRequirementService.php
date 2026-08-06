@@ -213,6 +213,23 @@ class OrderDocumentRequirementService
     }
 
     /**
+     * Дата прикрепления товаросопроводительного документа (ТН / ЭТрН / CMR / ТСД).
+     */
+    public function transportDocumentAttachedAt(Order $order): ?CarbonInterface
+    {
+        $documents = $order->relationLoaded('documents')
+            ? $order->documents
+            : $order->documents()->get();
+
+        $transportDocuments = $documents->filter(
+            fn (OrderDocument $document): bool => ! OrderDocumentDirection::isOutgoing($document)
+                && $this->matchesType($document, OrderDocumentTransportTypes::VALUES),
+        );
+
+        return $this->latestDocumentDate($transportDocuments);
+    }
+
+    /**
      * @param  iterable<OrderDocument|array<string, mixed>>  $documents
      * @return list<array{
      *     key: string,

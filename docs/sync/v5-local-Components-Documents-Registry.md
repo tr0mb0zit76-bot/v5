@@ -12,7 +12,7 @@
 
 | Слой | Файлы |
 | --- | --- |
-| Нужна ли дата | `OrderTrackReceivedRequirementResolver` — базисы `ottn`, `fttn_receipt` в графике (**в т.ч. наличка**); при `cash` + `fttn` — нет (срок от выгрузки) |
+| Нужна ли дата | `OrderTrackReceivedRequirementResolver` — базисы `ottn`, `fttn_receipt` в графике; у **cash-перевозчика** не нужна (срок от ТСД); при `cash` + `fttn` — срок от выгрузки |
 | Права | `RoleAccess::canEditTrackReceivedDates()` — роль **clerk** (делопроизводитель) + admin |
 | API реестра | `PATCH documents/orders/{order}/track-received` → `DocumentRegistryController::updateTrackReceived` |
 | Inline в мастере | `orders.inline-update` → `OrderInlineFieldUpdateService` |

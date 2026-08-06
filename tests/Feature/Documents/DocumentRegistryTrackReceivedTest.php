@@ -147,7 +147,7 @@ class DocumentRegistryTrackReceivedTest extends TestCase
             ->assertStatus(422);
     }
 
-    public function test_clerk_can_set_track_received_for_cash_carrier_ottn(): void
+    public function test_clerk_cannot_set_track_received_for_cash_carrier_ottn(): void
     {
         if (! Schema::hasColumn('orders', 'track_received_date_carrier')) {
             $this->markTestSkipped('Колонка track_received_date_carrier недоступна.');
@@ -161,11 +161,7 @@ class DocumentRegistryTrackReceivedTest extends TestCase
                 'field' => 'track_received_date_carrier',
                 'value' => '2026-06-02',
             ])
-            ->assertOk()
-            ->assertJson([
-                'field' => 'track_received_date_carrier',
-                'value' => '2026-06-02',
-            ]);
+            ->assertStatus(422);
     }
 
     public function test_track_received_update_resyncs_payment_schedules(): void

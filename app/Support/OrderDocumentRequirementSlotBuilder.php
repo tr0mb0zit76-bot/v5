@@ -70,10 +70,9 @@ final class OrderDocumentRequirementSlotBuilder
                 : null;
             $carrierPaymentForm = $contractorId !== null ? ($carrierPaymentForms[$contractorId] ?? null) : null;
 
-            $rules[] = self::requestRule('carrier', $slot, 'carrier_request', 'Заявка перевозчику', self::REQUEST_TYPES);
-
-            // Наличка: закрывающие не обязательны; заявка нужна для сканов/оригиналов и сроков оплаты.
+            // Нал перевозчику: заявка не в чек-листе; срок оплаты от ТСД/ТН (см. PaymentScheduleCashBasis).
             if (self::closingRequiredForPaymentForm($carrierPaymentForm)) {
+                $rules[] = self::requestRule('carrier', $slot, 'carrier_request', 'Заявка перевозчику', self::REQUEST_TYPES);
                 $rules[] = self::requestRule(
                     'carrier',
                     $slot,

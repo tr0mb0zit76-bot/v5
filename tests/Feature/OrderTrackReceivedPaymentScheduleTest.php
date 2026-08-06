@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\FinancialTerm;
 use App\Models\Order;
+use App\Models\OrderDocument;
 use App\Models\PaymentSchedule;
 use App\Models\User;
 use App\Services\OrderCompensationService;
@@ -67,7 +68,7 @@ class OrderTrackReceivedPaymentScheduleTest extends TestCase
         $this->assertSame('2026-06-10', $after->planned_date?->toDateString());
     }
 
-    public function test_cash_carrier_ottn_planned_date_appears_after_track_received_is_set(): void
+    public function test_cash_carrier_ottn_planned_date_appears_after_waybill_is_attached(): void
     {
         if (! Schema::hasTable('payment_schedules')) {
             $this->markTestSkipped('Таблица payment_schedules недоступна.');
@@ -77,7 +78,7 @@ class OrderTrackReceivedPaymentScheduleTest extends TestCase
 
         $contractorId = (int) DB::table('contractors')->insertGetId([
             'type' => 'carrier',
-            'name' => 'Перевозчик для OTTN',
+            'name' => 'Перевозчик для OTTN cash',
             'is_active' => true,
             'is_verified' => true,
             'created_at' => now(),
@@ -131,11 +132,22 @@ class OrderTrackReceivedPaymentScheduleTest extends TestCase
         $this->assertNotNull($before);
         $this->assertNull($before->planned_date);
 
-        $this->actingAs($manager)->patch(route('orders.inline-update', $order->id), [
-            'field' => 'track_received_date_carrier',
-            'value' => '2026-06-02',
-            'wizard_context' => true,
-        ])->assertRedirect(route('orders.edit', $order->id));
+        $waybill = OrderDocument::query()->create([
+            'order_id' => $order->id,
+            'type' => 'waybill',
+            'status' => 'signed',
+            'original_name' => 'tsd.pdf',
+            'file_path' => 'orders/'.$order->id.'/tsd.pdf',
+            'metadata' => ['party' => 'carrier', 'flow' => 'uploaded'],
+            'entity_type' => 'order',
+            'entity_id' => $order->id,
+        ]);
+        $waybill->forceFill([
+            'created_at' => '2026-06-02 10:00:00',
+            'updated_at' => '2026-06-02 10:00:00',
+        ])->saveQuietly();
+
+        app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh(['documents']));
 
         $after = PaymentSchedule::query()
             ->where('order_id', $order->id)

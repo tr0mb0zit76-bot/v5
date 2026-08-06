@@ -92,6 +92,11 @@ final class OrderTrackReceivedRequirementResolver
                 continue;
             }
 
+            // Нал перевозчику: срок от ТСД, ручная дата получения не нужна.
+            if (PaymentScheduleCashBasis::isCash(isset($cost['payment_form']) ? (string) $cost['payment_form'] : null)) {
+                continue;
+            }
+
             $kinds = self::scheduleTrackPackageKinds((array) ($cost['payment_schedule'] ?? []));
             $merged['request'] = $merged['request'] || $kinds['request'];
             $merged['closing'] = $merged['closing'] || $kinds['closing'];

@@ -136,6 +136,35 @@ class OrderTrackReceivedRequirementResolverTest extends TestCase
         $this->assertTrue($flags['needs_track_received_date_customer_closing']);
     }
 
+    public function test_cash_carrier_ottn_does_not_require_track_received(): void
+    {
+        $orderId = $this->insertOrderRow([]);
+        $order = Order::query()->findOrFail($orderId);
+        $order->wizard_state = [
+            'financial_term' => [
+                'client_payment_schedule' => [
+                    'installments' => [
+                        ['percent' => 100, 'basis' => 'fttn', 'offset_days' => 0],
+                    ],
+                ],
+                'contractors_costs' => [
+                    [
+                        'contractor_id' => 50,
+                        'payment_form' => 'cash',
+                        'payment_schedule' => [
+                            'installments' => [
+                                ['percent' => 100, 'basis' => 'ottn', 'offset_days' => 5],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        $order->save();
+
+        $this->assertFalse(OrderTrackReceivedRequirementResolver::orderNeedsCarrierTrackReceived($order));
+    }
+
     /**
      * @param  array<string, mixed>  $schedule
      * @param  array<string, mixed>  $orderAttributes

@@ -764,11 +764,12 @@ class OrderCompensationService
         $basis = PaymentScheduleCashBasis::effectiveBasis(
             $paymentForm ?? $this->paymentFormForParty($order, $party),
             (string) ($row['basis'] ?? 'fttn'),
+            $party,
         );
         $offsetDays = (int) ($row['offset_days'] ?? 0);
         $offsetUnit = (string) ($row['offset_unit'] ?? CalendarBankDayShifter::UNIT_CALENDAR);
 
-        if (in_array($basis, ['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'], true)) {
+        if (in_array($basis, ['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading', 'waybill'], true)) {
             $eventDate = $this->resolveScheduleDate($order, $party, $basis, 0, false);
             if ($eventDate === null) {
                 return null;
@@ -895,6 +896,7 @@ class OrderCompensationService
             'fttn' => $isPrepayment
                 ? OrderRouteMilestoneDateResolver::resolveLoadingDate($order)
                 : $this->resolveFttnDate($order, $party),
+            'waybill' => $this->orderDocumentRequirementService->transportDocumentAttachedAt($order),
             'loading' => OrderRouteMilestoneDateResolver::resolveLoadingDate($order),
             'unloading' => OrderRouteMilestoneDateResolver::resolveUnloadingDate($order),
             default => $isPrepayment
