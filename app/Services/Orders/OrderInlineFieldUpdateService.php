@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\OrderCompensationService;
 use App\Services\Orders\Wizard\OrderWizardFinancialTermsSyncService;
 use App\Services\OrderWizardStateService;
+use App\Support\OrderTrackReceivedFields;
 use Illuminate\Support\Facades\Schema;
 
 class OrderInlineFieldUpdateService
@@ -40,6 +41,22 @@ class OrderInlineFieldUpdateService
             $syncOrder->setAttribute($field, $value);
         }
 
+        if (in_array($field, OrderTrackReceivedFields::specificFields(), true)) {
+            $legacySync = OrderTrackReceivedFields::legacySyncAttributes($syncOrder, $field);
+            $legacyFill = [];
+
+            foreach ($legacySync as $legacyField => $legacyValue) {
+                if (Schema::hasColumn('orders', $legacyField)) {
+                    $legacyFill[$legacyField] = $legacyValue;
+                }
+            }
+
+            if ($legacyFill !== []) {
+                $syncOrder->forceFill($legacyFill)->save();
+                $syncOrder = $syncOrder->fresh() ?? $syncOrder;
+            }
+        }
+
         if (in_array($field, ['customer_rate', 'carrier_rate', 'additional_expenses', 'insurance', 'bonus'], true)) {
             $this->financialTermsSyncService->syncFromOrderRates($syncOrder);
         }
@@ -47,6 +64,8 @@ class OrderInlineFieldUpdateService
         if (in_array($field, ['customer_payment_form', 'carrier_payment_form'], true)) {
             $this->financialTermsSyncService->syncFromOrderRates($syncOrder);
         }
+
+        $trackReceivedFields = OrderTrackReceivedFields::allEditableFields();
 
         if (in_array($field, [
             'customer_rate',
@@ -57,8 +76,7 @@ class OrderInlineFieldUpdateService
             'customer_payment_form',
             'carrier_payment_form',
             'order_date',
-            'track_received_date_customer',
-            'track_received_date_carrier',
+            ...$trackReceivedFields,
         ], true)) {
             $this->orderCompensationService->recalculateImpactedPeriods(
                 $syncOrder,
@@ -68,7 +86,7 @@ class OrderInlineFieldUpdateService
             $this->orderCompensationService->refreshOrderCompensationFields($syncOrder->fresh());
         }
 
-        if (in_array($field, ['track_received_date_customer', 'track_received_date_carrier'], true)) {
+        if (in_array($field, $trackReceivedFields, true)) {
             $orderForSchedule = $syncOrder->fresh();
             if ($orderForSchedule !== null) {
                 $this->orderCompensationService->resyncPaymentSchedulesForOrder($orderForSchedule);

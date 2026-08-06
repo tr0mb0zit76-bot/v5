@@ -231,8 +231,10 @@ const CLOSING_EDO_COLUMNS = new Set([
 const fallbackColumns = [
     { field: 'order_number', headerName: 'Номер заказа', width: 160, minWidth: 140 },
     { field: 'entered_in_1c', headerName: 'Внесено в 1С', width: 140, minWidth: 120, kind: 'entered-in-1c' },
-    { field: 'track_received_date_customer', headerName: 'Оригиналы заказчика', width: 180, minWidth: 150, kind: 'track-received-date' },
-    { field: 'track_received_date_carrier', headerName: 'Оригиналы перевозчика', width: 190, minWidth: 160, kind: 'track-received-date' },
+    { field: 'track_received_date_customer_request', headerName: 'Оригиналы заявки заказчика', width: 210, minWidth: 170, kind: 'track-received-date' },
+    { field: 'track_received_date_customer_closing', headerName: 'Оригиналы закрывающих заказчика', width: 230, minWidth: 180, kind: 'track-received-date' },
+    { field: 'track_received_date_carrier_request', headerName: 'Оригиналы заявки перевозчика', width: 220, minWidth: 180, kind: 'track-received-date' },
+    { field: 'track_received_date_carrier_closing', headerName: 'Оригиналы закрывающих перевозчика', width: 240, minWidth: 190, kind: 'track-received-date' },
     { field: 'customer_invoice', headerName: 'Счёт заказчику', width: 220, minWidth: 180 },
     { field: 'customer_upd', headerName: 'УПД с заказчиком', width: 220, minWidth: 180 },
     { field: 'customer_act', headerName: 'Акт с заказчиком', width: 220, minWidth: 180 },
@@ -459,9 +461,16 @@ class DateInputEditor {
 }
 
 function trackReceivedNeedsField(columnField) {
-    return columnField === 'track_received_date_customer'
-        ? 'needs_track_received_date_customer'
-        : 'needs_track_received_date_carrier';
+    const map = {
+        track_received_date_customer: 'needs_track_received_date_customer',
+        track_received_date_customer_request: 'needs_track_received_date_customer_request',
+        track_received_date_customer_closing: 'needs_track_received_date_customer_closing',
+        track_received_date_carrier: 'needs_track_received_date_carrier',
+        track_received_date_carrier_request: 'needs_track_received_date_carrier_request',
+        track_received_date_carrier_closing: 'needs_track_received_date_carrier_closing',
+    };
+
+    return map[columnField] ?? null;
 }
 
 function isTrackReceivedEditable(columnField, row) {
@@ -469,7 +478,9 @@ function isTrackReceivedEditable(columnField, row) {
         return false;
     }
 
-    return Boolean(row[trackReceivedNeedsField(columnField)]);
+    const needsField = trackReceivedNeedsField(columnField);
+
+    return needsField ? Boolean(row[needsField]) : false;
 }
 
 function formatTrackReceivedDate(value) {
@@ -977,7 +988,7 @@ async function onCellValueChanged(event) {
         return;
     }
 
-    if (field === 'track_received_date_customer' || field === 'track_received_date_carrier') {
+    if (trackReceivedNeedsField(field)) {
         if (event.newValue === event.oldValue) {
             return;
         }

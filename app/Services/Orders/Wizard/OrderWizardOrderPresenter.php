@@ -205,8 +205,20 @@ class OrderWizardOrderPresenter
             'track_received_date_customer' => Schema::hasColumn('orders', 'track_received_date_customer')
                 ? optional($order->track_received_date_customer)?->toDateString()
                 : null,
+            'track_received_date_customer_request' => Schema::hasColumn('orders', 'track_received_date_customer_request')
+                ? optional($order->track_received_date_customer_request)?->toDateString()
+                : null,
+            'track_received_date_customer_closing' => Schema::hasColumn('orders', 'track_received_date_customer_closing')
+                ? optional($order->track_received_date_customer_closing)?->toDateString()
+                : null,
             'track_received_date_carrier' => Schema::hasColumn('orders', 'track_received_date_carrier')
                 ? optional($order->track_received_date_carrier)?->toDateString()
+                : null,
+            'track_received_date_carrier_request' => Schema::hasColumn('orders', 'track_received_date_carrier_request')
+                ? optional($order->track_received_date_carrier_request)?->toDateString()
+                : null,
+            'track_received_date_carrier_closing' => Schema::hasColumn('orders', 'track_received_date_carrier_closing')
+                ? optional($order->track_received_date_carrier_closing)?->toDateString()
                 : null,
             'client_id' => $order->customer_id,
             'client_snapshot' => $order->relationLoaded('client') && $order->client !== null

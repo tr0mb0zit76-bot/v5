@@ -92,6 +92,22 @@ class OrderIndexController extends Controller
             'orders.updated_at',
         ];
 
+        if (Schema::hasColumn('orders', 'track_received_date_customer_request')) {
+            $orderSelectColumns[] = 'orders.track_received_date_customer_request';
+        }
+
+        if (Schema::hasColumn('orders', 'track_received_date_customer_closing')) {
+            $orderSelectColumns[] = 'orders.track_received_date_customer_closing';
+        }
+
+        if (Schema::hasColumn('orders', 'track_received_date_carrier_request')) {
+            $orderSelectColumns[] = 'orders.track_received_date_carrier_request';
+        }
+
+        if (Schema::hasColumn('orders', 'track_received_date_carrier_closing')) {
+            $orderSelectColumns[] = 'orders.track_received_date_carrier_closing';
+        }
+
         if (Schema::hasColumn('orders', 'carrier_rate')) {
             $orderSelectColumns[] = 'orders.carrier_rate';
         }

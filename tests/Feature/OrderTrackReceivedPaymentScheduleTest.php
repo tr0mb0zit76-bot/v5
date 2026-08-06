@@ -146,6 +146,48 @@ class OrderTrackReceivedPaymentScheduleTest extends TestCase
         $this->assertSame('2026-06-09', $after->planned_date?->toDateString());
     }
 
+    public function test_ottn_uses_request_date_not_closing(): void
+    {
+        if (! Schema::hasTable('payment_schedules') || ! Schema::hasColumn('orders', 'track_received_date_customer_request')) {
+            $this->markTestSkipped('Колонки request/closing или payment_schedules недоступны.');
+        }
+
+        $manager = $this->makeManagerUser();
+
+        $order = $this->createOrderWithPaymentTerms([
+            'manager_id' => $manager->id,
+            'order_date' => '2026-06-01',
+            'customer_rate' => 34000,
+            'track_received_date_customer' => null,
+            'track_received_date_customer_request' => '2026-06-05',
+            'track_received_date_customer_closing' => '2026-06-20',
+        ], [
+            'client' => [
+                'payment_schedule' => [
+                    'installments' => [
+                        [
+                            'percent' => 100,
+                            'offset_days' => 3,
+                            'offset_unit' => 'bank_days',
+                            'anchor' => 'last_unloading',
+                            'basis' => 'ottn',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh());
+
+        $row = PaymentSchedule::query()
+            ->where('order_id', $order->id)
+            ->where('party', 'customer')
+            ->first();
+
+        $this->assertNotNull($row);
+        $this->assertSame('2026-06-10', $row->planned_date?->toDateString());
+    }
+
     private function makeManagerUser(): User
     {
         $roleId = DB::table('roles')->where('name', 'manager')->value('id');

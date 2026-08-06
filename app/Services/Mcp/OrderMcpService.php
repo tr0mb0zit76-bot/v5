@@ -242,8 +242,12 @@ class OrderMcpService
         if (in_array($payload['field'], [
             'track_sent_date_customer',
             'track_received_date_customer',
+            'track_received_date_customer_request',
+            'track_received_date_customer_closing',
             'track_sent_date_carrier',
             'track_received_date_carrier',
+            'track_received_date_carrier_request',
+            'track_received_date_carrier_closing',
             'order_date',
         ], true)) {
             $payload['value'] = OrderAgentLexicon::normalizeDateValue($payload['value']);

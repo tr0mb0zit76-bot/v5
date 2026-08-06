@@ -201,6 +201,118 @@ class DocumentRegistryTrackReceivedTest extends TestCase
         );
     }
 
+    public function test_clerk_can_set_request_and_closing_dates_independently(): void
+    {
+        if (! Schema::hasColumn('orders', 'track_received_date_customer_request')) {
+            $this->markTestSkipped('Колонки request/closing track_received недоступны.');
+        }
+
+        $clerk = $this->makeClerkUser();
+        $order = $this->makeOrderNeedingCustomerRequestAndClosing($clerk);
+
+        $this->actingAs($clerk)
+            ->patchJson(route('documents.orders.track-received', $order), [
+                'field' => 'track_received_date_customer_request',
+                'value' => '2026-08-05',
+            ])
+            ->assertOk();
+
+        $fresh = $order->fresh();
+        $this->assertSame('2026-08-05', $fresh->track_received_date_customer_request?->toDateString());
+        $this->assertNull($fresh->track_received_date_customer_closing);
+        $this->assertSame('2026-08-05', $fresh->track_received_date_customer?->toDateString());
+
+        $this->actingAs($clerk)
+            ->patchJson(route('documents.orders.track-received', $order), [
+                'field' => 'track_received_date_customer_closing',
+                'value' => '2026-08-12',
+            ])
+            ->assertOk();
+
+        $fresh = $order->fresh();
+        $this->assertSame('2026-08-05', $fresh->track_received_date_customer_request?->toDateString());
+        $this->assertSame('2026-08-12', $fresh->track_received_date_customer_closing?->toDateString());
+        $this->assertSame('2026-08-12', $fresh->track_received_date_customer?->toDateString());
+    }
+
+    public function test_documents_index_includes_package_track_received_flags(): void
+    {
+        if (! Schema::hasColumn('orders', 'track_received_date_customer_request')) {
+            $this->markTestSkipped('Колонки request/closing track_received недоступны.');
+        }
+
+        $clerk = $this->makeClerkUser();
+        $order = $this->makeOrderNeedingCustomerRequestAndClosing($clerk);
+
+        $this->actingAs($clerk)
+            ->get(route('documents.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('rows', 1)
+                ->where('rows.0.order_id', $order->id)
+                ->where('rows.0.needs_track_received_date_customer_request', true)
+                ->where('rows.0.needs_track_received_date_customer_closing', true)
+                ->where('rows.0.needs_track_received_date_customer', true),
+            );
+    }
+
+    public function test_track_received_update_rejected_when_closing_not_required(): void
+    {
+        if (! Schema::hasColumn('orders', 'track_received_date_customer_closing')) {
+            $this->markTestSkipped('Колонка track_received_date_customer_closing недоступна.');
+        }
+
+        $clerk = $this->makeClerkUser();
+        $order = $this->makeOrderNeedingCustomerTrackReceived($clerk);
+
+        $this->actingAs($clerk)
+            ->patchJson(route('documents.orders.track-received', $order), [
+                'field' => 'track_received_date_customer_closing',
+                'value' => '2026-08-05',
+            ])
+            ->assertStatus(422);
+    }
+
+    private function makeOrderNeedingCustomerRequestAndClosing(User $manager): Order
+    {
+        $paymentTerms = json_encode([
+            'client' => [
+                'payment_schedule' => [
+                    'installments' => [
+                        ['percent' => 50, 'basis' => 'ottn', 'offset_days' => 3, 'offset_unit' => 'bank_days'],
+                        ['percent' => 50, 'basis' => 'fttn_receipt', 'offset_days' => 5, 'offset_unit' => 'bank_days'],
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $orderAttributes = [
+            'manager_id' => $manager->id,
+            'order_number' => 'DOC-TR-BOTH-'.uniqid(),
+            'customer_payment_form' => 'bank_transfer',
+            'customer_rate' => 150_000,
+            'track_received_date_customer' => null,
+        ];
+
+        if (Schema::hasColumn('orders', 'payment_terms')) {
+            $orderAttributes['payment_terms'] = $paymentTerms;
+        }
+
+        if (Schema::hasColumn('orders', 'track_received_date_customer_request')) {
+            $orderAttributes['track_received_date_customer_request'] = null;
+            $orderAttributes['track_received_date_customer_closing'] = null;
+        }
+
+        $order = Order::factory()->create($orderAttributes);
+
+        FinancialTerm::factory()->create([
+            'order_id' => $order->id,
+            'payment_terms_snapshot' => $paymentTerms,
+        ]);
+
+        return $order;
+    }
+
     private function makeClerkUser(): User
     {
         $role = Role::query()->create([

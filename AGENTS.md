@@ -180,10 +180,10 @@ This project has domain-specific skills available. You MUST activate the relevan
 ### Документы и чек-лист заказа
 
 - Реестр + вкладка «Документы»: `DocumentRegistryController`, `OrderWizardDocumentsTab.vue`, `DocumentsGrid.vue`.
-- Дата получения оригиналов: `track_received_date_customer/carrier` — clerk в реестре (`PATCH documents/orders/{id}/track-received`) и в таблице учёта (`OrderSignedDocumentsTable.vue`); одна дата на сторону, строки заявки + закрывающих — `orderTrackingDates.js`.
+- Дата получения оригиналов: `track_received_date_customer_request/closing` и `track_received_date_carrier_request/closing` — отдельно заявка (ottn) и закрывающие (fttn_receipt); clerk в реестре (`PATCH documents/orders/{id}/track-received`) и в таблице учёта (`OrderSignedDocumentsTable.vue`); легаси `track_received_date_customer/carrier` — сводка (max); `orderTrackingDates.js`.
 - Слоты обязательных документов: `OrderDocumentRequirementSlotBuilder`, зеркало на фронте `orderDocumentRequirementSlots.js`.
 - Транспортные типы (ТН / ЭТрН / CMR / ТСД) — одна группа: `OrderDocumentTransportTypes`, слот `waybill` с `accepted_types` waybill|etrn|cmr.
-- **Наличные (`cash`):** слоты заявки и закрывающих (УПД / СФ / акт) **не создаются** ни для заказчика, ни для перевозчика (симметрично); обязателен общий слот ТСД/ТН. Форма оплаты: заказчик — `customer_payment_form`; перевозчик — `contractors_costs` / `leg_costs`; подрядчик — `additional_costs.payment_form` (при cash закрывающие подрядчику тоже не создаются).
+- **Наличные (`cash`):** закрывающие слоты (УПД / СФ / акт) **не создаются**; слоты **заявок** остаются (сканы/оригиналы и сроки оплаты). Форма оплаты: заказчик — `customer_payment_form`; перевозчик — `contractors_costs` / `leg_costs`; подрядчик — `additional_costs.payment_form` (при cash закрывающие подрядчику тоже не создаются). + общий слот ТСД.
 - Закрытие сделки: `OrderStatusService` → `checklistForOrder()` — все пункты чек-листа должны быть `completed`.
 - **Портал заказчика** (invite-link): `OrderCustomerPortalController` + `OrderCustomerPortalPresentationService` — `trip_status`, `route_milestones` (план/факт точек); UI `Portal/CustomerDocuments.vue`.
 - Документация: `docs/documents-user-guide.md`, `docs/documents-regulation.md`; карточка `docs/sync/v5-local-Components-Documents-Registry.md`; публикация в Книгу: `php scripts/mcp-prod-upsert-documents.php`.

@@ -40,9 +40,13 @@ final class OrderInlineFieldCatalog
         'track_number_customer',
         'track_sent_date_customer',
         'track_received_date_customer',
+        'track_received_date_customer_request',
+        'track_received_date_customer_closing',
         'track_number_carrier',
         'track_sent_date_carrier',
         'track_received_date_carrier',
+        'track_received_date_carrier_request',
+        'track_received_date_carrier_closing',
         'customer_payment_form',
         'carrier_payment_form',
         'manual_status',
@@ -157,8 +161,12 @@ final class OrderInlineFieldCatalog
         if (in_array($field, [
             'track_sent_date_customer',
             'track_received_date_customer',
+            'track_received_date_customer_request',
+            'track_received_date_customer_closing',
             'track_sent_date_carrier',
             'track_received_date_carrier',
+            'track_received_date_carrier_request',
+            'track_received_date_carrier_closing',
             'order_date',
         ], true)) {
             return blank($value) ? null : $value;

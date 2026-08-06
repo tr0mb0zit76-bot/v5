@@ -88,6 +88,50 @@ class OrderTrackReceivedRequirementResolverTest extends TestCase
         );
     }
 
+    public function test_flags_distinguish_request_and_closing_packages(): void
+    {
+        $orderId = $this->insertOrderRow([]);
+        $order = Order::query()->findOrFail($orderId);
+        $order->wizard_state = [
+            'financial_term' => [
+                'client_payment_schedule' => [
+                    'installments' => [
+                        ['percent' => 50, 'basis' => 'ottn', 'offset_days' => 3],
+                        ['percent' => 50, 'basis' => 'fttn_receipt', 'offset_days' => 5],
+                    ],
+                ],
+            ],
+        ];
+        $order->save();
+
+        $flags = OrderTrackReceivedRequirementResolver::flagsForOrder($order->fresh());
+
+        $this->assertTrue($flags['needs_track_received_date_customer']);
+        $this->assertTrue($flags['needs_track_received_date_customer_request']);
+        $this->assertTrue($flags['needs_track_received_date_customer_closing']);
+        $this->assertFalse($flags['needs_track_received_date_carrier']);
+        $this->assertFalse($flags['needs_track_received_date_carrier_request']);
+        $this->assertFalse($flags['needs_track_received_date_carrier_closing']);
+    }
+
+    public function test_ottn_only_requires_request_package_field(): void
+    {
+        $order = $this->createOrderWithClientSchedule([
+            'installments' => [
+                ['percent' => 100, 'basis' => 'ottn', 'offset_days' => 3],
+            ],
+        ], [
+            'customer_payment_form' => 'bank_transfer',
+        ]);
+
+        $this->assertTrue(
+            OrderTrackReceivedRequirementResolver::fieldIsRequiredForOrder($order, 'track_received_date_customer_request'),
+        );
+        $this->assertFalse(
+            OrderTrackReceivedRequirementResolver::fieldIsRequiredForOrder($order, 'track_received_date_customer_closing'),
+        );
+    }
+
     /**
      * @param  array<string, mixed>  $schedule
      * @param  array<string, mixed>  $orderAttributes

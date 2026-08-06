@@ -9,6 +9,13 @@ const TRACK_RECEIVED_SLOT_KINDS = new Set([
     'carrier_closing',
 ]);
 
+const TRACK_FIELD_BY_SLOT = {
+    customer_request: 'track_received_date_customer_request',
+    customer_closing: 'track_received_date_customer_closing',
+    carrier_request: 'track_received_date_carrier_request',
+    carrier_closing: 'track_received_date_carrier_closing',
+};
+
 export function installmentNeedsTrackReceived(basis) {
     return TRACK_RECEIVED_BASIS.has(String(basis ?? '').toLowerCase());
 }
@@ -42,7 +49,7 @@ export function scheduleTrackBasisKinds(schedule) {
     return kinds;
 }
 
-function basisLabelsForSchedule(schedule) {
+function basisLabelsForSchedule(schedule, packageKind = null) {
     const normalized = ensureInstallmentSchedule(schedule ?? {});
     const labels = new Set();
 
@@ -52,6 +59,15 @@ function basisLabelsForSchedule(schedule) {
         }
 
         const basis = String(row.basis ?? '').toLowerCase();
+
+        if (packageKind === 'request' && basis !== 'ottn') {
+            continue;
+        }
+
+        if (packageKind === 'closing' && basis !== 'fttn_receipt') {
+            continue;
+        }
+
         labels.add(BASIS_SUMMARY_PHRASE[basis] ?? basis);
     }
 
@@ -97,25 +113,7 @@ function carrierTrackBasisKindsForRow(contractorId, contractorsCosts) {
 }
 
 /**
- * @param {number|null|undefined} contractorId
- * @param {Array<object>} contractorsCosts
- */
-function contractorScheduleNeedsTrackReceived(contractorId, contractorsCosts) {
-    const costs = Array.isArray(contractorsCosts) ? contractorsCosts : [];
-    const normalizedContractorId = Number(contractorId ?? 0);
-
-    if (Number.isFinite(normalizedContractorId) && normalizedContractorId > 0) {
-        const cost = costs.find((row) => Number(row?.contractor_id) === normalizedContractorId);
-
-        return scheduleNeedsTrackReceived(cost?.payment_schedule);
-    }
-
-    return costs.some((cost) => scheduleNeedsTrackReceived(cost?.payment_schedule));
-}
-
-/**
- * Одна дата на сторону (заказчик / перевозчик) — показываем во всех строках заявки и закрывающих,
- * если график оплаты этой стороны требует «дату получения».
+ * Дата получения отдельно для заявки (ottn) и закрывающих (fttn_receipt).
  *
  * @param {{
  *   party?: string|null,
@@ -126,7 +124,7 @@ function contractorScheduleNeedsTrackReceived(contractorId, contractorsCosts) {
  *   clientPaymentSchedule?: object,
  *   contractorsCosts?: Array<object>,
  * }} context
- * @returns {'track_received_date_customer'|'track_received_date_carrier'|null}
+ * @returns {string|null}
  */
 export function resolveTrackFieldForRegistryRow(rowMeta, context) {
     const party = String(rowMeta.party ?? '');
@@ -136,12 +134,32 @@ export function resolveTrackFieldForRegistryRow(rowMeta, context) {
         return null;
     }
 
-    if (party === 'customer' && scheduleNeedsTrackReceived(context.clientPaymentSchedule)) {
-        return 'track_received_date_customer';
+    if (party === 'customer') {
+        const kinds = scheduleTrackBasisKinds(context.clientPaymentSchedule);
+
+        if (slotKind === 'customer_request' && kinds.ottn) {
+            return TRACK_FIELD_BY_SLOT.customer_request;
+        }
+
+        if (slotKind === 'customer_closing' && kinds.fttn_receipt) {
+            return TRACK_FIELD_BY_SLOT.customer_closing;
+        }
+
+        return null;
     }
 
-    if (party === 'carrier' && contractorScheduleNeedsTrackReceived(rowMeta.contractorId, context.contractorsCosts)) {
-        return 'track_received_date_carrier';
+    if (party === 'carrier') {
+        const kinds = carrierTrackBasisKindsForRow(rowMeta.contractorId, context.contractorsCosts);
+
+        if (slotKind === 'carrier_request' && kinds.ottn) {
+            return TRACK_FIELD_BY_SLOT.carrier_request;
+        }
+
+        if (slotKind === 'carrier_closing' && kinds.fttn_receipt) {
+            return TRACK_FIELD_BY_SLOT.carrier_closing;
+        }
+
+        return null;
     }
 
     return null;
@@ -217,6 +235,7 @@ function resolveCarrierLabel(cost, performers) {
  *   party: 'customer'|'carrier',
  *   partyLabel: string,
  *   field: string,
+ *   packageKind: 'request'|'closing',
  *   basisLabels: string[],
  *   value: string,
  * }>}
@@ -224,41 +243,89 @@ function resolveCarrierLabel(cost, performers) {
 export function buildOrderTrackingDateRows(context) {
     const rows = [];
     const order = context.order ?? null;
+    const customerKinds = scheduleTrackBasisKinds(context.clientPaymentSchedule);
 
-    if (scheduleNeedsTrackReceived(context.clientPaymentSchedule)) {
+    if (customerKinds.ottn) {
         rows.push({
-            key: 'customer',
+            key: 'customer_request',
             party: 'customer',
-            partyLabel: 'Заказчик',
-            field: 'track_received_date_customer',
-            basisLabels: basisLabelsForSchedule(context.clientPaymentSchedule),
-            value: order?.track_received_date_customer ?? '',
+            partyLabel: 'Заказчик · заявка',
+            field: TRACK_FIELD_BY_SLOT.customer_request,
+            packageKind: 'request',
+            basisLabels: basisLabelsForSchedule(context.clientPaymentSchedule, 'request'),
+            value: order?.track_received_date_customer_request ?? '',
+        });
+    }
+
+    if (customerKinds.fttn_receipt) {
+        rows.push({
+            key: 'customer_closing',
+            party: 'customer',
+            partyLabel: 'Заказчик · закрывающие',
+            field: TRACK_FIELD_BY_SLOT.customer_closing,
+            packageKind: 'closing',
+            basisLabels: basisLabelsForSchedule(context.clientPaymentSchedule, 'closing'),
+            value: order?.track_received_date_customer_closing ?? '',
         });
     }
 
     const carrierCosts = Array.isArray(context.contractorsCosts) ? context.contractorsCosts : [];
-    const carrierSchedules = carrierCosts
-        .map((cost) => cost?.payment_schedule)
-        .filter((schedule) => scheduleNeedsTrackReceived(schedule));
+    const carrierKinds = { ottn: false, fttn_receipt: false };
+    const requestSchedules = [];
+    const closingSchedules = [];
 
-    if (carrierSchedules.length > 0) {
+    for (const cost of carrierCosts) {
+        const kinds = scheduleTrackBasisKinds(cost?.payment_schedule);
+        carrierKinds.ottn = carrierKinds.ottn || kinds.ottn;
+        carrierKinds.fttn_receipt = carrierKinds.fttn_receipt || kinds.fttn_receipt;
+
+        if (kinds.ottn) {
+            requestSchedules.push(cost.payment_schedule);
+        }
+
+        if (kinds.fttn_receipt) {
+            closingSchedules.push(cost.payment_schedule);
+        }
+    }
+
+    const primaryCost = carrierCosts.find((cost) => scheduleNeedsTrackReceived(cost?.payment_schedule)) ?? carrierCosts[0];
+    const carrierLabel = resolveCarrierLabel(primaryCost, context.performers);
+
+    if (carrierKinds.ottn) {
         const basisLabels = new Set();
-
-        for (const schedule of carrierSchedules) {
-            for (const label of basisLabelsForSchedule(schedule)) {
+        for (const schedule of requestSchedules) {
+            for (const label of basisLabelsForSchedule(schedule, 'request')) {
                 basisLabels.add(label);
             }
         }
 
-        const primaryCost = carrierCosts.find((cost) => scheduleNeedsTrackReceived(cost?.payment_schedule)) ?? carrierCosts[0];
+        rows.push({
+            key: 'carrier_request',
+            party: 'carrier',
+            partyLabel: `${carrierLabel} · заявка`,
+            field: TRACK_FIELD_BY_SLOT.carrier_request,
+            packageKind: 'request',
+            basisLabels: [...basisLabels],
+            value: order?.track_received_date_carrier_request ?? '',
+        });
+    }
+
+    if (carrierKinds.fttn_receipt) {
+        const basisLabels = new Set();
+        for (const schedule of closingSchedules) {
+            for (const label of basisLabelsForSchedule(schedule, 'closing')) {
+                basisLabels.add(label);
+            }
+        }
 
         rows.push({
-            key: 'carrier',
+            key: 'carrier_closing',
             party: 'carrier',
-            partyLabel: resolveCarrierLabel(primaryCost, context.performers),
-            field: 'track_received_date_carrier',
+            partyLabel: `${carrierLabel} · закрывающие`,
+            field: TRACK_FIELD_BY_SLOT.carrier_closing,
+            packageKind: 'closing',
             basisLabels: [...basisLabels],
-            value: order?.track_received_date_carrier ?? '',
+            value: order?.track_received_date_carrier_closing ?? '',
         });
     }
 

@@ -11,22 +11,32 @@ use Illuminate\Support\Facades\Schema;
 use JsonException;
 
 /**
- * Нужна ли ручная «дата получения» (квиток / оригиналы) по стороне заказа.
+ * Нужна ли ручная «дата получения» (квиток / оригиналы) по стороне и пакету документов.
  */
 final class OrderTrackReceivedRequirementResolver
 {
-    private const TRACK_RECEIVED_BASES = ['ottn', 'fttn_receipt'];
-
     /**
      * @param  array<string, mixed>  $schedule
      */
     public static function scheduleNeedsTrackReceived(array $schedule): bool
     {
+        $kinds = self::scheduleTrackPackageKinds($schedule);
+
+        return $kinds['request'] || $kinds['closing'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $schedule
+     * @return array{request: bool, closing: bool}
+     */
+    public static function scheduleTrackPackageKinds(array $schedule): array
+    {
         $normalized = PaymentInstallmentScheduleNormalizer::ensureInstallmentModel($schedule);
         $installments = $normalized['installments'] ?? [];
+        $kinds = ['request' => false, 'closing' => false];
 
         if (! is_array($installments)) {
-            return false;
+            return $kinds;
         }
 
         foreach ($installments as $row) {
@@ -36,56 +46,87 @@ final class OrderTrackReceivedRequirementResolver
 
             $basis = strtolower(trim((string) ($row['basis'] ?? '')));
 
-            if (in_array($basis, self::TRACK_RECEIVED_BASES, true)) {
-                return true;
+            if ($basis === 'ottn') {
+                $kinds['request'] = true;
+            }
+
+            if ($basis === 'fttn_receipt') {
+                $kinds['closing'] = true;
             }
         }
 
-        return false;
+        return $kinds;
     }
 
     public static function orderNeedsCustomerTrackReceived(Order $order, ?FinancialTerm $financialTerm = null): bool
     {
-        $schedule = self::resolveClientPaymentSchedule($order, $financialTerm);
+        $kinds = self::customerPackageKinds($order, $financialTerm);
 
-        return self::scheduleNeedsTrackReceived($schedule);
+        return $kinds['request'] || $kinds['closing'];
     }
 
     public static function orderNeedsCarrierTrackReceived(Order $order, ?FinancialTerm $financialTerm = null): bool
     {
+        $kinds = self::carrierPackageKinds($order, $financialTerm);
+
+        return $kinds['request'] || $kinds['closing'];
+    }
+
+    /**
+     * @return array{request: bool, closing: bool}
+     */
+    public static function customerPackageKinds(Order $order, ?FinancialTerm $financialTerm = null): array
+    {
+        return self::scheduleTrackPackageKinds(self::resolveClientPaymentSchedule($order, $financialTerm));
+    }
+
+    /**
+     * @return array{request: bool, closing: bool}
+     */
+    public static function carrierPackageKinds(Order $order, ?FinancialTerm $financialTerm = null): array
+    {
+        $merged = ['request' => false, 'closing' => false];
+
         foreach (self::resolveContractorsCosts($order, $financialTerm) as $cost) {
             if (! is_array($cost)) {
                 continue;
             }
 
-            $schedule = (array) ($cost['payment_schedule'] ?? []);
-
-            if (self::scheduleNeedsTrackReceived($schedule)) {
-                return true;
-            }
+            $kinds = self::scheduleTrackPackageKinds((array) ($cost['payment_schedule'] ?? []));
+            $merged['request'] = $merged['request'] || $kinds['request'];
+            $merged['closing'] = $merged['closing'] || $kinds['closing'];
         }
 
-        return false;
+        return $merged;
     }
 
     /**
      * @return array{
      *     needs_track_received_date_customer: bool,
      *     needs_track_received_date_carrier: bool,
+     *     needs_track_received_date_customer_request: bool,
+     *     needs_track_received_date_customer_closing: bool,
+     *     needs_track_received_date_carrier_request: bool,
+     *     needs_track_received_date_carrier_closing: bool,
      * }
      */
     public static function flagsForOrder(Order $order, ?FinancialTerm $financialTerm = null): array
     {
-        $flags = [
-            'needs_track_received_date_customer' => self::orderNeedsCustomerTrackReceived($order, $financialTerm),
-            'needs_track_received_date_carrier' => self::orderNeedsCarrierTrackReceived($order, $financialTerm),
-        ];
+        $customer = self::customerPackageKinds($order, $financialTerm);
+        $carrier = self::carrierPackageKinds($order, $financialTerm);
 
         if (DocumentRegistryGridColumnApplicabilityResolver::orderIsOwnFleetCarrierOnly($order)) {
-            $flags['needs_track_received_date_carrier'] = false;
+            $carrier = ['request' => false, 'closing' => false];
         }
 
-        return $flags;
+        return [
+            'needs_track_received_date_customer' => $customer['request'] || $customer['closing'],
+            'needs_track_received_date_carrier' => $carrier['request'] || $carrier['closing'],
+            'needs_track_received_date_customer_request' => $customer['request'],
+            'needs_track_received_date_customer_closing' => $customer['closing'],
+            'needs_track_received_date_carrier_request' => $carrier['request'],
+            'needs_track_received_date_carrier_closing' => $carrier['closing'],
+        ];
     }
 
     /**
@@ -93,6 +134,10 @@ final class OrderTrackReceivedRequirementResolver
      * @return array<int, array{
      *     needs_track_received_date_customer: bool,
      *     needs_track_received_date_carrier: bool,
+     *     needs_track_received_date_customer_request: bool,
+     *     needs_track_received_date_customer_closing: bool,
+     *     needs_track_received_date_carrier_request: bool,
+     *     needs_track_received_date_carrier_closing: bool,
      * }>
      */
     public static function mapFlagsForOrders(Collection $orders): array
@@ -111,6 +156,21 @@ final class OrderTrackReceivedRequirementResolver
         }
 
         return $map;
+    }
+
+    public static function fieldIsRequiredForOrder(Order $order, string $field, ?FinancialTerm $financialTerm = null): bool
+    {
+        $flags = self::flagsForOrder($order, $financialTerm);
+
+        return match ($field) {
+            OrderTrackReceivedFields::CUSTOMER_REQUEST => (bool) ($flags['needs_track_received_date_customer_request'] ?? false),
+            OrderTrackReceivedFields::CUSTOMER_CLOSING => (bool) ($flags['needs_track_received_date_customer_closing'] ?? false),
+            OrderTrackReceivedFields::CARRIER_REQUEST => (bool) ($flags['needs_track_received_date_carrier_request'] ?? false),
+            OrderTrackReceivedFields::CARRIER_CLOSING => (bool) ($flags['needs_track_received_date_carrier_closing'] ?? false),
+            OrderTrackReceivedFields::CUSTOMER_LEGACY => (bool) ($flags['needs_track_received_date_customer'] ?? false),
+            OrderTrackReceivedFields::CARRIER_LEGACY => (bool) ($flags['needs_track_received_date_carrier'] ?? false),
+            default => false,
+        };
     }
 
     /**

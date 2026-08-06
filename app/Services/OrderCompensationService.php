@@ -16,6 +16,7 @@ use App\Support\OrderCompensationSplitResolver;
 use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\OrderPersistedId;
 use App\Support\OrderRouteMilestoneDateResolver;
+use App\Support\OrderTrackReceivedFields;
 use App\Support\OrderViewAuthorization;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
@@ -884,10 +885,10 @@ class OrderCompensationService
     ): ?string {
         $modeLower = strtolower((string) $mode);
 
+        $trackParty = $party === 'customer' ? 'customer' : 'carrier';
+
         $baseDate = match ($modeLower) {
-            'ottn' => $party === 'customer'
-                ? $order->track_received_date_customer
-                : $order->track_received_date_carrier,
+            'ottn' => OrderTrackReceivedFields::resolveForPaymentBasis($order, $trackParty, 'ottn'),
             'fttn_receipt' => $isPrepayment
                 ? OrderRouteMilestoneDateResolver::resolveLoadingDate($order)
                 : $this->resolveFttnWithReceiptDate($order, $party),
@@ -922,9 +923,8 @@ class OrderCompensationService
             return null;
         }
 
-        $receivedDate = $party === 'customer'
-            ? $order->track_received_date_customer
-            : $order->track_received_date_carrier;
+        $trackParty = $party === 'customer' ? 'customer' : 'carrier';
+        $receivedDate = OrderTrackReceivedFields::resolveForPaymentBasis($order, $trackParty, 'fttn_receipt');
 
         if ($receivedDate === null) {
             return null;

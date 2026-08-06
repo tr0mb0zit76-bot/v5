@@ -94,6 +94,10 @@ class DocumentRegistryController extends Controller
                     $trackReceivedFlags[(int) $order->id] ?? [
                         'needs_track_received_date_customer' => false,
                         'needs_track_received_date_carrier' => false,
+                        'needs_track_received_date_customer_request' => false,
+                        'needs_track_received_date_customer_closing' => false,
+                        'needs_track_received_date_carrier_request' => false,
+                        'needs_track_received_date_carrier_closing' => false,
                     ],
                     $columnApplicability[(int) $order->id] ?? [],
                     $attentionFlags[(int) $order->id] ?? [
@@ -297,13 +301,12 @@ class DocumentRegistryController extends Controller
         $field = (string) $request->validated('field');
         $order->loadMissing('financialTerms');
         $financialTerm = $order->financialTerms->first();
-        $flags = OrderTrackReceivedRequirementResolver::flagsForOrder($order, $financialTerm);
 
-        $needsKey = $field === 'track_received_date_customer'
-            ? 'needs_track_received_date_customer'
-            : 'needs_track_received_date_carrier';
-
-        abort_unless((bool) ($flags[$needsKey] ?? false), 422, 'Для этого заказа дата получения по выбранной стороне не требуется.');
+        abort_unless(
+            OrderTrackReceivedRequirementResolver::fieldIsRequiredForOrder($order, $field, $financialTerm),
+            422,
+            'Для этого заказа дата получения по выбранному пакету документов не требуется.',
+        );
 
         abort_unless(
             Schema::hasColumn('orders', $field),
@@ -410,6 +413,10 @@ class DocumentRegistryController extends Controller
      * @param  array{
      *     needs_track_received_date_customer: bool,
      *     needs_track_received_date_carrier: bool,
+     *     needs_track_received_date_customer_request?: bool,
+     *     needs_track_received_date_customer_closing?: bool,
+     *     needs_track_received_date_carrier_request?: bool,
+     *     needs_track_received_date_carrier_closing?: bool,
      * }  $trackReceivedFlags
      * @param  array<string, bool>  $columnApplicability
      * @param  array{
@@ -441,11 +448,27 @@ class DocumentRegistryController extends Controller
             'track_received_date_customer' => Schema::hasColumn('orders', 'track_received_date_customer')
                 ? optional($order->track_received_date_customer)?->toDateString()
                 : null,
+            'track_received_date_customer_request' => Schema::hasColumn('orders', 'track_received_date_customer_request')
+                ? optional($order->track_received_date_customer_request)?->toDateString()
+                : null,
+            'track_received_date_customer_closing' => Schema::hasColumn('orders', 'track_received_date_customer_closing')
+                ? optional($order->track_received_date_customer_closing)?->toDateString()
+                : null,
             'track_received_date_carrier' => Schema::hasColumn('orders', 'track_received_date_carrier')
                 ? optional($order->track_received_date_carrier)?->toDateString()
                 : null,
+            'track_received_date_carrier_request' => Schema::hasColumn('orders', 'track_received_date_carrier_request')
+                ? optional($order->track_received_date_carrier_request)?->toDateString()
+                : null,
+            'track_received_date_carrier_closing' => Schema::hasColumn('orders', 'track_received_date_carrier_closing')
+                ? optional($order->track_received_date_carrier_closing)?->toDateString()
+                : null,
             'needs_track_received_date_customer' => (bool) ($trackReceivedFlags['needs_track_received_date_customer'] ?? false),
             'needs_track_received_date_carrier' => (bool) ($trackReceivedFlags['needs_track_received_date_carrier'] ?? false),
+            'needs_track_received_date_customer_request' => (bool) ($trackReceivedFlags['needs_track_received_date_customer_request'] ?? false),
+            'needs_track_received_date_customer_closing' => (bool) ($trackReceivedFlags['needs_track_received_date_customer_closing'] ?? false),
+            'needs_track_received_date_carrier_request' => (bool) ($trackReceivedFlags['needs_track_received_date_carrier_request'] ?? false),
+            'needs_track_received_date_carrier_closing' => (bool) ($trackReceivedFlags['needs_track_received_date_carrier_closing'] ?? false),
             'column_applicable' => $columnApplicability,
             'column_edo_fulfilment' => $columnEdoFulfilment,
             'clipboard_summary' => $clipboardSummary,
