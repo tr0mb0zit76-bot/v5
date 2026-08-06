@@ -114,7 +114,7 @@ class OrderTrackReceivedRequirementResolverTest extends TestCase
         $this->assertFalse($flags['needs_track_received_date_carrier_closing']);
     }
 
-    public function test_ottn_only_requires_request_package_field(): void
+    public function test_ottn_allows_both_request_and_closing_track_fields(): void
     {
         $order = $this->createOrderWithClientSchedule([
             'installments' => [
@@ -127,9 +127,13 @@ class OrderTrackReceivedRequirementResolverTest extends TestCase
         $this->assertTrue(
             OrderTrackReceivedRequirementResolver::fieldIsRequiredForOrder($order, 'track_received_date_customer_request'),
         );
-        $this->assertFalse(
+        $this->assertTrue(
             OrderTrackReceivedRequirementResolver::fieldIsRequiredForOrder($order, 'track_received_date_customer_closing'),
         );
+
+        $flags = OrderTrackReceivedRequirementResolver::flagsForOrder($order);
+        $this->assertTrue($flags['needs_track_received_date_customer_request']);
+        $this->assertTrue($flags['needs_track_received_date_customer_closing']);
     }
 
     /**

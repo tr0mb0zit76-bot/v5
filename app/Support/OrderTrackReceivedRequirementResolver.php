@@ -122,10 +122,12 @@ final class OrderTrackReceivedRequirementResolver
         return [
             'needs_track_received_date_customer' => $customer['request'] || $customer['closing'],
             'needs_track_received_date_carrier' => $carrier['request'] || $carrier['closing'],
-            'needs_track_received_date_customer_request' => $customer['request'],
-            'needs_track_received_date_customer_closing' => $customer['closing'],
-            'needs_track_received_date_carrier_request' => $carrier['request'],
-            'needs_track_received_date_carrier_closing' => $carrier['closing'],
+            // Редактирование пакетов: если стороне нужна любая «дата получения»,
+            // даём отдельно заявку и закрывающие (не только при fttn_receipt / ottn).
+            'needs_track_received_date_customer_request' => $customer['request'] || $customer['closing'],
+            'needs_track_received_date_customer_closing' => $customer['request'] || $customer['closing'],
+            'needs_track_received_date_carrier_request' => $carrier['request'] || $carrier['closing'],
+            'needs_track_received_date_carrier_closing' => $carrier['request'] || $carrier['closing'],
         ];
     }
 
@@ -163,11 +165,11 @@ final class OrderTrackReceivedRequirementResolver
         $flags = self::flagsForOrder($order, $financialTerm);
 
         return match ($field) {
-            OrderTrackReceivedFields::CUSTOMER_REQUEST => (bool) ($flags['needs_track_received_date_customer_request'] ?? false),
-            OrderTrackReceivedFields::CUSTOMER_CLOSING => (bool) ($flags['needs_track_received_date_customer_closing'] ?? false),
-            OrderTrackReceivedFields::CARRIER_REQUEST => (bool) ($flags['needs_track_received_date_carrier_request'] ?? false),
-            OrderTrackReceivedFields::CARRIER_CLOSING => (bool) ($flags['needs_track_received_date_carrier_closing'] ?? false),
+            OrderTrackReceivedFields::CUSTOMER_REQUEST,
+            OrderTrackReceivedFields::CUSTOMER_CLOSING,
             OrderTrackReceivedFields::CUSTOMER_LEGACY => (bool) ($flags['needs_track_received_date_customer'] ?? false),
+            OrderTrackReceivedFields::CARRIER_REQUEST,
+            OrderTrackReceivedFields::CARRIER_CLOSING,
             OrderTrackReceivedFields::CARRIER_LEGACY => (bool) ($flags['needs_track_received_date_carrier'] ?? false),
             default => false,
         };

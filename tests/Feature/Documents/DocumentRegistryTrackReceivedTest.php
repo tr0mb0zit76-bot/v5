@@ -256,7 +256,7 @@ class DocumentRegistryTrackReceivedTest extends TestCase
             );
     }
 
-    public function test_track_received_update_rejected_when_closing_not_required(): void
+    public function test_clerk_can_set_closing_date_when_schedule_has_only_ottn(): void
     {
         if (! Schema::hasColumn('orders', 'track_received_date_customer_closing')) {
             $this->markTestSkipped('Колонка track_received_date_customer_closing недоступна.');
@@ -270,7 +270,15 @@ class DocumentRegistryTrackReceivedTest extends TestCase
                 'field' => 'track_received_date_customer_closing',
                 'value' => '2026-08-05',
             ])
-            ->assertStatus(422);
+            ->assertOk()
+            ->assertJson([
+                'field' => 'track_received_date_customer_closing',
+                'value' => '2026-08-05',
+            ]);
+
+        $fresh = $order->fresh();
+        $this->assertSame('2026-08-05', $fresh->track_received_date_customer_closing?->toDateString());
+        $this->assertNull($fresh->track_received_date_customer_request);
     }
 
     private function makeOrderNeedingCustomerRequestAndClosing(User $manager): Order
