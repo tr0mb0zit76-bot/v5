@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-07 15:32 (ОТДАТЬ) · **Ветка:** `master` · **тема:** handoff + baseline LOC
+**Обновлено:** 2026-08-07 15:32 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `91e8af98` · **тема:** handoff + baseline LOC
 
 ### Итог сессии 2026-08-07 (ОТДАТЬ)
 
