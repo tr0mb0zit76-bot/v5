@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Check, Copy, Link2, Plus, Star, UserCircle, X } from 'lucide-vue-next';
+import { Check, Copy, Link2, Plus, RefreshCw, Star, UserCircle, X } from 'lucide-vue-next';
 import {
     crmBtnCreate,
     crmBtnNeutral,
@@ -37,6 +37,14 @@ const props = defineProps({
     insightDrafts: {
         type: Array,
         default: () => [],
+    },
+    enrichmentSummary: {
+        type: Object,
+        default: null,
+    },
+    canManagePortrait: {
+        type: Boolean,
+        default: false,
     },
     cardFocus: {
         type: Boolean,
@@ -80,6 +88,9 @@ const missingSlots = computed(() => props.portrait.missing_slots ?? []);
 const recentInteractions = computed(() => (props.interactions ?? []).slice(0, 5));
 const pendingInsightDrafts = ref([...(props.insightDrafts ?? [])]);
 const insightDraftBusyId = ref(null);
+const enrichmentSummary = ref(props.enrichmentSummary ?? null);
+const enrichmentBusy = ref(false);
+const enrichmentMessage = ref('');
 const trakloBusyContactId = ref(null);
 const trakloInviteUrl = ref('');
 const trakloInviteMessage = ref('');
@@ -144,8 +155,44 @@ watch(
     { deep: true },
 );
 
+watch(
+    () => props.enrichmentSummary,
+    (value) => {
+        enrichmentSummary.value = value ?? null;
+    },
+);
+
 function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+}
+
+async function runEnrichment(force = false) {
+    if (!props.canManagePortrait || enrichmentBusy.value) {
+        return;
+    }
+
+    enrichmentBusy.value = true;
+    enrichmentMessage.value = '';
+
+    try {
+        const { data } = await axios.post(route('contractors.enrichment.store', props.contractorId), {
+            async: false,
+            force,
+        });
+        pendingInsightDrafts.value = [...(data.pending_drafts ?? [])];
+        enrichmentSummary.value = data.summary ?? enrichmentSummary.value;
+        const created = Number(data.drafts_created ?? 0);
+        enrichmentMessage.value = created > 0
+            ? `Сводка обновлена, предложений: ${created}.`
+            : 'Сводка обновлена — новых предложений нет.';
+        router.reload({ only: ['selectedContractor'], preserveScroll: true });
+    } catch (error) {
+        enrichmentMessage.value = error?.response?.data?.message
+            || error?.response?.data?.errors?.enrichment?.[0]
+            || 'Не удалось собрать сводку.';
+    } finally {
+        enrichmentBusy.value = false;
+    }
 }
 
 async function reviewInsightDraft(draftId, action) {
@@ -268,6 +315,36 @@ defineExpose({
                 Не хватает: {{ missingSlots.join(' · ') }}
             </p>
 
+            <div class="mt-4 rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Сводка для портрета</div>
+                        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            CRM + публичный веб → черновики ниже. Подтверждает владелец карточки.
+                        </p>
+                        <p v-if="enrichmentSummary" class="mt-2 text-xs text-zinc-600 dark:text-zinc-300">
+                            Статус: {{ enrichmentSummary.status }}
+                            <span v-if="enrichmentSummary.updated_at"> · {{ enrichmentSummary.updated_at }}</span>
+                            · заказов (зак/пер): {{ enrichmentSummary.customer_orders_count ?? 0 }}/{{ enrichmentSummary.carrier_orders_count ?? 0 }}
+                            · веб: {{ enrichmentSummary.web_snippets_count ?? 0 }}
+                            <span v-if="enrichmentSummary.checko_grade"> · Checko: {{ enrichmentSummary.checko_grade }}<span v-if="enrichmentSummary.checko_tier_label"> ({{ enrichmentSummary.checko_tier_label }})</span></span>
+                        </p>
+                        <p v-else class="mt-2 text-xs text-zinc-500">Сводка ещё не собиралась.</p>
+                        <p v-if="enrichmentMessage" class="mt-1 text-xs text-sky-700 dark:text-sky-300">{{ enrichmentMessage }}</p>
+                    </div>
+                    <button
+                        v-if="canManagePortrait"
+                        type="button"
+                        :class="crmBtnNeutral"
+                        :disabled="enrichmentBusy"
+                        @click="runEnrichment(false)"
+                    >
+                        <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': enrichmentBusy }" />
+                        Собрать портрет
+                    </button>
+                </div>
+            </div>
+
             <p class="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
                 Ассистент собирает контекст переписки и звонков из журнала
                 <button type="button" class="font-medium text-sky-700 underline underline-offset-2 dark:text-sky-300" @click="emit('open-communications')">
@@ -280,9 +357,9 @@ defineExpose({
             v-if="pendingInsightDrafts.length"
             class="rounded-xl border border-amber-200 bg-amber-50/80 p-4 dark:border-amber-900/60 dark:bg-amber-950/20"
         >
-            <div class="text-sm font-semibold text-amber-900 dark:text-amber-100">Предложения из переписки</div>
+            <div class="text-sm font-semibold text-amber-900 dark:text-amber-100">Предложения для портрета</div>
             <p class="mt-1 text-xs text-amber-800/80 dark:text-amber-200/80">
-                ИИ предложил факты — примите только то, что согласуется с вашим знанием о клиенте.
+                Факты из CRM, веба или переписки — примите только то, что согласуется с вашим знанием о клиенте.
             </p>
             <ul class="mt-3 space-y-2">
                 <li
@@ -292,19 +369,25 @@ defineExpose({
                 >
                     <div class="min-w-0 flex-1 text-sm">
                         <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ draft.field_label }}</div>
-                        <div class="mt-1 text-zinc-600 dark:text-zinc-300">{{ draft.proposed_display }}</div>
-                        <div v-if="draft.confidence !== null" class="mt-1 text-xs text-zinc-500">
-                            Уверенность: {{ Math.round(draft.confidence * 100) }}%
+                        <div class="mt-1 whitespace-pre-wrap text-zinc-600 dark:text-zinc-300">{{ draft.proposed_display }}</div>
+                        <div v-if="draft.source_label || draft.confidence !== null" class="mt-1 text-xs text-zinc-500">
+                            <span v-if="draft.source_label">Источник: {{ draft.source_label }}</span>
+                            <span v-if="draft.confidence !== null">
+                                <span v-if="draft.source_label"> · </span>
+                                Уверенность: {{ Math.round(draft.confidence * 100) }}%
+                            </span>
                         </div>
                         <a
                             v-if="draft.source_url"
                             :href="draft.source_url"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             class="mt-1 inline-block text-xs font-medium text-sky-700 hover:underline dark:text-sky-300"
                         >
-                            Источник: {{ draft.source_label ?? 'открыть' }}
+                            Открыть источник
                         </a>
                     </div>
-                    <div class="flex shrink-0 gap-2">
+                    <div v-if="canManagePortrait" class="flex shrink-0 gap-2">
                         <button
                             type="button"
                             :class="crmBtnCreate"

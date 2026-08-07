@@ -3891,6 +3891,8 @@ function goToPage(pageNumber) {
                         :contacts="props.selectedContractor?.contacts ?? []"
                         :interactions="props.selectedContractor?.interactions ?? []"
                         :insight-drafts="props.selectedContractor?.insight_drafts ?? []"
+                        :enrichment-summary="props.selectedContractor?.enrichment_summary ?? null"
+                        :can-manage-portrait="Boolean(props.selectedContractor?.can_manage_portrait)"
                         :portrait-options="portraitOptions"
                         :card-focus="cardFocus"
                         @open-communications="activeTab = 'communications'"

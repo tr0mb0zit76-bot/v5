@@ -11,6 +11,7 @@ use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\PrintFormTemplate;
 use App\Services\Commercial\LeadPrecalculationDocumentService;
+use App\Services\Contractor\ContractorEnrichmentService;
 use App\Services\DaDataService;
 use App\Services\OrderCompensationService;
 use App\Services\OrderIntakeGoldenLibraryService;
@@ -227,6 +228,9 @@ class OrderWizardController extends Controller
         }
 
         $contractor = Contractor::query()->create($attributes);
+
+        app(ContractorEnrichmentService::class)
+            ->maybeDispatchAfterCreate($contractor, $request->user());
 
         return response()->json([
             'contractor' => [

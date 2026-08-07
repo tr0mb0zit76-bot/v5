@@ -85,6 +85,9 @@ class ContractorContextBuilder
             'open_leads_count' => Schema::hasTable('leads')
                 ? $contractor->leadsAsCounterparty()->whereNotIn('status', ['won', 'lost'])->count()
                 : 0,
+            'dossier' => Schema::hasTable('contractor_enrichment_runs')
+                ? app(ContractorEnrichmentService::class)->latestDossier($contractor)
+                : null,
         ];
     }
 }

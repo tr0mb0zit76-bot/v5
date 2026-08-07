@@ -7,6 +7,7 @@ use App\Models\ContractorInsightDraft;
 use App\Models\MailMessage;
 use App\Services\Commercial\MailMailboxAuthorization;
 use App\Services\Contractor\ContractorInsightDraftService;
+use App\Support\ContractorPortraitAuthorization;
 use App\Support\ContractorViewAuthorization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,7 @@ class ContractorInsightDraftController extends Controller
     public function extractFromMail(Request $request, Contractor $contractor, MailMessage $mailMessage): JsonResponse
     {
         ContractorViewAuthorization::authorize($request->user(), $contractor);
+        ContractorPortraitAuthorization::authorizeManage($request->user(), $contractor);
         abort_unless(Schema::hasTable('contractor_insight_drafts'), 422, 'Модуль предложений портрета недоступен.');
 
         $this->assertMailAccess($request, $mailMessage);

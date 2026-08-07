@@ -15,6 +15,10 @@ class ContractorInsightDraft extends Model
 
     public const SOURCE_MAIL_MESSAGE = 'mail_message';
 
+    public const SOURCE_CRM_ENRICHMENT = 'crm_enrichment';
+
+    public const SOURCE_WEB_PUBLIC = 'web_public';
+
     /**
      * @var list<string>
      */
@@ -24,6 +28,7 @@ class ContractorInsightDraft extends Model
         'proposed_value',
         'source_type',
         'source_id',
+        'source_url',
         'confidence',
         'status',
         'reviewed_by',

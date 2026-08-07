@@ -35,6 +35,7 @@ use App\Services\Commercial\LeadProposalHtmlRenderer;
 use App\Services\Commercial\LeadProposalPdfService;
 use App\Services\Commercial\ManagerSalesCoachingInsightsService;
 use App\Services\Commercial\ProposalHtmlCidMailPreparer;
+use App\Services\Contractor\ContractorEnrichmentService;
 use App\Services\Contractor\ContractorPortraitService;
 use App\Services\DaDataService;
 use App\Services\ImportCostCalculatorService;
@@ -332,6 +333,9 @@ class LeadController extends Controller
         }
 
         $contractor = Contractor::query()->create($attributes);
+
+        app(ContractorEnrichmentService::class)
+            ->maybeDispatchAfterCreate($contractor, $request->user());
 
         return response()->json([
             'contractor' => [

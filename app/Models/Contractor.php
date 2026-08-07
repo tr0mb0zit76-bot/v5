@@ -209,6 +209,14 @@ class Contractor extends Model
     }
 
     /**
+     * @return HasMany<ContractorEnrichmentRun, $this>
+     */
+    public function enrichmentRuns(): HasMany
+    {
+        return $this->hasMany(ContractorEnrichmentRun::class)->latest('id');
+    }
+
+    /**
      * @return HasMany<ContractorDocument, $this>
      */
     public function documents(): HasMany

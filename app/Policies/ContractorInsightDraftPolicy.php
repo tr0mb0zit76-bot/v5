@@ -5,19 +5,18 @@ namespace App\Policies;
 use App\Models\Contractor;
 use App\Models\ContractorInsightDraft;
 use App\Models\User;
-use App\Support\RoleAccess;
+use App\Support\ContractorPortraitAuthorization;
 
 class ContractorInsightDraftPolicy
 {
     public function review(User $user, ContractorInsightDraft $draft): bool
     {
-        if (! RoleAccess::canAccessVisibilityArea($user, 'contractors')) {
+        $contractor = Contractor::query()->find($draft->contractor_id);
+
+        if ($contractor === null) {
             return false;
         }
 
-        return Contractor::query()
-            ->visibleTo($user)
-            ->whereKey($draft->contractor_id)
-            ->exists();
+        return ContractorPortraitAuthorization::canManage($user, $contractor);
     }
 }

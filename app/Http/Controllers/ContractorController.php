@@ -12,6 +12,7 @@ use App\Models\ContractorRiskAssessment;
 use App\Models\User;
 use App\Services\Checko\ContractorRiskAssessmentService;
 use App\Services\Checko\ContractorScoringService;
+use App\Services\Contractor\ContractorEnrichmentService;
 use App\Services\Contractor\ContractorInsightDraftService;
 use App\Services\Contractor\ContractorLimitApprovalService;
 use App\Services\Contractor\ContractorPortraitService;
@@ -26,6 +27,7 @@ use App\Services\PrintForm\ContractorPrintFormProfileResolver;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\ContractorContactPhonesNormalizer;
 use App\Support\ContractorDuplicateGuard;
+use App\Support\ContractorPortraitAuthorization;
 use App\Support\ContractorPortraitDictionary;
 use App\Support\ContractorTableColumns;
 use App\Support\ContractorViewAuthorization;
@@ -86,6 +88,8 @@ class ContractorController extends Controller
         });
 
         MailContractorAllowlist::forgetCache();
+
+        app(ContractorEnrichmentService::class)->maybeDispatchAfterCreate($contractor, $request->user());
 
         return to_route('contractors.show', [
             'contractor' => $contractor,
@@ -800,6 +804,13 @@ class ContractorController extends Controller
                 'insight_drafts' => Schema::hasTable('contractor_insight_drafts')
                     ? app(ContractorInsightDraftService::class)->serializePendingForContractor($selectedContractor)->values()->all()
                     : [],
+                'enrichment_summary' => Schema::hasTable('contractor_enrichment_runs')
+                    ? app(ContractorEnrichmentService::class)->latestSummary($selectedContractor)
+                    : null,
+                'can_manage_portrait' => ContractorPortraitAuthorization::canManage(
+                    $request->user(),
+                    $selectedContractor,
+                ),
                 'documents' => $hasDocumentsTable
                     ? $selectedContractor->documents->map(
                         fn ($document): array => $this->serializeContractorDocument($document, $selectedContractor),

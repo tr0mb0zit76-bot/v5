@@ -5,6 +5,7 @@ namespace App\Services\Mcp;
 use App\Models\Contractor;
 use App\Models\User;
 use App\Services\Contractor\ContractorContextBuilder;
+use App\Services\Contractor\ContractorEnrichmentService;
 use App\Services\DaDataService;
 use App\Support\ContractorIdentity;
 use App\Support\ContractorWorkStatus;
@@ -21,6 +22,7 @@ class ContractorMcpService
         private readonly McpAccessGate $access,
         private readonly DaDataService $daData,
         private readonly ContractorContextBuilder $contextBuilder,
+        private readonly ContractorEnrichmentService $enrichment,
     ) {}
 
     /**
@@ -160,6 +162,8 @@ class ContractorMcpService
 
         $contractor = Contractor::query()->create($createAttributes);
         MailContractorAllowlist::forgetCache();
+
+        $this->enrichment->maybeDispatchAfterCreate($contractor, $user);
 
         return [
             'contractor' => $this->detail($contractor->fresh('owner:id,name')),

@@ -7,6 +7,7 @@ use App\Http\Controllers\CommandBarAgentController;
 use App\Http\Controllers\CompanyPlanningController;
 use App\Http\Controllers\ContractorContactTrakloController;
 use App\Http\Controllers\ContractorController;
+use App\Http\Controllers\ContractorEnrichmentController;
 use App\Http\Controllers\ContractorInsightDraftController;
 use App\Http\Controllers\ContractorPortraitController;
 use App\Http\Controllers\ContractorPrintFormController;
@@ -640,6 +641,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/contractors/{contractor}', 'update')->name('contractors.update');
         Route::delete('/contractors/{contractor}', 'destroy')->name('contractors.destroy');
         Route::patch('/contractors/{contractor}/portrait', [ContractorPortraitController::class, 'update'])->name('contractors.portrait.update');
+        Route::get('/contractors/{contractor}/enrichment', [ContractorEnrichmentController::class, 'show'])->name('contractors.enrichment.show');
+        Route::post('/contractors/{contractor}/enrichment', [ContractorEnrichmentController::class, 'store'])->name('contractors.enrichment.store');
         Route::post('/contractors/{contractor}/contacts/{contact}/traklo/primary', [ContractorContactTrakloController::class, 'setPrimary'])->name('contractors.contacts.traklo.primary');
         Route::post('/contractors/{contractor}/contacts/{contact}/traklo/invite', [ContractorContactTrakloController::class, 'invite'])->name('contractors.contacts.traklo.invite');
         Route::post('/contractors/{contractor}/portrait-interactions', [ContractorPortraitController::class, 'storeInteraction'])->name('contractors.portrait-interactions.store');

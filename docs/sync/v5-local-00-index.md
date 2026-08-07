@@ -38,6 +38,7 @@
 | Компонент | Файл sync |
 | --- | --- |
 | **Commercial roadmap (1–5)** | `v5-local-Components-Commercial-Roadmap.md` |
+| **Обогащение портрета** | `v5-local-Components-Contractor-Enrichment.md` |
 | **Контур улучшений** | `v5-local-Components-Improvement-Loop.md` |
 | **Собственный парк / Рейсы** | `v5-local-Components-Fleet-Own-Fleet.md` |
 | **Документы / реестр / track received** | `v5-local-Components-Documents-Registry.md` |

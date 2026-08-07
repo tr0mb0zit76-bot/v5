@@ -17,6 +17,7 @@ use App\Support\ContractorInsightDraftFieldCatalog;
 use App\Support\ContractorPortraitDictionary;
 use App\Support\MailSync\MailMessageBodyPresenter;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
@@ -29,6 +30,69 @@ class ContractorInsightDraftService
         private readonly ExternalLlmPayloadSanitizer $sanitizer,
         private readonly AiRequestGate $aiGate,
     ) {}
+
+    /**
+     * @param  list<array{field_key: string, proposed_value: mixed, confidence?: float|null, source_type: string, source_url?: string|null}>  $proposals
+     * @return list<ContractorInsightDraft>
+     */
+    public function createPendingProposals(Contractor $contractor, array $proposals, ?int $sourceId = null): array
+    {
+        $created = [];
+
+        foreach ($proposals as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $fieldKey = (string) ($item['field_key'] ?? '');
+            $normalized = ContractorInsightDraftFieldCatalog::normalizeProposedValue(
+                $fieldKey,
+                $item['proposed_value'] ?? null,
+            );
+
+            if ($normalized === null) {
+                continue;
+            }
+
+            $sourceType = (string) ($item['source_type'] ?? ContractorInsightDraft::SOURCE_CRM_ENRICHMENT);
+
+            if ($this->pendingDraftExists($contractor, $fieldKey, $sourceType, $sourceId)) {
+                continue;
+            }
+
+            // One pending draft per field — skip if another source already pending.
+            $hasAnyPending = ContractorInsightDraft::query()
+                ->where('contractor_id', $contractor->id)
+                ->where('field_key', $fieldKey)
+                ->where('status', ContractorInsightDraft::STATUS_PENDING)
+                ->exists();
+
+            if ($hasAnyPending && $fieldKey !== 'typical_objections' && $fieldKey !== 'internal_notes') {
+                continue;
+            }
+
+            $attrs = [
+                'contractor_id' => $contractor->id,
+                'field_key' => $fieldKey,
+                'proposed_value' => $normalized,
+                'source_type' => $sourceType,
+                'source_id' => $sourceId,
+                'confidence' => isset($item['confidence']) ? (float) $item['confidence'] : null,
+                'status' => ContractorInsightDraft::STATUS_PENDING,
+            ];
+
+            if (Schema::hasColumn('contractor_insight_drafts', 'source_url')) {
+                $url = isset($item['source_url']) && is_string($item['source_url'])
+                    ? trim($item['source_url'])
+                    : '';
+                $attrs['source_url'] = $url !== '' ? mb_substr($url, 0, 500) : null;
+            }
+
+            $created[] = ContractorInsightDraft::query()->create($attrs);
+        }
+
+        return $created;
+    }
 
     /**
      * @return list<ContractorInsightDraft>
@@ -209,12 +273,18 @@ class ContractorInsightDraftService
     {
         return match ($draft->source_type) {
             ContractorInsightDraft::SOURCE_MAIL_MESSAGE => 'Письмо',
+            ContractorInsightDraft::SOURCE_CRM_ENRICHMENT => 'CRM',
+            ContractorInsightDraft::SOURCE_WEB_PUBLIC => 'Веб',
             default => null,
         };
     }
 
     private function sourceUrl(ContractorInsightDraft $draft): ?string
     {
+        if (filled($draft->source_url ?? null)) {
+            return (string) $draft->source_url;
+        }
+
         if ($draft->source_type !== ContractorInsightDraft::SOURCE_MAIL_MESSAGE || $draft->source_id === null) {
             return null;
         }
@@ -349,6 +419,8 @@ TEXT;
     {
         $prefix = match ($draft->source_type) {
             ContractorInsightDraft::SOURCE_MAIL_MESSAGE => 'Из письма',
+            ContractorInsightDraft::SOURCE_CRM_ENRICHMENT => 'Из CRM',
+            ContractorInsightDraft::SOURCE_WEB_PUBLIC => 'Из веба',
             default => 'Из источника',
         };
 

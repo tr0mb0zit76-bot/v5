@@ -3,9 +3,37 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-07 15:32 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `91e8af98` · **тема:** handoff + baseline LOC
+**Обновлено:** 2026-08-07 21:15 · **Ветка:** `master` · **тема:** обогащение портрета контрагента
 
-### Итог сессии 2026-08-07 (ОТДАТЬ)
+### Итог сессии 2026-08-07 вечер — Contractor Enrichment
+
+| Блок | Статус |
+| --- | --- |
+| CRM + web + DaData/Checko snapshot → HITL drafts (A) | ✅ |
+| Create (UI/MCP/inline) → Job; кнопка у владельца | ✅ |
+| `contractor_enrichment_runs`, MCP `portrait_context.dossier` | ✅ |
+| Карточка `v5-local-Components-Contractor-Enrichment.md` | ✅ |
+| PHPUnit Enrichment + InsightDrafts | ✅ |
+
+**На прод / второй ПК:**
+
+```text
+git pull
+php artisan migrate --force
+npm run build
+php artisan optimize:clear
+# queue:work если QUEUE_CONNECTION=database
+# smoke: создать контрагента → Портрет → предложения → принять памятку
+```
+
+**Следующий шаг:** smoke UI; при необходимости — LLM map веб-сниппетов (сейчас детерминированно).
+
+---
+
+**Обновлено (архив):** 2026-08-07 15:32 (ОТДАТЬ) · **тема:** handoff + baseline LOC
+
+### Итог сессии 2026-08-07 (ОТДАТЬ — baseline LOC)
+
 
 | Блок | Статус |
 | --- | --- |
