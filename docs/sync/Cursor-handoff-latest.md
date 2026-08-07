@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-07 21:15 · **Ветка:** `master` · **тема:** обогащение портрета контрагента
+**Обновлено:** 2026-08-07 21:15 · **Ветка:** `master` · **HEAD:** `e6915191` · **тема:** обогащение портрета контрагента
 
 ### Итог сессии 2026-08-07 вечер — Contractor Enrichment
 
