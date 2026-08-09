@@ -3,7 +3,33 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-07 21:15 · **Ветка:** `master` · **HEAD:** `e6915191` · **тема:** обогащение портрета контрагента
+**Обновлено:** 2026-08-09 17:44 (ОТДАТЬ) · **Ветка:** `master` · **тема:** коннектор 1С БП MVP (каркас)
+
+### Итог сессии 2026-08-09 — 1С BP connector skeleton
+
+| Блок | Статус |
+| --- | --- |
+| Дамп `Exchange/CRM/1С` + эталоны Фармсервис 19/36/86 | ✅ |
+| Каркас: `config/one_c.php`, `order_one_c_documents`, mapper/client/sync, кнопка в Документах | ✅ |
+| Карточка `v5-local-Components-OneC-BP-Connector.md` | ✅ |
+| Живой OData (`ONE_C_DRIVER=http` + URL/учётка) | ⏳ |
+| PHPUnit OneC* | ⏳ нужен MySQL `u_tromb_test` |
+
+**На второй ПК (ЗАБРАТЬ):**
+
+```text
+git pull
+php artisan migrate
+# .env: ONE_C_ENABLED=true, ONE_C_DRIVER=fake (пока без URL 1С)
+npm run build
+pwsh -File scripts/sync-docs-to-yandex.ps1
+```
+
+**Следующий шаг:** учётка + публикация 1С → http-драйвер; номенклатура услуги; прогон PHPUnit после подъёма MySQL.
+
+---
+
+**Обновлено (архив):** 2026-08-07 21:15 · **HEAD:** `e6915191` · **тема:** обогащение портрета контрагента
 
 ### Итог сессии 2026-08-07 вечер — Contractor Enrichment
 

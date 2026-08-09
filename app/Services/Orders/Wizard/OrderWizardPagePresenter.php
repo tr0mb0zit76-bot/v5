@@ -10,6 +10,7 @@ use App\Services\Commercial\OrderMailContextService;
 use App\Services\ContractorCreditService;
 use App\Services\DocumentStorageService;
 use App\Services\KpiConfigurationService;
+use App\Services\OneC\OneCRealizationSyncService;
 use App\Services\OrderClaimService;
 use App\Services\OrderDocumentEdoAcknowledgementService;
 use App\Services\OrderDocumentRequirementService;
@@ -39,6 +40,7 @@ class OrderWizardPagePresenter
         private readonly OwnFleetContractorService $ownFleetContractorService,
         private readonly PrintFormTemplateOrderEligibility $printFormTemplateEligibility,
         private readonly DocumentStorageService $documentStorageService,
+        private readonly OneCRealizationSyncService $oneCRealizationSync,
     ) {}
 
     /**
@@ -119,6 +121,7 @@ class OrderWizardPagePresenter
             'mailComposeDefaults' => $order !== null && $canAccessMail
                 ? $this->orderMailContext->composeDefaultsForOrder($order)
                 : null,
+            'oneCIntegration' => $this->oneCRealizationSync->wizardState($order),
         ];
     }
 

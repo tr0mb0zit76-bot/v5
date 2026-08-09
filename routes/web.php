@@ -50,6 +50,7 @@ use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
 use App\Http\Controllers\Orders\OrderIndexController;
 use App\Http\Controllers\Orders\OrderIntakeController;
 use App\Http\Controllers\Orders\OrderLinkController;
+use App\Http\Controllers\Orders\OrderOneCRealizationController;
 use App\Http\Controllers\Orders\OrderPortalInviteController;
 use App\Http\Controllers\Orders\OrderTransportSummaryController;
 use App\Http\Controllers\Orders\OrderWizardController;
@@ -496,6 +497,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ->name('orders.basic-terms.promote');
             Route::post('/orders/{order}/links', [OrderLinkController::class, 'store'])->name('orders.links.store');
             Route::delete('/orders/{order}/links', [OrderLinkController::class, 'destroy'])->name('orders.links.destroy');
+            Route::post('/orders/{order}/one-c/realization', [OrderOneCRealizationController::class, 'store'])
+                ->name('orders.one-c.realization.store');
             Route::delete('/orders/{order}', 'destroy')->withTrashed()->name('orders.destroy');
         });
     });

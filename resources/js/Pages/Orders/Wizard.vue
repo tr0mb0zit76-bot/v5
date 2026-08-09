@@ -116,6 +116,7 @@
                 :saved-print-form-template-selection="order?.print_form_template_selection ?? {}"
                 :document-edo-acknowledgements="documentEdoAcknowledgements"
                 :can-edit-document-edo-acknowledgements="canEditDocumentEdoAcknowledgements"
+                :one-c-integration="oneCIntegration"
             />
 
             <OrderWizardOrderNormsTab
@@ -321,6 +322,7 @@ const props = defineProps({
     claimStatusOptions: { type: Array, default: () => [] },
     orderMailThreads: { type: Array, default: () => [] },
     mailComposeDefaults: { type: Object, default: null },
+    oneCIntegration: { type: Object, default: null },
 });
 
 const leadPrecalculationSnapshot = computed(() => props.order?.lead_precalculation_snapshot ?? null);

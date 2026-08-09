@@ -75,9 +75,51 @@ const props = defineProps({
     documentTabValidationMessages: { type: Array, default: () => [] },
     documentStorage: { type: Object, default: () => ({}) },
     savedPrintFormTemplateSelection: { type: Object, default: () => ({}) },
+    oneCIntegration: { type: Object, default: null },
 });
 
 const page = usePage();
+const oneCState = ref(props.oneCIntegration ? { ...props.oneCIntegration } : null);
+const oneCBusy = ref(false);
+const oneCError = ref('');
+
+watch(
+    () => props.oneCIntegration,
+    (value) => {
+        oneCState.value = value ? { ...value } : null;
+    },
+);
+
+async function createOneCRealization(force = false) {
+    if (!props.order?.id || oneCBusy.value) {
+        return;
+    }
+
+    oneCBusy.value = true;
+    oneCError.value = '';
+
+    try {
+        const response = await window.axios.post(
+            route('orders.one-c.realization.store', props.order.id),
+            { force },
+        );
+        if (response.data?.one_c) {
+            oneCState.value = response.data.one_c;
+        } else if (response.data?.realization) {
+            oneCState.value = {
+                ...(oneCState.value ?? {}),
+                realization: response.data.realization,
+            };
+        }
+    } catch (error) {
+        oneCError.value = formatDocumentRegistryError(error)
+            || error?.response?.data?.message
+            || error?.response?.data?.errors?.one_c?.[0]
+            || 'Не удалось создать реализацию в 1С.';
+    } finally {
+        oneCBusy.value = false;
+    }
+}
 const uploadGate = useDocumentUploadGate();
 const documentUploadLimits = computed(() => mergeDocumentUploadLimits(
     page.props.document_upload_limits ?? {},
@@ -824,6 +866,44 @@ async function onGlobalDrop(event) {
         <div class="flex items-center justify-between">
             <h2 class="text-base font-semibold">Документы</h2>
         </div>
+
+        <section
+            v-if="oneCState?.enabled"
+            class="space-y-2 rounded-2xl border border-sky-200 bg-sky-50/50 p-4 dark:border-sky-900/50 dark:bg-sky-950/20"
+        >
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <div class="text-sm font-semibold text-sky-950 dark:text-sky-100">1С · Реализация</div>
+                    <p class="mt-0.5 text-xs text-sky-900/80 dark:text-sky-200/80">
+                        Создать документ «Реализация товаров и услуг» (услуги) по ставке заказчика.
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    :class="crmBtnSecondary"
+                    :disabled="!order?.id || oneCBusy || !isOrderFormEditable"
+                    @click="createOneCRealization(Boolean(oneCState?.realization))"
+                >
+                    {{ oneCBusy ? 'Создание…' : (oneCState?.realization?.status === 'created' ? 'Пересоздать в 1С' : 'Создать реализацию в 1С') }}
+                </button>
+            </div>
+            <p
+                v-if="oneCState?.realization?.status === 'created'"
+                class="text-xs text-sky-900 dark:text-sky-100"
+            >
+                Связь:
+                № {{ oneCState.realization.external_number || '—' }}
+                · {{ oneCState.realization.amount || '—' }} ₽
+                · ref {{ oneCState.realization.external_ref || '—' }}
+            </p>
+            <p
+                v-else-if="oneCState?.realization?.status === 'failed'"
+                class="text-xs text-rose-700 dark:text-rose-300"
+            >
+                Ошибка: {{ oneCState.realization.last_error || 'неизвестно' }}
+            </p>
+            <p v-if="oneCError" class="text-xs text-rose-700 dark:text-rose-300">{{ oneCError }}</p>
+        </section>
 
         <div
             v-if="documentTabValidationMessages.length > 0"
