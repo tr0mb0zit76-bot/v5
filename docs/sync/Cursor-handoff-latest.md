@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-09 17:44 (ОТДАТЬ) · **Ветка:** `master` · **тема:** коннектор 1С БП MVP (каркас)
+**Обновлено:** 2026-08-09 17:44 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `88e59c24` · **тема:** коннектор 1С БП MVP (каркас)
 
 ### Итог сессии 2026-08-09 — 1С BP connector skeleton
 
