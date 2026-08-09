@@ -40,6 +40,7 @@ $map = @{
     'v5-local-Components-Code-Audit-2026-07.md' = (Join-Path $componentsDir 'Code Audit 2026-07.md')
     'v5-local-Components-Improvement-Loop.md'  = (Join-Path $componentsDir 'Improvement Loop.md')
     'v5-local-Components-Contractor-Enrichment.md' = (Join-Path $componentsDir 'Contractor Enrichment.md')
+    'v5-local-Components-OneC-BP-Connector.md' = (Join-Path $componentsDir 'OneC BP Connector.md')
     'knowledge-graph-notes.md'                   = (Join-Path $crmRoot 'knowledge-graph-notes.md')
     'sql-security-hygiene.md'                    = (Join-Path $crmRoot 'sql-security-hygiene.md')
 }
