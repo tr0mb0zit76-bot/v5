@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Services\OneC\OneCRealizationSyncService;
 use App\Support\OrderViewAuthorization;
+use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,6 +21,7 @@ class OrderOneCRealizationController extends Controller
     public function store(Request $request, Order $order): JsonResponse
     {
         $user = $request->user();
+        abort_unless(RoleAccess::canCreateOneCRealization($user), 403);
         abort_unless(OrderViewAuthorization::userCanMutateOrder($user, $order), 403);
 
         $validated = $request->validate([
@@ -35,7 +37,7 @@ class OrderOneCRealizationController extends Controller
         return response()->json([
             'created' => $result['created'],
             'realization' => $result['document']->toWizardSummary(),
-            'one_c' => $this->sync->wizardState($order),
+            'one_c' => $this->sync->wizardState($order, $user),
         ]);
     }
 }

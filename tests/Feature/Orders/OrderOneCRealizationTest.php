@@ -7,8 +7,8 @@ namespace Tests\Feature\Orders;
 use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\OrderOneCDocument;
+use App\Models\Role;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -24,16 +24,16 @@ class OrderOneCRealizationTest extends TestCase
         ]);
     }
 
-    public function test_manager_can_create_fake_realization_link(): void
+    public function test_clerk_can_create_fake_realization_link(): void
     {
         if (! Schema::hasTable('order_one_c_documents')) {
             $this->markTestSkipped('order_one_c_documents missing — run migrate');
         }
 
-        $manager = $this->makeManager();
-        [$order] = $this->makeFarmserviceOrder($manager, 'АС-ТД-107', '95000.00');
+        $clerk = $this->makeUserWithRole('clerk', 'Делопроизводитель', 'all');
+        [$order] = $this->makeFarmserviceOrder($clerk, 'АС-ТД-107', '95000.00');
 
-        $response = $this->actingAs($manager)->postJson(
+        $response = $this->actingAs($clerk)->postJson(
             route('orders.one-c.realization.store', $order),
         );
 
@@ -41,7 +41,8 @@ class OrderOneCRealizationTest extends TestCase
             ->assertJsonPath('created', true)
             ->assertJsonPath('realization.status', OrderOneCDocument::STATUS_CREATED)
             ->assertJsonPath('realization.amount', '95000.00')
-            ->assertJsonPath('realization.counterparty_inn', '2312178145');
+            ->assertJsonPath('realization.counterparty_inn', '2312178145')
+            ->assertJsonPath('one_c.can_create', true);
 
         $this->assertDatabaseHas('order_one_c_documents', [
             'order_id' => $order->id,
@@ -57,34 +58,63 @@ class OrderOneCRealizationTest extends TestCase
         }
     }
 
+    public function test_accountant_can_create_fake_realization_link(): void
+    {
+        if (! Schema::hasTable('order_one_c_documents')) {
+            $this->markTestSkipped('order_one_c_documents missing — run migrate');
+        }
+
+        $accountant = $this->makeUserWithRole('accountant', 'Бухгалтер', 'all');
+        [$order] = $this->makeFarmserviceOrder($accountant, 'АС-ТД-213', '290000.00');
+
+        $this->actingAs($accountant)
+            ->postJson(route('orders.one-c.realization.store', $order))
+            ->assertOk()
+            ->assertJsonPath('created', true);
+    }
+
+    public function test_manager_cannot_create_realization(): void
+    {
+        if (! Schema::hasTable('order_one_c_documents')) {
+            $this->markTestSkipped('order_one_c_documents missing — run migrate');
+        }
+
+        $manager = $this->makeUserWithRole('manager', 'Менеджер', 'own');
+        [$order] = $this->makeFarmserviceOrder($manager, 'АС-ТД-107', '95000.00');
+
+        $this->actingAs($manager)
+            ->postJson(route('orders.one-c.realization.store', $order))
+            ->assertForbidden();
+    }
+
     public function test_second_call_without_force_is_idempotent(): void
     {
         if (! Schema::hasTable('order_one_c_documents')) {
             $this->markTestSkipped('order_one_c_documents missing — run migrate');
         }
 
-        $manager = $this->makeManager();
-        [$order] = $this->makeFarmserviceOrder($manager, 'АС-ТД-213', '290000.00');
+        $clerk = $this->makeUserWithRole('clerk', 'Делопроизводитель', 'all');
+        [$order] = $this->makeFarmserviceOrder($clerk, 'АС-ТД-213', '290000.00');
 
-        $this->actingAs($manager)->postJson(route('orders.one-c.realization.store', $order))->assertOk();
+        $this->actingAs($clerk)->postJson(route('orders.one-c.realization.store', $order))->assertOk();
 
-        $second = $this->actingAs($manager)->postJson(route('orders.one-c.realization.store', $order));
+        $second = $this->actingAs($clerk)->postJson(route('orders.one-c.realization.store', $order));
         $second->assertOk()->assertJsonPath('created', false);
 
         $this->assertSame(1, OrderOneCDocument::query()->where('order_id', $order->id)->count());
     }
 
-    public function test_foreign_manager_forbidden(): void
+    public function test_foreign_clerk_without_order_scope_forbidden(): void
     {
         if (! Schema::hasTable('order_one_c_documents')) {
             $this->markTestSkipped('order_one_c_documents missing — run migrate');
         }
 
-        $owner = $this->makeManager();
-        $stranger = $this->makeManager();
+        $owner = $this->makeUserWithRole('manager', 'Менеджер', 'own');
+        $clerkOwnOnly = $this->makeUserWithRole('clerk', 'Делопроизводитель', 'own');
         [$order] = $this->makeFarmserviceOrder($owner, 'АС-ТД-486', '330000.00');
 
-        $this->actingAs($stranger)
+        $this->actingAs($clerkOwnOnly)
             ->postJson(route('orders.one-c.realization.store', $order))
             ->assertForbidden();
     }
@@ -97,10 +127,10 @@ class OrderOneCRealizationTest extends TestCase
 
         config(['one_c.enabled' => false]);
 
-        $manager = $this->makeManager();
-        [$order] = $this->makeFarmserviceOrder($manager, 'АС-ТД-107', '95000.00');
+        $clerk = $this->makeUserWithRole('clerk', 'Делопроизводитель', 'all');
+        [$order] = $this->makeFarmserviceOrder($clerk, 'АС-ТД-107', '95000.00');
 
-        $this->actingAs($manager)
+        $this->actingAs($clerk)
             ->postJson(route('orders.one-c.realization.store', $order))
             ->assertStatus(422);
     }
@@ -131,24 +161,27 @@ class OrderOneCRealizationTest extends TestCase
         return [$order, $client];
     }
 
-    private function makeManager(): User
+    private function makeUserWithRole(string $name, string $displayName, string $ordersScope): User
     {
-        $roleId = DB::table('roles')->where('name', 'manager')->value('id');
+        $role = Role::query()->where('name', $name)->first();
 
-        if ($roleId === null) {
-            $roleId = DB::table('roles')->insertGetId([
-                'name' => 'manager',
-                'display_name' => 'Manager',
-                'permissions' => json_encode([], JSON_THROW_ON_ERROR),
-                'visibility_areas' => json_encode(['orders'], JSON_THROW_ON_ERROR),
-                'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
-                'created_at' => now(),
-                'updated_at' => now(),
+        if ($role === null) {
+            $role = Role::query()->create([
+                'name' => $name,
+                'display_name' => $displayName,
+                'permissions' => [],
+                'visibility_areas' => ['orders', 'documents'],
+                'visibility_scopes' => ['orders' => $ordersScope, 'documents' => $ordersScope],
             ]);
+        } else {
+            $role->forceFill([
+                'visibility_areas' => ['orders', 'documents'],
+                'visibility_scopes' => ['orders' => $ordersScope, 'documents' => $ordersScope],
+            ])->save();
         }
 
         return User::factory()->create([
-            'role_id' => $roleId,
+            'role_id' => $role->id,
             'is_active' => true,
         ]);
     }

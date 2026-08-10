@@ -868,7 +868,7 @@ async function onGlobalDrop(event) {
         </div>
 
         <section
-            v-if="oneCState?.enabled"
+            v-if="oneCState?.enabled && (oneCState?.can_create || oneCState?.realization)"
             class="space-y-2 rounded-2xl border border-sky-200 bg-sky-50/50 p-4 dark:border-sky-900/50 dark:bg-sky-950/20"
         >
             <div class="flex flex-wrap items-center justify-between gap-3">
@@ -879,6 +879,7 @@ async function onGlobalDrop(event) {
                     </p>
                 </div>
                 <button
+                    v-if="oneCState?.can_create"
                     type="button"
                     :class="crmBtnSecondary"
                     :disabled="!order?.id || oneCBusy || !isOrderFormEditable"

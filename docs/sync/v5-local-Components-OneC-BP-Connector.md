@@ -28,7 +28,7 @@
 - `config/one_c.php` — `ONE_C_ENABLED`, `ONE_C_DRIVER=fake|http`
 - `OneCRealizationMapper`, `OneCBpClient`, `OneCRealizationSyncService`
 - `POST orders/{order}/one-c/realization` (`orders.one-c.realization.store`)
-- RBAC: `OrderViewAuthorization::userCanMutateOrder`
+- RBAC: `RoleAccess::canCreateOneCRealization` (admin / clerk / accountant) + `OrderViewAuthorization::userCanMutateOrder`.
 
 ## Позже
 

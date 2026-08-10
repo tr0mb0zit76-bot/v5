@@ -1041,6 +1041,23 @@ class RoleAccess
         return static::userHasRoleName($user, 'clerk');
     }
 
+    /**
+     * Создание реализации в 1С БП из заказа — admin, делопроизводитель, бухгалтер.
+     */
+    public static function canCreateOneCRealization(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if (static::isAdminUser($user)) {
+            return true;
+        }
+
+        return static::userHasRoleName($user, 'clerk')
+            || static::userHasRoleName($user, 'accountant');
+    }
+
     public static function canEditDocumentEdoAcknowledgements(?User $user): bool
     {
         return static::canEditTrackReceivedDates($user);

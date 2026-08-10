@@ -121,7 +121,7 @@ class OrderWizardPagePresenter
             'mailComposeDefaults' => $order !== null && $canAccessMail
                 ? $this->orderMailContext->composeDefaultsForOrder($order)
                 : null,
-            'oneCIntegration' => $this->oneCRealizationSync->wizardState($order),
+            'oneCIntegration' => $this->oneCRealizationSync->wizardState($order, $user),
         ];
     }
 

@@ -7,6 +7,7 @@ namespace App\Services\OneC;
 use App\Models\Order;
 use App\Models\OrderOneCDocument;
 use App\Models\User;
+use App\Support\RoleAccess;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -85,13 +86,14 @@ final class OneCRealizationSyncService
     /**
      * @return array<string, mixed>|null
      */
-    public function wizardState(?Order $order): ?array
+    public function wizardState(?Order $order, ?User $user = null): ?array
     {
         if ($order === null || ! Schema::hasTable('order_one_c_documents')) {
             return null;
         }
 
         $enabled = (bool) config('one_c.enabled', false);
+        $canCreate = $enabled && RoleAccess::canCreateOneCRealization($user);
         $document = OrderOneCDocument::query()
             ->where('order_id', $order->id)
             ->where('document_type', OrderOneCDocument::TYPE_REALIZATION)
@@ -100,7 +102,7 @@ final class OneCRealizationSyncService
         return [
             'enabled' => $enabled,
             'driver' => (string) config('one_c.driver', 'fake'),
-            'can_create' => $enabled,
+            'can_create' => $canCreate,
             'realization' => $document?->toWizardSummary(),
         ];
     }
