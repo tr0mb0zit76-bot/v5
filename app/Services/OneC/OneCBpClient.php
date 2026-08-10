@@ -120,16 +120,15 @@ final class OneCBpClient
             return null;
         }
 
-        $filter = "ИНН eq '{$inn}'";
-        if ($kpp !== null && $kpp !== '') {
-            $filter .= " and КПП eq '{$kpp}'";
-        }
+        // В публикации БП `ИНН eq` в $filter запрещён; substringof работает.
+        $innEscaped = str_replace("'", "''", $inn);
+        $filter = "substringof('{$innEscaped}',ИНН)";
 
         $path = (string) config('one_c.odata.counterparty_path');
         $response = $this->http()->get($base.$path, [
             '$format' => 'json',
             '$filter' => $filter,
-            '$top' => 1,
+            '$top' => 20,
             '$select' => 'Ref_Key,ИНН,КПП,Description',
         ]);
 
@@ -142,14 +141,29 @@ final class OneCBpClient
             return null;
         }
 
-        $first = $value[0];
-        if (! is_array($first)) {
-            return null;
+        foreach ($value as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $rowInn = trim((string) ($row['ИНН'] ?? ''));
+            if ($rowInn !== $inn) {
+                continue;
+            }
+
+            if ($kpp !== null && $kpp !== '') {
+                $rowKpp = trim((string) ($row['КПП'] ?? ''));
+                if ($rowKpp !== $kpp) {
+                    continue;
+                }
+            }
+
+            $ref = $row['Ref_Key'] ?? null;
+
+            return is_string($ref) && $ref !== '' ? $ref : null;
         }
 
-        $ref = $first['Ref_Key'] ?? null;
-
-        return is_string($ref) && $ref !== '' ? $ref : null;
+        return null;
     }
 
     private function http(): PendingRequest

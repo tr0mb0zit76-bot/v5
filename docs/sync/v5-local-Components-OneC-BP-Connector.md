@@ -32,7 +32,7 @@
 
 ## Позже
 
-Счета / УПД / ЭТрН; оплаты двусторонне; живой OData (`ONE_C_BASE_URL` + учётка).
+Счета / УПД / ЭТрН; оплаты двусторонне. Живой OData: `ONE_C_BASE_URL=https://avtoalyns-crm.case-it.ru/Avtoalians_4nYnMmRSab` (доступ по IP с прода). Поиск контрагента: `substringof(ИНН)` — `ИНН eq` в этой публикации запрещён.
 
 ## Тесты
 
