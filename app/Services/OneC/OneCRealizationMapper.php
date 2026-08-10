@@ -5,20 +5,24 @@ declare(strict_types=1);
 namespace App\Services\OneC;
 
 use App\Models\Order;
+use App\Models\RoutePoint;
+use App\Support\OrderClipboardSummaryFormatter;
+use App\Support\OrderFleetTransportDetailsResolver;
+use App\Support\RoutePointNormalizedData;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Маппинг заказа CRM → payload реализации БП (услуги).
+ * Маппинг заказа CRM → payload реализации БП (услуги, номенклатура ТЭУ).
  *
- * Контракт полей (MVP):
- * - ВидОперации = Услуги
- * - Контрагент по ИНН+КПП (резолв Ref — на стороне клиента 1С)
- * - Сумма = customer_rate
- * - Допреквизиты CRM_OrderId / CRM_OrderNumber
- * - ТЧ Услуги: одна строка
+ * Содержание строки = текст «Сводки по перевозке» (тело без шапки).
+ * Допреквизиты CRM_* в типовой ИБ нет — номер заказа уходит в Комментарий.
  */
 final class OneCRealizationMapper
 {
+    public function __construct(
+        private readonly OrderFleetTransportDetailsResolver $transportDetails,
+    ) {}
+
     /**
      * @return array{
      *     document_type: string,
@@ -30,6 +34,7 @@ final class OneCRealizationMapper
      *     document_date: string,
      *     counterparty: array{inn: string, kpp: string|null, name: string|null},
      *     organization_ref: string|null,
+     *     currency_ref: string|null,
      *     service_line: array{
      *         nomenclature_code: string|null,
      *         nomenclature_ref: string|null,
@@ -44,7 +49,11 @@ final class OneCRealizationMapper
      */
     public function map(Order $order): array
     {
-        $order->loadMissing('client');
+        $order->loadMissing([
+            'client:id,name,inn,kpp',
+            'legs' => fn ($query) => $query->orderBy('sequence'),
+            'legs.routePoints' => fn ($query) => $query->orderBy('sequence'),
+        ]);
 
         $client = $order->client;
         if ($client === null) {
@@ -80,17 +89,18 @@ final class OneCRealizationMapper
             $orderNumber = 'ID-'.$order->id;
         }
 
-        $attrOrderId = (string) config('one_c.extra_attributes.order_id', 'CRM_OrderId');
-        $attrOrderNumber = (string) config('one_c.extra_attributes.order_number', 'CRM_OrderNumber');
-
-        $contentTemplate = (string) config(
-            'one_c.service_nomenclature.content_template',
-            'Транспортные услуги по заказу {order_number}'
-        );
-        $content = str_replace(
-            ['{order_number}', '{order_id}'],
-            [$orderNumber, (string) $order->id],
-            $contentTemplate
+        [$loadingCity, $unloadingCity] = $this->resolveRouteCities($order);
+        $transport = $this->transportDetails->resolveForOrder($order);
+        $content = OrderClipboardSummaryFormatter::formatServiceContent(
+            $orderNumber,
+            $order->order_date,
+            $loadingCity,
+            $unloadingCity,
+            $transport['tractor_brand'],
+            $transport['tractor_plate'],
+            $transport['trailer_brand'],
+            $transport['trailer_plate'],
+            $transport['driver_name'],
         );
 
         $documentDate = $order->unloading_date
@@ -99,6 +109,19 @@ final class OneCRealizationMapper
 
         if ($documentDate instanceof \DateTimeInterface) {
             $documentDate = $documentDate->format('Y-m-d');
+        }
+
+        $nomenclatureRef = $this->nullableConfigString('one_c.service_nomenclature.ref');
+        $nomenclatureCode = $this->nullableConfigString('one_c.service_nomenclature.code');
+
+        $extraAttributes = [];
+        $attrOrderId = $this->nullableConfigString('one_c.extra_attributes.order_id');
+        $attrOrderNumber = $this->nullableConfigString('one_c.extra_attributes.order_number');
+        if ($attrOrderId !== null) {
+            $extraAttributes[] = ['name' => $attrOrderId, 'value' => (string) $order->id];
+        }
+        if ($attrOrderNumber !== null) {
+            $extraAttributes[] = ['name' => $attrOrderNumber, 'value' => $orderNumber];
         }
 
         $payload = [
@@ -114,19 +137,17 @@ final class OneCRealizationMapper
                 'kpp' => $kpp,
                 'name' => $client->name !== null ? (string) $client->name : null,
             ],
-            'organization_ref' => config('one_c.organization_ref'),
+            'organization_ref' => $this->nullableConfigString('one_c.organization_ref'),
+            'currency_ref' => $this->nullableConfigString('one_c.currency_ref'),
             'service_line' => [
-                'nomenclature_code' => config('one_c.service_nomenclature.code'),
-                'nomenclature_ref' => config('one_c.service_nomenclature.ref'),
+                'nomenclature_code' => $nomenclatureCode,
+                'nomenclature_ref' => $nomenclatureRef,
                 'content' => $content,
                 'quantity' => 1.0,
                 'price' => $amount,
                 'amount' => $amount,
             ],
-            'extra_attributes' => [
-                ['name' => $attrOrderId, 'value' => (string) $order->id],
-                ['name' => $attrOrderNumber, 'value' => $orderNumber],
-            ],
+            'extra_attributes' => $extraAttributes,
         ];
 
         $payload['odata_stub'] = $this->toODataStub($payload);
@@ -135,41 +156,93 @@ final class OneCRealizationMapper
     }
 
     /**
-     * Черновик тела POST в OData (реальные имена свойств уточняются на живой публикации).
-     *
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
     private function toODataStub(array $payload): array
     {
         $line = $payload['service_line'];
+        $serviceRow = [
+            'LineNumber' => '1',
+            'Содержание' => $line['content'],
+            'Количество' => $line['quantity'],
+            'Цена' => (float) $line['price'],
+            'Сумма' => (float) $line['amount'],
+        ];
+        if (is_string($line['nomenclature_ref'] ?? null) && $line['nomenclature_ref'] !== '') {
+            $serviceRow['Номенклатура_Key'] = $line['nomenclature_ref'];
+        }
 
-        return [
+        $stub = [
             'Date' => $payload['document_date'].'T12:00:00',
             'ВидОперации' => $payload['operation_kind'],
             'СуммаДокумента' => (float) $payload['amount'],
             'СуммаВключаетНДС' => true,
-            'Комментарий' => 'CRM '.$payload['order_number'],
-            'Услуги' => [
-                [
-                    'LineNumber' => '1',
-                    'Содержание' => $line['content'],
-                    'Количество' => $line['quantity'],
-                    'Цена' => (float) $line['price'],
-                    'Сумма' => (float) $line['amount'],
-                    'Номенклатура_Key' => $line['nomenclature_ref'],
-                ],
-            ],
-            'ДополнительныеРеквизиты' => array_map(
+            'Комментарий' => sprintf('CRM %s (id %d)', $payload['order_number'], $payload['order_id']),
+            'Услуги' => [$serviceRow],
+        ];
+
+        if (is_string($payload['organization_ref'] ?? null) && $payload['organization_ref'] !== '') {
+            $stub['Организация_Key'] = $payload['organization_ref'];
+        }
+
+        if (is_string($payload['currency_ref'] ?? null) && $payload['currency_ref'] !== '') {
+            $stub['ВалютаДокумента_Key'] = $payload['currency_ref'];
+        }
+
+        if ($payload['extra_attributes'] !== []) {
+            $stub['ДополнительныеРеквизиты'] = array_map(
                 static fn (array $row): array => [
                     'Свойство' => $row['name'],
                     'Значение' => $row['value'],
                 ],
                 $payload['extra_attributes']
-            ),
-            '_crm_counterparty_match' => $payload['counterparty'],
-            '_crm_organization_ref' => $payload['organization_ref'],
+            );
+        }
+
+        $stub['_crm_counterparty_match'] = $payload['counterparty'];
+        $stub['_crm_organization_ref'] = $payload['organization_ref'];
+
+        return $stub;
+    }
+
+    /**
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function resolveRouteCities(Order $order): array
+    {
+        $points = $order->legs
+            ->sortBy('sequence')
+            ->flatMap(fn ($leg) => $leg->routePoints->sortBy('sequence'))
+            ->values();
+
+        $loading = $points->first(fn (RoutePoint $point): bool => $point->type === 'loading');
+        $unloading = $points->filter(fn (RoutePoint $point): bool => $point->type === 'unloading')->last();
+
+        return [
+            $loading !== null ? $this->routePointCityLabel($loading) : null,
+            $unloading !== null ? $this->routePointCityLabel($unloading) : null,
         ];
+    }
+
+    private function routePointCityLabel(RoutePoint $point): ?string
+    {
+        $normalized = RoutePointNormalizedData::resolveForWizard($point);
+        $city = trim((string) ($normalized['city'] ?? ''));
+
+        return $city !== '' ? $city : null;
+    }
+
+    private function nullableConfigString(string $key): ?string
+    {
+        $value = config($key);
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim((string) $value);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 
     private function digits(string $value): string

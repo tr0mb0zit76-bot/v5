@@ -65,6 +65,44 @@ class OrderClipboardSummaryFormatter
         return $header."\n\n".$body;
     }
 
+    /**
+     * Текст строки услуги для 1С (тело сводки делопроизводителя без шапки).
+     */
+    public static function formatServiceContent(
+        ?string $orderNumber,
+        mixed $orderDate,
+        ?string $loadingCity,
+        ?string $unloadingCity,
+        ?string $tractorBrand,
+        ?string $tractorPlate,
+        ?string $trailerBrand,
+        ?string $trailerPlate,
+        ?string $driverName,
+    ): string {
+        $orderNumberLabel = self::display($orderNumber);
+        $orderDateLabel = self::formatDate($orderDate);
+        $routeFrom = self::display($loadingCity);
+        $routeTo = self::display($unloadingCity);
+        $driverLabel = self::display($driverName);
+        $vehicleLabel = self::vehicleSlashLabel(
+            $tractorBrand,
+            $tractorPlate,
+            $trailerBrand,
+            $trailerPlate,
+        );
+
+        return sprintf(
+            'Транспортно-экспедиционные услуги по Заявке № %s от %s к Договору транспортной экспедиции (публичной оферте) от %s, маршрут: %s - %s. Водитель %s, ТС: %s.',
+            $orderNumberLabel,
+            $orderDateLabel,
+            self::PUBLIC_OFFER_CONTRACT_DATE,
+            $routeFrom,
+            $routeTo,
+            $driverLabel,
+            $vehicleLabel,
+        );
+    }
+
     public static function vehicleSlashLabel(
         ?string $tractorBrand,
         ?string $tractorPlate,

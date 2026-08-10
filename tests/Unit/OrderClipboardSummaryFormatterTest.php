@@ -33,6 +33,27 @@ class OrderClipboardSummaryFormatterTest extends TestCase
         $this->assertStringContainsString('ТС MAN / А123АА77 / Schmitz / В456ВВ77', $summary);
     }
 
+    public function test_formats_one_c_service_content_body(): void
+    {
+        $content = OrderClipboardSummaryFormatter::formatServiceContent(
+            'АС-ТД-486',
+            '2026-07-07',
+            'Васюринская',
+            'Братск',
+            'ГАЗ (Газель) 3302',
+            'Х 393 МУ 193',
+            null,
+            null,
+            'Пронин Валерий Александрович',
+        );
+
+        $this->assertStringContainsString('Транспортно-экспедиционные услуги по Заявке № АС-ТД-486 от 07.07.2026', $content);
+        $this->assertStringContainsString('маршрут: Васюринская - Братск', $content);
+        $this->assertStringContainsString('Водитель Пронин Валерий Александрович', $content);
+        $this->assertStringContainsString('ТС: ГАЗ (Газель) 3302 / Х 393 МУ 193', $content);
+        $this->assertStringNotContainsString('заявка №', $content);
+    }
+
     public function test_uses_dash_placeholders_for_missing_values(): void
     {
         $summary = OrderClipboardSummaryFormatter::format(

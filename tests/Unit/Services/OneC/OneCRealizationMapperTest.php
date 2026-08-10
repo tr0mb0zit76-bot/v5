@@ -12,12 +12,15 @@ use Tests\TestCase;
 
 class OneCRealizationMapperTest extends TestCase
 {
-    public function test_maps_farmservice_etalon_order_19_shape(): void
+    public function test_maps_farmservice_order_with_teu_service_content(): void
     {
         config([
-            'one_c.extra_attributes.order_id' => 'CRM_OrderId',
-            'one_c.extra_attributes.order_number' => 'CRM_OrderNumber',
-            'one_c.service_nomenclature.content_template' => 'Транспортные услуги по заказу {order_number}',
+            'one_c.extra_attributes.order_id' => '',
+            'one_c.extra_attributes.order_number' => '',
+            'one_c.service_nomenclature.ref' => '9ec829b8-632e-11f1-8745-fa163ea037a3',
+            'one_c.service_nomenclature.code' => '00-00000001',
+            'one_c.organization_ref' => '19b37fca-5d84-11f1-8bf4-fa163ea037a3',
+            'one_c.currency_ref' => '69e038af-320f-11f1-acc9-b69a48ddb3f4',
         ]);
 
         $client = new Contractor([
@@ -27,66 +30,64 @@ class OneCRealizationMapperTest extends TestCase
         ]);
 
         $order = new Order([
-            'order_number' => 'АС-ТД-107',
-            'customer_rate' => '95000.00',
-            'order_date' => '2026-06-11',
-            'unloading_date' => '2026-06-18',
+            'order_number' => 'ТЕСТ-1',
+            'customer_rate' => '123500.00',
+            'order_date' => '2026-08-10',
+            'unloading_date' => '2026-08-12',
         ]);
-        $order->id = 19;
+        $order->id = 146;
         $order->setRelation('client', $client);
+        $order->setRelation('legs', collect());
 
         $payload = app(OneCRealizationMapper::class)->map($order);
 
         $this->assertSame('РеализацияТоваровУслуг', $payload['document_type']);
         $this->assertSame('Услуги', $payload['operation_kind']);
-        $this->assertSame(19, $payload['order_id']);
-        $this->assertSame('АС-ТД-107', $payload['order_number']);
-        $this->assertSame('95000.00', $payload['amount']);
-        $this->assertSame('2026-06-18', $payload['document_date']);
+        $this->assertSame(146, $payload['order_id']);
+        $this->assertSame('ТЕСТ-1', $payload['order_number']);
+        $this->assertSame('123500.00', $payload['amount']);
+        $this->assertSame('2026-08-12', $payload['document_date']);
         $this->assertSame('2312178145', $payload['counterparty']['inn']);
-        $this->assertSame('231201001', $payload['counterparty']['kpp']);
-        $this->assertSame('95000.00', $payload['service_line']['amount']);
+        $this->assertSame('9ec829b8-632e-11f1-8745-fa163ea037a3', $payload['service_line']['nomenclature_ref']);
+        $this->assertStringContainsString('Транспортно-экспедиционные услуги по Заявке № ТЕСТ-1 от 10.08.2026', $payload['service_line']['content']);
+        $this->assertStringContainsString('публичной оферте', $payload['service_line']['content']);
+        $this->assertSame([], $payload['extra_attributes']);
+        $this->assertArrayNotHasKey('ДополнительныеРеквизиты', $payload['odata_stub']);
+        $this->assertSame('19b37fca-5d84-11f1-8bf4-fa163ea037a3', $payload['odata_stub']['Организация_Key']);
+        $this->assertSame('69e038af-320f-11f1-acc9-b69a48ddb3f4', $payload['odata_stub']['ВалютаДокумента_Key']);
+        $this->assertSame('CRM ТЕСТ-1 (id 146)', $payload['odata_stub']['Комментарий']);
         $this->assertSame(
-            'Транспортные услуги по заказу АС-ТД-107',
-            $payload['service_line']['content']
+            '9ec829b8-632e-11f1-8745-fa163ea037a3',
+            $payload['odata_stub']['Услуги'][0]['Номенклатура_Key']
         );
-        $this->assertContains(
-            ['name' => 'CRM_OrderId', 'value' => '19'],
-            $payload['extra_attributes']
-        );
-        $this->assertContains(
-            ['name' => 'CRM_OrderNumber', 'value' => 'АС-ТД-107'],
-            $payload['extra_attributes']
-        );
-        $this->assertSame('Услуги', $payload['odata_stub']['ВидОперации']);
-        $this->assertSame(95000.0, $payload['odata_stub']['СуммаДокумента']);
     }
 
-    public function test_maps_etalon_amounts_for_orders_36_and_86(): void
+    public function test_optional_extra_attributes_when_configured(): void
     {
-        $mapper = app(OneCRealizationMapper::class);
+        config([
+            'one_c.extra_attributes.order_id' => 'CRM_OrderId',
+            'one_c.extra_attributes.order_number' => 'CRM_OrderNumber',
+        ]);
 
-        foreach ([
-            [36, 'АС-ТД-213', '290000.00'],
-            [86, 'АС-ТД-486', '330000.00'],
-        ] as [$id, $number, $amount]) {
-            $client = new Contractor([
-                'name' => 'ООО "ФАРМСЕРВИС"',
-                'inn' => '2312178145',
-                'kpp' => '231201001',
-            ]);
-            $order = new Order([
-                'order_number' => $number,
-                'customer_rate' => $amount,
-                'order_date' => '2026-06-01',
-            ]);
-            $order->id = $id;
-            $order->setRelation('client', $client);
+        $client = new Contractor([
+            'name' => 'ООО "ФАРМСЕРВИС"',
+            'inn' => '2312178145',
+            'kpp' => '231201001',
+        ]);
+        $order = new Order([
+            'order_number' => 'АС-ТД-107',
+            'customer_rate' => '95000.00',
+            'order_date' => '2026-06-11',
+        ]);
+        $order->id = 19;
+        $order->setRelation('client', $client);
+        $order->setRelation('legs', collect());
 
-            $payload = $mapper->map($order);
-            $this->assertSame($amount, $payload['amount']);
-            $this->assertSame((string) $id, $payload['extra_attributes'][0]['value']);
-        }
+        $payload = app(OneCRealizationMapper::class)->map($order);
+
+        $this->assertContains(['name' => 'CRM_OrderId', 'value' => '19'], $payload['extra_attributes']);
+        $this->assertContains(['name' => 'CRM_OrderNumber', 'value' => 'АС-ТД-107'], $payload['extra_attributes']);
+        $this->assertArrayHasKey('ДополнительныеРеквизиты', $payload['odata_stub']);
     }
 
     public function test_rejects_missing_inn(): void
@@ -97,6 +98,7 @@ class OneCRealizationMapperTest extends TestCase
         $order = new Order(['order_number' => 'X', 'customer_rate' => 1000]);
         $order->id = 1;
         $order->setRelation('client', $client);
+        $order->setRelation('legs', collect());
 
         app(OneCRealizationMapper::class)->map($order);
     }
@@ -113,6 +115,7 @@ class OneCRealizationMapperTest extends TestCase
         $order = new Order(['order_number' => 'X', 'customer_rate' => 1000]);
         $order->id = 1;
         $order->setRelation('client', $client);
+        $order->setRelation('legs', collect());
 
         app(OneCRealizationMapper::class)->map($order);
     }

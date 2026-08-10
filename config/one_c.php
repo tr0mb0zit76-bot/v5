@@ -28,16 +28,16 @@ return [
     'timeout_seconds' => (int) env('ONE_C_TIMEOUT_SECONDS', 30),
 
     /**
-     * Имена допреквизитов в 1С для обратной связи документов/оплат.
+     * Имена допреквизитов в 1С (пусто = не отправлять; в типовой ИБ их нет).
      */
     'extra_attributes' => [
-        'order_id' => (string) env('ONE_C_ATTR_ORDER_ID', 'CRM_OrderId'),
-        'order_number' => (string) env('ONE_C_ATTR_ORDER_NUMBER', 'CRM_OrderNumber'),
+        'order_id' => (string) env('ONE_C_ATTR_ORDER_ID', ''),
+        'order_number' => (string) env('ONE_C_ATTR_ORDER_NUMBER', ''),
     ],
 
     /**
      * Номенклатура услуги перевозки в 1С (код или GUID Ref).
-     * Пусто — в payload уходит только содержание строки без привязки к справочнику.
+     * По умолчанию — «ТЭУ»; содержание строки = сводка делопроизводителя.
      */
     'service_nomenclature' => [
         'code' => env('ONE_C_SERVICE_NOMENCLATURE_CODE'),
@@ -52,6 +52,9 @@ return [
      * Организация в 1С (если в ИБ несколько). Пусто — выбирает сторона 1С/HTTP-метод.
      */
     'organization_ref' => env('ONE_C_ORGANIZATION_REF'),
+
+    /** Валюта документа (Ref_Key справочника Валюты), обычно руб. */
+    'currency_ref' => env('ONE_C_CURRENCY_REF'),
 
     'odata' => [
         /** Относительный путь к сущности OData (настраивается под публикацию). */
