@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendCommercialOutboundMailJob;
 use App\Mail\CommercialOutboundMail;
 use App\Models\Lead;
 use App\Models\LeadOffer;
@@ -146,26 +147,188 @@ class CommercialMailService
             inlineImages: $inlineImages,
         );
 
+        $this->dispatchOutboundDelivery(
+            sender: $sender,
+            mailable: $mailable,
+            toEmails: $toEmails,
+            ccEmails: $ccEmails,
+            message: $message,
+            thread: $thread,
+            lead: $lead,
+            offer: $offer,
+            bodyText: $bodyText,
+            subject: $subject,
+            sentAt: $now,
+            inlineImages: $inlineImages,
+        );
+
+        return ['thread' => $thread, 'message' => $message];
+    }
+
+    /**
+     * Доставка исходящего письма из очереди (вызывается SendCommercialOutboundMailJob).
+     *
+     * @param  list<string>  $toEmails
+     * @param  list<string>  $ccEmails
+     * @param  list<array{path: string, cid: string, mime: string}>  $inlineImages
+     */
+    public function deliverQueuedOutbound(
+        int $mailMessageId,
+        int $senderUserId,
+        array $toEmails,
+        array $ccEmails,
+        ?int $leadOfferId,
+        ?int $leadId,
+        int $mailThreadId,
+        array $inlineImages = [],
+    ): void {
+        abort_unless($this->tablesReady(), 503, 'Почтовый модуль не развёрнут (нет таблиц).');
+
+        $message = MailMessage::query()->findOrFail($mailMessageId);
+        $thread = MailThread::query()->findOrFail($mailThreadId);
+        $sender = User::query()->findOrFail($senderUserId);
+        $lead = $leadId !== null ? Lead::query()->find($leadId) : null;
+        $offer = $leadOfferId !== null ? LeadOffer::query()->find($leadOfferId) : null;
+
+        $from = $this->resolveSenderFrom($sender);
+        $inReplyToHeader = $this->resolveInReplyToHeader(null, $thread);
+
+        $mailable = new CommercialOutboundMail(
+            subjectLine: (string) $message->subject,
+            bodyText: (string) $message->body_text,
+            fromEmail: $from['email'],
+            fromName: $from['name'],
+            messageId: (string) ($message->internet_message_id ?? OutboundMailMessageId::generate($from['email'])),
+            inReplyTo: $inReplyToHeader,
+            references: $inReplyToHeader,
+            outboundAttachments: $this->attachmentsForMailableFromStorage($message->attachments),
+            bodyHtml: is_string($message->body_html) ? $message->body_html : null,
+            inlineImages: $inlineImages,
+        );
+
         $this->deliverMailable($sender, $mailable, $toEmails, $ccEmails);
 
+        $sentAt = $message->sent_at ?? now();
+
+        $this->finalizeOutboundDelivery(
+            thread: $thread,
+            lead: $lead,
+            offer: $offer,
+            bodyText: (string) $message->body_text,
+            toEmails: $toEmails,
+            subject: (string) $message->subject,
+            sentAt: $sentAt,
+            sender: $sender,
+            message: $message,
+        );
+    }
+
+    /**
+     * @param  list<string>  $toEmails
+     * @param  list<string>  $ccEmails
+     * @param  list<array{path: string, cid: string, mime: string}>  $inlineImages
+     */
+    private function dispatchOutboundDelivery(
+        User $sender,
+        CommercialOutboundMail $mailable,
+        array $toEmails,
+        array $ccEmails,
+        MailMessage $message,
+        MailThread $thread,
+        ?Lead $lead,
+        ?LeadOffer $offer,
+        string $bodyText,
+        string $subject,
+        Carbon $sentAt,
+        array $inlineImages,
+    ): void {
+        if ($this->shouldQueueOutboundMail()) {
+            SendCommercialOutboundMailJob::dispatch(
+                mailMessageId: $message->id,
+                senderUserId: $sender->id,
+                toEmails: $toEmails,
+                ccEmails: $ccEmails,
+                leadOfferId: $offer?->id,
+                leadId: $lead?->id,
+                mailThreadId: $thread->id,
+                inlineImages: $inlineImages,
+            );
+
+            return;
+        }
+
+        $this->deliverMailable($sender, $mailable, $toEmails, $ccEmails);
+
+        $this->finalizeOutboundDelivery(
+            thread: $thread,
+            lead: $lead,
+            offer: $offer,
+            bodyText: $bodyText,
+            toEmails: $toEmails,
+            subject: $subject,
+            sentAt: $sentAt,
+            sender: $sender,
+            message: $message,
+        );
+    }
+
+    private function shouldQueueOutboundMail(): bool
+    {
+        return (bool) config('async.outbound_mail')
+            && (string) config('queue.default') !== 'sync';
+    }
+
+    /**
+     * @param  list<string>  $toEmails
+     */
+    private function finalizeOutboundDelivery(
+        MailThread $thread,
+        ?Lead $lead,
+        ?LeadOffer $offer,
+        string $bodyText,
+        array $toEmails,
+        string $subject,
+        Carbon $sentAt,
+        User $sender,
+        MailMessage $message,
+    ): void {
         if ($offer !== null) {
             $offer->forceFill([
                 'status' => 'sent',
-                'sent_at' => $now,
+                'sent_at' => $sentAt,
                 'last_mail_thread_id' => $thread->id,
             ])->save();
 
             if ($lead !== null) {
                 $lead->forceFill([
-                    'proposal_sent_at' => $now,
+                    'proposal_sent_at' => $sentAt,
                     'status' => $lead->status === 'proposal_ready' ? 'proposal_sent' : $lead->status,
                 ])->save();
             }
         }
 
-        $this->recordOutboundActivity($thread, $lead, $offer, $bodyText, $toEmails, $subject, $now, $sender, $message);
+        $this->recordOutboundActivity($thread, $lead, $offer, $bodyText, $toEmails, $subject, $sentAt, $sender, $message);
+    }
 
-        return ['thread' => $thread, 'message' => $message];
+    /**
+     * @param  array<int, array<string, mixed>>|null  $storedAttachments
+     * @return list<array{path: string, name: string, driver: string|null, mime_type: string|null}>
+     */
+    private function attachmentsForMailableFromStorage(?array $storedAttachments): array
+    {
+        if ($storedAttachments === null || $storedAttachments === []) {
+            return [];
+        }
+
+        return array_values(array_map(
+            static fn (array $attachment): array => [
+                'path' => (string) ($attachment['file_path'] ?? $attachment['path'] ?? ''),
+                'name' => (string) ($attachment['original_name'] ?? $attachment['name'] ?? 'attachment'),
+                'driver' => isset($attachment['storage_driver']) ? (string) $attachment['storage_driver'] : ($attachment['driver'] ?? null),
+                'mime_type' => isset($attachment['mime_type']) ? (string) $attachment['mime_type'] : null,
+            ],
+            $storedAttachments,
+        ));
     }
 
     /**
