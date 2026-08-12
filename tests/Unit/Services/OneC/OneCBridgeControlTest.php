@@ -34,6 +34,7 @@ class OneCBridgeControlTest extends TestCase
                     'label' => 'Гросс',
                     'base_url' => 'https://one-c.test/gross',
                     'organization_ref' => 'org-gross',
+                    'organization_inn' => '6345031755',
                     'bank_account_number' => '40702810629940001726',
                     'date_filter_mode' => 'client',
                     'enabled' => true,
@@ -44,6 +45,7 @@ class OneCBridgeControlTest extends TestCase
         $catalog = app(OneCPublicationCatalog::class);
         $this->assertCount(2, $catalog->all());
         $this->assertSame('client', $catalog->get('gross')['date_filter_mode']);
+        $this->assertSame('gross', $catalog->forOrganizationInn('6345031755')['code'] ?? null);
     }
 
     public function test_client_date_filter_mode_filters_in_php(): void

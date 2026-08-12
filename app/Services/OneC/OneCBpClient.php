@@ -111,7 +111,7 @@ final class OneCBpClient
     private function createRealizationHttp(array $payload): array
     {
         $body = $this->realizationWriteBody($payload);
-        $base = (string) config('one_c.base_url', '');
+        $base = $this->resolveBaseUrl($payload);
         $path = (string) config('one_c.odata.realization_path');
         $response = $this->http()->post($base.$path, $body);
 
@@ -142,7 +142,8 @@ final class OneCBpClient
      */
     private function updateRealizationHttp(string $ref, array $payload): array
     {
-        $current = $this->getRealizationHttp($ref);
+        $base = $this->resolveBaseUrl($payload);
+        $current = $this->getRealizationHttp($ref, $base);
         if ($current === null) {
             throw new RuntimeException('1С: реализация не найдена для обновления.');
         }
@@ -150,13 +151,6 @@ final class OneCBpClient
         if ($current['posted']) {
             throw ValidationException::withMessages([
                 'one_c' => 'Реализация в 1С проведена — изменение из CRM запрещено.',
-            ]);
-        }
-
-        $base = (string) config('one_c.base_url', '');
-        if ($base === '') {
-            throw ValidationException::withMessages([
-                'one_c' => 'Не задан ONE_C_BASE_URL для драйвера http.',
             ]);
         }
 
@@ -173,7 +167,7 @@ final class OneCBpClient
         /** @var array<string, mixed> $json */
         $json = $response->json() ?? [];
         if ($json === []) {
-            $fresh = $this->getRealizationHttp($ref);
+            $fresh = $this->getRealizationHttp($ref, $base);
             $json = is_array($fresh['raw'] ?? null) ? $fresh['raw'] : ['Ref_Key' => $ref, 'Posted' => false];
         }
 
@@ -192,12 +186,7 @@ final class OneCBpClient
      */
     private function realizationWriteBody(array $payload): array
     {
-        $base = (string) config('one_c.base_url', '');
-        if ($base === '') {
-            throw ValidationException::withMessages([
-                'one_c' => 'Не задан ONE_C_BASE_URL для драйвера http.',
-            ]);
-        }
+        $base = $this->resolveBaseUrl($payload);
 
         $counterparty = is_array($payload['counterparty'] ?? null) ? $payload['counterparty'] : [];
         $inn = (string) ($counterparty['inn'] ?? '');
@@ -207,7 +196,7 @@ final class OneCBpClient
         if ($name === '') {
             $name = 'Контрагент '.$inn;
         }
-        $counterpartyRef = $this->ensureCounterpartyRef($inn, $kpp !== '' ? $kpp : null, $name);
+        $counterpartyRef = $this->ensureCounterpartyRef($inn, $kpp !== '' ? $kpp : null, $name, $base);
 
         $body = is_array($payload['odata_stub'] ?? null) ? $payload['odata_stub'] : [];
         unset($body['_crm_counterparty_match'], $body['_crm_organization_ref']);
@@ -218,6 +207,23 @@ final class OneCBpClient
         }
 
         return $body;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $payload
+     */
+    private function resolveBaseUrl(?array $payload = null, ?string $baseUrl = null): string
+    {
+        $fromPayload = is_string($payload['base_url'] ?? null) ? trim((string) $payload['base_url']) : '';
+        $explicit = is_string($baseUrl) ? trim($baseUrl) : '';
+        $base = rtrim($explicit !== '' ? $explicit : ($fromPayload !== '' ? $fromPayload : (string) config('one_c.base_url', '')), '/');
+        if ($base === '') {
+            throw ValidationException::withMessages([
+                'one_c' => 'Не задан base_url 1С (публикация / ONE_C_BASE_URL).',
+            ]);
+        }
+
+        return $base;
     }
 
     /**
@@ -592,13 +598,13 @@ final class OneCBpClient
     /**
      * @return array{ref: string, number: ?string, posted: bool, raw: array<string, mixed>}|null
      */
-    public function getRealization(string $ref): ?array
+    public function getRealization(string $ref, ?string $baseUrl = null): ?array
     {
         $driver = (string) config('one_c.driver', 'fake');
 
         return match ($driver) {
             'fake' => $this->getRealizationFake($ref),
-            'http' => $this->getRealizationHttp($ref),
+            'http' => $this->getRealizationHttp($ref, $baseUrl),
             default => throw ValidationException::withMessages([
                 'one_c' => "Неизвестный драйвер 1С: {$driver}.",
             ]),
@@ -628,13 +634,13 @@ final class OneCBpClient
      * Жёсткий DELETE у учётки OData часто упирается в права последовательностей.
      * Проведённую — ValidationException.
      */
-    public function deleteUnpostedRealization(string $ref): void
+    public function deleteUnpostedRealization(string $ref, ?string $baseUrl = null): void
     {
         $driver = (string) config('one_c.driver', 'fake');
 
         match ($driver) {
             'fake' => $this->deleteUnpostedRealizationFake($ref),
-            'http' => $this->markUnpostedRealizationDeletedHttp($ref),
+            'http' => $this->markUnpostedRealizationDeletedHttp($ref, $baseUrl),
             default => throw ValidationException::withMessages([
                 'one_c' => "Неизвестный драйвер 1С: {$driver}.",
             ]),
@@ -707,15 +713,9 @@ final class OneCBpClient
     /**
      * @return array{ref: string, number: ?string, posted: bool, raw: array<string, mixed>}|null
      */
-    private function getRealizationHttp(string $ref): ?array
+    private function getRealizationHttp(string $ref, ?string $baseUrl = null): ?array
     {
-        $base = (string) config('one_c.base_url', '');
-        if ($base === '') {
-            throw ValidationException::withMessages([
-                'one_c' => 'Не задан ONE_C_BASE_URL для драйвера http.',
-            ]);
-        }
-
+        $base = $this->resolveBaseUrl(null, $baseUrl);
         $path = (string) config('one_c.odata.realization_path');
         $response = $this->http()->get($base.$path."(guid'{$ref}')", [
             '$format' => 'json',
@@ -783,9 +783,10 @@ final class OneCBpClient
         ];
     }
 
-    private function markUnpostedRealizationDeletedHttp(string $ref): void
+    private function markUnpostedRealizationDeletedHttp(string $ref, ?string $baseUrl = null): void
     {
-        $doc = $this->getRealizationHttp($ref);
+        $base = $this->resolveBaseUrl(null, $baseUrl);
+        $doc = $this->getRealizationHttp($ref, $base);
         if ($doc === null) {
             return;
         }
@@ -800,7 +801,6 @@ final class OneCBpClient
             return;
         }
 
-        $base = (string) config('one_c.base_url', '');
         $path = (string) config('one_c.odata.realization_path');
         $response = $this->http()->patch($base.$path."(guid'{$ref}')", [
             'DeletionMark' => true,

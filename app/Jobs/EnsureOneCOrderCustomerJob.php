@@ -6,6 +6,7 @@ namespace App\Jobs;
 
 use App\Models\Order;
 use App\Services\OneC\OneCCounterpartyEnsureService;
+use App\Services\OneC\OneCPublicationCatalog;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -22,7 +23,7 @@ class EnsureOneCOrderCustomerJob implements ShouldQueue
 
     public function __construct(public int $orderId) {}
 
-    public function handle(OneCCounterpartyEnsureService $ensure): void
+    public function handle(OneCCounterpartyEnsureService $ensure, OneCPublicationCatalog $publications): void
     {
         if (! (bool) config('one_c.enabled', false)) {
             return;
@@ -33,11 +34,13 @@ class EnsureOneCOrderCustomerJob implements ShouldQueue
             return;
         }
 
-        $result = $ensure->ensureOrderCustomer($order);
+        $baseUrl = $publications->forOrder($order)['base_url'] ?? null;
+        $result = $ensure->ensureOrderCustomer($order, is_string($baseUrl) && $baseUrl !== '' ? $baseUrl : null);
         if ($result !== null) {
             Log::info('one_c.counterparty_ensured_for_order', [
                 'order_id' => $this->orderId,
                 'ref' => $result['ref'],
+                'base_url' => $baseUrl,
             ]);
         }
     }

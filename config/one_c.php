@@ -127,9 +127,18 @@ return [
                 'ONE_C_AUTALLIANCE_ORG_REF',
                 (string) env('ONE_C_ORGANIZATION_REF', '19b37fca-5d84-11f1-8bf4-fa163ea037a3')
             ),
+            'organization_inn' => (string) env('ONE_C_AUTALLIANCE_ORG_INN', '6732110940'),
             'bank_account_number' => (string) env(
                 'ONE_C_AUTALLIANCE_BANK_ACCOUNT',
                 (string) env('ONE_C_BANK_ACCOUNT_NUMBER', '40702810959710001997')
+            ),
+            'service_nomenclature_ref' => (string) env(
+                'ONE_C_AUTALLIANCE_SERVICE_NOMENCLATURE_REF',
+                (string) env('ONE_C_SERVICE_NOMENCLATURE_REF', '9ec829b8-632e-11f1-8745-fa163ea037a3')
+            ),
+            'service_nomenclature_code' => (string) env(
+                'ONE_C_AUTALLIANCE_SERVICE_NOMENCLATURE_CODE',
+                (string) env('ONE_C_SERVICE_NOMENCLATURE_CODE', '00-00000001')
             ),
             'date_filter_mode' => 'odata',
             'enabled' => filter_var(env('ONE_C_AUTALLIANCE_ENABLED', true), FILTER_VALIDATE_BOOL),
@@ -144,10 +153,13 @@ return [
                 'ONE_C_GROSS_ORG_REF',
                 '13d87b6e-bae2-11ef-89a3-dc68443ee9e4'
             ),
+            'organization_inn' => (string) env('ONE_C_GROSS_ORG_INN', '6345031755'),
             'bank_account_number' => (string) env(
                 'ONE_C_GROSS_BANK_ACCOUNT',
                 '40702810629940001726'
             ),
+            'service_nomenclature_ref' => (string) env('ONE_C_GROSS_SERVICE_NOMENCLATURE_REF', ''),
+            'service_nomenclature_code' => (string) env('ONE_C_GROSS_SERVICE_NOMENCLATURE_CODE', ''),
             'date_filter_mode' => 'client',
             'enabled' => filter_var(env('ONE_C_GROSS_ENABLED', true), FILTER_VALIDATE_BOOL),
         ],
@@ -161,9 +173,19 @@ return [
                 'ONE_C_PROFSFERA_ORG_REF',
                 '68778110-58ca-11f1-8af0-fa163eafb81d'
             ),
+            'organization_inn' => (string) env('ONE_C_PROFSFERA_ORG_INN', '6321213940'),
             'bank_account_number' => (string) env(
                 'ONE_C_PROFSFERA_BANK_ACCOUNT',
                 '40702810508470000001'
+            ),
+            // В ИБ Профсфера ТЭУ = 00-00000002 (00-00000001 — помещение).
+            'service_nomenclature_ref' => (string) env(
+                'ONE_C_PROFSFERA_SERVICE_NOMENCLATURE_REF',
+                'af537684-63c4-11f1-8ae7-fa163eafb81d'
+            ),
+            'service_nomenclature_code' => (string) env(
+                'ONE_C_PROFSFERA_SERVICE_NOMENCLATURE_CODE',
+                '00-00000002'
             ),
             'date_filter_mode' => 'client',
             'enabled' => filter_var(env('ONE_C_PROFSFERA_ENABLED', true), FILTER_VALIDATE_BOOL),

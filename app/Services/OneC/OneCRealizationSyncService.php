@@ -47,7 +47,8 @@ final class OneCRealizationSyncService
 
         foreach ($documents as $document) {
             $ref = (string) $document->external_ref;
-            $this->client->deleteUnpostedRealization($ref);
+            $baseUrl = $this->storedBaseUrl($document);
+            $this->client->deleteUnpostedRealization($ref, $baseUrl);
 
             $document->fill([
                 'status' => OrderOneCDocument::STATUS_DELETED_IN_1C,
@@ -124,6 +125,31 @@ final class OneCRealizationSyncService
         $hasLiveLink = $existing !== null
             && $existing->status === OrderOneCDocument::STATUS_CREATED
             && filled($existing->external_ref);
+
+        if ($hasLiveLink && $this->publicationMismatch($existing, $payload)) {
+            $oldRef = (string) $existing->external_ref;
+            $oldBase = $this->storedBaseUrl($existing);
+            try {
+                $this->client->deleteUnpostedRealization($oldRef, $oldBase);
+            } catch (ValidationException $e) {
+                throw $e;
+            } catch (Throwable $e) {
+                throw ValidationException::withMessages([
+                    'one_c' => 'Не удалось снять реализацию в прежней ИБ перед переносом: '.$e->getMessage(),
+                ]);
+            }
+
+            $existing->fill([
+                'status' => OrderOneCDocument::STATUS_DELETED_IN_1C,
+                'external_ref' => null,
+                'external_number' => null,
+                'external_date' => null,
+                'last_error' => null,
+            ]);
+            $existing->save();
+
+            return $this->createNew($order, $user, $existing, $payload, $fingerprint);
+        }
 
         if ($hasLiveLink) {
             return $this->updateExisting($order, $user, $existing, $payload, $fingerprint);
@@ -225,7 +251,7 @@ final class OneCRealizationSyncService
         string $fingerprint,
     ): array {
         $ref = (string) $document->external_ref;
-        $remote = $this->client->getRealization($ref);
+        $remote = $this->client->getRealization($ref, $this->storedBaseUrl($document) ?? $this->payloadBaseUrl($payload));
 
         if ($remote === null) {
             throw ValidationException::withMessages([
@@ -438,6 +464,9 @@ final class OneCRealizationSyncService
             'document_date' => $payload['document_date'] ?? null,
             'counterparty' => $payload['counterparty'] ?? null,
             'vat' => $payload['vat'] ?? null,
+            'organization_ref' => $payload['organization_ref'] ?? null,
+            'publication_code' => $payload['publication_code'] ?? null,
+            'base_url' => $payload['base_url'] ?? null,
             'service_line' => [
                 'content' => $payload['service_line']['content'] ?? null,
                 'amount' => $payload['service_line']['amount'] ?? null,
@@ -457,6 +486,47 @@ final class OneCRealizationSyncService
         $stored = $payload['_crm_fingerprint'] ?? null;
 
         return is_string($stored) && $stored !== '' ? $stored : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function publicationMismatch(OrderOneCDocument $document, array $payload): bool
+    {
+        $stored = is_array($document->request_payload) ? $document->request_payload : [];
+        $storedCode = (string) ($stored['publication_code'] ?? '');
+        $newCode = (string) ($payload['publication_code'] ?? '');
+        if ($storedCode !== '' && $newCode !== '' && $storedCode !== $newCode) {
+            return true;
+        }
+
+        $storedBase = rtrim((string) ($stored['base_url'] ?? ''), '/');
+        $newBase = rtrim((string) ($payload['base_url'] ?? ''), '/');
+        if ($storedBase !== '' && $newBase !== '' && $storedBase !== $newBase) {
+            return true;
+        }
+
+        $storedOrg = (string) ($stored['organization_ref'] ?? '');
+        $newOrg = (string) ($payload['organization_ref'] ?? '');
+
+        return $storedOrg !== '' && $newOrg !== '' && $storedOrg !== $newOrg;
+    }
+
+    private function storedBaseUrl(OrderOneCDocument $document): ?string
+    {
+        $payload = is_array($document->request_payload) ? $document->request_payload : [];
+
+        return $this->payloadBaseUrl($payload);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function payloadBaseUrl(array $payload): ?string
+    {
+        $base = is_string($payload['base_url'] ?? null) ? trim((string) $payload['base_url']) : '';
+
+        return $base !== '' ? rtrim($base, '/') : null;
     }
 
     private function rememberPostedFlag(OrderOneCDocument $document, bool $posted): void

@@ -13,7 +13,9 @@
 | Заказчик ИНН+КПП | поиск `Catalog.Контрагенты` (`substringof`); **create**, если нет — при реализации и при смене заказчика в мастере (`EnsureOneCOrderCustomerJob`) |
 | Сводка (тело) | `Услуги.Содержание`; номенклатура **ТЭУ** |
 | `orders.id` / номер | `Комментарий` (`CRM {number} (id N)`); допреквизитов в ИБ нет |
-| Организация | `Организация_Key` из `ONE_C_ORGANIZATION_REF` |
+| Организация | `own_company_id` → публикация по ИНН (`OneCPublicationCatalog::forOrder`); иначе default Autalliance |
+
+
 | Связь | таблица `order_one_c_documents` |
 
 **Push CRM → 1С:** `pushForOrder` — создать / PATCH обновить / no-op. **Posted=true** → запрет изменения из CRM. UI: «Создать…» / «Обновить данные в 1С» / disabled «актуально» / blocked при проведении.

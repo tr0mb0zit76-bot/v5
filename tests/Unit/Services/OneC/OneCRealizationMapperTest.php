@@ -55,6 +55,7 @@ class OneCRealizationMapperTest extends TestCase
         $this->assertSame([], $payload['extra_attributes']);
         $this->assertArrayNotHasKey('ДополнительныеРеквизиты', $payload['odata_stub']);
         $this->assertSame('19b37fca-5d84-11f1-8bf4-fa163ea037a3', $payload['odata_stub']['Организация_Key']);
+        $this->assertSame('autalliance', $payload['publication_code']);
         $this->assertSame('69e038af-320f-11f1-acc9-b69a48ddb3f4', $payload['odata_stub']['ВалютаДокумента_Key']);
         $this->assertSame('CRM ТЕСТ-1 (id 146)', $payload['odata_stub']['Комментарий']);
         $this->assertSame(
@@ -65,6 +66,70 @@ class OneCRealizationMapperTest extends TestCase
         $this->assertSame(0.0, $payload['odata_stub']['Услуги'][0]['СуммаНДС']);
         $this->assertTrue($payload['odata_stub']['ДокументБезНДС']);
         $this->assertFalse($payload['odata_stub']['СуммаВключаетНДС']);
+    }
+
+    public function test_maps_own_company_profsfera_to_profsfera_publication(): void
+    {
+        config([
+            'one_c.extra_attributes.order_id' => '',
+            'one_c.extra_attributes.order_number' => '',
+            'one_c.service_nomenclature.ref' => '9ec829b8-632e-11f1-8745-fa163ea037a3',
+            'one_c.service_nomenclature.code' => '00-00000001',
+            'one_c.organization_ref' => '19b37fca-5d84-11f1-8bf4-fa163ea037a3',
+            'one_c.currency_ref' => '69e038af-320f-11f1-acc9-b69a48ddb3f4',
+            'one_c.default_publication' => 'autalliance',
+            'one_c.publications' => [
+                'autalliance' => [
+                    'label' => 'АА',
+                    'base_url' => 'https://one-c.test/aa',
+                    'organization_ref' => '19b37fca-5d84-11f1-8bf4-fa163ea037a3',
+                    'organization_inn' => '6732110940',
+                    'service_nomenclature_ref' => '9ec829b8-632e-11f1-8745-fa163ea037a3',
+                    'service_nomenclature_code' => '00-00000001',
+                    'enabled' => true,
+                ],
+                'profsfera' => [
+                    'label' => 'Профсфера',
+                    'base_url' => 'https://one-c.test/profsfera',
+                    'organization_ref' => '68778110-58ca-11f1-8af0-fa163eafb81d',
+                    'organization_inn' => '6321213940',
+                    'service_nomenclature_ref' => 'af537684-63c4-11f1-8ae7-fa163eafb81d',
+                    'service_nomenclature_code' => '00-00000002',
+                    'enabled' => true,
+                ],
+            ],
+        ]);
+
+        $client = new Contractor([
+            'name' => 'ИП Данилов',
+            'inn' => '632111465177',
+        ]);
+        $own = new Contractor([
+            'name' => 'ООО ПРОФСФЕРА',
+            'inn' => '6321213940',
+        ]);
+        $own->id = 8;
+
+        $order = new Order([
+            'order_number' => 'ПС-СЭ-38',
+            'customer_rate' => '25000.00',
+            'customer_payment_form' => 'no_vat',
+            'order_date' => '2026-08-11',
+            'own_company_id' => 8,
+        ]);
+        $order->id = 150;
+        $order->setRelation('client', $client);
+        $order->setRelation('ownCompany', $own);
+        $order->setRelation('legs', collect());
+
+        $payload = app(OneCRealizationMapper::class)->map($order);
+
+        $this->assertSame('profsfera', $payload['publication_code']);
+        $this->assertSame('https://one-c.test/profsfera', $payload['base_url']);
+        $this->assertSame('68778110-58ca-11f1-8af0-fa163eafb81d', $payload['organization_ref']);
+        $this->assertSame('68778110-58ca-11f1-8af0-fa163eafb81d', $payload['odata_stub']['Организация_Key']);
+        $this->assertSame('af537684-63c4-11f1-8ae7-fa163eafb81d', $payload['service_line']['nomenclature_ref']);
+        $this->assertSame('00-00000002', $payload['service_line']['nomenclature_code']);
     }
 
     public function test_maps_customer_vat_22_into_service_line(): void

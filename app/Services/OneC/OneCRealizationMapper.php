@@ -26,6 +26,7 @@ final class OneCRealizationMapper
 {
     public function __construct(
         private readonly OrderFleetTransportDetailsResolver $transportDetails,
+        private readonly OneCPublicationCatalog $publications,
     ) {}
 
     /**
@@ -47,6 +48,8 @@ final class OneCRealizationMapper
      *     },
      *     counterparty: array{inn: string, kpp: string|null, name: string|null},
      *     organization_ref: string|null,
+     *     publication_code: string,
+     *     base_url: string|null,
      *     currency_ref: string|null,
      *     service_line: array{
      *         nomenclature_code: string|null,
@@ -66,6 +69,7 @@ final class OneCRealizationMapper
     {
         $order->loadMissing([
             'client:id,name,inn,kpp',
+            'ownCompany:id,name,inn',
             'legs' => fn ($query) => $query->orderBy('sequence'),
             'legs.routePoints' => fn ($query) => $query->orderBy('sequence'),
         ]);
@@ -129,6 +133,19 @@ final class OneCRealizationMapper
 
         $nomenclatureRef = $this->nullableConfigString('one_c.service_nomenclature.ref');
         $nomenclatureCode = $this->nullableConfigString('one_c.service_nomenclature.code');
+        $publication = $this->publications->forOrder($order);
+        if ($publication['service_nomenclature_ref'] !== '') {
+            $nomenclatureRef = $publication['service_nomenclature_ref'];
+        }
+        if ($publication['service_nomenclature_code'] !== '') {
+            $nomenclatureCode = $publication['service_nomenclature_code'];
+        }
+        $organizationRef = $publication['organization_ref'] !== ''
+            ? $publication['organization_ref']
+            : $this->nullableConfigString('one_c.organization_ref');
+        $baseUrl = $publication['base_url'] !== ''
+            ? $publication['base_url']
+            : $this->nullableConfigString('one_c.base_url');
 
         $paymentForm = filled($order->customer_payment_form)
             ? (string) $order->customer_payment_form
@@ -160,7 +177,9 @@ final class OneCRealizationMapper
                 'kpp' => $kpp,
                 'name' => $client->name !== null ? (string) $client->name : null,
             ],
-            'organization_ref' => $this->nullableConfigString('one_c.organization_ref'),
+            'organization_ref' => $organizationRef,
+            'publication_code' => $publication['code'],
+            'base_url' => $baseUrl,
             'currency_ref' => $this->nullableConfigString('one_c.currency_ref'),
             'service_line' => [
                 'nomenclature_code' => $nomenclatureCode,

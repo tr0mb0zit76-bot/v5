@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\OneC;
 
+use App\Models\Order;
 use InvalidArgumentException;
 
 /**
@@ -14,7 +15,10 @@ use InvalidArgumentException;
  *     label: string,
  *     base_url: string,
  *     organization_ref: string,
+ *     organization_inn: string,
  *     bank_account_number: string,
+ *     service_nomenclature_ref: string,
+ *     service_nomenclature_code: string,
  *     date_filter_mode: 'odata'|'client',
  *     enabled: bool
  * }
@@ -81,6 +85,46 @@ final class OneCPublicationCatalog
     }
 
     /**
+     * Публикация по ИНН собственной организации CRM.
+     *
+     * @return Publication|null
+     */
+    public function forOrganizationInn(string $inn): ?array
+    {
+        $digits = preg_replace('/\D+/', '', $inn) ?? '';
+        if ($digits === '') {
+            return null;
+        }
+
+        foreach ($this->all() as $pub) {
+            if ($pub['organization_inn'] !== '' && $pub['organization_inn'] === $digits) {
+                return $pub;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * ИБ по «Нашей компании» заказа; иначе default_publication.
+     *
+     * @return Publication
+     */
+    public function forOrder(Order $order): array
+    {
+        $order->loadMissing(['ownCompany:id,inn,name']);
+        $own = $order->ownCompany;
+        if ($own !== null) {
+            $matched = $this->forOrganizationInn((string) ($own->inn ?? ''));
+            if ($matched !== null) {
+                return $matched;
+            }
+        }
+
+        return $this->get($this->defaultCode());
+    }
+
+    /**
      * @param  array<string, mixed>  $row
      * @return Publication
      */
@@ -91,12 +135,17 @@ final class OneCPublicationCatalog
             $mode = 'odata';
         }
 
+        $inn = preg_replace('/\D+/', '', (string) ($row['organization_inn'] ?? '')) ?? '';
+
         return [
             'code' => $code,
             'label' => (string) ($row['label'] ?? $code),
             'base_url' => rtrim((string) ($row['base_url'] ?? ''), '/'),
             'organization_ref' => (string) ($row['organization_ref'] ?? ''),
+            'organization_inn' => $inn,
             'bank_account_number' => (string) ($row['bank_account_number'] ?? ''),
+            'service_nomenclature_ref' => (string) ($row['service_nomenclature_ref'] ?? ''),
+            'service_nomenclature_code' => (string) ($row['service_nomenclature_code'] ?? ''),
             'date_filter_mode' => $mode,
             'enabled' => (bool) ($row['enabled'] ?? true),
         ];
@@ -112,7 +161,10 @@ final class OneCPublicationCatalog
             'label' => 'Автоальянс-Смоленск',
             'base_url' => rtrim((string) config('one_c.base_url', ''), '/'),
             'organization_ref' => (string) config('one_c.organization_ref', ''),
+            'organization_inn' => '6732110940',
             'bank_account_number' => (string) config('one_c.bank_statement.account_number', '40702810959710001997'),
+            'service_nomenclature_ref' => (string) config('one_c.service_nomenclature.ref', ''),
+            'service_nomenclature_code' => (string) config('one_c.service_nomenclature.code', ''),
             'date_filter_mode' => 'odata',
             'enabled' => true,
         ];
