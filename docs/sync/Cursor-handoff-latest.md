@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-12 09:35 (ОТДАТЬ + деплой) · **Ветка:** `master` · **тема:** 1С push/НДС/счета/мост
+**Обновлено:** 2026-08-12 09:35 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `0d2a32f3` · **тема:** 1С push/НДС/счета/мост
 
 ### Итог сессии 2026-08-11…12 — контур 1С + УУ
 
