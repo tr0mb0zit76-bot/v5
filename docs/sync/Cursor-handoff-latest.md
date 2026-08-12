@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-12 16:20 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `7b158235` · **тема:** УУ разнос + scheduler + Мост UI + ЭДО sync
+**Обновлено:** 2026-08-12 16:20 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `bd601a1a` · **тема:** УУ разнос + scheduler + Мост UI + ЭДО sync
 
 ### Итог сессии 2026-08-12 — разнос / cron / UI / ЭДО
 
