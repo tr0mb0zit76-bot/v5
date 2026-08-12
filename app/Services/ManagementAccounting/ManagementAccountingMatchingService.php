@@ -94,20 +94,27 @@ class ManagementAccountingMatchingService
             $manualCandidates = $this->operationalCandidatesForLine($line);
 
             if ($manualCandidates !== []) {
-                $singleCandidate = count($manualCandidates) === 1 ? $manualCandidates[0] : null;
+                $picked = $this->pickUniqueOperationalCandidate($manualCandidates, $amount);
 
                 return [
                     'match_type' => 'operational',
-                    'match_confidence' => $singleCandidate !== null ? 55 : 45,
-                    'match_notes' => $singleCandidate !== null
-                        ? 'Возможное совпадение — подтвердите или выберите другую строку'
-                        : 'Автоматически не определено — выберите строку графика',
-                    'suggested_order_id' => $singleCandidate['order_id'] ?? null,
-                    'suggested_payment_schedule_id' => $singleCandidate['payment_schedule_id'] ?? null,
+                    'match_confidence' => match ($picked['pick_reason'] ?? null) {
+                        'single' => 55,
+                        'exact_amount', 'same_order' => 70,
+                        default => 45,
+                    },
+                    'match_notes' => match ($picked['pick_reason'] ?? null) {
+                        'exact_amount' => 'Единственный кандидат с точной суммой — подтвердите при необходимости',
+                        'same_order' => 'Все кандидаты одного заказа — взята ближайшая строка графика',
+                        'single' => 'Возможное совпадение — подтвердите или выберите другую строку',
+                        default => 'Автоматически не определено — выберите строку графика',
+                    },
+                    'suggested_order_id' => $picked['order_id'] ?? null,
+                    'suggested_payment_schedule_id' => $picked['payment_schedule_id'] ?? null,
                     'suggested_category_id' => $direction === 'in'
                         ? $this->defaultCategoryId('operational_customer_in')
                         : $this->suggestedCarrierCategoryId(
-                            isset($singleCandidate['order_id']) ? (int) $singleCandidate['order_id'] : null,
+                            isset($picked['order_id']) ? (int) $picked['order_id'] : null,
                             null,
                         ),
                     'suggested_user_id' => null,
@@ -1662,14 +1669,84 @@ class ManagementAccountingMatchingService
         ];
     }
 
+    /**
+     * Один кандидат, единственный с точной суммой, или все кандидаты одного заказа.
+     *
+     * @param  list<array<string, mixed>>  $candidates
+     * @return array<string, mixed>|null
+     */
+    private function pickUniqueOperationalCandidate(array $candidates, float $amount): ?array
+    {
+        if (count($candidates) === 1) {
+            $pick = $candidates[0];
+            $pick['pick_reason'] = 'single';
+
+            return $pick;
+        }
+
+        $exact = array_values(array_filter(
+            $candidates,
+            static function (array $candidate) use ($amount): bool {
+                $due = round((float) ($candidate['amount_due'] ?? $candidate['amount'] ?? 0), 2);
+                $full = round((float) ($candidate['amount'] ?? 0), 2);
+
+                return abs($due - $amount) < 0.01 || abs($full - $amount) < 0.01;
+            },
+        ));
+
+        if (count($exact) === 1) {
+            $pick = $exact[0];
+            $pick['pick_reason'] = 'exact_amount';
+
+            return $pick;
+        }
+
+        $orderIds = array_values(array_unique(array_map(
+            static fn (array $candidate): int => (int) ($candidate['order_id'] ?? 0),
+            $candidates,
+        )));
+        $orderIds = array_values(array_filter($orderIds, static fn (int $id): bool => $id > 0));
+
+        if (count($orderIds) === 1) {
+            $sameOrder = $exact !== [] ? $exact : $candidates;
+            usort($sameOrder, static function (array $a, array $b) use ($amount): int {
+                $aDue = abs(round((float) ($a['amount_due'] ?? $a['amount'] ?? 0), 2) - $amount);
+                $bDue = abs(round((float) ($b['amount_due'] ?? $b['amount'] ?? 0), 2) - $amount);
+
+                return [$aDue, (int) ($a['payment_schedule_id'] ?? 0)] <=> [$bDue, (int) ($b['payment_schedule_id'] ?? 0)];
+            });
+            $pick = $sameOrder[0];
+            $pick['pick_reason'] = 'same_order';
+
+            return $pick;
+        }
+
+        return null;
+    }
+
     private function extractOrderNumber(string $description): ?string
     {
-        if (preg_match('/АС[\s\-]*(\d{2})(\d{2})[\s\-]*(\d{4})/ui', $description, $matches) === 1) {
+        // Канон: АС-ГГММ-NNNN (и латиница AC-…). description уже в нижнем регистре из suggestForLine.
+        if (preg_match('/ас[\s\-]*(\d{2})(\d{2})[\s\-]*(\d{4})/u', $description, $matches) === 1) {
             return sprintf('АС-%s%s-%s', $matches[1], $matches[2], $matches[3]);
         }
 
-        if (preg_match('/AC[\s\-]*(\d{2})(\d{2})[\s\-]*(\d{4})/i', $description, $matches) === 1) {
+        if (preg_match('/ac[\s\-]*(\d{2})(\d{2})[\s\-]*(\d{4})/i', $description, $matches) === 1) {
             return sprintf('АС-%s%s-%s', $matches[1], $matches[2], $matches[3]);
+        }
+
+        // Короткие: ас-аг-02, ас-пв-371, ас-за-01
+        if (preg_match('/(?<![а-яёa-z0-9])ас[\s\-]*([а-яёa-z]{1,6})[\s\-]*(\d{1,4})(?![0-9])/u', $description, $matches) === 1) {
+            return 'АС-'.mb_strtoupper($matches[1]).'-'.$matches[2];
+        }
+
+        if (preg_match('/(?<![a-z0-9])ac[\s\-]*([a-z]{1,6})[\s\-]*(\d{1,4})(?![0-9])/i', $description, $matches) === 1) {
+            return 'АС-'.mb_strtoupper($matches[1]).'-'.$matches[2];
+        }
+
+        // Соседние серии: пс-пв-30, сп-2606-0003
+        if (preg_match('/(?<![а-яёa-z0-9])((?:пс|сп))[\s\-]*([а-яёa-z0-9]{1,6})[\s\-]*(\d{1,4})(?![0-9])/u', $description, $matches) === 1) {
+            return mb_strtoupper($matches[1]).'-'.mb_strtoupper($matches[2]).'-'.$matches[3];
         }
 
         return null;

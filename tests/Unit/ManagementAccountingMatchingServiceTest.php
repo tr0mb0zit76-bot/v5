@@ -88,6 +88,75 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $this->assertStringContainsString('Токен CRM', (string) $suggestion['match_notes']);
     }
 
+    public function test_suggests_operational_match_by_short_letter_order_number(): void
+    {
+        $customer = Contractor::query()->create([
+            'name' => 'ООО Диабаз',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-АГ-02',
+            'customer_id' => $customer->id,
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 230000,
+            'remaining_amount' => 230000,
+            'planned_date' => '2026-06-13',
+            'status' => 'pending',
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-13',
+            'direction' => 'in',
+            'amount' => 230000,
+            'description' => 'ДИАБАЗ ООО / Оплата по сч№11 от 13.06.2026г (перевозка по заявке №АС-АГ-02 Кудеевский-Горный)',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertSame($order->id, $suggestion['suggested_order_id']);
+        $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
+        $this->assertGreaterThanOrEqual(90, $suggestion['match_confidence']);
+    }
+
+    public function test_digit_order_number_still_preferred_over_short_letter_pattern(): void
+    {
+        $customer = Contractor::query()->create([
+            'name' => 'ООО Цифра',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-2606-0008',
+            'customer_id' => $customer->id,
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 72000,
+            'remaining_amount' => 72000,
+            'status' => 'pending',
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-20',
+            'direction' => 'in',
+            'amount' => 72000,
+            'description' => 'Оплата по заявке АС-2606-0008 за транспорт',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame($order->id, $suggestion['suggested_order_id']);
+        $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
+    }
+
     public function test_suggests_operational_match_for_outgoing_carrier_payment(): void
     {
         $carrier = Contractor::query()->create([
