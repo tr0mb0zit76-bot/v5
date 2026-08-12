@@ -66,3 +66,20 @@ foreach ($srcName in $map.Keys) {
 
 Write-Host ''
 Write-Host 'Done. Open CRM/Cursor-handoff-latest.md in Obsidian or @-mention in Cursor.'
+
+# Дизайны 1С / платежи из docs/ (не sync/)
+$docsExtra = @{
+    'one-c-bridge-control-agent-design.md' = (Join-Path $crmRoot 'one-c-bridge-control-agent-design.md')
+    'payment-invoice-sync-design.md'       = (Join-Path $crmRoot 'payment-invoice-sync-design.md')
+    'payment-match-token-design.md'        = (Join-Path $crmRoot 'payment-match-token-design.md')
+}
+$docsDir = Join-Path $repoRoot 'docs'
+foreach ($srcName in $docsExtra.Keys) {
+    $src = Join-Path $docsDir $srcName
+    if (-not (Test-Path $src)) {
+        Write-Warning "Skip missing design doc: $src"
+        continue
+    }
+    Copy-Item -Path $src -Destination $docsExtra[$srcName] -Force
+    Write-Host "Synced docs/$srcName -> $($docsExtra[$srcName])"
+}

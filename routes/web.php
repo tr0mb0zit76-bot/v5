@@ -735,6 +735,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('finance.management-accounting.lines.operational-candidates');
     Route::post('/finance/management-accounting/lines/{line}/allocate', [ManagementAccountingImportController::class, 'allocate'])
         ->name('finance.management-accounting.lines.allocate');
+    Route::post('/finance/management-accounting/bridge-check', [ManagementAccountingImportController::class, 'bridgeCheck'])
+        ->name('finance.management-accounting.bridge-check');
     Route::post('/finance/management-accounting/lines/{line}/deallocate', [ManagementAccountingImportController::class, 'deallocate'])
         ->name('finance.management-accounting.lines.deallocate');
     Route::post('/finance/management-accounting/manual-entries', [ManagementAccountingImportController::class, 'storeManual'])

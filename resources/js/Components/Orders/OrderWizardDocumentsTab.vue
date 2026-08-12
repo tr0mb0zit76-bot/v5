@@ -90,8 +90,8 @@ watch(
     },
 );
 
-async function createOneCRealization(force = false) {
-    if (!props.order?.id || oneCBusy.value) {
+async function pushOneCRealization() {
+    if (!props.order?.id || oneCBusy.value || !oneCState.value?.can_push) {
         return;
     }
 
@@ -101,7 +101,7 @@ async function createOneCRealization(force = false) {
     try {
         const response = await window.axios.post(
             route('orders.one-c.realization.store', props.order.id),
-            { force },
+            {},
         );
         if (response.data?.one_c) {
             oneCState.value = response.data.one_c;
@@ -115,7 +115,7 @@ async function createOneCRealization(force = false) {
         oneCError.value = formatDocumentRegistryError(error)
             || error?.response?.data?.message
             || error?.response?.data?.errors?.one_c?.[0]
-            || 'Не удалось создать реализацию в 1С.';
+            || 'Не удалось синхронизировать реализацию с 1С.';
     } finally {
         oneCBusy.value = false;
     }
@@ -875,19 +875,26 @@ async function onGlobalDrop(event) {
                 <div>
                     <div class="text-sm font-semibold text-sky-950 dark:text-sky-100">1С · Реализация</div>
                     <p class="mt-0.5 text-xs text-sky-900/80 dark:text-sky-200/80">
-                        Создать документ «Реализация товаров и услуг» (услуги) по ставке заказчика.
+                        Документ «Реализация товаров и услуг» по ставке и НДС заказчика. Проведённую в 1С из CRM не меняем.
                     </p>
                 </div>
                 <button
                     v-if="oneCState?.can_create"
                     type="button"
                     :class="crmBtnSecondary"
-                    :disabled="!order?.id || oneCBusy || !isOrderFormEditable"
-                    @click="createOneCRealization(Boolean(oneCState?.realization))"
+                    :disabled="!order?.id || oneCBusy || !isOrderFormEditable || !oneCState?.can_push"
+                    @click="pushOneCRealization"
                 >
-                    {{ oneCBusy ? 'Создание…' : (oneCState?.realization?.status === 'created' ? 'Пересоздать в 1С' : 'Создать реализацию в 1С') }}
+                    {{ oneCBusy ? 'Синхронизация…' : (oneCState?.button_label || 'Создать реализацию в 1С') }}
                 </button>
             </div>
+            <p
+                v-if="oneCState?.hint"
+                class="text-xs"
+                :class="oneCState?.action === 'blocked_posted' ? 'text-amber-800 dark:text-amber-200' : 'text-sky-900/80 dark:text-sky-200/80'"
+            >
+                {{ oneCState.hint }}
+            </p>
             <p
                 v-if="oneCState?.realization?.status === 'created'"
                 class="text-xs text-sky-900 dark:text-sky-100"
@@ -896,6 +903,8 @@ async function onGlobalDrop(event) {
                 № {{ oneCState.realization.external_number || '—' }}
                 · {{ oneCState.realization.amount || '—' }} ₽
                 · ref {{ oneCState.realization.external_ref || '—' }}
+                <span v-if="oneCState.posted"> · проведена</span>
+                <span v-else-if="oneCState.stale"> · есть изменения в CRM</span>
             </p>
             <p
                 v-else-if="oneCState?.realization?.status === 'failed'"

@@ -18,6 +18,8 @@ use App\Services\ManagementAccounting\ManagementAccountingImportService;
 use App\Services\ManagementAccounting\ManagementAccountingMatchingService;
 use App\Services\ManagementAccounting\ManagementExpenseCategorySyncService;
 use App\Services\ManagementAccounting\ManagementExpenseCategoryTreeService;
+use App\Services\ManagementAccounting\ManagementReconcileRuleService;
+use App\Services\OneC\OneCBridgeCheckService;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -33,6 +35,8 @@ class ManagementAccountingImportController extends Controller
         private readonly ManagementAccountingMatchingService $matchingService,
         private readonly ManagementExpenseCategorySyncService $expenseCategorySyncService,
         private readonly ManagementExpenseCategoryTreeService $categoryTreeService,
+        private readonly ManagementReconcileRuleService $reconcileRuleService,
+        private readonly OneCBridgeCheckService $bridgeCheckService,
     ) {}
 
     public function store(StoreManagementAccountingImportRequest $request): RedirectResponse
@@ -209,14 +213,41 @@ class ManagementAccountingImportController extends Controller
         AllocateManagementStatementLineRequest $request,
         ManagementStatementLine $line,
     ): RedirectResponse {
-        $this->allocationService->allocateLine($line, $request->validated(), $request->user());
+        $validated = $request->validated();
+        $this->allocationService->allocateLine($line, $validated, $request->user());
+
+        $line->refresh();
+        $explicitKeyword = trim((string) ($validated['remember_keyword'] ?? ''));
+        $learned = $this->reconcileRuleService->learnFromManualAllocation(
+            $request->user(),
+            $line,
+            $explicitKeyword !== '' ? $explicitKeyword : null,
+            $validated['remember_notes'] ?? null,
+        );
 
         if ($line->import_id !== null) {
-            return back()->with('flash', ['type' => 'success', 'message' => 'Операция разнесена.']);
+            $message = 'Операция разнесена.';
+            if ($learned !== null) {
+                $message = 'Операция разнесена, правило обучено («'.$learned->keyword.'»).';
+            }
+
+            return back()->with('flash', [
+                'type' => 'success',
+                'message' => $message,
+            ]);
         }
 
         return to_route('finance.management-accounting.index')
             ->with('flash', ['type' => 'success', 'message' => 'Ручная операция сохранена.']);
+    }
+
+    public function bridgeCheck(Request $request): JsonResponse
+    {
+        abort_unless(RoleAccess::canAccessManagementAccounting($request->user()), 403);
+
+        $result = $this->bridgeCheckService->check($request->user());
+
+        return response()->json($result);
     }
 
     public function deallocate(

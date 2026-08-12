@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\EnsureOneCOrderCustomerJob;
 use App\Models\Cargo;
 use App\Models\Contractor;
 use App\Models\LegContractorAssignment;
@@ -82,7 +83,10 @@ class OrderWizardService
 
             $this->orderWizardStateService->persistFromValidated($order->fresh(), $validated);
 
-            return $order->fresh()->load($this->relationsForOrderReload());
+            $fresh = $order->fresh()->load($this->relationsForOrderReload());
+            $this->scheduleOneCCustomerEnsure($fresh, null);
+
+            return $fresh;
         });
     }
 
@@ -98,6 +102,7 @@ class OrderWizardService
                 $validated = $this->preservePersistedFinancialPayload($order, $validated);
             }
             $previousStatus = $order->status;
+            $previousCustomerId = $order->customer_id !== null ? (int) $order->customer_id : null;
             $previousOrderDate = optional($order->order_date)?->toDateString();
             $previousManagerId = (int) $order->manager_id;
             $previousOrderOwnerId = $this->hasOrdersColumn('order_owner_id')
@@ -135,6 +140,7 @@ class OrderWizardService
 
             $freshOrder = $updatedOrder->fresh()->load($this->relationsForOrderReload());
             $this->closingDocumentsNotificationService->maybeNotify($freshOrder);
+            $this->scheduleOneCCustomerEnsure($freshOrder, $previousCustomerId);
 
             return $freshOrder;
         });
@@ -1698,6 +1704,28 @@ class OrderWizardService
         }
 
         return $value;
+    }
+
+    /**
+     * После сохранения заказа с заказчиком — асинхронно найти/создать контрагента в 1С.
+     * На update — только если сменился customer_id (или заказчик появился впервые).
+     */
+    private function scheduleOneCCustomerEnsure(Order $order, ?int $previousCustomerId): void
+    {
+        if (! (bool) config('one_c.enabled', false)) {
+            return;
+        }
+
+        $customerId = $order->customer_id !== null ? (int) $order->customer_id : null;
+        if ($customerId === null || $customerId <= 0) {
+            return;
+        }
+
+        if ($previousCustomerId !== null && $previousCustomerId === $customerId) {
+            return;
+        }
+
+        EnsureOneCOrderCustomerJob::dispatch($order->id)->afterCommit();
     }
 
     private function relationsForOrderReload(): array

@@ -2,7 +2,7 @@
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         <CrmPageHeader
             title="Акты сверок"
-            lead="Сводка по заказам и оплатам с контрагентом: начислено по гриду «Заказы» и фактически оплачено по «Графику оплат»."
+            lead="Сверка как в бухучёте: начисление после УПД. Долг — красным, переплата/аванс без УПД — зелёным."
         />
 
         <nav class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
@@ -187,22 +187,33 @@ function buildCsvLines() {
 
     for (const section of visibleReportSections.value) {
         lines.push(section.title);
-        lines.push('Заказ;Дата;Начислено;Оплачено;Остаток');
+        lines.push('Заказ;Дата заказа;Дата оплаты;Начислено;Оплачено;Остаток;Статус');
 
         for (const row of section.rows) {
+            const paymentDates = Array.isArray(row.payment_dates)
+                ? row.payment_dates.map((date) => formatDate(date)).join(', ')
+                : formatDate(row.last_payment_date);
+            const statusLabel = row.balance_status === 'overpayment'
+                ? 'Переплата'
+                : (row.balance_status === 'receivable' ? 'Долг' : '');
+
             lines.push(
                 [
                     row.order_number,
                     formatDate(row.order_date),
+                    paymentDates || '',
                     row.accrued,
                     row.paid,
                     row.balance,
+                    statusLabel,
                 ].join(';'),
             );
         }
 
         lines.push(
-            `Итого;;${section.totals.accrued};${section.totals.paid};${section.totals.balance}`,
+            `Итого;;;${section.totals.accrued};${section.totals.paid};${section.totals.balance};${
+                section.totals.balance_status === 'overpayment' ? 'Переплата' : ''
+            }`,
         );
         lines.push('');
     }
@@ -227,29 +238,45 @@ function printReport() {
         .map((section) => {
             const rows = section.rows
                 .map(
-                    (row) => `
-                    <tr>
+                    (row) => {
+                        const paymentDates = Array.isArray(row.payment_dates)
+                            ? row.payment_dates.map((date) => formatDate(date)).filter(Boolean).join(', ')
+                            : formatDate(row.last_payment_date);
+                        const status = row.balance_label ? ` ${row.balance_label}` : '';
+
+                        return `
+                    <tr class="${row.balance_status === 'overpayment' ? 'overpay' : ''}">
                         <td>${row.order_number}</td>
                         <td>${formatDate(row.order_date)}</td>
+                        <td>${paymentDates || '—'}</td>
                         <td class="num">${formatMoney(row.accrued)}</td>
                         <td class="num">${formatMoney(row.paid)}</td>
-                        <td class="num">${formatMoney(row.balance)}</td>
+                        <td class="num">${formatMoney(row.balance)}${status}</td>
                     </tr>
-                `,
+                `;
+                    },
                 )
                 .join('');
 
             const emptyRow = section.rows.length === 0
-                ? '<tr><td colspan="5">Нет данных за выбранный период</td></tr>'
+                ? '<tr><td colspan="6">Нет данных за выбранный период</td></tr>'
                 : '';
+
+            const totalsNote = section.totals.balance_status === 'overpayment'
+                ? `<p class="note">Переплата (аванс) по разделу: ${formatMoney(section.totals.overpayment)}</p>`
+                : (section.totals.balance_status === 'receivable'
+                    ? `<p class="note">Долг контрагента по разделу: ${formatMoney(section.totals.receivable)}</p>`
+                    : '');
 
             return `
                 <h2>${section.title}</h2>
+                ${totalsNote}
                 <table>
                     <thead>
                         <tr>
                             <th>Заказ</th>
-                            <th>Дата</th>
+                            <th>Дата заказа</th>
+                            <th>Дата оплаты</th>
                             <th>Начислено</th>
                             <th>Оплачено</th>
                             <th>Остаток</th>
@@ -258,7 +285,7 @@ function printReport() {
                     <tbody>${rows}${emptyRow}</tbody>
                     <tfoot>
                         <tr>
-                            <th colspan="2">Итого</th>
+                            <th colspan="3">Итого</th>
                             <th class="num">${formatMoney(section.totals.accrued)}</th>
                             <th class="num">${formatMoney(section.totals.paid)}</th>
                             <th class="num">${formatMoney(section.totals.balance)}</th>
@@ -285,6 +312,8 @@ function printReport() {
                 th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
                 th { background: #f4f4f5; }
                 td.num, th.num { text-align: right; }
+                tr.overpay { background: #ecfdf5; }
+                p.note { margin: 0 0 8px; color: #047857; }
             </style>
         </head>
         <body>

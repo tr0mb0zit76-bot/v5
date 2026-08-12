@@ -50,7 +50,15 @@
 | Утилиты | `v5-local-Components-Utility-Modules.md` |
 | **Code audit 2026-07** | `v5-local-Components-Code-Audit-2026-07.md` |
 
-*Обновлено: 2026-07-10.*
+*Обновлено: 2026-08-12.*
+
+## Дизайны 1С / платежи (git `docs/`, без отдельной component-карточки)
+
+| Файл | Назначение |
+| --- | --- |
+| `docs/one-c-bridge-control-agent-design.md` | Агент-контролёр моста банка / эскалации |
+| `docs/payment-invoice-sync-design.md` | Sync номеров счетов + матчинг входящих |
+| `docs/payment-match-token-design.md` | Токен `CRM:…` в назначении / Content |
 
 ## Документация лидов (git, без отдельной component-карточки)
 

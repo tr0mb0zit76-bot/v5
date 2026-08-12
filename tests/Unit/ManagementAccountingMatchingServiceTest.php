@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\Contractor;
+use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementStatementLine;
 use App\Models\Order;
 use App\Models\PaymentSchedule;
@@ -47,6 +48,44 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
         $this->assertGreaterThanOrEqual(80, $suggestion['match_confidence']);
         $this->assertStringContainsString('Ромашка', (string) $suggestion['match_notes']);
+    }
+
+    public function test_suggests_operational_match_by_crm_payment_token(): void
+    {
+        $carrier = Contractor::query()->create([
+            'name' => 'ООО ТокенПеревоз',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-2608-0099',
+            'carrier_id' => $carrier->id,
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 44000,
+            'remaining_amount' => 44000,
+            'planned_date' => '2026-08-12',
+            'status' => 'pending',
+            'installment_sequence' => 1,
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-08-11',
+            'direction' => 'out',
+            'amount' => 44000,
+            'description' => 'Оплата по заказу АС-2608-0099 CRM:АС-2608-0099:P1',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertSame($order->id, $suggestion['suggested_order_id']);
+        $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
+        $this->assertSame(98, $suggestion['match_confidence']);
+        $this->assertStringContainsString('Токен CRM', (string) $suggestion['match_notes']);
     }
 
     public function test_suggests_operational_match_for_outgoing_carrier_payment(): void
@@ -191,6 +230,43 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $this->assertSame('operational', $suggestion['match_type']);
         $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
         $this->assertStringContainsString('СЧ-45821', (string) $suggestion['match_notes']);
+    }
+
+    public function test_matches_by_order_invoice_number_when_schedule_invoice_empty(): void
+    {
+        $customer = Contractor::query()->create([
+            'name' => 'ООО СчётНаЗаказе',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-2506-0203',
+            'customer_id' => $customer->id,
+            'invoice_number' => 'СЧ-99001',
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 55000,
+            'remaining_amount' => 55000,
+            'invoice_number' => null,
+            'status' => 'pending',
+            'counterparty_id' => $customer->id,
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-14',
+            'direction' => 'in',
+            'amount' => 55000,
+            'description' => 'Оплата по счету СЧ-99001',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
+        $this->assertStringContainsString('СЧ-99001', (string) $suggestion['match_notes']);
     }
 
     public function test_multiple_contractor_matches_return_candidates_without_auto_selection(): void
@@ -651,6 +727,277 @@ class ManagementAccountingMatchingServiceTest extends TestCase
 
         $this->assertNotEmpty($candidates);
         $this->assertSame($schedule->id, $candidates[0]['payment_schedule_id']);
+    }
+
+    public function test_bank_commission_category_beats_amount_only_operational_candidates(): void
+    {
+        ManagementExpenseCategory::query()->firstOrCreate(
+            ['code' => 'bank_fees'],
+            [
+                'name' => 'Банковские комиссии и сборы',
+                'kind' => 'expense',
+                'flow' => 'out',
+                'is_active' => true,
+                'is_system' => true,
+                'sort_order' => 10,
+            ],
+        );
+
+        $customer = Contractor::query()->create(['name' => 'ООО Случайный']);
+        $order = Order::query()->create([
+            'order_number' => 'АС-2608-0099',
+            'customer_id' => $customer->id,
+        ]);
+        PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 40,
+            'remaining_amount' => 40,
+            'paid_amount' => 0,
+            'status' => 'pending',
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-07-31',
+            'direction' => 'out',
+            'amount' => 40,
+            'description' => 'Сбербанк ПАО / Комиссия в другие банки (кредитные организации, Банк России) за ПП/ПТ через ДБО. Без НДС.',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('category', $suggestion['match_type']);
+        $this->assertSame(80, $suggestion['match_confidence']);
+        $this->assertNull($suggestion['suggested_payment_schedule_id']);
+        $this->assertNotNull($suggestion['suggested_category_id']);
+    }
+
+    public function test_astral_maps_to_aur_overhead_category(): void
+    {
+        ManagementExpenseCategory::query()->firstOrCreate(
+            ['code' => 'group_overhead'],
+            [
+                'name' => 'АУР',
+                'kind' => 'expense',
+                'flow' => 'out',
+                'is_active' => true,
+                'is_system' => true,
+                'sort_order' => 20,
+            ],
+        );
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-07-31',
+            'direction' => 'out',
+            'amount' => 7600,
+            'description' => 'АЙ ТИ СПЕЦИАЛИСТ ООО / Астрал Отчетность, счет 1103 от 23.07.26 НДС не облагается.',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('category', $suggestion['match_type']);
+        $category = ManagementExpenseCategory::query()->find($suggestion['suggested_category_id']);
+        $this->assertSame('group_overhead', $category?->code);
+    }
+
+    public function test_fns_enp_maps_to_taxes_category(): void
+    {
+        ManagementExpenseCategory::query()->firstOrCreate(
+            ['code' => 'group_taxes'],
+            [
+                'name' => 'Налоги',
+                'kind' => 'group',
+                'flow' => 'out',
+                'is_active' => true,
+                'is_system' => true,
+                'sort_order' => 50,
+            ],
+        );
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-07-31',
+            'direction' => 'out',
+            'amount' => 34143,
+            'description' => 'МИ ФНС России по управлению долгом / ЕНП (СВ 06.2026) ЕНП НДС не облагается.',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('category', $suggestion['match_type']);
+        $category = ManagementExpenseCategory::query()->find($suggestion['suggested_category_id']);
+        $this->assertSame('group_taxes', $category?->code);
+    }
+
+    public function test_online_cards_maps_to_fuel_gsm_category(): void
+    {
+        ManagementExpenseCategory::query()->firstOrCreate(
+            ['code' => 'budget_opex_9'],
+            [
+                'name' => 'ГСМ',
+                'kind' => 'overhead',
+                'flow' => 'out',
+                'is_active' => true,
+                'is_system' => false,
+                'sort_order' => 60,
+            ],
+        );
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-08-01',
+            'direction' => 'out',
+            'amount' => 60000,
+            'description' => 'ОНЛАЙН КАРДС ООО / Предоплата за ГСМ за ООО "Логистические решения" ИНН 6382093485, по дог',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('category', $suggestion['match_type']);
+        $category = ManagementExpenseCategory::query()->find($suggestion['suggested_category_id']);
+        $this->assertSame('ГСМ', $category?->name);
+    }
+
+    public function test_salary_registry_maps_to_payroll_group(): void
+    {
+        ManagementExpenseCategory::query()->firstOrCreate(
+            ['code' => 'group_payroll'],
+            [
+                'name' => 'ФОТ',
+                'kind' => 'group',
+                'flow' => 'out',
+                'is_active' => true,
+                'is_system' => true,
+                'sort_order' => 30,
+            ],
+        );
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-08-03',
+            'direction' => 'out',
+            'amount' => 500000,
+            'description' => 'Сбербанк ПАО / {VO70060} Заработная плата по реестру №2 от 03.08.2026 в соответствии с Договором 86167131 от 28.05.2026',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('category', $suggestion['match_type']);
+        $category = ManagementExpenseCategory::query()->find($suggestion['suggested_category_id']);
+        $this->assertSame('group_payroll', $category?->code);
+    }
+
+    public function test_ati_license_maps_to_aur_not_services_other(): void
+    {
+        ManagementExpenseCategory::query()->firstOrCreate(
+            ['code' => 'group_overhead'],
+            [
+                'name' => 'АУР',
+                'kind' => 'group',
+                'flow' => 'out',
+                'is_active' => true,
+                'is_system' => true,
+                'sort_order' => 40,
+            ],
+        );
+        ManagementExpenseCategory::query()->firstOrCreate(
+            ['code' => 'services_other'],
+            [
+                'name' => 'Услуги и лицензии (прочее)',
+                'kind' => 'overhead',
+                'flow' => 'out',
+                'is_active' => true,
+                'is_system' => true,
+                'sort_order' => 41,
+            ],
+        );
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-08-06',
+            'direction' => 'out',
+            'amount' => 5000,
+            'description' => 'АТИ.СУ ООО / Оплата по счету 22621865 от 06.08.2026 за Лицензию на доступ к базе данных В том числе НДС 22 % - 901.64 рублей.',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('category', $suggestion['match_type']);
+        $category = ManagementExpenseCategory::query()->find($suggestion['suggested_category_id']);
+        $this->assertSame('group_overhead', $category?->code);
+    }
+
+    public function test_dns_retail_maps_to_office_category(): void
+    {
+        ManagementExpenseCategory::query()->firstOrCreate(
+            ['code' => 'budget_opex_1'],
+            [
+                'name' => 'Офис',
+                'kind' => 'overhead',
+                'flow' => 'out',
+                'is_active' => true,
+                'is_system' => false,
+                'sort_order' => 45,
+            ],
+        );
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-08-01',
+            'direction' => 'out',
+            'amount' => 74498,
+            'description' => 'ФИЛИАЛ СРЕДНЕВОЛЖСКИЙ ООО ДНС РИТЕЙЛ / В том числе НДС 22 % - 13434,07 рублей.',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('category', $suggestion['match_type']);
+        $category = ManagementExpenseCategory::query()->find($suggestion['suggested_category_id']);
+        $this->assertSame('Офис', $category?->name);
+    }
+
+    public function test_reso_leasing_maps_to_leasing_category(): void
+    {
+        ManagementExpenseCategory::query()->firstOrCreate(
+            ['code' => 'budget_opex_7'],
+            [
+                'name' => 'Лизинг',
+                'kind' => 'overhead',
+                'flow' => 'out',
+                'is_active' => true,
+                'is_system' => false,
+                'sort_order' => 55,
+            ],
+        );
+
+        $carrier = Contractor::query()->create([
+            'name' => 'РЕСО-ЛИЗИНГ',
+            'full_name' => 'ФИЛИАЛ ОБЩЕСТВА С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ РЕСО-ЛИЗИНГ',
+        ]);
+        $order = Order::query()->create([
+            'order_number' => 'АС-2608-0777',
+            'carrier_id' => $carrier->id,
+        ]);
+        PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 134833,
+            'remaining_amount' => 134833,
+            'paid_amount' => 0,
+            'status' => 'pending',
+            'planned_date' => '2026-08-05',
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-08-05',
+            'direction' => 'out',
+            'amount' => 134833,
+            'description' => 'ФИЛИАЛ ОБЩЕСТВА С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ РЕСО-ЛИЗИНГ / Услуги финансовой аренды (лизинг) по д',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('category', $suggestion['match_type']);
+        $category = ManagementExpenseCategory::query()->find($suggestion['suggested_category_id']);
+        $this->assertSame('Лизинг', $category?->name);
+        $this->assertNull($suggestion['suggested_payment_schedule_id']);
     }
 
     private function matchingService(): ManagementAccountingMatchingService

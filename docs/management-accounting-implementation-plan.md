@@ -86,8 +86,8 @@
 |---|--------|--------|
 | M4.0 | Справочник статей: добавление, sync с бюджетом, бейджи source | ✅ |
 | M4.0b | MCP tools управленки + `management_reconcile_rules` (обучение) | ✅ |
-| M4.1 | Матчинг по 24-значному UID из 1С в назначении платежа | backlog |
-| M4.2 | Матчинг по номерам счетов (наши / подрядчиков) из заявки | backlog |
+| M4.1 | Матчинг по токену `CRM:…` в назначении / Content реализации | ✅ каркас `PaymentMatchToken` (см. `docs/payment-match-token-design.md`) |
+| M4.2 | Матчинг по номерам счетов + sync номера счёта из 1С (12ч) | ✅ матчинг as-is; sync `one-c:sync-invoice-numbers` (см. `docs/payment-invoice-sync-design.md`) |
 | M4.3 | Split: несколько переводов на одну заявку с UI распределения сумм | ✅ `management_statement_line_splits`, Reconcile |
 | M4.4 | Ручные операции (наличные) — форма на Index | ✅ `ManagementAccountingManualEntryModal` |
 | M4.5 | CNY: курс на дату операции | backlog |

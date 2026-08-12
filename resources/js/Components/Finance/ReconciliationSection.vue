@@ -3,6 +3,18 @@
         <div class="mb-3 space-y-1">
             <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">{{ section.title }}</h2>
             <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ section.description }}</p>
+            <p
+                v-if="section.totals?.balance_status === 'overpayment'"
+                class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200"
+            >
+                Переплата (аванс) по разделу: {{ formatMoney(section.totals.overpayment) }}
+            </p>
+            <p
+                v-else-if="section.totals?.balance_status === 'receivable'"
+                class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200"
+            >
+                Долг контрагента по разделу: {{ formatMoney(section.totals.receivable) }}
+            </p>
         </div>
 
         <table v-if="section.rows.length > 0" class="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
@@ -10,7 +22,8 @@
                 <tr>
                     <th class="w-8 px-2 py-2" />
                     <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Заказ</th>
-                    <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Дата</th>
+                    <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Дата заказа</th>
+                    <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Дата оплаты</th>
                     <th class="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-300">Начислено</th>
                     <th class="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-300">Оплачено</th>
                     <th class="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-300">Остаток</th>
@@ -18,7 +31,7 @@
             </thead>
             <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800">
                 <template v-for="row in section.rows" :key="`${section.title}-${row.order_id}`">
-                    <tr>
+                    <tr :class="row.balance_status === 'overpayment' ? 'bg-emerald-50/60 dark:bg-emerald-950/20' : ''">
                         <td class="px-2 py-2 text-center">
                             <button
                                 v-if="row.tranches?.length"
@@ -40,21 +53,42 @@
                             >
                                 {{ row.order_number }}
                             </Link>
+                            <p
+                                v-if="row.has_upd === false && Number(row.order_rate || 0) > 0"
+                                class="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400"
+                            >
+                                тариф {{ formatMoney(row.order_rate) }}, УПД ещё нет
+                            </p>
                         </td>
                         <td class="px-3 py-2 tabular-nums text-zinc-600 dark:text-zinc-300">{{ formatDate(row.order_date) }}</td>
+                        <td class="px-3 py-2 tabular-nums text-zinc-600 dark:text-zinc-300">
+                            {{ formatPaymentDates(row) }}
+                        </td>
                         <td class="px-3 py-2 text-right tabular-nums">{{ formatMoney(row.accrued) }}</td>
                         <td class="px-3 py-2 text-right tabular-nums">{{ formatMoney(row.paid) }}</td>
                         <td class="px-3 py-2 text-right tabular-nums" :class="balanceClass(row.balance)">
-                            {{ formatMoney(row.balance) }}
+                            <div class="flex flex-col items-end gap-0.5">
+                                <span>{{ formatMoney(row.balance) }}</span>
+                                <span
+                                    v-if="row.balance_label"
+                                    class="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                    :class="row.balance_status === 'overpayment'
+                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200'
+                                        : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-200'"
+                                >
+                                    {{ row.balance_label }}
+                                </span>
+                            </div>
                         </td>
                     </tr>
                     <tr v-if="isExpanded(row.order_id) && row.tranches?.length">
-                        <td colspan="6" class="bg-zinc-50/80 px-4 py-3 dark:bg-zinc-950/40">
+                        <td colspan="7" class="bg-zinc-50/80 px-4 py-3 dark:bg-zinc-950/40">
                             <table class="w-full text-xs">
                                 <thead>
                                     <tr class="text-left text-zinc-500 dark:text-zinc-400">
                                         <th class="pb-2 pr-3 font-medium">Транш</th>
                                         <th class="pb-2 pr-3 font-medium">План</th>
+                                        <th class="pb-2 pr-3 font-medium">Факт оплаты</th>
                                         <th class="pb-2 pr-3 text-right font-medium">Начислено</th>
                                         <th class="pb-2 pr-3 text-right font-medium">Оплачено</th>
                                         <th class="pb-2 pr-3 text-right font-medium">Остаток</th>
@@ -70,6 +104,7 @@
                                             </span>
                                         </td>
                                         <td class="py-2 pr-3 tabular-nums">{{ formatDate(tranche.planned_date) }}</td>
+                                        <td class="py-2 pr-3 tabular-nums">{{ formatTranchePaymentDates(tranche) }}</td>
                                         <td class="py-2 pr-3 text-right tabular-nums">{{ formatMoney(tranche.accrued) }}</td>
                                         <td class="py-2 pr-3 text-right tabular-nums">{{ formatMoney(tranche.paid) }}</td>
                                         <td class="py-2 pr-3 text-right tabular-nums" :class="balanceClass(tranche.balance)">
@@ -99,11 +134,25 @@
             </tbody>
             <tfoot class="bg-zinc-50 font-medium dark:bg-zinc-950/60">
                 <tr>
-                    <td class="px-3 py-2" colspan="3">Итого</td>
+                    <td class="px-3 py-2" colspan="4">Итого</td>
                     <td class="px-3 py-2 text-right tabular-nums">{{ formatMoney(section.totals.accrued) }}</td>
                     <td class="px-3 py-2 text-right tabular-nums">{{ formatMoney(section.totals.paid) }}</td>
                     <td class="px-3 py-2 text-right tabular-nums" :class="balanceClass(section.totals.balance)">
-                        {{ formatMoney(section.totals.balance) }}
+                        <div class="flex flex-col items-end gap-0.5">
+                            <span>{{ formatMoney(section.totals.balance) }}</span>
+                            <span
+                                v-if="section.totals.balance_status === 'overpayment'"
+                                class="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
+                            >
+                                Переплата
+                            </span>
+                            <span
+                                v-else-if="section.totals.balance_status === 'receivable'"
+                                class="text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-300"
+                            >
+                                Долг
+                            </span>
+                        </div>
                     </td>
                 </tr>
             </tfoot>
@@ -160,6 +209,32 @@ function formatDate(value) {
     }
 
     return `${parts[2]}.${parts[1]}.${parts[0]}`;
+}
+
+function formatPaymentDates(row) {
+    const dates = Array.isArray(row.payment_dates) ? row.payment_dates : [];
+
+    if (dates.length === 0) {
+        return '—';
+    }
+
+    if (dates.length === 1) {
+        return formatDate(dates[0]);
+    }
+
+    return dates.map((date) => formatDate(date)).join(', ');
+}
+
+function formatTranchePaymentDates(tranche) {
+    const dates = (tranche.payments ?? [])
+        .map((payment) => payment.date)
+        .filter(Boolean);
+
+    if (dates.length === 0) {
+        return '—';
+    }
+
+    return [...new Set(dates)].map((date) => formatDate(date)).join(', ');
 }
 
 function formatMoney(value) {

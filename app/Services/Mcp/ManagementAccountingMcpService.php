@@ -150,16 +150,13 @@ class ManagementAccountingMcpService
             'notes' => $payload['notes'] ?? null,
         ], $user);
 
-        $rule = null;
         $rememberKeyword = isset($payload['remember_keyword']) ? trim((string) $payload['remember_keyword']) : '';
-        if ($rememberKeyword !== '' && Schema::hasTable('management_reconcile_rules')) {
-            $rule = $this->reconcileRules->rememberFromAllocatedLine(
-                $user,
-                $allocated,
-                $rememberKeyword,
-                isset($payload['remember_notes']) ? (string) $payload['remember_notes'] : null,
-            );
-        }
+        $rule = $this->reconcileRules->learnFromManualAllocation(
+            $user,
+            $allocated,
+            $rememberKeyword !== '' ? $rememberKeyword : null,
+            isset($payload['remember_notes']) ? (string) $payload['remember_notes'] : null,
+        );
 
         return [
             'line' => $this->linePayload($allocated),

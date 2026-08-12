@@ -87,7 +87,7 @@ class OrderOneCRealizationTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_second_call_without_force_is_idempotent(): void
+    public function test_second_call_without_changes_is_unchanged(): void
     {
         if (! Schema::hasTable('order_one_c_documents')) {
             $this->markTestSkipped('order_one_c_documents missing — run migrate');
@@ -99,9 +99,64 @@ class OrderOneCRealizationTest extends TestCase
         $this->actingAs($clerk)->postJson(route('orders.one-c.realization.store', $order))->assertOk();
 
         $second = $this->actingAs($clerk)->postJson(route('orders.one-c.realization.store', $order));
-        $second->assertOk()->assertJsonPath('created', false);
+        $second->assertOk()
+            ->assertJsonPath('created', false)
+            ->assertJsonPath('updated', false)
+            ->assertJsonPath('action', 'unchanged')
+            ->assertJsonPath('one_c.action', 'current')
+            ->assertJsonPath('one_c.can_push', false);
 
         $this->assertSame(1, OrderOneCDocument::query()->where('order_id', $order->id)->count());
+    }
+
+    public function test_updates_when_order_amount_changes(): void
+    {
+        if (! Schema::hasTable('order_one_c_documents')) {
+            $this->markTestSkipped('order_one_c_documents missing — run migrate');
+        }
+
+        $clerk = $this->makeUserWithRole('clerk', 'Делопроизводитель', 'all');
+        [$order] = $this->makeFarmserviceOrder($clerk, 'АС-ТД-UP-1', '100000.00');
+
+        $this->actingAs($clerk)->postJson(route('orders.one-c.realization.store', $order))->assertOk();
+
+        $order->forceFill(['customer_rate' => '150000.00'])->save();
+
+        $response = $this->actingAs($clerk)->postJson(route('orders.one-c.realization.store', $order));
+        $response->assertOk()
+            ->assertJsonPath('action', 'updated')
+            ->assertJsonPath('updated', true)
+            ->assertJsonPath('realization.amount', '150000.00');
+    }
+
+    public function test_rejects_update_when_realization_posted_in_one_c(): void
+    {
+        if (! Schema::hasTable('order_one_c_documents')) {
+            $this->markTestSkipped('order_one_c_documents missing — run migrate');
+        }
+
+        $clerk = $this->makeUserWithRole('clerk', 'Делопроизводитель', 'all');
+        [$order] = $this->makeFarmserviceOrder($clerk, 'АС-ТД-POSTED', '100000.00');
+
+        $postedRef = '11111111-1111-1111-1111-111111111111';
+        OrderOneCDocument::query()->create([
+            'order_id' => $order->id,
+            'document_type' => OrderOneCDocument::TYPE_REALIZATION,
+            'status' => OrderOneCDocument::STATUS_CREATED,
+            'external_ref' => $postedRef,
+            'external_number' => 'FAKE-POSTED',
+            'amount' => '100000.00',
+            'counterparty_inn' => '2312178145',
+            'counterparty_kpp' => '231201001',
+            'request_payload' => ['_crm_fingerprint' => 'stale'],
+            'response_payload' => ['Posted' => true, 'Ref_Key' => $postedRef],
+            'created_by' => $clerk->id,
+        ]);
+
+        $this->actingAs($clerk)
+            ->postJson(route('orders.one-c.realization.store', $order))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['one_c']);
     }
 
     public function test_foreign_clerk_without_order_scope_forbidden(): void

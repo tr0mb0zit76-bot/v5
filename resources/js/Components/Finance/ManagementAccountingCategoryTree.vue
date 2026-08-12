@@ -4,7 +4,8 @@
             <div>
                 <h2 :class="crmSectionTitle">Статьи учёта</h2>
                 <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    Единый справочник для управленки и бюджетирования. Раскройте группу, чтобы увидеть вложенные статьи.
+                    Единый справочник для управленки и бюджетирования. Статью для разноса добавляйте внутрь группы
+                    («Расходы», «АУР» и т.п.); без родителя создаётся только папка верхнего уровня.
                 </p>
             </div>
             <button
@@ -25,7 +26,7 @@
             <label class="min-w-[12rem] space-y-1 text-sm">
                 <span :class="crmLabel">Родительская группа</span>
                 <select v-model="createForm.parent_id" :class="crmFieldFluid">
-                    <option :value="null">Новая группа верхнего уровня</option>
+                    <option :value="null">Новая группа (папка), не статья</option>
                     <option v-for="group in groupOptions" :key="group.id" :value="group.id">
                         {{ group.label }}
                     </option>

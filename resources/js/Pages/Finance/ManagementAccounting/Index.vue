@@ -14,19 +14,21 @@
                     Факт распоряжения валовой маржой по статьям. Разнос банковских выписок — в графике оплат.
                 </p>
             </div>
-            <Link
-                href="/finance?section=cashflow&cashflow_tab=reconcile"
-                class="text-sm font-medium text-sky-700 hover:underline dark:text-sky-300"
-            >
-                Разнос выписки →
-            </Link>
-            <ManagementAccountingManualEntryModal
-                v-if="can_manage_manual_entries"
-                :bank-accounts="bank_accounts"
-                :categories="categories"
-                :recent-entries="recent_manual_entries"
-                :can-manage="can_manage_manual_entries"
-            />
+            <div class="flex flex-wrap items-center justify-end gap-3">
+                <Link
+                    href="/finance?section=cashflow&cashflow_tab=reconcile"
+                    class="text-sm font-medium text-sky-700 hover:underline dark:text-sky-300"
+                >
+                    Разнос платежей →
+                </Link>
+                <ManagementAccountingManualEntryModal
+                    v-if="can_manage_manual_entries"
+                    :bank-accounts="bank_accounts"
+                    :categories="categories"
+                    :recent-entries="recent_manual_entries"
+                    :can-manage="can_manage_manual_entries"
+                />
+            </div>
         </div>
 
         <div class="flex flex-wrap gap-2 border-b border-zinc-200 pb-2 dark:border-zinc-700">

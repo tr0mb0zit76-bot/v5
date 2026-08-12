@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\PaymentSchedule;
 use App\Models\User;
 use App\Support\ManagementCostCategoryCodes;
+use App\Support\PaymentMatchToken;
 use App\Support\PaymentScheduleSettlementStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -50,10 +51,16 @@ class ManagementAccountingMatchingService
 
         $ruleMatch = $this->reconcileRules->matchDescription($description, $direction);
         if ($ruleMatch !== null) {
-            unset($ruleMatch['rule_id']);
-            $ruleMatch['suggested_candidates'] = [];
+            $incompleteOperational = $ruleMatch['match_type'] === 'operational'
+                && empty($ruleMatch['suggested_payment_schedule_id']);
 
-            return $ruleMatch;
+            if (! $incompleteOperational) {
+                unset($ruleMatch['rule_id']);
+                $ruleMatch['suggested_candidates'] = [];
+
+                return $ruleMatch;
+            }
+            // Операционное правило без строки графика — не блокируем эвристики контрагента/суммы.
         }
 
         $operationalByOrder = $this->matchOperationalByOrderNumber($description, $direction, $amount, $operationDate);
@@ -64,6 +71,13 @@ class ManagementAccountingMatchingService
         $operationalByInvoice = $this->matchOperationalByInvoiceNumber($description, $direction, $amount, $operationDate);
         if ($operationalByInvoice !== null) {
             return $operationalByInvoice;
+        }
+
+        // Статьи (лизинг, налоги, ГСМ, банк…) раньше матча «контрагент+сумма»:
+        // иначе РЕСО-Лизинг / ДНС уходят в привлечённый транспорт.
+        $category = $this->matchCategoryByKeywords($description, $direction);
+        if ($category !== null) {
+            return $category;
         }
 
         $operationalByContractor = $this->matchOperationalByContractorAndAmount($description, $direction, $amount, $operationDate);
@@ -100,11 +114,6 @@ class ManagementAccountingMatchingService
                     'suggested_candidates' => $manualCandidates,
                 ];
             }
-        }
-
-        $category = $this->matchCategoryByKeywords($description, $direction);
-        if ($category !== null) {
-            return $category;
         }
 
         return $this->directionFallbackCategory($direction);
@@ -288,6 +297,11 @@ class ManagementAccountingMatchingService
      */
     private function matchOperationalByOrderNumber(string $description, string $direction, float $amount, ?string $operationDate): ?array
     {
+        $tokenMatch = $this->matchOperationalByPaymentToken($description, $direction, $amount, $operationDate);
+        if ($tokenMatch !== null) {
+            return $tokenMatch;
+        }
+
         $orderNumber = $this->extractOrderNumber($description);
         if ($orderNumber === null) {
             return null;
@@ -668,12 +682,28 @@ class ManagementAccountingMatchingService
         return $this->openOperationalSchedulesQuery()
             ->with($this->operationalScheduleEagerLoads())
             ->whereIn('party', $parties)
-            ->whereNotNull('invoice_number')
-            ->where('invoice_number', '!=', '')
+            ->where(function ($query): void {
+                $query->where(function ($inner): void {
+                    $inner->whereNotNull('invoice_number')
+                        ->where('invoice_number', '!=', '');
+                });
+
+                if (Schema::hasColumn('orders', 'invoice_number')) {
+                    $query->orWhereHas('order', function ($orderQuery): void {
+                        $orderQuery->whereNotNull('invoice_number')
+                            ->where('invoice_number', '!=', '');
+                    });
+                }
+            })
             ->orderBy('id')
             ->get()
             ->filter(fn (PaymentSchedule $schedule): bool => $this->amountMatchesSchedule($schedule, $amount))
-            ->filter(fn (PaymentSchedule $schedule): bool => $this->invoiceNumberMatchesDescription($description, $schedule->invoice_number))
+            ->filter(function (PaymentSchedule $schedule) use ($description): bool {
+                return $this->invoiceNumberMatchesDescription(
+                    $description,
+                    $this->effectiveInvoiceNumber($schedule),
+                );
+            })
             ->map(function (PaymentSchedule $schedule) use ($direction, $operationDate, $amount): array {
                 $contractor = $this->resolveScheduleContractor($schedule, $direction);
 
@@ -690,6 +720,18 @@ class ManagementAccountingMatchingService
             })
             ->sortBy(fn (array $candidate): array => $this->candidateSortKey($candidate, $amount, $operationDate))
             ->values();
+    }
+
+    private function effectiveInvoiceNumber(PaymentSchedule $schedule): ?string
+    {
+        $fromSchedule = trim((string) ($schedule->invoice_number ?? ''));
+        if ($fromSchedule !== '') {
+            return $fromSchedule;
+        }
+
+        $fromOrder = trim((string) ($schedule->order?->invoice_number ?? ''));
+
+        return $fromOrder !== '' ? $fromOrder : null;
     }
 
     /**
@@ -742,7 +784,7 @@ class ManagementAccountingMatchingService
         /** @var array{schedule: PaymentSchedule, contractor_label: string, order_number: ?string, date_distance: int, amount_distance: float} $best */
         $best = $candidates->first();
         $schedule = $best['schedule'];
-        $invoiceNumber = trim((string) $schedule->invoice_number);
+        $invoiceNumber = trim((string) ($this->effectiveInvoiceNumber($schedule) ?? ''));
         $notes = $invoiceNumber !== ''
             ? 'Счёт '.$invoiceNumber.($best['contractor_label'] !== '—' ? ': '.$best['contractor_label'] : '')
             : 'Совпадение по номеру счёта';
@@ -1295,23 +1337,173 @@ class ManagementAccountingMatchingService
      */
     private function matchCategoryByKeywords(string $description, string $direction): ?array
     {
-        $bankFeeKeywords = ['комисс', 'сбор', 'обслуживан'];
-        foreach ($bankFeeKeywords as $keyword) {
-            if (str_contains($description, $keyword)) {
-                return [
-                    'match_type' => 'category',
-                    'match_confidence' => 80,
-                    'match_notes' => 'Ключевое слово: '.$keyword,
-                    'suggested_order_id' => null,
-                    'suggested_payment_schedule_id' => null,
-                    'suggested_category_id' => $this->defaultCategoryId('bank_fees'),
-                    'suggested_user_id' => null,
-                    'suggested_candidates' => [],
-                ];
+        if ($direction === 'out') {
+            $taxKeywords = [
+                'енп',
+                'ндфл',
+                'фнс',
+                'ми фнс',
+                'налог на прибыль',
+                'осфр',
+                'пфр',
+                'страхован от несчаст',
+            ];
+            foreach ($taxKeywords as $keyword) {
+                if (str_contains($description, $keyword)) {
+                    return [
+                        'match_type' => 'category',
+                        'match_confidence' => 80,
+                        'match_notes' => 'Ключевое слово налог: '.$keyword,
+                        'suggested_order_id' => null,
+                        'suggested_payment_schedule_id' => null,
+                        'suggested_category_id' => $this->defaultCategoryId('group_taxes'),
+                        'suggested_user_id' => null,
+                        'suggested_candidates' => [],
+                    ];
+                }
+            }
+
+            $payrollKeywords = [
+                'заработная плата',
+                'зарплата по реестру',
+                'зарплат',
+                'vo70060',
+            ];
+            foreach ($payrollKeywords as $keyword) {
+                if (str_contains($description, $keyword)) {
+                    return [
+                        'match_type' => 'category',
+                        'match_confidence' => 80,
+                        'match_notes' => 'Ключевое слово ФОТ: '.$keyword,
+                        'suggested_order_id' => null,
+                        'suggested_payment_schedule_id' => null,
+                        'suggested_category_id' => $this->defaultCategoryId('group_payroll')
+                            ?? $this->defaultCategoryId('payroll_managers')
+                            ?? $this->defaultCategoryId('payroll_other'),
+                        'suggested_user_id' => null,
+                        'suggested_candidates' => [],
+                    ];
+                }
+            }
+
+            $fuelKeywords = [
+                'онлайн кардс',
+                'онлайн кард',
+                'гсм',
+                'топлив',
+                'заправк',
+            ];
+            foreach ($fuelKeywords as $keyword) {
+                if (str_contains($description, $keyword)) {
+                    return [
+                        'match_type' => 'category',
+                        'match_confidence' => 80,
+                        'match_notes' => 'Ключевое слово ГСМ: '.$keyword,
+                        'suggested_order_id' => null,
+                        'suggested_payment_schedule_id' => null,
+                        'suggested_category_id' => $this->categoryIdByNames(['ГСМ', 'Топливо'])
+                            ?? $this->defaultCategoryId('cost_own_fleet'),
+                        'suggested_user_id' => null,
+                        'suggested_candidates' => [],
+                    ];
+                }
+            }
+
+            $leasingKeywords = [
+                'ресо-лизинг',
+                'ресо лизинг',
+                'лизинг',
+            ];
+            foreach ($leasingKeywords as $keyword) {
+                if (str_contains($description, $keyword)) {
+                    return [
+                        'match_type' => 'category',
+                        'match_confidence' => 80,
+                        'match_notes' => 'Ключевое слово лизинг: '.$keyword,
+                        'suggested_order_id' => null,
+                        'suggested_payment_schedule_id' => null,
+                        'suggested_category_id' => $this->categoryIdByNames(['Лизинг']),
+                        'suggested_user_id' => null,
+                        'suggested_candidates' => [],
+                    ];
+                }
+            }
+
+            $officeKeywords = [
+                'днс ритейл',
+                'днс ',
+            ];
+            foreach ($officeKeywords as $keyword) {
+                if (str_contains($description, $keyword)) {
+                    return [
+                        'match_type' => 'category',
+                        'match_confidence' => 80,
+                        'match_notes' => 'Ключевое слово офис: '.$keyword,
+                        'suggested_order_id' => null,
+                        'suggested_payment_schedule_id' => null,
+                        'suggested_category_id' => $this->categoryIdByNames(['Офис']),
+                        'suggested_user_id' => null,
+                        'suggested_candidates' => [],
+                    ];
+                }
+            }
+
+            $bankFeeKeywords = [
+                'комисс',
+                'сбор',
+                'обслуживан',
+                'тариф',
+                'пакета услуг',
+                'пакет услуг',
+                'рко',
+                'дбо',
+                'клиент-банк',
+                'ведение счета',
+            ];
+            foreach ($bankFeeKeywords as $keyword) {
+                if (str_contains($description, $keyword)) {
+                    return [
+                        'match_type' => 'category',
+                        'match_confidence' => 80,
+                        'match_notes' => 'Ключевое слово: '.$keyword,
+                        'suggested_order_id' => null,
+                        'suggested_payment_schedule_id' => null,
+                        'suggested_category_id' => $this->defaultCategoryId('bank_fees'),
+                        'suggested_user_id' => null,
+                        'suggested_candidates' => [],
+                    ];
+                }
+            }
+
+            // АТИ / Астрал / типовой АУР — до «лицензий прочее», иначе АТИ уходит в services_other.
+            $aurKeywords = [
+                'ати',
+                'астрал',
+                '1с',
+                'аудит',
+                'бухгалтер',
+                'консультант',
+                'юридическ',
+                'нотариус',
+                'офисн',
+            ];
+            foreach ($aurKeywords as $keyword) {
+                if (str_contains($description, $keyword)) {
+                    return [
+                        'match_type' => 'category',
+                        'match_confidence' => 75,
+                        'match_notes' => 'Ключевое слово АУР: '.$keyword,
+                        'suggested_order_id' => null,
+                        'suggested_payment_schedule_id' => null,
+                        'suggested_category_id' => $this->defaultCategoryId('group_overhead'),
+                        'suggested_user_id' => null,
+                        'suggested_candidates' => [],
+                    ];
+                }
             }
         }
 
-        $serviceKeywords = ['ати', 'лиценз', 'подписк', 'сервис'];
+        $serviceKeywords = ['лиценз', 'подписк', 'сервис'];
         foreach ($serviceKeywords as $keyword) {
             if (str_contains($description, $keyword)) {
                 return [
@@ -1355,6 +1547,118 @@ class ManagementAccountingMatchingService
             'suggested_category_id' => $this->defaultCategoryId($cashCode),
             'suggested_user_id' => null,
             'suggested_candidates' => [],
+        ];
+    }
+
+    /**
+     * @return ?array{
+     *     match_type: string,
+     *     match_confidence: int,
+     *     match_notes: ?string,
+     *     suggested_order_id: ?int,
+     *     suggested_payment_schedule_id: ?int,
+     *     suggested_category_id: int,
+     *     suggested_user_id: null,
+     *     suggested_candidates: list<array<string, mixed>>
+     * }
+     */
+    private function matchOperationalByPaymentToken(string $description, string $direction, float $amount, ?string $operationDate): ?array
+    {
+        $parsed = PaymentMatchToken::parse($description);
+        if ($parsed === null) {
+            return null;
+        }
+
+        $expectedSide = $direction === 'in' ? PaymentMatchToken::SIDE_CUSTOMER : PaymentMatchToken::SIDE_CARRIER;
+        if ($parsed['side'] !== $expectedSide) {
+            return [
+                'match_type' => 'operational',
+                'match_confidence' => 35,
+                'match_notes' => 'Токен CRM есть, но сторона не совпадает с направлением платежа: '.$parsed['token'],
+                'suggested_order_id' => null,
+                'suggested_payment_schedule_id' => null,
+                'suggested_category_id' => $this->suggestedOperationalCategoryId($direction, null, null),
+                'suggested_user_id' => null,
+                'suggested_candidates' => [],
+            ];
+        }
+
+        $order = Order::query()
+            ->where('order_number', $parsed['order_number'])
+            ->first();
+
+        if ($order === null) {
+            return [
+                'match_type' => 'operational',
+                'match_confidence' => 45,
+                'match_notes' => 'Токен CRM: заказ не найден ('.$parsed['order_number'].')',
+                'suggested_order_id' => null,
+                'suggested_payment_schedule_id' => null,
+                'suggested_category_id' => $this->suggestedOperationalCategoryId($direction, null, null),
+                'suggested_user_id' => null,
+                'suggested_candidates' => [],
+            ];
+        }
+
+        $party = PaymentMatchToken::partyFromSide($parsed['side']);
+        $query = $this->openOperationalSchedulesQuery()
+            ->where('order_id', $order->id)
+            ->where('party', $party);
+
+        if ($parsed['sequence'] !== null && Schema::hasColumn('payment_schedules', 'installment_sequence')) {
+            $query->where('installment_sequence', $parsed['sequence']);
+        }
+
+        $schedules = $query->get()
+            ->filter(fn (PaymentSchedule $schedule): bool => $this->amountMatchesSchedule($schedule, $amount)
+                || $parsed['sequence'] !== null)
+            ->sortBy(fn (PaymentSchedule $schedule): array => $this->scheduleCandidateSortKey($schedule, $amount, $operationDate))
+            ->values();
+
+        if ($schedules->isEmpty()) {
+            $schedule = $this->findScheduleForOrder($order, $party, $amount, $operationDate);
+            $schedules = $schedule !== null ? collect([$schedule]) : collect();
+        }
+
+        $schedule = $schedules->first();
+        if ($schedule === null) {
+            return [
+                'match_type' => 'operational',
+                'match_confidence' => 70,
+                'match_notes' => 'Токен CRM: заказ найден, открытой строки нет ('.$parsed['token'].')',
+                'suggested_order_id' => $order->id,
+                'suggested_payment_schedule_id' => null,
+                'suggested_category_id' => $this->suggestedOperationalCategoryId($direction, $order->id, null),
+                'suggested_user_id' => null,
+                'suggested_candidates' => [],
+            ];
+        }
+
+        $scheduleContractor = $this->resolveScheduleContractor($schedule, $direction);
+        $candidates = $this->serializeOperationalCandidates(collect([
+            [
+                'schedule' => $schedule,
+                'contractor_label' => $scheduleContractor !== null
+                    ? $this->contractorDisplayLabel($scheduleContractor)
+                    : '—',
+                'order_number' => $order->order_number,
+                'date_distance' => $this->plannedDateDistanceDays($schedule, $operationDate),
+            ],
+        ]));
+
+        return [
+            'match_type' => 'operational',
+            'match_confidence' => 98,
+            'match_notes' => 'Токен CRM: '.$parsed['token'],
+            'suggested_order_id' => $order->id,
+            'suggested_payment_schedule_id' => $schedule->id,
+            'suggested_category_id' => $this->suggestedOperationalCategoryId(
+                $direction,
+                $order->id,
+                $scheduleContractor?->id
+            ),
+            'suggested_user_id' => null,
+            'suggested_candidates' => $candidates,
         ];
     }
 
@@ -1422,11 +1726,39 @@ class ManagementAccountingMatchingService
     }
 
     /**
+     * @param  list<string>  $names
+     */
+    private function categoryIdByNames(array $names): ?int
+    {
+        foreach ($names as $name) {
+            $normalized = mb_strtolower(trim($name));
+            if ($normalized === '') {
+                continue;
+            }
+
+            $id = ManagementExpenseCategory::query()
+                ->where('is_active', true)
+                ->whereRaw('LOWER(name) = ?', [$normalized])
+                ->value('id');
+
+            if ($id !== null) {
+                return (int) $id;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return array<int, string>
      */
     private function operationalScheduleEagerLoads(): array
     {
         $orderColumns = ['id', 'order_number', 'customer_id', 'carrier_id'];
+
+        if (Schema::hasColumn('orders', 'invoice_number')) {
+            $orderColumns[] = 'invoice_number';
+        }
 
         if (Schema::hasColumn('orders', 'performers')) {
             $orderColumns[] = 'performers';

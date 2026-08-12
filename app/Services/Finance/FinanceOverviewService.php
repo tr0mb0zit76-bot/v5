@@ -2,8 +2,11 @@
 
 namespace App\Services\Finance;
 
+use App\Models\Order;
+use App\Models\PaymentSchedule;
 use App\Models\User;
 use App\Support\OrderViewAuthorization;
+use App\Support\PaymentMatchToken;
 use App\Support\PaymentScheduleSettlementStatus;
 use App\Support\RoleAccess;
 use Carbon\Carbon;
@@ -77,6 +80,10 @@ class FinanceOverviewService
             DB::raw($this->sqlContractorDisplayName('customers').' as customer_name'),
             DB::raw($this->sqlContractorDisplayName('carriers').' as carrier_name'),
         ];
+
+        if (Schema::hasColumn('payment_schedules', 'installment_sequence')) {
+            $select[] = 'payment_schedules.installment_sequence';
+        }
 
         if (Schema::hasColumn('payment_schedules', 'paid_amount')) {
             $select[] = DB::raw('COALESCE(payment_schedules.paid_amount, 0) as paid_amount');
@@ -161,10 +168,24 @@ class FinanceOverviewService
             : ($paidAmount > 0.009 ? 0.0 : (float) ($row->amount ?? 0));
         $isPartiallySettled = $paidAmount > 0.009 && $remainingAmount > 0.009;
 
+        $scheduleStub = new PaymentSchedule([
+            'party' => $party,
+            'installment_sequence' => $row->installment_sequence ?? 1,
+        ]);
+        $scheduleStub->id = (int) $row->id;
+        $scheduleStub->setRelation('order', new Order([
+            'id' => (int) $row->order_id,
+            'order_number' => $row->order_number,
+        ]));
+
+        $requiresPaymentToken = in_array($party, ['carrier', 'contractor'], true)
+            && (bool) config('one_c.payment_token.enforce_outgoing_bank', true);
+
         return [
             'id' => $row->id,
             'order_id' => $row->order_id,
             'order_number' => $row->order_number,
+            'party' => $party,
             'manager_name' => $row->manager_name,
             'direction' => $isCustomerParty ? 'Нам' : 'Мы',
             'counterparty_name' => $isCustomerParty
@@ -191,6 +212,10 @@ class FinanceOverviewService
             'payment_run_date' => data_get($row, 'payment_run_date'),
             'payment_run_note' => data_get($row, 'payment_run_note'),
             'payment_run_by' => data_get($row, 'payment_run_by'),
+            'requires_payment_token' => $requiresPaymentToken,
+            'payment_match_purpose' => $requiresPaymentToken
+                ? PaymentMatchToken::purposeLine($scheduleStub)
+                : null,
         ];
     }
 

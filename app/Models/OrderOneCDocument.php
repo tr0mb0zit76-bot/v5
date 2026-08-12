@@ -17,6 +17,8 @@ class OrderOneCDocument extends Model
 
     public const STATUS_FAILED = 'failed';
 
+    public const STATUS_DELETED_IN_1C = 'deleted_in_1c';
+
     /**
      * @var list<string>
      */
@@ -66,9 +68,10 @@ class OrderOneCDocument extends Model
     }
 
     /**
+     * @param  array{posted?: bool, stale?: bool}  $extra
      * @return array<string, mixed>
      */
-    public function toWizardSummary(): array
+    public function toWizardSummary(array $extra = []): array
     {
         return [
             'id' => (int) $this->id,
@@ -82,6 +85,8 @@ class OrderOneCDocument extends Model
             'counterparty_kpp' => $this->counterparty_kpp,
             'last_error' => $this->last_error,
             'updated_at' => $this->updated_at?->toIso8601String(),
+            'posted' => (bool) ($extra['posted'] ?? data_get($this->response_payload, 'Posted', false)),
+            'stale' => (bool) ($extra['stale'] ?? false),
         ];
     }
 }

@@ -1,12 +1,14 @@
 <template>
-    <div class="space-y-4">
-        <section :class="`${crmPanel} space-y-4 p-5`">
-            <h2 :class="crmSectionTitle">Загрузка выписки</h2>
-            <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                Реестр банковских документов (XLSX). Повторная загрузка того же файла не создаст дубликат — откроется существующая выписка.
-            </p>
-            <form class="space-y-3" @submit.prevent="submitImport">
-                <label class="block space-y-1 text-sm">
+    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+        <section :class="`${crmPanel} max-w-3xl shrink-0 space-y-3 p-4`">
+            <div class="space-y-1">
+                <h2 :class="crmSectionTitle">Загрузка выписки</h2>
+                <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                    Реестр банковских документов (XLSX). Повторная загрузка того же файла не создаст дубликат — откроется существующая выписка.
+                </p>
+            </div>
+            <form class="flex flex-wrap items-end gap-3" @submit.prevent="submitImport">
+                <label class="w-full max-w-md space-y-1 text-sm sm:flex-1">
                     <span :class="crmLabel">Счёт (необязательно)</span>
                     <select v-model="importForm.bank_account_id" :class="crmFieldFluid">
                         <option :value="null">Определить из файла / сводная</option>
@@ -15,12 +17,12 @@
                         </option>
                     </select>
                 </label>
-                <label class="block space-y-1 text-sm">
+                <label class="min-w-[10rem] space-y-1 text-sm">
                     <span :class="crmLabel">Файл XLSX</span>
                     <input
                         type="file"
                         accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        class="w-full text-sm"
+                        class="block w-full max-w-xs text-sm"
                         @change="onFileChange"
                     >
                 </label>
@@ -30,43 +32,51 @@
             </form>
         </section>
 
-        <section :class="`${crmPanel} p-5`">
-            <h2 :class="crmSectionTitle">Импорты</h2>
-            <div class="mt-3 overflow-x-auto">
+        <section :class="`${crmPanel} flex min-h-0 flex-1 flex-col overflow-hidden p-0`">
+            <div class="shrink-0 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
+                <h2 :class="crmSectionTitle">Импорты</h2>
+            </div>
+            <div class="min-h-0 flex-1 overflow-auto overscroll-y-contain">
                 <table class="min-w-full text-sm">
-                    <thead>
-                        <tr class="border-b border-zinc-200 text-left text-xs uppercase text-zinc-500 dark:border-zinc-700">
-                            <th class="px-2 py-2">Файл</th>
-                            <th class="px-2 py-2">Счёт</th>
-                            <th class="px-2 py-2">Период</th>
-                            <th class="px-2 py-2">Строки</th>
-                            <th class="px-2 py-2">Суммы</th>
-                            <th class="px-2 py-2">Кто загрузил</th>
-                            <th class="px-2 py-2 text-right">Действия</th>
+                    <thead class="sticky top-0 z-10 bg-white dark:bg-zinc-900">
+                        <tr class="border-b border-zinc-200 text-left text-xs font-medium uppercase tracking-wide text-zinc-500 dark:border-zinc-700">
+                            <th class="whitespace-nowrap px-4 py-2.5">Файл</th>
+                            <th class="whitespace-nowrap px-4 py-2.5">Счёт</th>
+                            <th class="whitespace-nowrap px-4 py-2.5">Период</th>
+                            <th class="whitespace-nowrap px-4 py-2.5">Строки</th>
+                            <th class="whitespace-nowrap px-4 py-2.5">Суммы</th>
+                            <th class="whitespace-nowrap px-4 py-2.5">Кто загрузил</th>
+                            <th class="whitespace-nowrap px-4 py-2.5 text-right">Действия</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr
                             v-for="item in imports"
                             :key="item.id"
-                            class="border-b border-zinc-100 dark:border-zinc-800"
+                            class="border-b border-zinc-100 last:border-b-0 dark:border-zinc-800"
                         >
-                            <td class="px-2 py-2">{{ item.file_name }}</td>
-                            <td class="px-2 py-2">
+                            <td class="max-w-[18rem] truncate px-4 py-2.5 font-medium text-zinc-900 dark:text-zinc-100" :title="item.file_name">
+                                {{ item.file_name }}
+                            </td>
+                            <td class="max-w-[16rem] truncate px-4 py-2.5 text-zinc-700 dark:text-zinc-300">
                                 <template v-if="item.bank_account">
                                     {{ item.bank_account.bank_name }} {{ item.bank_account.account_mask }}
                                 </template>
                                 <span v-else class="text-zinc-500">—</span>
                             </td>
-                            <td class="px-2 py-2">{{ formatDate(item.period_from) }} — {{ formatDate(item.period_to) }}</td>
-                            <td class="px-2 py-2 tabular-nums">{{ item.lines_allocated }} / {{ item.lines_count }}</td>
-                            <td class="px-2 py-2 tabular-nums">
+                            <td class="whitespace-nowrap px-4 py-2.5 tabular-nums text-zinc-700 dark:text-zinc-300">
+                                {{ formatDate(item.period_from) }} — {{ formatDate(item.period_to) }}
+                            </td>
+                            <td class="whitespace-nowrap px-4 py-2.5 tabular-nums text-zinc-700 dark:text-zinc-300">
+                                {{ item.lines_allocated }} / {{ item.lines_count }}
+                            </td>
+                            <td class="whitespace-nowrap px-4 py-2.5 tabular-nums text-zinc-700 dark:text-zinc-300">
                                 +{{ formatMoney(item.total_in) }} / −{{ formatMoney(item.total_out) }}
                             </td>
-                            <td class="px-2 py-2 text-zinc-600 dark:text-zinc-300">
+                            <td class="whitespace-nowrap px-4 py-2.5 text-zinc-600 dark:text-zinc-300">
                                 {{ item.importer_name ?? '—' }}
                             </td>
-                            <td class="px-2 py-2">
+                            <td class="px-4 py-2.5">
                                 <div class="flex flex-wrap justify-end gap-2">
                                     <Link
                                         v-if="item.pending_lines > 0"
@@ -100,7 +110,7 @@
                             </td>
                         </tr>
                         <tr v-if="imports.length === 0">
-                            <td colspan="7" class="px-2 py-6 text-center text-zinc-500">Импортов пока нет</td>
+                            <td colspan="7" class="px-4 py-10 text-center text-zinc-500">Импортов пока нет</td>
                         </tr>
                     </tbody>
                 </table>

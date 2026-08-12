@@ -8,6 +8,7 @@ use App\Models\PaymentSchedulePaymentEvent;
 use App\Services\Finance\PaymentSchedulePaymentLedgerService;
 use App\Services\Finance\PaymentSchedulePaymentReversalService;
 use App\Support\OrderViewAuthorization;
+use App\Support\PaymentMatchToken;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PaymentScheduleSettlementStatus;
 use App\Support\RoleAccess;
@@ -15,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use InvalidArgumentException;
 
 class PaymentScheduleController extends Controller
 {
@@ -44,7 +46,29 @@ class PaymentScheduleController extends Controller
             'transaction_reference' => 'nullable|string|max:100',
             'payment_date' => 'required|date',
             'notes' => 'nullable|string',
+            'payment_purpose' => 'nullable|string|max:500',
         ]);
+
+        $paymentSchedule->loadMissing('order:id,order_number');
+
+        $purpose = trim((string) ($validated['payment_purpose']
+            ?? $validated['notes']
+            ?? $validated['transaction_reference']
+            ?? ''));
+
+        try {
+            PaymentMatchToken::assertOutgoingBankPurpose(
+                $paymentSchedule,
+                (string) $validated['payment_method'],
+                $purpose !== '' ? $purpose : null,
+            );
+        } catch (InvalidArgumentException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'required_purpose' => PaymentMatchToken::purposeLine($paymentSchedule),
+            ], 422);
+        }
 
         DB::beginTransaction();
 
@@ -433,7 +457,7 @@ class PaymentScheduleController extends Controller
                 $request->user(),
                 $validated['reason'] ?? 'Отмена ручной фиксации оплаты',
             );
-        } catch (\InvalidArgumentException $exception) {
+        } catch (InvalidArgumentException $exception) {
             return response()->json([
                 'success' => false,
                 'message' => $exception->getMessage(),

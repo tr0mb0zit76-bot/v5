@@ -8,6 +8,10 @@ use App\Models\Order;
 use App\Models\RoutePoint;
 use App\Support\OrderClipboardSummaryFormatter;
 use App\Support\OrderFleetTransportDetailsResolver;
+use App\Support\PaymentAmountVatConverter;
+use App\Support\PaymentFormDictionary;
+use App\Support\PaymentFormVat;
+use App\Support\PaymentMatchToken;
 use App\Support\RoutePointNormalizedData;
 use Illuminate\Validation\ValidationException;
 
@@ -15,7 +19,8 @@ use Illuminate\Validation\ValidationException;
  * Маппинг заказа CRM → payload реализации БП (услуги, номенклатура ТЭУ).
  *
  * Содержание строки = текст «Сводки по перевозке» (тело без шапки).
- * Допреквизиты CRM_* в типовой ИБ нет — номер заказа уходит в Комментарий.
+ * Ставка НДС / СуммаНДС — из customer_payment_form (CRM → 1С).
+ * Допреквизиты CRM_* в типовой ИБ нет — номер заказа и форма оплаты уходят в Комментарий.
  */
 final class OneCRealizationMapper
 {
@@ -32,6 +37,14 @@ final class OneCRealizationMapper
      *     amount: string,
      *     currency: string,
      *     document_date: string,
+     *     customer_payment_form: ?string,
+     *     vat: array{
+     *         one_c_rate: string,
+     *         rate_percent: float,
+     *         amount_includes_vat: bool,
+     *         document_without_vat: bool,
+     *         vat_amount: float
+     *     },
      *     counterparty: array{inn: string, kpp: string|null, name: string|null},
      *     organization_ref: string|null,
      *     currency_ref: string|null,
@@ -41,7 +54,9 @@ final class OneCRealizationMapper
      *         content: string,
      *         quantity: float,
      *         price: string,
-     *         amount: string
+     *         amount: string,
+     *         vat_rate: string,
+     *         vat_amount: float
      *     },
      *     extra_attributes: list<array{name: string, value: string}>,
      *     odata_stub: array<string, mixed>
@@ -102,6 +117,7 @@ final class OneCRealizationMapper
             $transport['trailer_plate'],
             $transport['driver_name'],
         );
+        $content = PaymentMatchToken::forOrderCustomer($order, 1).' '.$content;
 
         $documentDate = $order->unloading_date
             ?? $order->order_date
@@ -113,6 +129,11 @@ final class OneCRealizationMapper
 
         $nomenclatureRef = $this->nullableConfigString('one_c.service_nomenclature.ref');
         $nomenclatureCode = $this->nullableConfigString('one_c.service_nomenclature.code');
+
+        $paymentForm = filled($order->customer_payment_form)
+            ? (string) $order->customer_payment_form
+            : null;
+        $vat = $this->resolveVat((float) $amount, $paymentForm);
 
         $extraAttributes = [];
         $attrOrderId = $this->nullableConfigString('one_c.extra_attributes.order_id');
@@ -132,6 +153,8 @@ final class OneCRealizationMapper
             'amount' => $amount,
             'currency' => 'RUB',
             'document_date' => (string) $documentDate,
+            'customer_payment_form' => $paymentForm,
+            'vat' => $vat,
             'counterparty' => [
                 'inn' => $inn,
                 'kpp' => $kpp,
@@ -146,7 +169,10 @@ final class OneCRealizationMapper
                 'quantity' => 1.0,
                 'price' => $amount,
                 'amount' => $amount,
+                'vat_rate' => $vat['one_c_rate'],
+                'vat_amount' => $vat['vat_amount'],
             ],
+            'payment_form_label' => PaymentFormDictionary::labelForCode($paymentForm),
             'extra_attributes' => $extraAttributes,
         ];
 
@@ -161,6 +187,8 @@ final class OneCRealizationMapper
      */
     private function toODataStub(array $payload): array
     {
+        /** @var array{one_c_rate: string, rate_percent: float, amount_includes_vat: bool, document_without_vat: bool, vat_amount: float} $vat */
+        $vat = $payload['vat'];
         $line = $payload['service_line'];
         $serviceRow = [
             'LineNumber' => '1',
@@ -168,17 +196,26 @@ final class OneCRealizationMapper
             'Количество' => $line['quantity'],
             'Цена' => (float) $line['price'],
             'Сумма' => (float) $line['amount'],
+            'СтавкаНДС' => $vat['one_c_rate'],
+            'СуммаНДС' => $vat['vat_amount'],
         ];
         if (is_string($line['nomenclature_ref'] ?? null) && $line['nomenclature_ref'] !== '') {
             $serviceRow['Номенклатура_Key'] = $line['nomenclature_ref'];
+        }
+
+        $comment = sprintf('CRM %s (id %d)', $payload['order_number'], $payload['order_id']);
+        $paymentLabel = trim((string) ($payload['payment_form_label'] ?? ''));
+        if ($paymentLabel !== '') {
+            $comment .= '; оплата: '.$paymentLabel;
         }
 
         $stub = [
             'Date' => $payload['document_date'].'T12:00:00',
             'ВидОперации' => $payload['operation_kind'],
             'СуммаДокумента' => (float) $payload['amount'],
-            'СуммаВключаетНДС' => true,
-            'Комментарий' => sprintf('CRM %s (id %d)', $payload['order_number'], $payload['order_id']),
+            'СуммаВключаетНДС' => $vat['amount_includes_vat'],
+            'ДокументБезНДС' => $vat['document_without_vat'],
+            'Комментарий' => $comment,
             'Услуги' => [$serviceRow],
         ];
 
@@ -204,6 +241,64 @@ final class OneCRealizationMapper
         $stub['_crm_organization_ref'] = $payload['organization_ref'];
 
         return $stub;
+    }
+
+    /**
+     * @return array{
+     *     one_c_rate: string,
+     *     rate_percent: float,
+     *     amount_includes_vat: bool,
+     *     document_without_vat: bool,
+     *     vat_amount: float
+     * }
+     */
+    private function resolveVat(float $grossAmount, ?string $paymentForm): array
+    {
+        $rate = PaymentFormVat::ratePercentForCode($paymentForm);
+
+        if ($rate === null && PaymentFormVat::isVatCode($paymentForm)) {
+            $rate = PaymentAmountVatConverter::defaultVatRatePercent();
+        }
+
+        if ($rate === null || $rate <= 0) {
+            return [
+                'one_c_rate' => 'БезНДС',
+                'rate_percent' => 0.0,
+                'amount_includes_vat' => false,
+                'document_without_vat' => true,
+                'vat_amount' => 0.0,
+            ];
+        }
+
+        $vatAmount = round($grossAmount * $rate / (100 + $rate), 2);
+
+        return [
+            'one_c_rate' => $this->oneCVatRateCode($rate),
+            'rate_percent' => $rate,
+            'amount_includes_vat' => true,
+            'document_without_vat' => false,
+            'vat_amount' => $vatAmount,
+        ];
+    }
+
+    private function oneCVatRateCode(float $ratePercent): string
+    {
+        $rounded = (int) round($ratePercent);
+        if (abs($ratePercent - $rounded) < 0.05) {
+            return match ($rounded) {
+                22 => 'НДС22',
+                20 => 'НДС20',
+                18 => 'НДС18',
+                10 => 'НДС10',
+                7 => 'НДС7',
+                5 => 'НДС5',
+                0 => 'НДС0',
+                default => 'НДС'.$rounded,
+            };
+        }
+
+        // Дробные ставки в OData этой ИБ — строка; fallback на целое округление.
+        return 'НДС'.$rounded;
     }
 
     /**

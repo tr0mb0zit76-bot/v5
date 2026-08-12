@@ -116,6 +116,7 @@
                             v-model="paymentData.payment_method"
                             class="mt-1 block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
                             required
+                            @change="onPaymentMethodChange"
                         >
                             <option value="">Выберите способ оплаты</option>
                             <option value="bank_transfer">Банковский перевод</option>
@@ -123,6 +124,22 @@
                             <option value="card">Карта</option>
                             <option value="electronic">Электронный платеж</option>
                         </select>
+                    </div>
+
+                    <div v-if="showPaymentPurpose">
+                        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                            Назначение платежа (токен обязателен)
+                        </label>
+                        <textarea
+                            v-model="paymentData.payment_purpose"
+                            rows="2"
+                            required
+                            class="mt-1 block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
+                            placeholder="Оплата по заказу … CRM:…"
+                        />
+                        <p class="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                            Банковский платёж перевозчику без токена CRM:… нельзя зафиксировать.
+                        </p>
                     </div>
 
                     <div>
@@ -301,6 +318,11 @@ const canRecordMorePayments = computed(() => {
     return remainingToPay.value > 0;
 });
 
+const showPaymentPurpose = computed(() => (
+    paymentData.value.payment_method === 'bank_transfer'
+    && Boolean(props.payment.requires_payment_token)
+));
+
 const paymentData = ref(createPaymentFormState());
 
 function createPaymentFormState() {
@@ -310,12 +332,19 @@ function createPaymentFormState() {
         payment_method: '',
         transaction_reference: '',
         notes: '',
+        payment_purpose: props.payment.payment_match_purpose || '',
     };
 }
 
 function openRecordPaymentModal() {
     paymentData.value = createPaymentFormState();
     showRecordPaymentModal.value = true;
+}
+
+function onPaymentMethodChange() {
+    if (showPaymentPurpose.value && !paymentData.value.payment_purpose) {
+        paymentData.value.payment_purpose = props.payment.payment_match_purpose || '';
+    }
 }
 
 function formatMoney(value) {
@@ -404,6 +433,7 @@ async function recordPayment() {
             payment_method: paymentData.value.payment_method,
             transaction_reference: paymentData.value.transaction_reference?.trim() || null,
             notes: paymentData.value.notes?.trim() || null,
+            payment_purpose: paymentData.value.payment_purpose?.trim() || null,
         });
 
         showRecordPaymentModal.value = false;

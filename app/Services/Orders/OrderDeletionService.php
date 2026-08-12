@@ -4,6 +4,8 @@ namespace App\Services\Orders;
 
 use App\Models\Cargo;
 use App\Models\Order;
+use App\Models\OrderOneCDocument;
+use App\Services\OneC\OneCRealizationSyncService;
 use App\Support\UserFacingDatabaseMessageResolver;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -14,13 +16,18 @@ class OrderDeletionService
 {
     public function __construct(
         private readonly UserFacingDatabaseMessageResolver $databaseMessages,
+        private readonly OneCRealizationSyncService $oneCRealizationSync,
     ) {}
 
     public function delete(Order $order, callable $loadOrderForEditing): void
     {
+        $order = $loadOrderForEditing($order);
+
+        // OData вне транзакции: при откате БД уже удалённый в 1С черновик не критичен.
+        $this->oneCRealizationSync->deleteLinkedRealizationsForOrder($order);
+
         try {
-            DB::transaction(function () use ($order, $loadOrderForEditing): void {
-                $order = $loadOrderForEditing($order);
+            DB::transaction(function () use ($order): void {
                 $this->purgeRelatedRecords($order);
                 $order->delete();
             });
@@ -71,6 +78,10 @@ class OrderDeletionService
         $this->deleteByOrderId('finance_documents', $order->id);
         $this->deleteByOrderId('payment_schedule_payment_events', $order->id);
         $this->deleteByOrderId('payment_schedules', $order->id);
+
+        if (Schema::hasTable('order_one_c_documents')) {
+            OrderOneCDocument::query()->where('order_id', $order->id)->delete();
+        }
 
         if (Schema::hasTable('order_documents')) {
             $order->documents()->delete();

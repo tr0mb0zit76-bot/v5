@@ -69,4 +69,82 @@ class ManagementReconcileRuleServiceTest extends TestCase
         $this->assertTrue($rule->is_active);
         $this->assertSame($user->id, $rule->created_by);
     }
+
+    public function test_extract_auto_keyword_from_org_name(): void
+    {
+        $keyword = app(ManagementReconcileRuleService::class)->extractAutoKeyword(
+            'Оплата по счету ООО "Яндекс" за рекламу 15000.00'
+        );
+
+        $this->assertNotNull($keyword);
+        $this->assertStringContainsString('яндекс', mb_strtolower($keyword));
+    }
+
+    public function test_learn_from_manual_allocation_upserts_by_keyword(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Accountant 2',
+            'email' => 'acc2@example.com',
+            'password' => bcrypt('secret'),
+        ]);
+
+        $category = $this->createManagementExpenseCategory([
+            'name' => 'Реклама',
+            'sort_order' => 3,
+        ]);
+
+        $line = $this->createManagementStatementLine([
+            'direction' => 'out',
+            'amount' => 15000,
+            'description' => 'Оплата ООО Яндекс за рекламные услуги',
+            'status' => 'allocated',
+            'match_type' => 'category',
+            'allocation_category_id' => $category->id,
+        ]);
+
+        $service = app(ManagementReconcileRuleService::class);
+        $first = $service->learnFromManualAllocation($user, $line);
+        $this->assertNotNull($first);
+        $this->assertSame($category->id, $first->category_id);
+
+        $secondCategory = $this->createManagementExpenseCategory([
+            'name' => 'Маркетинг',
+            'sort_order' => 4,
+        ]);
+        $line->allocation_category_id = $secondCategory->id;
+        $line->save();
+
+        $second = $service->learnFromManualAllocation($user, $line->fresh());
+        $this->assertNotNull($second);
+        $this->assertSame($first->id, $second->id);
+        $this->assertSame($secondCategory->id, $second->category_id);
+        $this->assertSame(2, (int) $second->times_applied);
+        $this->assertSame(1, ManagementReconcileRule::query()->where('keyword', $first->keyword)->count());
+    }
+
+    public function test_learn_skips_when_crm_token_present(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Accountant 3',
+            'email' => 'acc3@example.com',
+            'password' => bcrypt('secret'),
+        ]);
+
+        $category = $this->createManagementExpenseCategory([
+            'name' => 'Прочее',
+            'sort_order' => 5,
+        ]);
+
+        $line = $this->createManagementStatementLine([
+            'direction' => 'out',
+            'amount' => 1000,
+            'description' => 'Оплата по заказу АС-2608-0001 CRM:АС-2608-0001:P1',
+            'status' => 'allocated',
+            'match_type' => 'category',
+            'allocation_category_id' => $category->id,
+        ]);
+
+        $learned = app(ManagementReconcileRuleService::class)->learnFromManualAllocation($user, $line);
+        $this->assertNull($learned);
+    }
 }

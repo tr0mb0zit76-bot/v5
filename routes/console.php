@@ -16,6 +16,18 @@ Schedule::command('mail:sync')
     ->withoutOverlapping(60);
 Schedule::command('contractors:sync-operational-status')->dailyAt('02:30');
 Schedule::command('import-cost:sync-references')->weeklyOn(1, '03:15');
+Schedule::command('management-accounting:pull-one-c-bank --allocate --bridge-check')
+    ->dailyAt('12:00')
+    ->withoutOverlapping();
+Schedule::command('management-accounting:pull-one-c-bank --allocate --bridge-check')
+    ->dailyAt('00:05')
+    ->withoutOverlapping();
+Schedule::command('one-c:bridge-check')
+    ->dailyAt('09:00')
+    ->withoutOverlapping();
+Schedule::command('one-c:sync-invoice-numbers')
+    ->twiceDaily(1, 13)
+    ->withoutOverlapping();
 Schedule::command('improvement:collect-signals')->dailyAt('07:40');
 Schedule::command('improvement:run-hypothesis-pipeline')->dailyAt('08:00');
 

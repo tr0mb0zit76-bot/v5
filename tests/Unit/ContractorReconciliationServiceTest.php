@@ -6,6 +6,7 @@ use App\Models\Contractor;
 use App\Services\Finance\ContractorReconciliationService;
 use App\Services\Finance\PaymentSchedulePaymentLedgerService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ContractorReconciliationServiceTest extends TestCase
@@ -24,8 +25,6 @@ class ContractorReconciliationServiceTest extends TestCase
             null,
             null,
             null,
-            'admin',
-            'all',
         );
 
         $this->assertSame('both', $report['contractor']['type']);
@@ -49,8 +48,6 @@ class ContractorReconciliationServiceTest extends TestCase
             null,
             null,
             null,
-            'admin',
-            'all',
         );
 
         $this->assertSame('contractor', $report['contractor']['type']);
@@ -96,6 +93,10 @@ class ContractorReconciliationServiceTest extends TestCase
             'updated_at' => now(),
         ]);
 
+        if (Schema::hasColumn('orders', 'upd_number')) {
+            DB::table('orders')->where('id', $orderId)->update(['upd_number' => 'УПД-1']);
+        }
+
         $service = new ContractorReconciliationService(new PaymentSchedulePaymentLedgerService);
 
         $report = $service->build(
@@ -103,8 +104,6 @@ class ContractorReconciliationServiceTest extends TestCase
             null,
             null,
             null,
-            'admin',
-            'all',
         );
 
         $row = $report['as_customer']['rows'][0];
@@ -113,5 +112,120 @@ class ContractorReconciliationServiceTest extends TestCase
         $this->assertSame(50000.0, $row['tranches'][0]['paid']);
         $this->assertCount(1, $row['tranches'][0]['payments']);
         $this->assertSame('2026-06-11', $row['tranches'][0]['payments'][0]['date']);
+        $this->assertSame(['2026-06-11'], $row['payment_dates']);
+        $this->assertSame('2026-06-11', $row['last_payment_date']);
+        $this->assertSame('receivable', $row['balance_status']);
+        $this->assertSame('Долг', $row['balance_label']);
+    }
+
+    public function test_overpayment_is_flagged_when_paid_exceeds_accrued(): void
+    {
+        $contractor = Contractor::query()->create([
+            'name' => 'ООО Аванс',
+            'type' => 'customer',
+        ]);
+
+        $orderId = $this->insertOrderRow([
+            'customer_id' => $contractor->id,
+            'order_number' => 'АС-2606-0002',
+            'order_date' => '2026-06-01',
+            'customer_rate' => 100000,
+        ]);
+
+        if (Schema::hasColumn('orders', 'upd_number')) {
+            DB::table('orders')->where('id', $orderId)->update(['upd_number' => 'УПД-2']);
+        }
+
+        $scheduleId = (int) DB::table('payment_schedules')->insertGetId([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 100000,
+            'paid_amount' => 150000,
+            'remaining_amount' => 0,
+            'planned_date' => '2026-06-10',
+            'status' => 'paid',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedule_payment_events')->insert([
+            'payment_schedule_id' => $scheduleId,
+            'order_id' => $orderId,
+            'contractor_id' => $contractor->id,
+            'party' => 'customer',
+            'amount' => 150000,
+            'payment_date' => '2026-06-12',
+            'transaction_reference' => 'ПП-200',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $report = (new ContractorReconciliationService(new PaymentSchedulePaymentLedgerService))
+            ->build($contractor->id, null, null, null);
+
+        $row = $report['as_customer']['rows'][0];
+        $this->assertSame('overpayment', $row['balance_status']);
+        $this->assertSame(-50000.0, $row['balance']);
+        $this->assertSame('overpayment', $report['as_customer']['totals']['balance_status']);
+        $this->assertSame(50000.0, $report['as_customer']['totals']['overpayment']);
+        $this->assertSame('2026-06-12', $row['last_payment_date']);
+        $this->assertSame('Переплата', $row['balance_label']);
+    }
+
+    public function test_payment_without_upd_counts_as_overpayment_advance(): void
+    {
+        $contractor = Contractor::query()->create([
+            'name' => 'ООО Без УПД',
+            'type' => 'customer',
+        ]);
+
+        $orderId = $this->insertOrderRow([
+            'customer_id' => $contractor->id,
+            'order_number' => 'АС-2606-0003',
+            'order_date' => '2026-06-01',
+            'customer_rate' => 417000,
+        ]);
+
+        if (Schema::hasColumn('orders', 'upd_number')) {
+            DB::table('orders')->where('id', $orderId)->update(['upd_number' => null]);
+        }
+
+        $scheduleId = (int) DB::table('payment_schedules')->insertGetId([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 417000,
+            'paid_amount' => 417000,
+            'remaining_amount' => 0,
+            'planned_date' => '2026-06-10',
+            'status' => 'paid',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedule_payment_events')->insert([
+            'payment_schedule_id' => $scheduleId,
+            'order_id' => $orderId,
+            'contractor_id' => $contractor->id,
+            'party' => 'customer',
+            'amount' => 417000,
+            'payment_date' => '2026-06-12',
+            'transaction_reference' => 'ПП-417',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $report = (new ContractorReconciliationService(new PaymentSchedulePaymentLedgerService))
+            ->build($contractor->id, null, null, null);
+
+        $row = $report['as_customer']['rows'][0];
+        $this->assertFalse($row['has_upd']);
+        $this->assertSame(0.0, $row['accrued']);
+        $this->assertSame(417000.0, $row['paid']);
+        $this->assertSame(-417000.0, $row['balance']);
+        $this->assertSame('overpayment', $row['balance_status']);
+        $this->assertSame('Переплата · без УПД', $row['balance_label']);
+        $this->assertSame(417000.0, $report['as_customer']['totals']['overpayment']);
     }
 }

@@ -57,7 +57,9 @@ class ManagementExpenseCategoryHierarchyService
 
         $this->migratePayrollOtherAllocations();
         $this->relinkBudgetOpexArticles();
-        $this->deactivateLegacyBudgetDuplicateCategories();
+        $this->normalizeEmptyRootExpenseGroups();
+        // Не деактивируем все budget_opex_*: статьи, созданные в дереве, получают
+        // code=budget_opex_{id} и должны оставаться доступными для разноса.
     }
 
     private function deactivateLegacyPayrollCategories(): void
@@ -113,11 +115,41 @@ class ManagementExpenseCategoryHierarchyService
         }
     }
 
-    private function deactivateLegacyBudgetDuplicateCategories(): void
+    /**
+     * Статьи вроде «Лизинг», созданные без родителя, получают kind=group (пустая папка)
+     * и пропадают из смысла разноса. Переносим пустые несистемные корневые группы
+     * под «Расходы» как обычные статьи (как «ГСМ»).
+     */
+    private function normalizeEmptyRootExpenseGroups(): void
     {
-        ManagementExpenseCategory::query()
-            ->where('code', 'like', 'budget_opex_%')
-            ->update(['is_active' => false]);
+        $expenseRootId = ManagementExpenseCategory::query()->where('code', 'group_expense')->value('id');
+
+        if ($expenseRootId === null) {
+            return;
+        }
+
+        $candidates = ManagementExpenseCategory::query()
+            ->where('kind', 'group')
+            ->whereNull('parent_id')
+            ->where('is_system', false)
+            ->where('is_active', true)
+            ->get();
+
+        foreach ($candidates as $category) {
+            $hasChildren = ManagementExpenseCategory::query()
+                ->where('parent_id', $category->id)
+                ->exists();
+
+            if ($hasChildren) {
+                continue;
+            }
+
+            $category->forceFill([
+                'kind' => 'overhead',
+                'parent_id' => $expenseRootId,
+                'flow' => 'out',
+            ])->save();
+        }
     }
 
     private function upsertGroup(

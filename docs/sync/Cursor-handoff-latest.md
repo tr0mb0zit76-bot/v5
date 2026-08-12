@@ -3,7 +3,36 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-09 17:44 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `88e59c24` · **тема:** коннектор 1С БП MVP (каркас)
+**Обновлено:** 2026-08-12 09:35 (ОТДАТЬ + деплой) · **Ветка:** `master` · **тема:** 1С push/НДС/счета/мост
+
+### Итог сессии 2026-08-11…12 — контур 1С + УУ
+
+| Блок | Статус |
+| --- | --- |
+| НДС в реализацию (`СтавкаНДС`/`СуммаНДС` из `customer_payment_form`) | ✅ |
+| Ensure контрагента при смене заказчика в мастере + при create realization | ✅ |
+| Push: create / update PATCH / no-op; **Posted → запрет** | ✅ UI кнопка |
+| Sync номеров счетов `one-c:sync-invoice-numbers` (`twiceDaily` 1/13) | ✅ |
+| Матчинг: `orders.invoice_number` fallback + eager load | ✅ |
+| Мост банка / bridge-check / виджет / auto-learn rules | ✅ (ранее в сессии) |
+| Payment match token `CRM:…` | ✅ |
+| Дизайны | `payment-invoice-sync-design.md`, `payment-match-token-design.md`, `one-c-bridge-control-agent-design.md` |
+
+**На прод / второй ПК:**
+
+```text
+git pull
+php artisan migrate --force   # если есть новые миграции
+npm run build
+php artisan optimize:clear
+# queue:work если QUEUE_CONNECTION=database (EnsureOneCOrderCustomerJob)
+```
+
+**Следующий шаг:** smoke UI «Создать / Обновить / проведена»; PDF счетов из 1С — только после print-сервиса/вложений.
+
+---
+
+**Обновлено (архив):** 2026-08-09 17:44 · **тема:** коннектор 1С БП MVP (каркас)
 
 ### Итог сессии 2026-08-09 — 1С BP connector skeleton
 

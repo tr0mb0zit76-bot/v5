@@ -24,18 +24,12 @@ class OrderOneCRealizationController extends Controller
         abort_unless(RoleAccess::canCreateOneCRealization($user), 403);
         abort_unless(OrderViewAuthorization::userCanMutateOrder($user, $order), 403);
 
-        $validated = $request->validate([
-            'force' => ['sometimes', 'boolean'],
-        ]);
-
-        $result = $this->sync->createForOrder(
-            $order,
-            $user,
-            (bool) ($validated['force'] ?? false),
-        );
+        $result = $this->sync->pushForOrder($order, $user);
 
         return response()->json([
+            'action' => $result['action'],
             'created' => $result['created'],
+            'updated' => $result['updated'],
             'realization' => $result['document']->toWizardSummary(),
             'one_c' => $this->sync->wizardState($order, $user),
         ]);

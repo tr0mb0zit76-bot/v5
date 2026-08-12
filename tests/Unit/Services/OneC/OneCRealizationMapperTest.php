@@ -49,6 +49,7 @@ class OneCRealizationMapperTest extends TestCase
         $this->assertSame('2026-08-12', $payload['document_date']);
         $this->assertSame('2312178145', $payload['counterparty']['inn']);
         $this->assertSame('9ec829b8-632e-11f1-8745-fa163ea037a3', $payload['service_line']['nomenclature_ref']);
+        $this->assertStringStartsWith('CRM:ТЕСТ-1:C1 ', $payload['service_line']['content']);
         $this->assertStringContainsString('Транспортно-экспедиционные услуги по Заявке № ТЕСТ-1 от 10.08.2026', $payload['service_line']['content']);
         $this->assertStringContainsString('публичной оферте', $payload['service_line']['content']);
         $this->assertSame([], $payload['extra_attributes']);
@@ -60,6 +61,45 @@ class OneCRealizationMapperTest extends TestCase
             '9ec829b8-632e-11f1-8745-fa163ea037a3',
             $payload['odata_stub']['Услуги'][0]['Номенклатура_Key']
         );
+        $this->assertSame('БезНДС', $payload['odata_stub']['Услуги'][0]['СтавкаНДС']);
+        $this->assertSame(0.0, $payload['odata_stub']['Услуги'][0]['СуммаНДС']);
+        $this->assertTrue($payload['odata_stub']['ДокументБезНДС']);
+        $this->assertFalse($payload['odata_stub']['СуммаВключаетНДС']);
+    }
+
+    public function test_maps_customer_vat_22_into_service_line(): void
+    {
+        config([
+            'one_c.extra_attributes.order_id' => '',
+            'one_c.extra_attributes.order_number' => '',
+            'one_c.service_nomenclature.ref' => '9ec829b8-632e-11f1-8745-fa163ea037a3',
+        ]);
+
+        $client = new Contractor([
+            'name' => 'ООО "ФАРМСЕРВИС"',
+            'inn' => '2312178145',
+            'kpp' => '231201001',
+        ]);
+
+        $order = new Order([
+            'order_number' => 'АС-ТД-486',
+            'customer_rate' => '330000.00',
+            'customer_payment_form' => 'vat_22',
+            'order_date' => '2026-06-11',
+        ]);
+        $order->id = 86;
+        $order->setRelation('client', $client);
+        $order->setRelation('legs', collect());
+
+        $payload = app(OneCRealizationMapper::class)->map($order);
+
+        $this->assertSame('НДС22', $payload['service_line']['vat_rate']);
+        $this->assertSame(59508.2, $payload['service_line']['vat_amount']);
+        $this->assertSame('НДС22', $payload['odata_stub']['Услуги'][0]['СтавкаНДС']);
+        $this->assertSame(59508.2, $payload['odata_stub']['Услуги'][0]['СуммаНДС']);
+        $this->assertTrue($payload['odata_stub']['СуммаВключаетНДС']);
+        $this->assertFalse($payload['odata_stub']['ДокументБезНДС']);
+        $this->assertStringContainsString('оплата:', $payload['odata_stub']['Комментарий']);
     }
 
     public function test_optional_extra_attributes_when_configured(): void

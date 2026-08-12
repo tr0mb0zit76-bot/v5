@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\ManagementExpenseCategory;
+use App\Services\ManagementAccounting\ManagementExpenseCategorySyncService;
 use App\Services\ManagementAccounting\ManagementExpenseCategoryTreeService;
 use Tests\TestCase;
 
@@ -54,5 +55,29 @@ class ManagementExpenseCategoryTreeServiceTest extends TestCase
         $this->assertNotNull($expenseRoot);
         $this->assertCount(1, $expenseRoot['children']);
         $this->assertSame('Аренда', $expenseRoot['children'][0]['name']);
+    }
+
+    public function test_sync_promotes_empty_root_groups_to_expense_leaves(): void
+    {
+        app(ManagementExpenseCategorySyncService::class)->syncAll();
+
+        $leasing = ManagementExpenseCategory::query()->create([
+            'code' => 'budget_opex_77',
+            'name' => 'Лизинг',
+            'kind' => 'group',
+            'flow' => 'out',
+            'parent_id' => null,
+            'is_system' => false,
+            'is_active' => true,
+            'sort_order' => 90,
+        ]);
+
+        app(ManagementExpenseCategorySyncService::class)->syncAll();
+
+        $leasing->refresh();
+        $expenseRootId = ManagementExpenseCategory::query()->where('code', 'group_expense')->value('id');
+
+        $this->assertSame('overhead', $leasing->kind);
+        $this->assertSame($expenseRootId, $leasing->parent_id);
     }
 }

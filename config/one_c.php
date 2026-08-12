@@ -66,5 +66,107 @@ return [
             'ONE_C_ODATA_COUNTERPARTY_PATH',
             '/odata/standard.odata/Catalog_Контрагенты'
         ),
+        'bank_incoming_path' => (string) env(
+            'ONE_C_ODATA_BANK_INCOMING_PATH',
+            '/odata/standard.odata/Document_ПоступлениеНаРасчетныйСчет'
+        ),
+        'bank_outgoing_path' => (string) env(
+            'ONE_C_ODATA_BANK_OUTGOING_PATH',
+            '/odata/standard.odata/Document_СписаниеСРасчетногоСчета'
+        ),
+        'buyer_invoice_path' => (string) env(
+            'ONE_C_ODATA_BUYER_INVOICE_PATH',
+            '/odata/standard.odata/Document_СчетНаОплатуПокупателю'
+        ),
+    ],
+
+    /**
+     * Счёт CRM (management_bank_accounts.account_number) для импорта банка из 1С.
+     * По умолчанию — Сбер Автоальянс-Смоленск. Легаси; предпочтительно publications.*.bank_account_number.
+     */
+    'bank_statement' => [
+        'account_number' => (string) env('ONE_C_BANK_ACCOUNT_NUMBER', '40702810959710001997'),
+    ],
+
+    /** Код публикации по умолчанию (см. publications). */
+    'default_publication' => (string) env('ONE_C_DEFAULT_PUBLICATION', 'autalliance'),
+
+    /**
+     * Ответственный за эскалации моста (assignee задач). Initiator = system|user отдельно.
+     */
+    'bridge' => [
+        'escalation_user_id' => env('ONE_C_BRIDGE_ESCALATION_USER_ID') !== null
+            ? (int) env('ONE_C_BRIDGE_ESCALATION_USER_ID')
+            : null,
+        'pending_attention_min' => (int) env('ONE_C_BRIDGE_PENDING_ATTENTION_MIN', 1),
+    ],
+
+    /**
+     * Токен CRM:… в назначении/номенклатуре для однозначного матчинга.
+     * enforce_outgoing_bank — стоп фиксации банковского платежа перевозчику без токена.
+     */
+    'payment_token' => [
+        'enforce_outgoing_bank' => filter_var(
+            env('ONE_C_ENFORCE_OUTGOING_PAYMENT_TOKEN', true),
+            FILTER_VALIDATE_BOOL
+        ),
+    ],
+
+    /**
+     * Публикации ИБ по юрлицам. Общие ONE_C_USERNAME / ONE_C_PASSWORD.
+     * date_filter_mode=client — если OData ИБ падает на Date+AUTOORDER (Гросс/Профсфера).
+     */
+    'publications' => [
+        'autalliance' => [
+            'label' => 'Автоальянс-Смоленск',
+            'base_url' => rtrim((string) env(
+                'ONE_C_AUTALLIANCE_BASE_URL',
+                (string) env('ONE_C_BASE_URL', 'https://avtoalyns-crm.case-it.ru/Avtoalians_4nYnMmRSab')
+            ), '/'),
+            'organization_ref' => (string) env(
+                'ONE_C_AUTALLIANCE_ORG_REF',
+                (string) env('ONE_C_ORGANIZATION_REF', '19b37fca-5d84-11f1-8bf4-fa163ea037a3')
+            ),
+            'bank_account_number' => (string) env(
+                'ONE_C_AUTALLIANCE_BANK_ACCOUNT',
+                (string) env('ONE_C_BANK_ACCOUNT_NUMBER', '40702810959710001997')
+            ),
+            'date_filter_mode' => 'odata',
+            'enabled' => filter_var(env('ONE_C_AUTALLIANCE_ENABLED', true), FILTER_VALIDATE_BOOL),
+        ],
+        'gross' => [
+            'label' => 'Гросс',
+            'base_url' => rtrim((string) env(
+                'ONE_C_GROSS_BASE_URL',
+                'https://avtoalyns-crm.case-it.ru/Gross_44N8sTPEXf'
+            ), '/'),
+            'organization_ref' => (string) env(
+                'ONE_C_GROSS_ORG_REF',
+                '13d87b6e-bae2-11ef-89a3-dc68443ee9e4'
+            ),
+            'bank_account_number' => (string) env(
+                'ONE_C_GROSS_BANK_ACCOUNT',
+                '40702810629940001726'
+            ),
+            'date_filter_mode' => 'client',
+            'enabled' => filter_var(env('ONE_C_GROSS_ENABLED', true), FILTER_VALIDATE_BOOL),
+        ],
+        'profsfera' => [
+            'label' => 'Профсфера',
+            'base_url' => rtrim((string) env(
+                'ONE_C_PROFSFERA_BASE_URL',
+                'https://avtoalyns-crm.case-it.ru/ProSfera_gRLXXFMK8M'
+            ), '/'),
+            'organization_ref' => (string) env(
+                'ONE_C_PROFSFERA_ORG_REF',
+                '68778110-58ca-11f1-8af0-fa163eafb81d'
+            ),
+            'bank_account_number' => (string) env(
+                'ONE_C_PROFSFERA_BANK_ACCOUNT',
+                '40702810508470000001'
+            ),
+            'date_filter_mode' => 'client',
+            'enabled' => filter_var(env('ONE_C_PROFSFERA_ENABLED', true), FILTER_VALIDATE_BOOL),
+        ],
     ],
 ];

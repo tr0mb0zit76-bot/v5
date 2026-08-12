@@ -74,24 +74,33 @@
                     </Link>
                     <h1 :class="crmPageTitle">График оплат</h1>
                     <p :class="crmPageLead">
-                        План и факт по строкам графика заказов; разнос банковских выписок — отдельной вкладкой.
+                        План и факт по строкам графика заказов; разнос платежей — отдельной вкладкой.
                     </p>
                 </div>
             </div>
 
-            <div v-if="can_access_payment_reconcile" class="flex shrink-0 flex-wrap gap-2 border-b border-zinc-200 pb-2 dark:border-zinc-700">
-                <Link
-                    href="/finance?section=cashflow&cashflow_tab=schedule"
-                    :class="cashflowTab === 'schedule' ? cashflowTabActiveClass : cashflowTabClass"
-                >
-                    График
-                </Link>
-                <Link
-                    href="/finance?section=cashflow&cashflow_tab=reconcile"
-                    :class="cashflowTab === 'reconcile' ? cashflowTabActiveClass : cashflowTabClass"
-                >
-                    Разнос выписки
-                </Link>
+            <div
+                v-if="can_access_payment_reconcile"
+                class="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-zinc-200 pb-2 dark:border-zinc-700"
+            >
+                <div class="flex flex-wrap gap-2">
+                    <Link
+                        href="/finance?section=cashflow&cashflow_tab=schedule"
+                        :class="cashflowTab === 'schedule' ? cashflowTabActiveClass : cashflowTabClass"
+                    >
+                        График
+                    </Link>
+                    <Link
+                        href="/finance?section=cashflow&cashflow_tab=reconcile"
+                        :class="cashflowTab === 'reconcile' ? cashflowTabActiveClass : cashflowTabClass"
+                    >
+                        Разнос платежей
+                    </Link>
+                </div>
+                <OneCBridgeStatusWidget
+                    v-if="cashflowTab === 'reconcile'"
+                    class="w-full max-w-md shrink-0 sm:w-auto"
+                />
             </div>
 
             <ManagementAccountingStatementImports
@@ -223,6 +232,7 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmModuleCard, crmPageLead, crmPageTitle, crmPanel } from '@/support/crmUi.js';
 import CashFlowGrid from '@/Components/Finance/CashFlowGrid.vue';
 import ManagementAccountingStatementImports from '@/Components/Finance/ManagementAccountingStatementImports.vue';
+import OneCBridgeStatusWidget from '@/Components/Finance/OneCBridgeStatusWidget.vue';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import { summarizeCashFlowJournal } from '@/support/cashFlowJournalStats.js';
 

@@ -73,35 +73,36 @@ class ContractorReconciliationService
             ->when($to, fn ($q) => $q->whereDate('orders.order_date', '<=', $to->toDateString()))
             ->orderByDesc('orders.order_date')
             ->orderByDesc('orders.id')
-            ->get([
-                'orders.id',
-                'orders.order_number',
-                'orders.order_date',
-                'orders.customer_rate',
-            ]);
+            ->get($this->customerOrderColumns());
 
         $orderIds = $orders->pluck('id')->map(fn ($id): int => (int) $id)->all();
         $paidByOrder = $this->paidAmountsByOrder($orderIds, 'customer', $contractorId, $from, $to);
         $tranchesByOrder = $this->tranchesByOrder($orderIds, 'customer', $contractorId, $from, $to);
 
         $rows = $orders->map(function (Order $order) use ($paidByOrder, $tranchesByOrder): array {
-            $accrued = $this->resolveCustomerAccrued($order);
+            $orderRate = $this->resolveCustomerAccrued($order);
+            $hasUpd = $this->orderHasCustomerUpd($order);
+            // Как в 1С: в сверку начисление попадает после УПД. Оплата без УПД = переплата/аванс.
+            $accrued = $hasUpd ? $orderRate : 0.0;
             $paid = (float) ($paidByOrder[(int) $order->id] ?? 0);
+            $tranches = $tranchesByOrder[(int) $order->id] ?? [];
 
-            return [
+            return $this->enrichReconciliationRow([
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
                 'order_date' => optional($order->order_date)?->toDateString(),
+                'order_rate' => round($orderRate, 2),
+                'has_upd' => $hasUpd,
                 'accrued' => round($accrued, 2),
                 'paid' => round($paid, 2),
                 'balance' => round($accrued - $paid, 2),
-                'tranches' => $tranchesByOrder[(int) $order->id] ?? [],
-            ];
+                'tranches' => $tranches,
+            ]);
         })->values()->all();
 
         return [
             'title' => 'Услуги для контрагента (он — заказчик)',
-            'description' => 'Начислено по тарифу заказчика в заказах; оплачено — поступления по графику оплат.',
+            'description' => 'Начислено — только заказы с УПД (как в бухучёте). Оплата без УПД = переплата (аванс). Красный остаток — долг, зелёный — переплата.',
             'rows' => $rows,
             'totals' => $this->sumRows($rows),
         ];
@@ -138,7 +139,7 @@ class ContractorReconciliationService
             $paid = $this->paidAmountForOrder((int) $order->id, $counterpartyParty, $contractorId, $from, $to);
             $tranches = $this->tranchesForOrder((int) $order->id, $counterpartyParty, $contractorId, $from, $to);
 
-            $rows[] = [
+            $rows[] = $this->enrichReconciliationRow([
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
                 'order_date' => optional($order->order_date)?->toDateString(),
@@ -146,7 +147,7 @@ class ContractorReconciliationService
                 'paid' => round($paid, 2),
                 'balance' => round($accrued - $paid, 2),
                 'tranches' => $tranches,
-            ];
+            ]);
         }
 
         return [
@@ -154,8 +155,8 @@ class ContractorReconciliationService
                 ? 'Услуги от контрагента (он — подрядчик)'
                 : 'Услуги от контрагента (он — перевозчик)',
             'description' => $contractorType === 'contractor'
-                ? 'Начислено по сумме подрядных услуг в заказах; оплачено — наши платежи по графику оплат.'
-                : 'Начислено по сумме перевозки в заказах; оплачено — наши платежи по графику оплат.',
+                ? 'Начислено по сумме подрядных услуг в заказах; оплачено — наши платежи по графику оплат. Отрицательный остаток = переплата.'
+                : 'Начислено по сумме перевозки в заказах; оплачено — наши платежи по графику оплат. Отрицательный остаток = переплата.',
             'rows' => $rows,
             'totals' => $this->sumRows($rows),
         ];
@@ -463,6 +464,34 @@ class ContractorReconciliationService
     }
 
     /**
+     * @return list<string>
+     */
+    private function customerOrderColumns(): array
+    {
+        $columns = [
+            'orders.id',
+            'orders.order_number',
+            'orders.order_date',
+            'orders.customer_rate',
+        ];
+
+        if (Schema::hasColumn('orders', 'upd_number')) {
+            $columns[] = 'orders.upd_number';
+        }
+
+        return $columns;
+    }
+
+    private function orderHasCustomerUpd(Order $order): bool
+    {
+        if (! Schema::hasColumn('orders', 'upd_number')) {
+            return true;
+        }
+
+        return trim((string) ($order->upd_number ?? '')) !== '';
+    }
+
+    /**
      * @return Builder<Order>
      */
     private function ordersBaseQuery(?User $user): Builder
@@ -482,8 +511,67 @@ class ContractorReconciliationService
     }
 
     /**
+     * @param  array{
+     *     order_id: int,
+     *     order_number: ?string,
+     *     order_date: ?string,
+     *     accrued: float,
+     *     paid: float,
+     *     balance: float,
+     *     tranches: list<array<string, mixed>>
+     * }  $row
+     * @return array<string, mixed>
+     */
+    private function enrichReconciliationRow(array $row): array
+    {
+        $paymentDates = [];
+
+        foreach ($row['tranches'] as $tranche) {
+            foreach ($tranche['payments'] ?? [] as $payment) {
+                $date = $payment['date'] ?? null;
+                if (is_string($date) && $date !== '') {
+                    $paymentDates[$date] = true;
+                }
+            }
+        }
+
+        $dates = array_keys($paymentDates);
+        sort($dates);
+
+        $balance = (float) $row['balance'];
+        $status = 'settled';
+        if ($balance > 0.005) {
+            $status = 'receivable';
+        } elseif ($balance < -0.005) {
+            $status = 'overpayment';
+        }
+
+        $row['payment_dates'] = $dates;
+        $row['last_payment_date'] = $dates === [] ? null : $dates[array_key_last($dates)];
+        $row['balance_status'] = $status;
+        $row['has_upd'] = (bool) ($row['has_upd'] ?? true);
+        $row['order_rate'] = round((float) ($row['order_rate'] ?? $row['accrued']), 2);
+        $row['balance_label'] = match ($status) {
+            'overpayment' => ! $row['has_upd'] && (float) $row['paid'] > 0.005
+                ? 'Переплата · без УПД'
+                : 'Переплата',
+            'receivable' => 'Долг',
+            default => null,
+        };
+
+        return $row;
+    }
+
+    /**
      * @param  list<array{accrued: float, paid: float, balance: float}>  $rows
-     * @return array{accrued: float, paid: float, balance: float}
+     * @return array{
+     *     accrued: float,
+     *     paid: float,
+     *     balance: float,
+     *     balance_status: string,
+     *     overpayment: float,
+     *     receivable: float
+     * }
      */
     private function sumRows(array $rows): array
     {
@@ -495,10 +583,21 @@ class ContractorReconciliationService
             $paid += (float) ($row['paid'] ?? 0);
         }
 
+        $balance = round($accrued - $paid, 2);
+        $status = 'settled';
+        if ($balance > 0.005) {
+            $status = 'receivable';
+        } elseif ($balance < -0.005) {
+            $status = 'overpayment';
+        }
+
         return [
             'accrued' => round($accrued, 2),
             'paid' => round($paid, 2),
-            'balance' => round($accrued - $paid, 2),
+            'balance' => $balance,
+            'balance_status' => $status,
+            'overpayment' => round(max(0, -$balance), 2),
+            'receivable' => round(max(0, $balance), 2),
         ];
     }
 
