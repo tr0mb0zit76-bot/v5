@@ -824,6 +824,8 @@ final class OneCBpClient
     {
         $existing = $this->findCounterpartyRef($inn, $kpp, $baseUrl);
         if ($existing !== null) {
+            $this->repairCounterpartyLegalFormIfNeeded($existing, $inn, $name, $baseUrl);
+
             return $existing;
         }
 
@@ -890,6 +892,7 @@ final class OneCBpClient
 
     /**
      * Создать контрагента в 1С (минимальные реквизиты для реализации).
+     * ИНН 12 → физлицо + ИндивидуальныйПредприниматель (иначе 1С ругается на «длинный ИНН»).
      */
     public function createCounterparty(string $inn, ?string $kpp, string $name, ?string $baseUrl = null): string
     {
@@ -905,14 +908,7 @@ final class OneCBpClient
             ]);
         }
 
-        $body = [
-            'Description' => $name,
-            'ИНН' => $inn,
-        ];
-        if ($kpp !== null && $kpp !== '') {
-            $body['КПП'] = $kpp;
-        }
-
+        $body = $this->counterpartyWriteBody($inn, $kpp, $name);
         $path = (string) config('one_c.odata.counterparty_path');
         $response = $this->http()->post($base.$path, $body);
 
@@ -928,6 +924,103 @@ final class OneCBpClient
         }
 
         return $ref;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function counterpartyWriteBody(string $inn, ?string $kpp, string $name): array
+    {
+        $innDigits = preg_replace('/\D+/', '', $inn) ?? '';
+        $name = trim($name);
+        if ($name === '') {
+            $name = 'Контрагент '.$innDigits;
+        }
+
+        // ponytail: 12 цифр = ИП/физлицо в РФ; без ЮрФизЛицо=ФизическоеЛицо 1С принимает как организацию и ругается на ИНН.
+        if (strlen($innDigits) === 12) {
+            $description = preg_replace('/^\s*ИП[\s.\-–—]+/ui', '', $name) ?? $name;
+            $description = trim((string) $description);
+            if ($description === '') {
+                $description = $name;
+            }
+            $fullName = preg_match('/^\s*ИП\b/ui', $name) === 1
+                ? $name
+                : 'ИП '.$description;
+
+            return [
+                'Description' => $description,
+                'НаименованиеПолное' => $fullName,
+                'ИНН' => $innDigits,
+                'ЮридическоеФизическоеЛицо' => 'ФизическоеЛицо',
+                'ИндивидуальныйПредприниматель' => true,
+            ];
+        }
+
+        $body = [
+            'Description' => $name,
+            'НаименованиеПолное' => $name,
+            'ИНН' => $innDigits,
+            'ЮридическоеФизическоеЛицо' => 'ЮридическоеЛицо',
+            'ИндивидуальныйПредприниматель' => false,
+        ];
+        if ($kpp !== null && $kpp !== '') {
+            $body['КПП'] = $kpp;
+        }
+
+        return $body;
+    }
+
+    /**
+     * Если ИП уже создан как «организация» — поправить тип, не трогая ИНН.
+     */
+    private function repairCounterpartyLegalFormIfNeeded(
+        string $ref,
+        string $inn,
+        string $name,
+        ?string $baseUrl = null,
+    ): void {
+        $innDigits = preg_replace('/\D+/', '', $inn) ?? '';
+        if (strlen($innDigits) !== 12) {
+            return;
+        }
+
+        $driver = (string) config('one_c.driver', 'fake');
+        if ($driver !== 'http') {
+            return;
+        }
+
+        $base = rtrim($baseUrl ?? (string) config('one_c.base_url', ''), '/');
+        if ($base === '') {
+            return;
+        }
+
+        $path = (string) config('one_c.odata.counterparty_path');
+        $url = $base.$path."(guid'{$ref}')";
+        $current = $this->http()->get($url, [
+            '$format' => 'json',
+            '$select' => 'ЮридическоеФизическоеЛицо,ИндивидуальныйПредприниматель,ИНН,НаименованиеПолное',
+        ]);
+        if (! $current->successful()) {
+            return;
+        }
+
+        $type = (string) ($current->json('ЮридическоеФизическоеЛицо') ?? '');
+        $isIp = (bool) ($current->json('ИндивидуальныйПредприниматель') ?? false);
+        if ($type === 'ФизическоеЛицо' && $isIp) {
+            return;
+        }
+
+        $body = $this->counterpartyWriteBody($innDigits, null, $name);
+        // Не затираем Description при repair — только тип/полное имя/ИНН.
+        unset($body['Description']);
+
+        $response = $this->http()->patch($url, $body);
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                '1С: не удалось исправить тип контрагента (ИП): HTTP '.$response->status().' '.$response->body()
+            );
+        }
     }
 
     private function http(): PendingRequest

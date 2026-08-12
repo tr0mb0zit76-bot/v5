@@ -119,6 +119,96 @@ class OneCBridgeControlTest extends TestCase
 
         $ref = app(OneCBpClient::class)->createCounterparty('7707083893', '770701001', 'Тест ООО');
         $this->assertSame('new-cp', $ref);
+
+        Http::assertSent(function ($request): bool {
+            $data = $request->data();
+
+            return $request->method() === 'POST'
+                && ($data['ЮридическоеФизическоеЛицо'] ?? null) === 'ЮридическоеЛицо'
+                && ($data['ИндивидуальныйПредприниматель'] ?? null) === false
+                && ($data['КПП'] ?? null) === '770701001';
+        });
+    }
+
+    public function test_create_counterparty_marks_12_digit_inn_as_individual_entrepreneur(): void
+    {
+        config([
+            'one_c.driver' => 'http',
+            'one_c.base_url' => 'https://one-c.test/pub',
+            'one_c.username' => 'Odata',
+            'one_c.password' => 'x',
+            'one_c.odata.counterparty_path' => '/odata/standard.odata/Catalog_Контрагенты',
+        ]);
+
+        Http::fake([
+            'one-c.test/pub/odata/standard.odata/Catalog_*' => Http::response([
+                'Ref_Key' => 'new-ip',
+            ], 201),
+        ]);
+
+        $ref = app(OneCBpClient::class)->createCounterparty(
+            '632111465177',
+            null,
+            'ИП Данилов Александр Павлович'
+        );
+        $this->assertSame('new-ip', $ref);
+
+        Http::assertSent(function ($request): bool {
+            $data = $request->data();
+
+            return $request->method() === 'POST'
+                && ($data['ЮридическоеФизическоеЛицо'] ?? null) === 'ФизическоеЛицо'
+                && ($data['ИндивидуальныйПредприниматель'] ?? null) === true
+                && ($data['Description'] ?? null) === 'Данилов Александр Павлович'
+                && ($data['НаименованиеПолное'] ?? null) === 'ИП Данилов Александр Павлович'
+                && ! array_key_exists('КПП', $data);
+        });
+    }
+
+    public function test_ensure_repairs_ip_created_as_organization(): void
+    {
+        config([
+            'one_c.driver' => 'http',
+            'one_c.base_url' => 'https://one-c.test/pub',
+            'one_c.username' => 'Odata',
+            'one_c.password' => 'x',
+            'one_c.odata.counterparty_path' => '/odata/standard.odata/Catalog_Контрагенты',
+        ]);
+
+        Http::fake([
+            'one-c.test/*' => Http::sequence()
+                ->push([
+                    'value' => [[
+                        'Ref_Key' => 'bad-ip',
+                        'ИНН' => '632111465177',
+                        'КПП' => '',
+                        'Description' => 'ИП Данилов',
+                    ]],
+                ], 200)
+                ->push([
+                    'ЮридическоеФизическоеЛицо' => 'ЮридическоеЛицо',
+                    'ИндивидуальныйПредприниматель' => false,
+                    'ИНН' => '632111465177',
+                ], 200)
+                ->push(['Ref_Key' => 'bad-ip'], 200),
+        ]);
+
+        $ref = app(OneCBpClient::class)->ensureCounterpartyRef(
+            '632111465177',
+            null,
+            'ИП Данилов Александр Павлович'
+        );
+        $this->assertSame('bad-ip', $ref);
+
+        Http::assertSent(function ($request): bool {
+            if ($request->method() !== 'PATCH') {
+                return false;
+            }
+            $data = $request->data();
+
+            return ($data['ЮридическоеФизическоеЛицо'] ?? null) === 'ФизическоеЛицо'
+                && ($data['ИндивидуальныйПредприниматель'] ?? null) === true;
+        });
     }
 
     public function test_bridge_check_pending_only_does_not_escalate(): void
