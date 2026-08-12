@@ -11,7 +11,6 @@ use App\Support\OrderFleetTransportDetailsResolver;
 use App\Support\PaymentAmountVatConverter;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentFormVat;
-use App\Support\PaymentMatchToken;
 use App\Support\RoutePointNormalizedData;
 use Illuminate\Validation\ValidationException;
 
@@ -121,7 +120,6 @@ final class OneCRealizationMapper
             $transport['trailer_plate'],
             $transport['driver_name'],
         );
-        $content = PaymentMatchToken::forOrderCustomer($order, 1).' '.$content;
 
         $documentDate = $order->unloading_date
             ?? $order->order_date

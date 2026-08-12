@@ -49,8 +49,8 @@ class OneCRealizationMapperTest extends TestCase
         $this->assertSame('2026-08-12', $payload['document_date']);
         $this->assertSame('2312178145', $payload['counterparty']['inn']);
         $this->assertSame('9ec829b8-632e-11f1-8745-fa163ea037a3', $payload['service_line']['nomenclature_ref']);
-        $this->assertStringStartsWith('CRM:ТЕСТ-1:C1 ', $payload['service_line']['content']);
-        $this->assertStringContainsString('Транспортно-экспедиционные услуги по Заявке № ТЕСТ-1 от 10.08.2026', $payload['service_line']['content']);
+        $this->assertStringStartsWith('Транспортно-экспедиционные услуги по Заявке № ТЕСТ-1 от 10.08.2026', $payload['service_line']['content']);
+        $this->assertStringNotContainsString('CRM:ТЕСТ-1:C1', $payload['service_line']['content']);
         $this->assertStringContainsString('публичной оферте', $payload['service_line']['content']);
         $this->assertSame([], $payload['extra_attributes']);
         $this->assertArrayNotHasKey('ДополнительныеРеквизиты', $payload['odata_stub']);
