@@ -9,7 +9,9 @@ use App\Models\PrintFormTemplate;
 use App\Services\Commercial\OrderMailContextService;
 use App\Services\ContractorCreditService;
 use App\Services\DocumentStorageService;
+use App\Services\Epd\OrderEpdPreviewPresenter;
 use App\Services\KpiConfigurationService;
+use App\Services\OneC\OneCEpdStubSyncService;
 use App\Services\OneC\OneCRealizationSyncService;
 use App\Services\OrderClaimService;
 use App\Services\OrderDocumentEdoAcknowledgementService;
@@ -41,6 +43,8 @@ class OrderWizardPagePresenter
         private readonly PrintFormTemplateOrderEligibility $printFormTemplateEligibility,
         private readonly DocumentStorageService $documentStorageService,
         private readonly OneCRealizationSyncService $oneCRealizationSync,
+        private readonly OneCEpdStubSyncService $oneCEpdStubSync,
+        private readonly OrderEpdPreviewPresenter $epdPreviewPresenter,
     ) {}
 
     /**
@@ -122,6 +126,8 @@ class OrderWizardPagePresenter
                 ? $this->orderMailContext->composeDefaultsForOrder($order)
                 : null,
             'oneCIntegration' => $this->oneCRealizationSync->wizardState($order, $user),
+            'epdIntegration' => $this->oneCEpdStubSync->wizardStates($order, $user),
+            'epdPreview' => $this->epdPreviewPresenter->forOrder($order),
         ];
     }
 
@@ -163,17 +169,17 @@ class OrderWizardPagePresenter
     private function orderStatusOptions(): array
     {
         return [
-            ['value' => 'new', 'label' => 'Новый заказ'],
-            ['value' => 'in_progress', 'label' => 'Выполняется'],
-            ['value' => 'documents', 'label' => 'Документы'],
-            ['value' => 'payment', 'label' => 'Оплата'],
-            ['value' => 'closed', 'label' => 'Завершено'],
-            ['value' => 'draft', 'label' => 'Черновик (legacy)'],
-            ['value' => 'pending', 'label' => 'На согласовании (legacy)'],
-            ['value' => 'confirmed', 'label' => 'Подтвержден (legacy)'],
-            ['value' => 'completed', 'label' => 'Завершен (legacy)'],
-            ['value' => 'cancelled', 'label' => 'Отменена'],
-            ['value' => 'disruption', 'label' => 'Срыв'],
+            ['value' => 'new', 'label' => '????? ?????'],
+            ['value' => 'in_progress', 'label' => '???????????'],
+            ['value' => 'documents', 'label' => '?????????'],
+            ['value' => 'payment', 'label' => '??????'],
+            ['value' => 'closed', 'label' => '?????????'],
+            ['value' => 'draft', 'label' => '???????? (legacy)'],
+            ['value' => 'pending', 'label' => '?? ???????????? (legacy)'],
+            ['value' => 'confirmed', 'label' => '??????????? (legacy)'],
+            ['value' => 'completed', 'label' => '???????? (legacy)'],
+            ['value' => 'cancelled', 'label' => '????????'],
+            ['value' => 'disruption', 'label' => '????'],
         ];
     }
 
@@ -183,10 +189,10 @@ class OrderWizardPagePresenter
     private function documentStatusOptions(): array
     {
         return [
-            ['value' => 'draft', 'label' => 'Черновик'],
-            ['value' => 'pending', 'label' => 'Ожидает'],
-            ['value' => 'signed', 'label' => 'Подписан'],
-            ['value' => 'sent', 'label' => 'Отправлен'],
+            ['value' => 'draft', 'label' => '????????'],
+            ['value' => 'pending', 'label' => '???????'],
+            ['value' => 'signed', 'label' => '????????'],
+            ['value' => 'sent', 'label' => '?????????'],
         ];
     }
 
@@ -454,11 +460,11 @@ class OrderWizardPagePresenter
     private function fallbackCargoTypeOptions(): array
     {
         return [
-            ['value' => 1, 'code' => 'general', 'label' => 'Общий груз'],
-            ['value' => 2, 'code' => 'dangerous', 'label' => 'Опасный груз'],
-            ['value' => 3, 'code' => 'temperature_controlled', 'label' => 'Температурный режим'],
-            ['value' => 4, 'code' => 'oversized', 'label' => 'Негабаритный груз'],
-            ['value' => 5, 'code' => 'fragile', 'label' => 'Хрупкий груз'],
+            ['value' => 1, 'code' => 'general', 'label' => '????? ????'],
+            ['value' => 2, 'code' => 'dangerous', 'label' => '??????? ????'],
+            ['value' => 3, 'code' => 'temperature_controlled', 'label' => '????????????? ?????'],
+            ['value' => 4, 'code' => 'oversized', 'label' => '???????????? ????'],
+            ['value' => 5, 'code' => 'fragile', 'label' => '??????? ????'],
         ];
     }
 
@@ -468,12 +474,12 @@ class OrderWizardPagePresenter
     private function fallbackLoadingTypeOptions(): array
     {
         return [
-            ['value' => 1, 'code' => 'rear', 'label' => 'Задняя'],
-            ['value' => 2, 'code' => 'side', 'label' => 'Боковая'],
-            ['value' => 3, 'code' => 'top', 'label' => 'Верхняя'],
-            ['value' => 4, 'code' => 'full', 'label' => 'Полная растентовка'],
-            ['value' => 5, 'code' => 'tail_lift', 'label' => 'Гидроборт'],
-            ['value' => 6, 'code' => 'crane', 'label' => 'Манипулятор'],
+            ['value' => 1, 'code' => 'rear', 'label' => '??????'],
+            ['value' => 2, 'code' => 'side', 'label' => '???????'],
+            ['value' => 3, 'code' => 'top', 'label' => '???????'],
+            ['value' => 4, 'code' => 'full', 'label' => '?????? ???????????'],
+            ['value' => 5, 'code' => 'tail_lift', 'label' => '?????????'],
+            ['value' => 6, 'code' => 'crane', 'label' => '???????????'],
         ];
     }
 
@@ -483,14 +489,14 @@ class OrderWizardPagePresenter
     private function fallbackTruckBodyTypeOptions(): array
     {
         return [
-            ['value' => 1, 'code' => 'all_closed', 'label' => 'Все закрытые'],
-            ['value' => 2, 'code' => 'all_open', 'label' => 'Все открытые'],
-            ['value' => 3, 'code' => 'tent', 'label' => 'Тент'],
-            ['value' => 4, 'code' => 'isothermal', 'label' => 'Изотерм'],
-            ['value' => 5, 'code' => 'refrigerator', 'label' => 'Рефрижератор'],
-            ['value' => 6, 'code' => 'container', 'label' => 'Контейнеровоз'],
-            ['value' => 7, 'code' => 'flatbed', 'label' => 'Бортовой'],
-            ['value' => 8, 'code' => 'all_metal', 'label' => 'Цельнометаллический'],
+            ['value' => 1, 'code' => 'all_closed', 'label' => '??? ????????'],
+            ['value' => 2, 'code' => 'all_open', 'label' => '??? ????????'],
+            ['value' => 3, 'code' => 'tent', 'label' => '????'],
+            ['value' => 4, 'code' => 'isothermal', 'label' => '???????'],
+            ['value' => 5, 'code' => 'refrigerator', 'label' => '????????????'],
+            ['value' => 6, 'code' => 'container', 'label' => '?????????????'],
+            ['value' => 7, 'code' => 'flatbed', 'label' => '????????'],
+            ['value' => 8, 'code' => 'all_metal', 'label' => '???????????????????'],
         ];
     }
 
@@ -500,15 +506,15 @@ class OrderWizardPagePresenter
     private function fallbackTrailerTypeOptions(): array
     {
         return [
-            ['value' => 1, 'code' => 'semi_trailer', 'label' => 'Полуприцеп'],
-            ['value' => 2, 'code' => 'trailer', 'label' => 'Прицеп'],
-            ['value' => 3, 'code' => 'road_train', 'label' => 'Автопоезд'],
-            ['value' => 4, 'code' => 'solo', 'label' => 'Одиночная машина'],
+            ['value' => 1, 'code' => 'semi_trailer', 'label' => '??????????'],
+            ['value' => 2, 'code' => 'trailer', 'label' => '??????'],
+            ['value' => 3, 'code' => 'road_train', 'label' => '?????????'],
+            ['value' => 4, 'code' => 'solo', 'label' => '????????? ??????'],
         ];
     }
 
     /**
-     * Все «свои компании» из справочника (флаг is_own_company), без лимита и visibleTo.
+     * ??? �???? ????????� ?? ??????????? (???? is_own_company), ??? ?????? ? visibleTo.
      *
      * @return Collection<int, Contractor>
      */
@@ -539,7 +545,7 @@ class OrderWizardPagePresenter
     }
 
     /**
-     * Оптимизированная загрузка контрагентов: только нужные для текущего заказа
+     * ???????????????? ???????? ????????????: ?????? ?????? ??? ???????? ??????
      *
      * @return Collection<int, Contractor>
      */
@@ -662,7 +668,7 @@ class OrderWizardPagePresenter
         $driver = $this->documentStorageService->configuredDriver();
         $label = $driver === DocumentStorageService::DRIVER_NEXTCLOUD
             ? 'Nextcloud (WebDAV)'
-            : 'локальное хранилище приложения';
+            : '????????? ????????? ??????????';
 
         return [
             'driver' => $driver,
@@ -682,10 +688,10 @@ class OrderWizardPagePresenter
                 : [];
             $prefix = $tail !== [] ? implode('/', $tail).'/' : '';
 
-            return $prefix.'order_documents/{номер_заказа}/';
+            return $prefix.'order_documents/{?????_??????}/';
         }
 
-        return 'storage/app/private/order_documents/{номер_заказа}/';
+        return 'storage/app/private/order_documents/{?????_??????}/';
     }
 
     private function canAssignResponsible(Request $request): bool

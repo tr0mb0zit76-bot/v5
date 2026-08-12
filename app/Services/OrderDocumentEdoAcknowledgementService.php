@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderDocumentEdoAcknowledgement;
 use App\Models\User;
 use App\Support\OrderDocumentClosingFulfillment;
+use App\Support\OrderDocumentEpdFulfillment;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -64,8 +65,12 @@ final class OrderDocumentEdoAcknowledgementService
             throw new \RuntimeException('Таблица ЭДО-подтверждений недоступна.');
         }
 
-        if (! in_array($payload['document_type'], OrderDocumentClosingFulfillment::CLOSING_TYPES, true)) {
-            throw new \InvalidArgumentException('ЭДО доступно только для закрывающих документов.');
+        $allowedTypes = [
+            ...OrderDocumentClosingFulfillment::CLOSING_TYPES,
+            ...OrderDocumentEpdFulfillment::EPD_TYPES,
+        ];
+        if (! in_array($payload['document_type'], $allowedTypes, true)) {
+            throw new \InvalidArgumentException('ЭДО доступно только для закрывающих документов и ЭПД.');
         }
 
         $slotKey = trim((string) ($payload['slot_key'] ?? ''));

@@ -50,6 +50,7 @@ use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
 use App\Http\Controllers\Orders\OrderIndexController;
 use App\Http\Controllers\Orders\OrderIntakeController;
 use App\Http\Controllers\Orders\OrderLinkController;
+use App\Http\Controllers\Orders\OrderOneCEpdStubController;
 use App\Http\Controllers\Orders\OrderOneCRealizationController;
 use App\Http\Controllers\Orders\OrderPortalInviteController;
 use App\Http\Controllers\Orders\OrderTransportSummaryController;
@@ -499,6 +500,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::delete('/orders/{order}/links', [OrderLinkController::class, 'destroy'])->name('orders.links.destroy');
             Route::post('/orders/{order}/one-c/realization', [OrderOneCRealizationController::class, 'store'])
                 ->name('orders.one-c.realization.store');
+            Route::post('/orders/{order}/one-c/etrn', [OrderOneCEpdStubController::class, 'storeEtrn'])
+                ->name('orders.one-c.etrn.store');
+            Route::post('/orders/{order}/one-c/expedition-receipt', [OrderOneCEpdStubController::class, 'storeExpeditionReceipt'])
+                ->name('orders.one-c.expedition-receipt.store');
             Route::delete('/orders/{order}', 'destroy')->withTrashed()->name('orders.destroy');
         });
     });

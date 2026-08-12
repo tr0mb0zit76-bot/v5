@@ -4,6 +4,7 @@ import { router } from '@inertiajs/vue3';
 import { ExternalLink, Trash2 } from 'lucide-vue-next';
 import axios from 'axios';
 import { expandClosingRowsForEdo, edoAcknowledgementToggleLabel, rowHasClosingEdoControls } from '@/support/orderDocumentClosingEdoRows.js';
+import { expandEpdRowsForAck, rowHasEpdEdoControls } from '@/support/orderDocumentEpdAckRows.js';
 import { buildRegistryTableRows } from '@/support/orderDocumentRegistryRows.js';
 import { attachTrackReceivedToRegistryRows } from '@/support/orderTrackingDates.js';
 import {
@@ -48,8 +49,12 @@ const rows = computed(() => {
         props.documentTypeOptions,
     );
 
-    const expandedRows = expandClosingRowsForEdo(
-        registryRows,
+    const expandedRows = expandEpdRowsForAck(
+        expandClosingRowsForEdo(
+            registryRows,
+            props.signedDocuments,
+            props.edoAcknowledgements,
+        ),
         props.signedDocuments,
         props.edoAcknowledgements,
     );
@@ -62,7 +67,7 @@ const rows = computed(() => {
 });
 
 const showReceivedDateColumn = computed(() => rows.value.some((row) => row.track_field));
-const showEdoColumn = computed(() => rows.value.some((row) => rowHasClosingEdoControls(row) || row.slot_kind?.endsWith('_closing')));
+const showEdoColumn = computed(() => rows.value.some((row) => rowHasClosingEdoControls(row) || rowHasEpdEdoControls(row) || row.slot_kind?.endsWith('_closing')));
 
 const localReceivedDates = reactive({});
 const savingTrackFields = reactive({});
@@ -93,7 +98,7 @@ watch(
                 delete trackSaveErrors[row.track_field];
             }
 
-            if (rowHasClosingEdoControls(row)) {
+            if (rowHasClosingEdoControls(row) || rowHasEpdEdoControls(row)) {
                 const key = edoRowKey(row);
                 activeEdoKeys.add(key);
                 localEdoState[key] = {
@@ -284,11 +289,15 @@ function onReceivedDateBlur(row) {
 function canEditEdoForRow(row) {
     return props.canEditEdo
         && resolvedOrderId.value
-        && rowHasClosingEdoControls(row)
+        && (rowHasClosingEdoControls(row) || rowHasEpdEdoControls(row))
         && !row.uploaded_file_preview_url;
 }
 
 function edoToggleLabel(row) {
+    if (row.edo_toggle_label) {
+        return row.edo_toggle_label;
+    }
+
     return edoAcknowledgementToggleLabel(row.party);
 }
 

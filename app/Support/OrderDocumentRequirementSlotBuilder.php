@@ -12,7 +12,7 @@ final class OrderDocumentRequirementSlotBuilder
     private const CLOSING_TYPES = ['upd', 'invoice_factura', 'act'];
 
     /** @var list<string> */
-    private const WAYBILL_TYPES = OrderDocumentTransportTypes::VALUES;
+    private const WAYBILL_TYPES = OrderDocumentTransportTypes::PAPER_VALUES;
 
     /**
      * @param  list<array{stage?: string|null, contractor_id?: int|null, contractor_name?: string|null}>  $performers
@@ -28,7 +28,8 @@ final class OrderDocumentRequirementSlotBuilder
      *     contractor_id: int|null,
      *     order_leg_stage: string|null,
      *     counterparty_label: string|null,
-     *     allows_multiple?: bool
+     *     allows_multiple?: bool,
+     *     is_required?: bool
      * }>
      */
     public static function buildRules(
@@ -100,6 +101,8 @@ final class OrderDocumentRequirementSlotBuilder
         }
 
         $rules[] = self::waybillRule($performers, $mode);
+        $rules[] = self::etrnRule($performers, $mode);
+        $rules[] = self::expeditionReceiptRule();
 
         return $rules;
     }
@@ -115,7 +118,7 @@ final class OrderDocumentRequirementSlotBuilder
         return [
             'key' => 'waybill',
             'label' => OrderDocumentTransportTypes::UNIFIED_LABEL,
-            'description' => 'Бумажная ТН, CMR, ЭТрН, ТСД или пакет файлов по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов.',
+            'description' => 'Бумажная ТН, CMR или ТСД по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов. ЭТрН — отдельный слот ЭПД.',
             'party' => 'carrier',
             'accepted_types' => self::WAYBILL_TYPES,
             'slot_kind' => 'waybill',
@@ -124,6 +127,52 @@ final class OrderDocumentRequirementSlotBuilder
             'order_leg_stage' => null,
             'counterparty_label' => $carrierLabel,
             'allows_multiple' => true,
+            'is_required' => true,
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $performers
+     * @return array<string, mixed>
+     */
+    private static function etrnRule(array $performers, string $clientRequestMode): array
+    {
+        $carrierLabel = self::primaryCarrierTransportLabel($performers, $clientRequestMode);
+
+        return [
+            'key' => 'etrn',
+            'label' => OrderDocumentTransportTypes::ETRN_LABEL,
+            'description' => 'Электронная транспортная накладная: отправка болванки в 1С / файл ЭТрН или отметка «отправлено» (ЭДО).',
+            'party' => 'carrier',
+            'accepted_types' => ['etrn'],
+            'slot_kind' => 'etrn',
+            'slot_key' => 'etrn',
+            'contractor_id' => null,
+            'order_leg_stage' => null,
+            'counterparty_label' => $carrierLabel,
+            'allows_multiple' => false,
+            'is_required' => true,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function expeditionReceiptRule(): array
+    {
+        return [
+            'key' => 'expedition_receipt',
+            'label' => OrderDocumentTransportTypes::EXPEDITION_RECEIPT_LABEL,
+            'description' => 'Экспедиторская расписка (клиент экспедиции): опционально. Файл или отметка «отправлено» (ЭДО). Не блокирует закрытие сделки.',
+            'party' => 'customer',
+            'accepted_types' => ['expedition_receipt'],
+            'slot_kind' => 'expedition_receipt',
+            'slot_key' => 'expedition_receipt',
+            'contractor_id' => null,
+            'order_leg_stage' => null,
+            'counterparty_label' => null,
+            'allows_multiple' => false,
+            'is_required' => false,
         ];
     }
 
@@ -193,6 +242,8 @@ final class OrderDocumentRequirementSlotBuilder
         }
 
         $rules[] = self::waybillRule($performers, $clientRequestMode);
+        $rules[] = self::etrnRule($performers, $clientRequestMode);
+        $rules[] = self::expeditionReceiptRule();
 
         return $rules;
     }
@@ -415,6 +466,7 @@ final class OrderDocumentRequirementSlotBuilder
             'order_leg_stage' => $slot['orderLegStage'],
             'counterparty_label' => $slot['contractorName'],
             'allows_multiple' => $isClosing,
+            'is_required' => true,
         ];
     }
 

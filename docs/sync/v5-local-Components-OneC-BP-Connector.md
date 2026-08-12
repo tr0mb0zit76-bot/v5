@@ -63,6 +63,8 @@
 
 **ЭДО (фаза A, исходящие заказчику):** `one-c:sync-edo-status` (hourly) → `ОбъектыУчетаДокументовЭДО` → исходящий ЭДО → upsert `order_document_edo_acknowledgements` (не затирает ручные). Дизайн: `docs/one-c-edo-status-sync-design.md`. Входящие от перевозчиков — позже.
 
+**ЭПД stubs (MVP):** болванки ЭТрН + экспедиторская расписка → `order_one_c_documents` (`etrn` / `expedition_receipt`); `OneCEpdStubSyncService`; вкладка мастера «ЭПД» (аккордеон + HTML титулы); чек-лист: ЭТрН обязателен, ЭР нет. OData paths — placeholders до spike 1С. Дизайн: `docs/one-c-epd-stub-design.md`.
+
 **Агент-контролёр моста** (код): `OneCPublicationCatalog`, `OneCBridgeHealthService`, `OneCBridgeCheckService`, `OneCBridgeEscalationService`; команды `one-c:bridge-check`, `pull-one-c-bank --company=`; виджет `OneCBridgeStatusWidget`; remember в Reconcile; автосоздание контрагента в `OneCBpClient::createRealization`. Дизайн: `docs/one-c-bridge-control-agent-design.md`. Env: `ONE_C_BRIDGE_ESCALATION_USER_ID`.
 
 ## Тесты

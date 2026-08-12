@@ -10,6 +10,7 @@ use App\Models\PrintFormTemplate;
 use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderDocumentClosingFulfillment;
 use App\Support\OrderDocumentDirection;
+use App\Support\OrderDocumentEpdFulfillment;
 use App\Support\OrderDocumentRequirementSlotBuilder;
 use App\Support\OrderDocumentTransportTypes;
 use App\Support\OrderDocumentWorkflowStatus;
@@ -255,6 +256,20 @@ class OrderDocumentRequirementService
         return array_map(function (array $rule) use ($documentCollection, $edoCollection, &$usedDocumentIds): array {
             if (OrderDocumentClosingFulfillment::isClosingSlotKind((string) ($rule['slot_kind'] ?? ''))) {
                 $completed = OrderDocumentClosingFulfillment::isRuleFulfilled(
+                    $rule,
+                    $documentCollection,
+                    $edoCollection,
+                );
+
+                return [
+                    ...$rule,
+                    'completed' => $completed,
+                    'matched_document_id' => null,
+                ];
+            }
+
+            if (OrderDocumentEpdFulfillment::isEpdSlotKind((string) ($rule['slot_kind'] ?? ''))) {
+                $completed = OrderDocumentEpdFulfillment::isRuleFulfilled(
                     $rule,
                     $documentCollection,
                     $edoCollection,

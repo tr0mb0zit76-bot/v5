@@ -5,6 +5,7 @@ namespace App\Services\Orders;
 use App\Models\Cargo;
 use App\Models\Order;
 use App\Models\OrderOneCDocument;
+use App\Services\OneC\OneCEpdStubSyncService;
 use App\Services\OneC\OneCRealizationSyncService;
 use App\Support\UserFacingDatabaseMessageResolver;
 use Illuminate\Database\QueryException;
@@ -17,6 +18,7 @@ class OrderDeletionService
     public function __construct(
         private readonly UserFacingDatabaseMessageResolver $databaseMessages,
         private readonly OneCRealizationSyncService $oneCRealizationSync,
+        private readonly OneCEpdStubSyncService $oneCEpdStubSync,
     ) {}
 
     public function delete(Order $order, callable $loadOrderForEditing): void
@@ -25,6 +27,7 @@ class OrderDeletionService
 
         // OData вне транзакции: при откате БД уже удалённый в 1С черновик не критичен.
         $this->oneCRealizationSync->deleteLinkedRealizationsForOrder($order);
+        $this->oneCEpdStubSync->deleteLinkedEpdStubsForOrder($order);
 
         try {
             DB::transaction(function () use ($order): void {

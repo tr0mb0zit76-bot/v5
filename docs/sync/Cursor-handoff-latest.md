@@ -3,7 +3,34 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-12 16:20 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `bd601a1a` · **тема:** УУ разнос + scheduler + Мост UI + ЭДО sync
+**Обновлено:** 2026-08-12 21:45 (ОТДАТЬ) · **Ветка:** `master` · **тема:** ЭПД stubs (ЭТрН + ЭР) + вкладка мастера
+
+### Итог сессии 2026-08-12 вечер — ЭПД / ЭТрН
+
+| Блок | Статус |
+| --- | --- |
+| План: болванка CRM→1С, HTML титулы, чек-лист | ✅ |
+| Вкладка мастера **«ЭПД»** (аккордеон ЭТрН / ЭР) | ✅ |
+| `OneCEpdStubMapper` / `OneCEpdStubSyncService` / BpClient | ✅ |
+| Слоты: ЭТрН обязательный, ЭР необязательный; бумага ТН/CMR отдельно | ✅ |
+| OData: `Document_ЭлектроннаяТранспортнаяНакладная` есть (80 полей) | ✅ |
+| ЭР Document в публикации Автоальянс | ❌ нет EntitySet |
+| Mapper → `СсылкаТитулГрузоотправителя*` (без `Контрагент_Key`) | ✅ |
+| Живой POST болванки в 1С | ⏳ не делали |
+
+**Доки:** `docs/one-c-epd-stub-design.md` · probe `scripts/probe-one-c-epd-entities.php`, `scripts/probe-one-c-etrn-fields.php`
+
+```text
+git pull
+npm run build
+php artisan optimize:clear
+```
+
+**Следующий шаг:** у 1С — EntitySet ЭР; пробный POST ЭТрН на тестовом заказе; smoke вкладки «ЭПД».
+
+---
+
+**Обновлено (архив):** 2026-08-12 16:20 (ОТДАТЬ + деплой) · **HEAD:** `bd601a1a` · **тема:** УУ разнос + scheduler + Мост UI + ЭДО sync
 
 ### Итог сессии 2026-08-12 — разнос / cron / UI / ЭДО
 

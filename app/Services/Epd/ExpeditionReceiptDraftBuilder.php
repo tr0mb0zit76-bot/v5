@@ -5,17 +5,12 @@ declare(strict_types=1);
 namespace App\Services\Epd;
 
 use App\Models\Order;
-use App\Support\OrderFleetTransportDetailsResolver;
 
 /**
- * HTML-превью титулов ЭТрН (заполненные / недостающие поля).
+ * HTML-превью экспедиторской расписки (клиент / экспедитор / груз / условия).
  */
-class EtrnDraftBuilder
+class ExpeditionReceiptDraftBuilder
 {
-    public function __construct(
-        private readonly OrderFleetTransportDetailsResolver $transportDetails,
-    ) {}
-
     /**
      * @return array{
      *     payload: array<string, mixed>,
@@ -27,12 +22,11 @@ class EtrnDraftBuilder
     {
         $order->loadMissing([
             'client:id,name,inn,kpp',
-            'carrier:id,name,inn,kpp',
-            'routePoints',
+            'ownCompany:id,name,inn',
             'cargoItems',
+            'routePoints',
         ]);
 
-        $transport = $this->transportDetails->resolveForOrder($order);
         $loading = $order->routePoints->first(fn ($point): bool => $point->type === 'loading');
         $unloading = $order->routePoints->filter(fn ($point): bool => $point->type === 'unloading')->last();
 
@@ -41,62 +35,50 @@ class EtrnDraftBuilder
                 'id' => $order->id,
                 'order_number' => $order->order_number,
                 'order_date' => optional($order->order_date)?->toDateString(),
-                'loading_date' => optional($order->loading_date)?->toDateString(),
-                'unloading_date' => optional($order->unloading_date)?->toDateString(),
             ],
             'parties' => [
-                'customer' => [
+                'client' => [
                     'id' => $order->customer_id,
                     'name' => $order->client?->name,
                     'inn' => $order->client?->inn,
                 ],
-                'carrier' => [
-                    'id' => $order->carrier_id,
-                    'name' => $order->carrier?->name,
-                    'inn' => $order->carrier?->inn,
+                'forwarder' => [
+                    'id' => $order->own_company_id,
+                    'name' => $order->ownCompany?->name,
+                    'inn' => $order->ownCompany?->inn,
                 ],
             ],
-            'route_points' => $order->routePoints->map(fn ($point): array => [
-                'type' => $point->type,
-                'address' => $point->address,
-                'planned_date' => optional($point->planned_date)?->toDateString(),
-                'planned_time_from' => $point->planned_time_from,
-                'planned_time_to' => $point->planned_time_to,
-            ])->values()->all(),
             'cargo_items' => $order->cargoItems->map(fn ($cargo): array => [
                 'title' => $cargo->title,
                 'weight' => $cargo->weight,
                 'volume' => $cargo->volume,
                 'package_count' => $cargo->package_count,
             ])->values()->all(),
-            'driver' => [
-                'full_name' => $transport['driver_name'],
-            ],
-            'vehicle' => [
-                'tractor_plate' => $transport['tractor_plate'],
-                'trailer_plate' => $transport['trailer_plate'],
+            'acceptance' => [
+                'loading_address' => $loading?->address,
+                'unloading_address' => $unloading?->address,
+                'loading_date' => optional($order->loading_date)?->toDateString(),
             ],
         ];
 
         $titles = [
-            $this->title('shipper', 'Грузоотправитель', [
+            $this->title('client', 'Клиент', [
                 ['key' => 'name', 'label' => 'Наименование', 'value' => $order->client?->name],
                 ['key' => 'inn', 'label' => 'ИНН', 'value' => $order->client?->inn],
-                ['key' => 'address', 'label' => 'Адрес погрузки', 'value' => $loading?->address],
             ]),
-            $this->title('carrier', 'Перевозчик', [
-                ['key' => 'name', 'label' => 'Наименование', 'value' => $order->carrier?->name],
-                ['key' => 'inn', 'label' => 'ИНН', 'value' => $order->carrier?->inn],
-                ['key' => 'driver', 'label' => 'Водитель', 'value' => $transport['driver_name']],
-                ['key' => 'vehicle', 'label' => 'ТС', 'value' => $transport['tractor_plate']],
-            ]),
-            $this->title('consignee', 'Грузополучатель', [
-                ['key' => 'name', 'label' => 'Наименование', 'value' => $order->client?->name],
-                ['key' => 'address', 'label' => 'Адрес выгрузки', 'value' => $unloading?->address],
+            $this->title('forwarder', 'Экспедитор', [
+                ['key' => 'name', 'label' => 'Наименование', 'value' => $order->ownCompany?->name],
+                ['key' => 'inn', 'label' => 'ИНН', 'value' => $order->ownCompany?->inn],
             ]),
             $this->title('cargo', 'Груз', [
                 ['key' => 'titles', 'label' => 'Наименование', 'value' => $order->cargoItems->pluck('title')->filter()->implode(', ') ?: null],
                 ['key' => 'weight', 'label' => 'Вес', 'value' => $order->cargoItems->pluck('weight')->filter()->first()],
+                ['key' => 'packages', 'label' => 'Мест', 'value' => $order->cargoItems->pluck('package_count')->filter()->first()],
+            ]),
+            $this->title('acceptance', 'Условия приёма', [
+                ['key' => 'loading_address', 'label' => 'Адрес приёма', 'value' => $loading?->address],
+                ['key' => 'unloading_address', 'label' => 'Адрес сдачи', 'value' => $unloading?->address],
+                ['key' => 'loading_date', 'label' => 'Дата приёма', 'value' => optional($order->loading_date)?->toDateString()],
             ]),
         ];
 
@@ -138,10 +120,8 @@ class EtrnDraftBuilder
     {
         $required = [
             'order.order_number',
-            'order.loading_date',
-            'order.unloading_date',
-            'parties.customer.name',
-            'parties.carrier.name',
+            'parties.client.name',
+            'parties.forwarder.name',
         ];
 
         $missing = [];

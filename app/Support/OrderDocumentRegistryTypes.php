@@ -21,6 +21,7 @@ final class OrderDocumentRegistryTypes
             'waybill',
             'etrn',
             'cmr',
+            'expedition_receipt',
             'upd',
             'invoice',
             'invoice_factura',

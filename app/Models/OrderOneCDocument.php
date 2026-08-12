@@ -11,6 +11,16 @@ class OrderOneCDocument extends Model
 {
     public const TYPE_REALIZATION = 'realization';
 
+    public const TYPE_ETRN = 'etrn';
+
+    public const TYPE_EXPEDITION_RECEIPT = 'expedition_receipt';
+
+    /** @var list<string> */
+    public const EPD_TYPES = [
+        self::TYPE_ETRN,
+        self::TYPE_EXPEDITION_RECEIPT,
+    ];
+
     public const STATUS_PENDING = 'pending';
 
     public const STATUS_CREATED = 'created';

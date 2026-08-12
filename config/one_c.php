@@ -94,6 +94,15 @@ return [
             'ONE_C_ODATA_ISSUED_INVOICE_FACTURA_PATH',
             '/odata/standard.odata/Document_СчетФактураВыданный'
         ),
+        /** Placeholder до spike OData ЭПД в конкретной ИБ. */
+        'etrn_path' => (string) env(
+            'ONE_C_ODATA_ETRN_PATH',
+            '/odata/standard.odata/Document_ЭлектроннаяТранспортнаяНакладная'
+        ),
+        'expedition_receipt_path' => (string) env(
+            'ONE_C_ODATA_EXPEDITION_RECEIPT_PATH',
+            '/odata/standard.odata/Document_ЭлектроннаяЭкспедиторскаяРасписка'
+        ),
     ],
 
     /**

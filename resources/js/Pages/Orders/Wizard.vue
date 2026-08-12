@@ -119,6 +119,16 @@
                 :one-c-integration="oneCIntegration"
             />
 
+            <OrderWizardEpdTab
+                v-else-if="activeTab === 'epd' && order?.id"
+                :order="order"
+                :is-order-form-editable="documentsTabEditable"
+                :epd-integration="epdIntegration"
+                :epd-preview="epdPreview"
+                :document-edo-acknowledgements="documentEdoAcknowledgements"
+                :can-edit-document-edo-acknowledgements="canEditDocumentEdoAcknowledgements"
+            />
+
             <OrderWizardOrderNormsTab
                 v-else-if="activeTab === 'order_norms'"
                 v-model:basic-terms-draft="orderBasicTermsDraft"
@@ -175,7 +185,7 @@
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { Calculator, ClipboardList, FileText, Gavel, History, Mail, MapPinned, Minus, Package, Plus, Scale, ScrollText, Wallet } from 'lucide-vue-next';
+import { Calculator, ClipboardList, FileDigit, FileText, Gavel, History, Mail, MapPinned, Minus, Package, Plus, Scale, ScrollText, Wallet } from 'lucide-vue-next';
 import OrderWizardBodyAlerts from '@/Components/Orders/OrderWizardBodyAlerts.vue';
 import OrderWizardCounterpartyModal from '@/Components/Orders/OrderWizardCounterpartyModal.vue';
 import OrderWizardDocumentAttachModal from '@/Components/Orders/OrderWizardDocumentAttachModal.vue';
@@ -192,6 +202,7 @@ const OrderWizardRouteTab = defineAsyncComponent(() => import('@/Components/Orde
 const OrderWizardCargoTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardCargoTab.vue'));
 const OrderWizardFinanceTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardFinanceTab.vue'));
 const OrderWizardDocumentsTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardDocumentsTab.vue'));
+const OrderWizardEpdTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardEpdTab.vue'));
 const OrderWizardClaimsTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardClaimsTab.vue'));
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { ORDER_STATUS_ICON_META, resolveOrderStatusIconKey } from '@/support/orderStatusDisplay.js';
@@ -323,6 +334,8 @@ const props = defineProps({
     orderMailThreads: { type: Array, default: () => [] },
     mailComposeDefaults: { type: Object, default: null },
     oneCIntegration: { type: Object, default: null },
+    epdIntegration: { type: Object, default: null },
+    epdPreview: { type: Object, default: null },
 });
 
 const leadPrecalculationSnapshot = computed(() => props.order?.lead_precalculation_snapshot ?? null);
@@ -337,6 +350,7 @@ const tabs = computed(() => [
     { key: 'finance', label: 'Финансы', icon: Wallet },
     { key: 'norms_penalties', label: 'Нормативы / штрафы', icon: Gavel },
     { key: 'documents', label: 'Документы', icon: FileText },
+    ...(props.order?.id ? [{ key: 'epd', label: 'ЭПД', icon: FileDigit }] : []),
     ...(showOrderNormsTab.value ? [{ key: 'order_norms', label: 'Нормы заявки', icon: ScrollText }] : []),
     ...(props.order?.id && props.canAccessClaims ? [{ key: 'claims', label: 'Претензии', icon: Scale }] : []),
     ...(props.order?.id && props.canAccessMail ? [{ key: 'mail', label: 'Переписка', icon: Mail }] : []),

@@ -52,6 +52,390 @@ final class OneCBpClient
     }
 
     /**
+     * Создать болванку ЭПД (ЭТрН / экспедиторская расписка).
+     *
+     * @param  array<string, mixed>  $payload  результат OneCEpdStubMapper::map()
+     * @return array{ref: string, number: string|null, date: string|null, raw: array<string, mixed>}
+     */
+    public function createEpdStub(string $documentType, array $payload): array
+    {
+        $driver = (string) config('one_c.driver', 'fake');
+
+        return match ($driver) {
+            'fake' => $this->createEpdStubFake($payload),
+            'http' => $this->createEpdStubHttp($documentType, $payload),
+            default => throw ValidationException::withMessages([
+                'one_c' => "Неизвестный драйвер 1С: {$driver}.",
+            ]),
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{ref: string, number: string|null, date: string|null, raw: array<string, mixed>, posted: bool}
+     */
+    public function updateEpdStub(string $documentType, string $ref, array $payload): array
+    {
+        $driver = (string) config('one_c.driver', 'fake');
+
+        return match ($driver) {
+            'fake' => $this->updateEpdStubFake($ref, $payload),
+            'http' => $this->updateEpdStubHttp($documentType, $ref, $payload),
+            default => throw ValidationException::withMessages([
+                'one_c' => "Неизвестный драйвер 1С: {$driver}.",
+            ]),
+        };
+    }
+
+    /**
+     * @return array{ref: string, number: ?string, posted: bool, raw: array<string, mixed>}|null
+     */
+    public function getEpdStub(string $documentType, string $ref, ?string $baseUrl = null): ?array
+    {
+        $driver = (string) config('one_c.driver', 'fake');
+
+        return match ($driver) {
+            'fake' => $this->getEpdStubFake($ref),
+            'http' => $this->getEpdStubHttp($documentType, $ref, $baseUrl),
+            default => throw ValidationException::withMessages([
+                'one_c' => "Неизвестный драйвер 1С: {$driver}.",
+            ]),
+        };
+    }
+
+    public function deleteUnpostedEpdStub(string $documentType, string $ref, ?string $baseUrl = null): void
+    {
+        $driver = (string) config('one_c.driver', 'fake');
+
+        match ($driver) {
+            'fake' => $this->deleteUnpostedEpdStubFake($ref),
+            'http' => $this->markUnpostedEpdStubDeletedHttp($documentType, $ref, $baseUrl),
+            default => throw ValidationException::withMessages([
+                'one_c' => "Неизвестный драйвер 1С: {$driver}.",
+            ]),
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{ref: string, number: string|null, date: string|null, raw: array<string, mixed>}
+     */
+    private function createEpdStubFake(array $payload): array
+    {
+        $ref = (string) Str::uuid();
+
+        return [
+            'ref' => $ref,
+            'number' => 'EPD-'.substr($ref, 0, 8),
+            'date' => (string) ($payload['document_date'] ?? now()->toDateString()),
+            'raw' => [
+                'driver' => 'fake',
+                'Ref_Key' => $ref,
+                'Posted' => false,
+                'payload' => $payload,
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{ref: string, number: string|null, date: string|null, raw: array<string, mixed>, posted: bool}
+     */
+    private function updateEpdStubFake(string $ref, array $payload): array
+    {
+        $current = $this->getEpdStubFake($ref);
+        if ($current === null) {
+            throw new RuntimeException('1С: документ ЭПД не найден для обновления.');
+        }
+
+        if ($current['posted']) {
+            throw ValidationException::withMessages([
+                'one_c' => 'Документ ЭПД в 1С проведён — изменение из CRM запрещено.',
+            ]);
+        }
+
+        return [
+            'ref' => $ref,
+            'number' => $current['number'],
+            'date' => (string) ($payload['document_date'] ?? now()->toDateString()),
+            'posted' => false,
+            'raw' => [
+                'driver' => 'fake',
+                'Ref_Key' => $ref,
+                'Posted' => false,
+                'Number' => $current['number'],
+                'payload' => $payload,
+            ],
+        ];
+    }
+
+    /**
+     * @return array{ref: string, number: ?string, posted: bool, raw: array<string, mixed>}|null
+     */
+    private function getEpdStubFake(string $ref): ?array
+    {
+        if ($ref === '' || $ref === 'missing') {
+            return null;
+        }
+
+        $posted = $ref === '22222222-2222-2222-2222-222222222222';
+
+        return [
+            'ref' => $ref,
+            'number' => 'EPD-'.substr($ref, 0, 8),
+            'posted' => $posted,
+            'raw' => [
+                'driver' => 'fake',
+                'Ref_Key' => $ref,
+                'Posted' => $posted,
+                'Number' => 'EPD-'.substr($ref, 0, 8),
+            ],
+        ];
+    }
+
+    private function deleteUnpostedEpdStubFake(string $ref): void
+    {
+        $doc = $this->getEpdStubFake($ref);
+        if ($doc === null) {
+            return;
+        }
+
+        if ($doc['posted']) {
+            throw ValidationException::withMessages([
+                'one_c' => 'Документ ЭПД в 1С проведён — удаление запрещено. Сначала разберите документ в 1С.',
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{ref: string, number: string|null, date: string|null, raw: array<string, mixed>}
+     */
+    private function createEpdStubHttp(string $documentType, array $payload): array
+    {
+        $body = $this->epdWriteBody($payload);
+        $base = $this->resolveBaseUrl($payload);
+        $path = $this->epdODataPath($documentType);
+        $response = $this->http()->post($base.$path, $body);
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                '1С отказала в создании ЭПД: HTTP '.$response->status().' '.$response->body()
+            );
+        }
+
+        /** @var array<string, mixed> $json */
+        $json = $response->json() ?? [];
+        $ref = (string) ($json['Ref_Key'] ?? $json['Ref'] ?? '');
+        if ($ref === '') {
+            throw new RuntimeException('1С не вернула Ref_Key документа ЭПД.');
+        }
+
+        return [
+            'ref' => $ref,
+            'number' => isset($json['Number']) ? (string) $json['Number'] : null,
+            'date' => isset($json['Date']) ? (string) $json['Date'] : null,
+            'raw' => $json,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{ref: string, number: string|null, date: string|null, raw: array<string, mixed>, posted: bool}
+     */
+    private function updateEpdStubHttp(string $documentType, string $ref, array $payload): array
+    {
+        $base = $this->resolveBaseUrl($payload);
+        $current = $this->getEpdStubHttp($documentType, $ref, $base);
+        if ($current === null) {
+            throw new RuntimeException('1С: документ ЭПД не найден для обновления.');
+        }
+
+        if ($current['posted']) {
+            throw ValidationException::withMessages([
+                'one_c' => 'Документ ЭПД в 1С проведён — изменение из CRM запрещено.',
+            ]);
+        }
+
+        $body = $this->epdWriteBody($payload);
+        $path = $this->epdODataPath($documentType);
+        $response = $this->http()->patch($base.$path."(guid'{$ref}')", $body);
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                '1С отказала в обновлении ЭПД: HTTP '.$response->status().' '.$response->body()
+            );
+        }
+
+        /** @var array<string, mixed> $json */
+        $json = $response->json() ?? [];
+        if ($json === []) {
+            $fresh = $this->getEpdStubHttp($documentType, $ref, $base);
+            $json = is_array($fresh['raw'] ?? null) ? $fresh['raw'] : ['Ref_Key' => $ref, 'Posted' => false];
+        }
+
+        return [
+            'ref' => $ref,
+            'number' => isset($json['Number']) ? (string) $json['Number'] : ($current['number'] ?? null),
+            'date' => isset($json['Date']) ? (string) $json['Date'] : null,
+            'posted' => (bool) ($json['Posted'] ?? false),
+            'raw' => $json,
+        ];
+    }
+
+    /**
+     * @return array{ref: string, number: ?string, posted: bool, raw: array<string, mixed>}|null
+     */
+    private function getEpdStubHttp(string $documentType, string $ref, ?string $baseUrl = null): ?array
+    {
+        $base = $this->resolveBaseUrl(null, $baseUrl);
+        $path = $this->epdODataPath($documentType);
+        $response = $this->http()->get($base.$path."(guid'{$ref}')", [
+            '$format' => 'json',
+        ]);
+
+        if ($response->status() === 404) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                '1С: не удалось прочитать ЭПД: HTTP '.$response->status().' '.$response->body()
+            );
+        }
+
+        /** @var array<string, mixed> $json */
+        $json = $response->json() ?? [];
+        $foundRef = (string) ($json['Ref_Key'] ?? $ref);
+
+        return [
+            'ref' => $foundRef,
+            'number' => isset($json['Number']) ? (string) $json['Number'] : null,
+            'posted' => (bool) ($json['Posted'] ?? false),
+            'raw' => $json,
+        ];
+    }
+
+    private function markUnpostedEpdStubDeletedHttp(string $documentType, string $ref, ?string $baseUrl = null): void
+    {
+        $base = $this->resolveBaseUrl(null, $baseUrl);
+        $doc = $this->getEpdStubHttp($documentType, $ref, $base);
+        if ($doc === null) {
+            return;
+        }
+
+        if ($doc['posted']) {
+            throw ValidationException::withMessages([
+                'one_c' => 'Документ ЭПД '.$doc['number'].' в 1С проведён — удаление запрещено. Сначала разберите документ в 1С.',
+            ]);
+        }
+
+        if ((bool) ($doc['raw']['DeletionMark'] ?? false)) {
+            return;
+        }
+
+        $path = $this->epdODataPath($documentType);
+        $response = $this->http()->patch($base.$path."(guid'{$ref}')", [
+            'DeletionMark' => true,
+        ]);
+
+        if ($response->status() === 404) {
+            return;
+        }
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                '1С: не удалось пометить ЭПД на удаление: HTTP '.$response->status().' '.$response->body()
+            );
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function epdWriteBody(array $payload): array
+    {
+        $base = $this->resolveBaseUrl($payload);
+        $documentType = (string) ($payload['document_type'] ?? '');
+
+        $body = is_array($payload['odata_stub'] ?? null) ? $payload['odata_stub'] : [];
+        unset(
+            $body['_crm_counterparty_match'],
+            $body['_crm_carrier_match'],
+            $body['_crm_organization_ref'],
+        );
+
+        if (! empty($payload['organization_ref'])) {
+            $body['Организация_Key'] = $payload['organization_ref'];
+        }
+
+        $customer = is_array($payload['counterparty'] ?? null) ? $payload['counterparty'] : [];
+        $customerRef = $this->resolvePartyRef($customer, $base, 'Заказчик');
+
+        // ЭТрН: в OData нет Контрагент_Key — стороны через СсылкаТитулГрузоотправителя*.
+        if ($documentType === 'etrn') {
+            $carrierParty = is_array($payload['parties']['carrier'] ?? null) ? $payload['parties']['carrier'] : [];
+            $carrierRef = $this->resolvePartyRef($carrierParty, $base, 'Перевозчик', optional: true);
+
+            $contractorType = 'StandardODATA.Catalog_Контрагенты';
+            $body['СсылкаТитулГрузоотправителяЗаказчик'] = $customerRef;
+            $body['СсылкаТитулГрузоотправителяЗаказчик_Type'] = $contractorType;
+            $body['СсылкаТитулГрузоотправителяГрузоотправитель'] = $customerRef;
+            $body['СсылкаТитулГрузоотправителяГрузоотправитель_Type'] = $contractorType;
+            $body['СсылкаТитулГрузоотправителяГрузополучатель'] = $customerRef;
+            $body['СсылкаТитулГрузоотправителяГрузополучатель_Type'] = $contractorType;
+            if ($carrierRef !== null) {
+                $body['СсылкаТитулГрузоотправителяПеревозчик'] = $carrierRef;
+                $body['СсылкаТитулГрузоотправителяПеревозчик_Type'] = $contractorType;
+            }
+
+            return $body;
+        }
+
+        // Экспедиторская расписка: EntitySet в публикации пока не найден — оставляем минимальный stub.
+        $body['Контрагент_Key'] = $customerRef;
+
+        return $body;
+    }
+
+    /**
+     * @param  array<string, mixed>  $party
+     */
+    private function resolvePartyRef(array $party, ?string $baseUrl, string $label, bool $optional = false): ?string
+    {
+        $inn = (string) ($party['inn'] ?? '');
+        if ($inn === '') {
+            if ($optional) {
+                return null;
+            }
+
+            throw ValidationException::withMessages([
+                'one_c' => "Для ЭПД нужен ИНН стороны «{$label}».",
+            ]);
+        }
+
+        $kpp = isset($party['kpp']) ? (string) $party['kpp'] : '';
+        $name = trim((string) ($party['name'] ?? ''));
+        if ($name === '') {
+            $name = $label.' '.$inn;
+        }
+
+        return $this->ensureCounterpartyRef($inn, $kpp !== '' ? $kpp : null, $name, $baseUrl);
+    }
+
+    private function epdODataPath(string $documentType): string
+    {
+        return match ($documentType) {
+            'etrn' => (string) config('one_c.odata.etrn_path'),
+            'expedition_receipt' => (string) config('one_c.odata.expedition_receipt_path'),
+            default => throw ValidationException::withMessages([
+                'one_c' => 'Неизвестный тип ЭПД для OData: '.$documentType,
+            ]),
+        };
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @return array{ref: string, number: string|null, date: string|null, raw: array<string, mixed>}
      */

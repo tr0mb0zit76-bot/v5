@@ -1,10 +1,10 @@
 import { stageLabel, toStageKey } from '@/support/orderPrintFormSlots.js';
 import { expandPerformersForCarrierSlots, filterExternalCarrierSlots, isOwnFleetCarrierOnly, splitCarrierSlotLabel } from '@/support/orderPerformers.js';
-import { TRANSPORT_DOCUMENT_LABEL, TRANSPORT_DOCUMENT_TYPES } from '@/support/orderDocumentTypes.js';
+import { TRANSPORT_DOCUMENT_LABEL, PAPER_TRANSPORT_DOCUMENT_TYPES, ETRN_DOCUMENT_LABEL, EXPEDITION_RECEIPT_LABEL } from '@/support/orderDocumentTypes.js';
 
 const REQUEST_TYPES = ['request', 'contract_request'];
 const CLOSING_TYPES = ['upd', 'invoice_factura', 'act'];
-const WAYBILL_TYPES = TRANSPORT_DOCUMENT_TYPES;
+const WAYBILL_TYPES = PAPER_TRANSPORT_DOCUMENT_TYPES;
 
 function isCashPaymentForm(paymentForm) {
     return String(paymentForm ?? '').trim().toLowerCase() === 'cash';
@@ -41,7 +41,7 @@ function buildWaybillRule(performers, clientRequestMode) {
     return {
         key: 'waybill',
         label: TRANSPORT_DOCUMENT_LABEL,
-        description: 'Бумажная ТН, CMR, ЭТрН, ТСД или пакет файлов по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов.',
+        description: 'Бумажная ТН, CMR или ТСД по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов. ЭТрН — отдельный слот ЭПД.',
         party: 'carrier',
         accepted_types: WAYBILL_TYPES,
         slot_kind: 'waybill',
@@ -50,6 +50,41 @@ function buildWaybillRule(performers, clientRequestMode) {
         order_leg_stage: null,
         counterparty_label: primaryCarrierTransportLabel(performers, clientRequestMode),
         allows_multiple: true,
+        is_required: true,
+    };
+}
+
+function buildEtrnRule(performers, clientRequestMode) {
+    return {
+        key: 'etrn',
+        label: ETRN_DOCUMENT_LABEL,
+        description: 'Электронная транспортная накладная: отправка болванки в 1С / файл ЭТрН или отметка «отправлено» (ЭДО).',
+        party: 'carrier',
+        accepted_types: ['etrn'],
+        slot_kind: 'etrn',
+        slot_key: 'etrn',
+        contractor_id: null,
+        order_leg_stage: null,
+        counterparty_label: primaryCarrierTransportLabel(performers, clientRequestMode),
+        allows_multiple: false,
+        is_required: true,
+    };
+}
+
+function buildExpeditionReceiptRule() {
+    return {
+        key: 'expedition_receipt',
+        label: EXPEDITION_RECEIPT_LABEL,
+        description: 'Экспедиторская расписка (клиент экспедиции): опционально. Файл или отметка «отправлено» (ЭДО). Не блокирует закрытие сделки.',
+        party: 'customer',
+        accepted_types: ['expedition_receipt'],
+        slot_kind: 'expedition_receipt',
+        slot_key: 'expedition_receipt',
+        contractor_id: null,
+        order_leg_stage: null,
+        counterparty_label: null,
+        allows_multiple: false,
+        is_required: false,
     };
 }
 
@@ -95,6 +130,8 @@ function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_r
     }
 
     rules.push(buildWaybillRule(performers, clientRequestMode));
+    rules.push(buildEtrnRule(performers, clientRequestMode));
+    rules.push(buildExpeditionReceiptRule());
 
     return rules;
 }
@@ -392,6 +429,8 @@ export function buildDocumentRequirementRules(
     });
 
     rules.push(buildWaybillRule(performers, mode));
+    rules.push(buildEtrnRule(performers, mode));
+    rules.push(buildExpeditionReceiptRule());
 
     return rules;
 }

@@ -35,9 +35,9 @@ class OrderStatusService
         $actualUnloadingAt = $milestones['actual_unloading'];
 
         $checklist = $this->orderDocumentRequirementService->checklistForOrder($order);
-        $requiredDocumentsCompleted = collect($checklist)->every(
-            fn (array $item): bool => (bool) ($item['completed'] ?? false)
-        );
+        $requiredDocumentsCompleted = collect($checklist)
+            ->filter(fn (array $item): bool => ($item['is_required'] ?? true) !== false)
+            ->every(fn (array $item): bool => (bool) ($item['completed'] ?? false));
         $customerPaid = $this->isPaid($order, 'customer');
         $carrierPaid = $this->isPaid($order, 'carrier');
         $managerPaid = $this->isPaid($order, 'manager');
@@ -173,6 +173,7 @@ class OrderStatusService
         $messages = [];
 
         $missingDocuments = collect($checklist)
+            ->filter(fn (array $item): bool => ($item['is_required'] ?? true) !== false)
             ->reject(fn (array $item): bool => (bool) ($item['completed'] ?? false))
             ->pluck('label')
             ->filter()
