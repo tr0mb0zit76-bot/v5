@@ -669,6 +669,10 @@ final class OneCBpClient
                 'driver' => 'fake',
                 'Ref_Key' => $ref,
                 'Posted' => $posted,
+                'Number' => 'FAKE-'.substr($ref, 0, 8),
+                'Контрагент_Key' => 'cp-fake',
+                'ЭтоУниверсальныйДокумент' => str_starts_with($ref, 'real-with-edo'),
+                'ВидЭлектронногоДокумента' => 'АктВыполненныхРабот',
                 'СчетНаОплатуПокупателю_Key' => $invoiceRef ?? '00000000-0000-0000-0000-000000000000',
             ],
         ];
@@ -1021,6 +1025,354 @@ final class OneCBpClient
                 '1С: не удалось исправить тип контрагента (ИП): HTTP '.$response->status().' '.$response->body()
             );
         }
+    }
+
+    /**
+     * Связи объект учёта (реализация / СФ) ↔ электронный документ ЭДО.
+     *
+     * @return list<array{
+     *     edo_ref: string,
+     *     edo_type: string,
+     *     object_ref: string,
+     *     object_type: string,
+     *     actual: bool
+     * }>
+     */
+    public function findEdoLinksForAccountingObject(string $objectRef, ?string $baseUrl = null): array
+    {
+        $driver = (string) config('one_c.driver', 'fake');
+
+        return match ($driver) {
+            'fake' => $this->findEdoLinksForAccountingObjectFake($objectRef),
+            'http' => $this->findEdoLinksForAccountingObjectHttp($objectRef, $baseUrl),
+            default => throw ValidationException::withMessages([
+                'one_c' => "Неизвестный драйвер 1С: {$driver}.",
+            ]),
+        };
+    }
+
+    /**
+     * @return array{
+     *     ref: string,
+     *     number: ?string,
+     *     sent_at: ?string,
+     *     signed_at: ?string,
+     *     regulation_type: ?string,
+     *     amount: float,
+     *     counterparty_ref: ?string,
+     *     raw: array<string, mixed>
+     * }|null
+     */
+    public function getOutgoingEdoDocument(string $ref, ?string $baseUrl = null): ?array
+    {
+        $driver = (string) config('one_c.driver', 'fake');
+
+        return match ($driver) {
+            'fake' => $this->getOutgoingEdoDocumentFake($ref),
+            'http' => $this->getOutgoingEdoDocumentHttp($ref, $baseUrl),
+            default => throw ValidationException::withMessages([
+                'one_c' => "Неизвестный драйвер 1С: {$driver}.",
+            ]),
+        };
+    }
+
+    /**
+     * @return array{state: ?string, changed_at: ?string, raw: array<string, mixed>}|null
+     */
+    public function getEdoDocumentState(string $edoRef, ?string $baseUrl = null): ?array
+    {
+        $driver = (string) config('one_c.driver', 'fake');
+
+        return match ($driver) {
+            'fake' => $this->getEdoDocumentStateFake($edoRef),
+            'http' => $this->getEdoDocumentStateHttp($edoRef, $baseUrl),
+            default => throw ValidationException::withMessages([
+                'one_c' => "Неизвестный драйвер 1С: {$driver}.",
+            ]),
+        };
+    }
+
+    /**
+     * СФ выданный по основанию = реализация (поиск в PHP — OData filter по ДокументОснование ненадёжен).
+     *
+     * @return list<array{ref: string, number: ?string, issued: bool, issue_method: int, issued_at: ?string, raw: array<string, mixed>}>
+     */
+    public function findIssuedInvoiceFacturasForRealization(
+        string $realizationRef,
+        string $counterpartyRef,
+        ?string $baseUrl = null,
+    ): array {
+        $driver = (string) config('one_c.driver', 'fake');
+
+        return match ($driver) {
+            'fake' => $this->findIssuedInvoiceFacturasForRealizationFake($realizationRef),
+            'http' => $this->findIssuedInvoiceFacturasForRealizationHttp($realizationRef, $counterpartyRef, $baseUrl),
+            default => throw ValidationException::withMessages([
+                'one_c' => "Неизвестный драйвер 1С: {$driver}.",
+            ]),
+        };
+    }
+
+    /**
+     * @return list<array{edo_ref: string, edo_type: string, object_ref: string, object_type: string, actual: bool}>
+     */
+    private function findEdoLinksForAccountingObjectFake(string $objectRef): array
+    {
+        if (! str_starts_with($objectRef, 'real-with-edo')) {
+            return [];
+        }
+
+        return [[
+            'edo_ref' => 'edo-out-'.substr($objectRef, -8),
+            'edo_type' => 'StandardODATA.Document_ЭлектронныйДокументИсходящийЭДО',
+            'object_ref' => $objectRef,
+            'object_type' => 'StandardODATA.Document_РеализацияТоваровУслуг',
+            'actual' => true,
+        ]];
+    }
+
+    /**
+     * @return list<array{edo_ref: string, edo_type: string, object_ref: string, object_type: string, actual: bool}>
+     */
+    private function findEdoLinksForAccountingObjectHttp(string $objectRef, ?string $baseUrl = null): array
+    {
+        $base = $this->resolveBaseUrl(null, $baseUrl);
+        $path = (string) config('one_c.odata.edo_accounting_objects_path');
+        $escaped = str_replace("'", "''", $objectRef);
+        $response = $this->http()->get($base.$path, [
+            '$format' => 'json',
+            '$filter' => "ОбъектУчета eq '{$escaped}'",
+            '$top' => 20,
+        ]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                '1С: не удалось прочитать связи ЭДО: HTTP '.$response->status().' '.$response->body()
+            );
+        }
+
+        $rows = [];
+        foreach ($response->json('value') ?? [] as $raw) {
+            if (! is_array($raw)) {
+                continue;
+            }
+            $edoRef = trim((string) ($raw['ЭлектронныйДокумент'] ?? ''));
+            if ($edoRef === '') {
+                continue;
+            }
+            $rows[] = [
+                'edo_ref' => $edoRef,
+                'edo_type' => (string) ($raw['ЭлектронныйДокумент_Type'] ?? ''),
+                'object_ref' => (string) ($raw['ОбъектУчета'] ?? $objectRef),
+                'object_type' => (string) ($raw['ОбъектУчета_Type'] ?? ''),
+                'actual' => (bool) ($raw['Актуальный'] ?? true),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array{ref: string, number: ?string, sent_at: ?string, signed_at: ?string, regulation_type: ?string, amount: float, counterparty_ref: ?string, raw: array<string, mixed>}|null
+     */
+    private function getOutgoingEdoDocumentFake(string $ref): ?array
+    {
+        if ($ref === '' || $ref === 'missing' || str_starts_with($ref, '00000000')) {
+            return null;
+        }
+
+        return [
+            'ref' => $ref,
+            'number' => 'УПД-100',
+            'sent_at' => '2026-08-01T12:00:00',
+            'signed_at' => '2026-08-01T11:55:00',
+            'regulation_type' => 'УПД',
+            'amount' => 70000.0,
+            'counterparty_ref' => 'cp-fake',
+            'raw' => [
+                'driver' => 'fake',
+                'Ref_Key' => $ref,
+                'НомерДокумента' => 'УПД-100',
+                'ДатаОтправки' => '2026-08-01T12:00:00',
+                'ТипРегламента' => 'УПД',
+            ],
+        ];
+    }
+
+    /**
+     * @return array{ref: string, number: ?string, sent_at: ?string, signed_at: ?string, regulation_type: ?string, amount: float, counterparty_ref: ?string, raw: array<string, mixed>}|null
+     */
+    private function getOutgoingEdoDocumentHttp(string $ref, ?string $baseUrl = null): ?array
+    {
+        $base = $this->resolveBaseUrl(null, $baseUrl);
+        $path = (string) config('one_c.odata.edo_outgoing_document_path');
+        $response = $this->http()->get($base.$path."(guid'{$ref}')", [
+            '$format' => 'json',
+        ]);
+
+        if ($response->status() === 404) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                '1С: не удалось прочитать исходящий ЭДО: HTTP '.$response->status().' '.$response->body()
+            );
+        }
+
+        /** @var array<string, mixed> $json */
+        $json = $response->json() ?? [];
+
+        return [
+            'ref' => (string) ($json['Ref_Key'] ?? $ref),
+            'number' => $this->nullIfBlank($json['НомерДокумента'] ?? null),
+            'sent_at' => $this->nullIfEmptyOneCDate($json['ДатаОтправки'] ?? null),
+            'signed_at' => $this->nullIfEmptyOneCDate($json['ДатаПодписания'] ?? null),
+            'regulation_type' => $this->nullIfBlank($json['ТипРегламента'] ?? null),
+            'amount' => round((float) ($json['СуммаДокумента'] ?? 0), 2),
+            'counterparty_ref' => $this->nullIfBlank($json['Контрагент'] ?? null),
+            'raw' => $json,
+        ];
+    }
+
+    /**
+     * @return array{state: ?string, changed_at: ?string, raw: array<string, mixed>}|null
+     */
+    private function getEdoDocumentStateFake(string $edoRef): ?array
+    {
+        if ($edoRef === '' || str_starts_with($edoRef, 'edo-pending')) {
+            return ['state' => 'ТребуетсяПодписание', 'changed_at' => null, 'raw' => ['driver' => 'fake']];
+        }
+
+        return [
+            'state' => 'ОбменЗавершен',
+            'changed_at' => '2026-08-02T10:00:00',
+            'raw' => ['driver' => 'fake', 'Состояние' => 'ОбменЗавершен'],
+        ];
+    }
+
+    /**
+     * @return array{state: ?string, changed_at: ?string, raw: array<string, mixed>}|null
+     */
+    private function getEdoDocumentStateHttp(string $edoRef, ?string $baseUrl = null): ?array
+    {
+        $base = $this->resolveBaseUrl(null, $baseUrl);
+        $path = (string) config('one_c.odata.edo_document_states_path');
+        $escaped = str_replace("'", "''", $edoRef);
+        $response = $this->http()->get($base.$path, [
+            '$format' => 'json',
+            '$filter' => "ЭлектронныйДокумент eq '{$escaped}'",
+            '$top' => 5,
+        ]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                '1С: не удалось прочитать состояние ЭДО: HTTP '.$response->status().' '.$response->body()
+            );
+        }
+
+        $value = $response->json('value');
+        if (! is_array($value) || $value === []) {
+            return null;
+        }
+
+        /** @var array<string, mixed> $row */
+        $row = $value[0];
+
+        return [
+            'state' => $this->nullIfBlank($row['Состояние'] ?? null),
+            'changed_at' => $this->nullIfEmptyOneCDate($row['ДатаИзменения'] ?? null),
+            'raw' => $row,
+        ];
+    }
+
+    /**
+     * @return list<array{ref: string, number: ?string, issued: bool, issue_method: int, issued_at: ?string, raw: array<string, mixed>}>
+     */
+    private function findIssuedInvoiceFacturasForRealizationFake(string $realizationRef): array
+    {
+        if (! str_starts_with($realizationRef, 'real-with-edo')) {
+            return [];
+        }
+
+        return [[
+            'ref' => 'sf-'.substr($realizationRef, -8),
+            'number' => '0000-000100',
+            'issued' => true,
+            'issue_method' => 1,
+            'issued_at' => '2026-08-01',
+            'raw' => ['driver' => 'fake'],
+        ]];
+    }
+
+    /**
+     * @return list<array{ref: string, number: ?string, issued: bool, issue_method: int, issued_at: ?string, raw: array<string, mixed>}>
+     */
+    private function findIssuedInvoiceFacturasForRealizationHttp(
+        string $realizationRef,
+        string $counterpartyRef,
+        ?string $baseUrl = null,
+    ): array {
+        $base = $this->resolveBaseUrl(null, $baseUrl);
+        $path = (string) config('one_c.odata.issued_invoice_factura_path');
+        $query = [
+            '$format' => 'json',
+            '$top' => 30,
+            '$orderby' => 'Date desc',
+        ];
+        if ($counterpartyRef !== '' && ! str_starts_with($counterpartyRef, '00000000')) {
+            $query['$filter'] = "Контрагент_Key eq guid'{$counterpartyRef}' and DeletionMark eq false";
+        }
+
+        $response = $this->http()->get($base.$path, $query);
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                '1С: не удалось прочитать СФ выданные: HTTP '.$response->status().' '.$response->body()
+            );
+        }
+
+        $rows = [];
+        foreach ($response->json('value') ?? [] as $raw) {
+            if (! is_array($raw)) {
+                continue;
+            }
+            if ((string) ($raw['ДокументОснование'] ?? '') !== $realizationRef) {
+                continue;
+            }
+            $rows[] = [
+                'ref' => (string) ($raw['Ref_Key'] ?? ''),
+                'number' => $this->nullIfBlank($raw['Number'] ?? null),
+                'issued' => (bool) ($raw['Выставлен'] ?? false),
+                'issue_method' => (int) ($raw['КодСпособаВыставления'] ?? 0),
+                'issued_at' => $this->nullIfEmptyOneCDate($raw['ДатаВыставления'] ?? null),
+                'raw' => $raw,
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function nullIfBlank(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $trimmed = trim((string) $value);
+
+        return $trimmed !== '' ? $trimmed : null;
+    }
+
+    private function nullIfEmptyOneCDate(mixed $value): ?string
+    {
+        $raw = $this->nullIfBlank($value);
+        if ($raw === null) {
+            return null;
+        }
+        if (str_starts_with($raw, '0001-01-01')) {
+            return null;
+        }
+
+        return $raw;
     }
 
     private function http(): PendingRequest

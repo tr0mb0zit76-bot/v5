@@ -28,6 +28,9 @@ Schedule::command('one-c:bridge-check')
 Schedule::command('one-c:sync-invoice-numbers')
     ->twiceDaily(1, 13)
     ->withoutOverlapping();
+Schedule::command('one-c:sync-edo-status')
+    ->hourly()
+    ->withoutOverlapping();
 Schedule::command('improvement:collect-signals')->dailyAt('07:40');
 Schedule::command('improvement:run-hypothesis-pipeline')->dailyAt('08:00');
 

@@ -78,6 +78,34 @@ return [
             'ONE_C_ODATA_BUYER_INVOICE_PATH',
             '/odata/standard.odata/Document_СчетНаОплатуПокупателю'
         ),
+        'edo_accounting_objects_path' => (string) env(
+            'ONE_C_ODATA_EDO_ACCOUNTING_OBJECTS_PATH',
+            '/odata/standard.odata/InformationRegister_ОбъектыУчетаДокументовЭДО'
+        ),
+        'edo_document_states_path' => (string) env(
+            'ONE_C_ODATA_EDO_DOCUMENT_STATES_PATH',
+            '/odata/standard.odata/InformationRegister_СостоянияДокументовЭДО'
+        ),
+        'edo_outgoing_document_path' => (string) env(
+            'ONE_C_ODATA_EDO_OUTGOING_PATH',
+            '/odata/standard.odata/Document_ЭлектронныйДокументИсходящийЭДО'
+        ),
+        'issued_invoice_factura_path' => (string) env(
+            'ONE_C_ODATA_ISSUED_INVOICE_FACTURA_PATH',
+            '/odata/standard.odata/Document_СчетФактураВыданный'
+        ),
+    ],
+
+    /**
+     * Sync статусов ЭДО (исходящие заказчику) → order_document_edo_acknowledgements.
+     * Состояния = «уже отправлено» (для сроков оплаты / чек-листа closing).
+     */
+    'edo_sync' => [
+        'sent_states' => [
+            'ОбменЗавершен',
+            'ОжидаетсяПодтверждение',
+            'ОжидаетсяПодтверждениеОператора',
+        ],
     ],
 
     /**
@@ -99,6 +127,18 @@ return [
             ? (int) env('ONE_C_BRIDGE_ESCALATION_USER_ID')
             : null,
         'pending_attention_min' => (int) env('ONE_C_BRIDGE_PENDING_ATTENTION_MIN', 1),
+    ],
+
+    /**
+     * Технический пользователь для cron-pull банка / авторазнесения (imported_by, allocated_by).
+     * Не логинится; создаётся при первом pull, если нет.
+     */
+    'system_actor' => [
+        'user_id' => env('ONE_C_SYSTEM_USER_ID') !== null && env('ONE_C_SYSTEM_USER_ID') !== ''
+            ? (int) env('ONE_C_SYSTEM_USER_ID')
+            : null,
+        'email' => (string) env('ONE_C_SYSTEM_USER_EMAIL', 'system@crm.local'),
+        'name' => (string) env('ONE_C_SYSTEM_USER_NAME', 'Система'),
     ],
 
     /**

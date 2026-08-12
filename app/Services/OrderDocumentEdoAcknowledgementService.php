@@ -114,6 +114,85 @@ final class OrderDocumentEdoAcknowledgementService
     }
 
     /**
+     * Upsert из sync 1С. Не затирает ручные отметки (confirmed_by заполнен).
+     *
+     * @param  array{
+     *     party: string,
+     *     document_type: string,
+     *     slot_key?: string|null,
+     *     contractor_id?: int|null,
+     *     document_number: string,
+     *     document_date?: string|null,
+     * }  $payload
+     * @return array{changed: bool, acknowledgement: OrderDocumentEdoAcknowledgement|null, skipped_manual: bool}
+     */
+    public function upsertFromOneC(Order $order, array $payload): array
+    {
+        if (! Schema::hasTable('order_document_edo_acknowledgements')) {
+            return ['changed' => false, 'acknowledgement' => null, 'skipped_manual' => false];
+        }
+
+        if (! in_array($payload['document_type'], OrderDocumentClosingFulfillment::CLOSING_TYPES, true)) {
+            throw new \InvalidArgumentException('ЭДО доступно только для закрывающих документов.');
+        }
+
+        $slotKey = trim((string) ($payload['slot_key'] ?? ''));
+        $contractorId = isset($payload['contractor_id']) && (int) $payload['contractor_id'] > 0
+            ? (int) $payload['contractor_id']
+            : 0;
+        $number = trim((string) ($payload['document_number'] ?? ''));
+        if ($number === '') {
+            throw new \InvalidArgumentException('Укажите номер документа для отметки ЭДО.');
+        }
+
+        $documentDate = filled($payload['document_date'] ?? null)
+            ? (string) $payload['document_date']
+            : null;
+
+        $existing = OrderDocumentEdoAcknowledgement::query()
+            ->where('order_id', $order->id)
+            ->where('party', strtolower(trim($payload['party'])))
+            ->where('document_type', $payload['document_type'])
+            ->where('slot_key', $slotKey)
+            ->where('contractor_id', $contractorId)
+            ->first();
+
+        if ($existing !== null && $existing->confirmed_by !== null) {
+            return ['changed' => false, 'acknowledgement' => $existing, 'skipped_manual' => true];
+        }
+
+        $same = $existing !== null
+            && (bool) $existing->received_via_edo
+            && trim((string) $existing->document_number) === $number
+            && optional($existing->document_date)?->toDateString() === $documentDate;
+
+        if ($same) {
+            return ['changed' => false, 'acknowledgement' => $existing, 'skipped_manual' => false];
+        }
+
+        $acknowledgement = OrderDocumentEdoAcknowledgement::query()->updateOrCreate(
+            [
+                'order_id' => $order->id,
+                'party' => strtolower(trim($payload['party'])),
+                'document_type' => $payload['document_type'],
+                'slot_key' => $slotKey,
+                'contractor_id' => $contractorId,
+            ],
+            [
+                'received_via_edo' => true,
+                'document_number' => $number,
+                'document_date' => $documentDate,
+                'confirmed_by' => null,
+                'confirmed_at' => now(),
+            ],
+        );
+
+        $this->orderCompensationService->resyncPaymentSchedulesForOrder($order->fresh());
+
+        return ['changed' => true, 'acknowledgement' => $acknowledgement->fresh(), 'skipped_manual' => false];
+    }
+
+    /**
      * @return array<string, bool>
      */
     public function closingColumnEdoFlags(Order $order): array

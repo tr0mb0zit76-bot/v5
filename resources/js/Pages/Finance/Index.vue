@@ -81,7 +81,7 @@
 
             <div
                 v-if="can_access_payment_reconcile"
-                class="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-zinc-200 pb-2 dark:border-zinc-700"
+                class="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-zinc-200 pb-2 dark:border-zinc-700"
             >
                 <div class="flex flex-wrap gap-2">
                     <Link
@@ -99,7 +99,8 @@
                 </div>
                 <OneCBridgeStatusWidget
                     v-if="cashflowTab === 'reconcile'"
-                    class="w-full max-w-md shrink-0 sm:w-auto"
+                    variant="compact"
+                    class="ml-auto"
                 />
             </div>
 

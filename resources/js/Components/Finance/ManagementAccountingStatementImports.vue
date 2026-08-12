@@ -1,36 +1,35 @@
 <template>
-    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-        <section :class="`${crmPanel} max-w-3xl shrink-0 space-y-3 p-4`">
-            <div class="space-y-1">
-                <h2 :class="crmSectionTitle">Загрузка выписки</h2>
-                <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                    Реестр банковских документов (XLSX). Повторная загрузка того же файла не создаст дубликат — откроется существующая выписка.
-                </p>
-            </div>
-            <form class="flex flex-wrap items-end gap-3" @submit.prevent="submitImport">
-                <label class="w-full max-w-md space-y-1 text-sm sm:flex-1">
-                    <span :class="crmLabel">Счёт (необязательно)</span>
-                    <select v-model="importForm.bank_account_id" :class="crmFieldFluid">
-                        <option :value="null">Определить из файла / сводная</option>
-                        <option v-for="account in bank_accounts" :key="account.id" :value="Number(account.id)">
-                            {{ account.bank_name }} · {{ account.account_mask }} ({{ account.currency }})
-                        </option>
-                    </select>
-                </label>
-                <label class="min-w-[10rem] space-y-1 text-sm">
-                    <span :class="crmLabel">Файл XLSX</span>
-                    <input
-                        type="file"
-                        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        class="block w-full max-w-xs text-sm"
-                        @change="onFileChange"
-                    >
-                </label>
-                <button type="submit" :disabled="importForm.processing" :class="crmBtnPrimary">
-                    Загрузить выписку
-                </button>
-            </form>
-        </section>
+    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+        <!-- Загрузка — одна служебная строка под чертой вкладок, не конкурирует с мостом -->
+        <form
+            class="flex shrink-0 flex-wrap items-end gap-3 border-b border-zinc-200 pb-3 dark:border-zinc-700"
+            @submit.prevent="submitImport"
+        >
+            <label class="min-w-[12rem] flex-1 space-y-1 text-sm sm:max-w-sm">
+                <span :class="crmLabel">Счёт</span>
+                <select v-model="importForm.bank_account_id" :class="crmFieldFluid">
+                    <option :value="null">Из файла / сводная</option>
+                    <option v-for="account in bank_accounts" :key="account.id" :value="Number(account.id)">
+                        {{ account.bank_name }} · {{ account.account_mask }} ({{ account.currency }})
+                    </option>
+                </select>
+            </label>
+            <label class="min-w-[10rem] space-y-1 text-sm">
+                <span :class="crmLabel">Файл XLSX</span>
+                <input
+                    type="file"
+                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    class="block w-full max-w-xs text-sm text-zinc-700 file:mr-2 file:rounded file:border-0 file:bg-zinc-100 file:px-2.5 file:py-1.5 file:text-xs file:font-medium file:text-zinc-800 hover:file:bg-zinc-200 dark:text-zinc-200 dark:file:bg-zinc-800 dark:file:text-zinc-100"
+                    @change="onFileChange"
+                >
+            </label>
+            <button type="submit" :disabled="importForm.processing" :class="crmBtnPrimary">
+                Загрузить
+            </button>
+            <p class="w-full text-[11px] leading-4 text-zinc-500 dark:text-zinc-400 sm:ml-auto sm:w-auto sm:max-w-xs sm:pb-1 sm:text-right">
+                Повтор того же файла не создаёт дубликат — откроется существующая выписка. Ночные/дневные импорты из 1С появляются в списке ниже (ответственный «Система»).
+            </p>
+        </form>
 
         <section :class="`${crmPanel} flex min-h-0 flex-1 flex-col overflow-hidden p-0`">
             <div class="shrink-0 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800">

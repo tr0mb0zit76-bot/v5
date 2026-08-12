@@ -3,7 +3,33 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-12 09:35 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `0d2a32f3` · **тема:** 1С push/НДС/счета/мост
+**Обновлено:** 2026-08-12 16:20 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `7b158235` · **тема:** УУ разнос + scheduler + Мост UI + ЭДО sync
+
+### Итог сессии 2026-08-12 — разнос / cron / UI / ЭДО
+
+| Блок | Статус |
+| --- | --- |
+| ПИОНЕР 240k → split `Г-2607-0008` (72k+168k) | ✅ прод |
+| Налоги ЕНП: матч ок; OData-дубли xls удалены | ✅ |
+| Зависший `schedule:run`/`mail:sync` с 01.08 + flock | ✅ убит |
+| `LOG_CHANNEL=nightwatch` → `stack`; nightwatch-agent disabled | ✅ прод |
+| Actor pull 1С → **Система** (`SystemActorUser`) | ✅ |
+| Чердак разноса: Мост compact у вкладок, загрузка одной строкой | ✅ |
+| `OneCEdoStatusSyncService` + `one-c:sync-edo-status` (hourly) | ✅ |
+
+**Прод до push уже:** flock, LOG_CHANNEL, nightwatch off, Система id=77, дубли выписок удалены.
+
+```text
+git pull
+npm run build
+php artisan optimize:clear
+```
+
+**Следующий шаг:** smoke UI разноса; `php artisan one-c:sync-edo-status --limit=20` на заказе с УПД `ОбменЗавершен`; operational pending без заказа — вручную после оформления.
+
+---
+
+**Обновлено (архив):** 2026-08-12 09:35 (ОТДАТЬ + деплой) · **HEAD:** `0d2a32f3` · **тема:** 1С push/НДС/счета/мост
 
 ### Итог сессии 2026-08-11…12 — контур 1С + УУ
 

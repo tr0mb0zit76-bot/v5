@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\ManagementAccounting\ManagementAccountingOneCPullService;
 use App\Services\OneC\OneCBridgeCheckService;
 use App\Services\OneC\OneCPublicationCatalog;
+use App\Support\SystemActorUser;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
 
@@ -17,7 +18,7 @@ class PullOneCBankStatementCommand extends Command
         {--company= : Публикация (autalliance|gross|profsfera); пусто = все}
         {--allocate : Авторазнести по подсказкам матчинга}
         {--min-confidence=55 : Минимальная уверенность для авторазнесения}
-        {--user= : ID пользователя-актора (иначе management accounting / admin)}
+        {--user= : ID пользователя-актора (иначе технический «Система»)}
         {--bridge-check : После pull проверить мост и эскалировать}';
 
     protected $description = 'Забрать банк из 1С OData в управленческий учёт CRM';
@@ -105,11 +106,6 @@ class PullOneCBankStatementCommand extends Command
             return User::query()->find((int) $userId);
         }
 
-        return User::query()->where('can_management_accounting', true)->orderBy('id')->first()
-            ?? User::query()
-                ->whereHas('role', fn ($q) => $q->where('name', 'admin'))
-                ->orderBy('id')
-                ->first()
-            ?? User::query()->orderBy('id')->first();
+        return SystemActorUser::resolve();
     }
 }
