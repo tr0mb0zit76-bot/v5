@@ -412,7 +412,7 @@
                             <div>
                                 <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Почта (IMAP reg.ru)</div>
                                 <p class="mt-1 text-xs leading-snug text-zinc-500 dark:text-zinc-400">
-                                    Логин ящика — адрес email выше. Пароль хранится зашифрованно для фоновой синхронизации переписки в CRM.
+                                    Логин ящика — адрес email выше. Пароль почты задаётся отдельно от пароля входа в CRM и хранится зашифрованно для IMAP/SMTP.
                                 </p>
                             </div>
                             <label class="inline-flex shrink-0 items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">

@@ -22,7 +22,7 @@ class PasswordController extends Controller
 
         $user = $request->user();
         $user->password = Hash::make($validated['password']);
-        $user->applyMailImapPassword($validated['password']);
+        // Пароль IMAP/SMTP (mail_imap_secret) не связан с паролем CRM.
         $user->save();
 
         return back();

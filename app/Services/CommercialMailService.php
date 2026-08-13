@@ -480,11 +480,11 @@ class CommercialMailService
         abort_unless(
             $sender->hasMailImapCredential(),
             422,
-            'Не задан пароль почты. Укажите его в карточке пользователя (тот же, что для IMAP) или перелогиньтесь в CRM.',
+            'Не задан пароль почты. Укажите его в карточке пользователя (Пользователи → пароль почты IMAP). Он может отличаться от пароля входа в CRM.',
         );
 
         $password = $sender->mail_imap_secret;
-        abort_if(! is_string($password) || $password === '', 422, 'Не удалось прочитать пароль почты. Перелогиньтесь или задайте пароль заново.');
+        abort_if(! is_string($password) || $password === '', 422, 'Не удалось прочитать пароль почты. Задайте его заново в карточке пользователя.');
 
         $from = $this->resolveSenderFrom($sender);
         $previousUsername = config('mail.mailers.smtp.username');

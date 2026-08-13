@@ -66,13 +66,40 @@ class AuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_users_can_logout(): void
+    public function test_login_does_not_overwrite_existing_mail_imap_password(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create([
+            'mail_sync_enabled' => true,
+        ]);
+        $user->applyMailImapPassword('mailbox-secret');
+        $user->save();
 
-        $response = $this->actingAs($user)->post('/logout');
+        $response = $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
 
-        $this->assertGuest();
-        $response->assertRedirect('/');
+        $this->assertAuthenticated();
+        $response->assertRedirect(route('dashboard', absolute: false));
+
+        $user->refresh();
+        $this->assertSame('mailbox-secret', $user->mail_imap_secret);
+    }
+
+    public function test_login_does_not_seed_mail_imap_password_from_crm_password(): void
+    {
+        $user = User::factory()->create([
+            'mail_sync_enabled' => true,
+            'mail_imap_secret' => null,
+        ]);
+
+        $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticated();
+        $user->refresh();
+        $this->assertFalse($user->hasMailImapCredential());
     }
 }

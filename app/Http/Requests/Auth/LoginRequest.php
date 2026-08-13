@@ -62,13 +62,8 @@ class LoginRequest extends FormRequest
             ]);
         }
 
-        if ($user instanceof User && ($user->mail_sync_enabled ?? true)) {
-            $user->applyMailImapPassword($this->string('password')->toString());
-
-            if ($user->isDirty('mail_imap_secret')) {
-                $user->save();
-            }
-        }
+        // Пароль почты (mail_imap_secret) независим от пароля входа в CRM —
+        // задаётся только в карточке пользователя / Users. Не перезаписывать при login.
 
         RateLimiter::clear($this->throttleKey());
     }

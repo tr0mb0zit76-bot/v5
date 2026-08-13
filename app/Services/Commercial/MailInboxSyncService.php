@@ -331,7 +331,7 @@ final class MailInboxSyncService
         }
 
         if (! $user->hasMailImapCredential()) {
-            $reasons[] = 'не задан пароль почты (mail_imap_secret) — укажите в карточке пользователя или перелогиньтесь в CRM;';
+            $reasons[] = 'не задан пароль почты (mail_imap_secret) — укажите в карточке пользователя (отдельно от пароля CRM);';
         }
 
         $domainReason = MailSyncMailboxEligibility::ineligibilityReason($user);

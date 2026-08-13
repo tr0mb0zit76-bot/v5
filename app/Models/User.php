@@ -289,6 +289,10 @@ class User extends Authenticatable
         return filled($this->getRawOriginal('mail_imap_secret'));
     }
 
+    /**
+     * Задать пароль IMAP/SMTP ящика (независимо от пароля входа в CRM).
+     * Пустая строка / null — не менять текущее значение.
+     */
     public function applyMailImapPassword(?string $plain): void
     {
         if (! is_string($plain) || $plain === '') {
