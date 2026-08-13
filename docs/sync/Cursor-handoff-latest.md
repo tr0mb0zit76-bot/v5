@@ -3,7 +3,31 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-12 21:45 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `ee987a5b` · **тема:** ЭПД stubs (ЭТрН + ЭР) + вкладка мастера
+**Обновлено:** 2026-08-13 15:50 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `2aca9009` · **тема:** пароль почты ≠ пароль CRM
+
+### Итог сессии 2026-08-13 — IMAP/SMTP пароль отделён от входа в CRM
+
+| Блок | Статус |
+| --- | --- |
+| Баг: логин и смена CRM-пароля перезаписывали `mail_imap_secret` | ✅ исправлено |
+| Пароль почты только в карточке **Пользователи** (`mail_password`) | ✅ |
+| Тесты: login/password update не трогают mailbox secret | ✅ |
+| Prod deploy `2aca9009` + frontend build | ✅ |
+| Queue worker `crm-queue-worker` (ранее) | ✅ active |
+
+```text
+git pull
+npm run build
+php artisan optimize:clear
+```
+
+**Следующий шаг (операционка):** у пользователей с разными паролями CRM/почты — заново задать **пароль почты** в карточке пользователя (старый secret мог быть затёрт прошлыми логинами); проверить `mail:sync` / `mail:probe`.
+
+**Отложено:** `ASYNC_OUTBOUND_MAIL=true` (нужен UI «в очереди»); HMAC 1С; живой POST ЭТрН.
+
+---
+
+**Обновлено (архив):** 2026-08-12 21:45 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `ee987a5b` · **тема:** ЭПД stubs (ЭТрН + ЭР) + вкладка мастера
 
 ### Итог сессии 2026-08-12 вечер — ЭПД / ЭТрН
 
@@ -19,12 +43,6 @@
 | Живой POST болванки в 1С | ⏳ не делали |
 
 **Доки:** `docs/one-c-epd-stub-design.md` · probe `scripts/probe-one-c-epd-entities.php`, `scripts/probe-one-c-etrn-fields.php`
-
-```text
-git pull
-npm run build
-php artisan optimize:clear
-```
 
 **Следующий шаг:** у 1С — EntitySet ЭР; пробный POST ЭТрН на тестовом заказе; smoke вкладки «ЭПД».
 
