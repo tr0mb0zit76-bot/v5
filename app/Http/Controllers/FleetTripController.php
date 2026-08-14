@@ -76,13 +76,34 @@ class FleetTripController extends Controller
             $validated = $request->validate([
                 'planned_km' => ['nullable', 'integer', 'min:0'],
                 'actual_km' => ['nullable', 'integer', 'min:0'],
+                'cost_lines' => ['nullable', 'array'],
+                'cost_lines.*.cost_category' => ['nullable', 'string', Rule::in(OwnFleetCatalog::costCategoryCodes())],
+                'cost_lines.*.amount' => ['nullable', 'numeric', 'min:0'],
+                'cost_lines.*.currency' => ['nullable', 'string', 'max:8'],
+                'cost_lines.*.comment' => ['nullable', 'string', 'max:500'],
+                'cost_lines.*.occurred_at' => ['nullable', 'date'],
+            ]);
+            $fleetTrip->update([
+                'planned_km' => $validated['planned_km'] ?? null,
+                'actual_km' => $validated['actual_km'] ?? null,
             ]);
         } else {
+            // Карточка рейса шлёт только редактируемые поля; identity берём с модели.
+            $request->merge([
+                'order_id' => $request->input('order_id', $fleetTrip->order_id),
+                'order_leg_stage' => $request->input('order_leg_stage', $fleetTrip->order_leg_stage),
+                'carrier_slot' => $request->input('carrier_slot', $fleetTrip->carrier_slot),
+                'fleet_vehicle_id' => $request->input('fleet_vehicle_id', $fleetTrip->fleet_vehicle_id),
+                'fleet_driver_id' => $request->input('fleet_driver_id', $fleetTrip->fleet_driver_id),
+            ]);
+
             $validated = $this->validateTripPayload($request, $fleetTrip);
+            unset($validated['cost_lines']);
+            $fleetTrip->update($validated);
         }
 
-        $fleetTrip->update($validated);
         $this->syncCostLines($request, $fleetTrip);
+        $this->refreshTripTotalCost($fleetTrip);
 
         return to_route('fleet.trips.show', $fleetTrip);
     }
@@ -132,12 +153,22 @@ class FleetTripController extends Controller
             'planned_km' => ['nullable', 'integer', 'min:0'],
             'actual_km' => ['nullable', 'integer', 'min:0'],
             'started_at' => ['nullable', 'date'],
+            'cost_lines' => ['nullable', 'array'],
+            'cost_lines.*.cost_category' => ['nullable', 'string', Rule::in(OwnFleetCatalog::costCategoryCodes())],
+            'cost_lines.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'cost_lines.*.currency' => ['nullable', 'string', 'max:8'],
+            'cost_lines.*.comment' => ['nullable', 'string', 'max:500'],
+            'cost_lines.*.occurred_at' => ['nullable', 'date'],
         ]);
     }
 
     private function syncCostLines(Request $request, FleetTrip $fleetTrip): void
     {
         if (! Schema::hasTable('fleet_trip_cost_lines')) {
+            return;
+        }
+
+        if (! $request->exists('cost_lines')) {
             return;
         }
 
@@ -158,14 +189,31 @@ class FleetTripController extends Controller
                 continue;
             }
 
+            $category = (string) ($line['cost_category'] ?? 'other');
+            if (! in_array($category, OwnFleetCatalog::costCategoryCodes(), true)) {
+                $category = 'other';
+            }
+
             $fleetTrip->costLines()->create([
-                'cost_category' => (string) ($line['cost_category'] ?? 'other'),
+                'cost_category' => $category,
                 'amount' => $amount,
                 'currency' => (string) ($line['currency'] ?? 'RUB'),
                 'comment' => isset($line['comment']) ? (string) $line['comment'] : null,
                 'occurred_at' => $line['occurred_at'] ?? null,
             ]);
         }
+    }
+
+    private function refreshTripTotalCost(FleetTrip $fleetTrip): void
+    {
+        if (! Schema::hasTable('fleet_trip_cost_lines')) {
+            return;
+        }
+
+        $total = round((float) $fleetTrip->costLines()->sum('amount'), 2);
+        $fleetTrip->forceFill([
+            'total_cost' => $total > 0 ? $total : null,
+        ])->save();
     }
 
     /**

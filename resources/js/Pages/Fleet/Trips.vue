@@ -55,6 +55,13 @@
                 </div>
 
                 <form class="space-y-4" @submit.prevent="saveTrip">
+                    <p
+                        v-if="Object.keys(tripForm.errors).length > 0"
+                        class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
+                    >
+                        Не удалось сохранить:
+                        {{ Object.values(tripForm.errors).flat().join(' ') }}
+                    </p>
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div class="space-y-1">
                             <label class="text-xs font-medium text-zinc-500">Статус</label>
@@ -140,6 +147,11 @@ const statusOptions = computed(() => page.props.statusOptions ?? []);
 const costCategoryOptions = computed(() => page.props.costCategoryOptions ?? []);
 
 const tripForm = useForm({
+    order_id: null,
+    order_leg_stage: null,
+    carrier_slot: null,
+    fleet_vehicle_id: null,
+    fleet_driver_id: null,
     status: 'planned',
     planned_km: null,
     actual_km: null,
@@ -155,6 +167,11 @@ watch(selectedTrip, (trip) => {
     }
 
     tripForm.defaults({
+        order_id: trip.order_id,
+        order_leg_stage: trip.order_leg_stage,
+        carrier_slot: trip.carrier_slot,
+        fleet_vehicle_id: trip.fleet_vehicle_id,
+        fleet_driver_id: trip.fleet_driver_id,
         status: trip.status ?? 'planned',
         planned_km: trip.planned_km,
         actual_km: trip.actual_km,
@@ -162,6 +179,7 @@ watch(selectedTrip, (trip) => {
         cost_lines: Array.isArray(trip.cost_lines) ? trip.cost_lines.map((line) => ({ ...line })) : [],
     });
     tripForm.reset();
+    tripForm.clearErrors();
 }, { immediate: true });
 
 function statusLabel(code) {
