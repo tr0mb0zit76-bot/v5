@@ -16,6 +16,7 @@ class ManagementAccountingImportService
         private readonly SberRegistryXlsxParser $parser,
         private readonly ManagementAccountingMatchingService $matching,
         private readonly ManagementAccountingAllocationService $allocationService,
+        private readonly ManagementAccountingStatementDuplicateService $duplicates,
     ) {}
 
     public function importFromUpload(
@@ -56,6 +57,17 @@ class ManagementAccountingImportService
                     ->exists();
 
                 if ($exists) {
+                    continue;
+                }
+
+                if ($this->duplicates->existsTwin(
+                    (int) $bankAccount->id,
+                    (string) $row['operation_date'],
+                    (string) $row['direction'],
+                    (float) $row['amount'],
+                    (string) $row['description'],
+                    'import',
+                )) {
                     continue;
                 }
 

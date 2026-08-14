@@ -17,10 +17,18 @@ use Illuminate\Support\Facades\Schema;
 
 class ManagementAccountingMatchingService
 {
+    /** @var Collection<int, PaymentSchedule>|null */
+    private ?Collection $openOperationalSchedules = null;
+
     public function __construct(
         private readonly ManagementReconcileRuleService $reconcileRules,
         private readonly ManagementOperationalCostCategoryResolver $costCategoryResolver,
     ) {}
+
+    public function flushScheduleCache(): void
+    {
+        $this->openOperationalSchedules = null;
+    }
 
     /**
      * @return array{
@@ -94,7 +102,7 @@ class ManagementAccountingMatchingService
             $manualCandidates = $this->operationalCandidatesForLine($line);
 
             if ($manualCandidates !== []) {
-                $picked = $this->pickUniqueOperationalCandidate($manualCandidates, $amount);
+                $picked = $this->pickUniqueOperationalCandidate($manualCandidates, $amount) ?? [];
 
                 return [
                     'match_type' => 'operational',
@@ -482,11 +490,7 @@ class ManagementAccountingMatchingService
     ): Collection {
         $parties = $direction === 'in' ? ['customer'] : ['carrier', 'contractor'];
 
-        return $this->openOperationalSchedulesQuery()
-            ->with($this->operationalScheduleEagerLoads())
-            ->whereIn('party', $parties)
-            ->orderBy('id')
-            ->get()
+        return $this->loadedOpenSchedulesForParties($parties)
             ->filter(fn (PaymentSchedule $schedule): bool => $this->amountMatchesSchedule($schedule, $amount))
             ->map(function (PaymentSchedule $schedule) use ($description, $direction, $operationDate, $amount): ?array {
                 $contractors = $this->contractorsForSchedule($schedule, $direction);
@@ -529,11 +533,7 @@ class ManagementAccountingMatchingService
     ): Collection {
         $parties = $direction === 'in' ? ['customer'] : ['carrier', 'contractor'];
 
-        return $this->openOperationalSchedulesQuery()
-            ->with($this->operationalScheduleEagerLoads())
-            ->whereIn('party', $parties)
-            ->orderBy('id')
-            ->get()
+        return $this->loadedOpenSchedulesForParties($parties)
             ->filter(fn (PaymentSchedule $schedule): bool => $this->amountMatchesSchedule($schedule, $amount))
             ->map(function (PaymentSchedule $schedule) use ($description, $direction, $operationDate, $amount): array {
                 $contractors = $this->contractorsForSchedule($schedule, $direction);
@@ -572,11 +572,7 @@ class ManagementAccountingMatchingService
     ): Collection {
         $parties = $direction === 'in' ? ['customer'] : ['carrier', 'contractor'];
 
-        return $this->openOperationalSchedulesQuery()
-            ->with($this->operationalScheduleEagerLoads())
-            ->whereIn('party', $parties)
-            ->orderBy('id')
-            ->get()
+        return $this->loadedOpenSchedulesForParties($parties)
             ->map(function (PaymentSchedule $schedule) use ($description, $direction, $operationDate, $amount): ?array {
                 $matchedContractor = null;
 
@@ -622,11 +618,7 @@ class ManagementAccountingMatchingService
     ): Collection {
         $parties = $direction === 'in' ? ['customer'] : ['carrier', 'contractor'];
 
-        return $this->openOperationalSchedulesQuery()
-            ->with($this->operationalScheduleEagerLoads())
-            ->whereIn('party', $parties)
-            ->orderBy('id')
-            ->get()
+        return $this->loadedOpenSchedulesForParties($parties)
             ->filter(function (PaymentSchedule $schedule) use ($search, $direction, $amount): bool {
                 if (! $this->amountMatchesSchedule($schedule, $amount)) {
                     return false;
@@ -686,25 +678,17 @@ class ManagementAccountingMatchingService
 
         $parties = $direction === 'in' ? ['customer'] : ['carrier', 'contractor'];
 
-        return $this->openOperationalSchedulesQuery()
-            ->with($this->operationalScheduleEagerLoads())
-            ->whereIn('party', $parties)
-            ->where(function ($query): void {
-                $query->where(function ($inner): void {
-                    $inner->whereNotNull('invoice_number')
-                        ->where('invoice_number', '!=', '');
-                });
-
-                if (Schema::hasColumn('orders', 'invoice_number')) {
-                    $query->orWhereHas('order', function ($orderQuery): void {
-                        $orderQuery->whereNotNull('invoice_number')
-                            ->where('invoice_number', '!=', '');
-                    });
+        return $this->loadedOpenSchedulesForParties($parties)
+            ->filter(function (PaymentSchedule $schedule) use ($amount): bool {
+                if (! $this->amountMatchesSchedule($schedule, $amount)) {
+                    return false;
                 }
+
+                $invoice = trim((string) ($schedule->invoice_number ?? ''));
+                $orderInvoice = trim((string) ($schedule->order?->invoice_number ?? ''));
+
+                return $invoice !== '' || $orderInvoice !== '';
             })
-            ->orderBy('id')
-            ->get()
-            ->filter(fn (PaymentSchedule $schedule): bool => $this->amountMatchesSchedule($schedule, $amount))
             ->filter(function (PaymentSchedule $schedule) use ($description): bool {
                 return $this->invoiceNumberMatchesDescription(
                     $description,
@@ -832,12 +816,32 @@ class ManagementAccountingMatchingService
         return $query;
     }
 
+    /**
+     * @return Collection<int, PaymentSchedule>
+     */
+    private function loadedOpenOperationalSchedules(): Collection
+    {
+        return $this->openOperationalSchedules ??= $this->openOperationalSchedulesQuery()
+            ->with($this->operationalScheduleEagerLoads())
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * @param  list<string>  $parties
+     * @return Collection<int, PaymentSchedule>
+     */
+    private function loadedOpenSchedulesForParties(array $parties): Collection
+    {
+        return $this->loadedOpenOperationalSchedules()
+            ->filter(fn (PaymentSchedule $schedule): bool => in_array((string) $schedule->party, $parties, true))
+            ->values();
+    }
+
     private function findScheduleForOrder(Order $order, string $party, float $amount, ?string $operationDate): ?PaymentSchedule
     {
-        return $this->openOperationalSchedulesQuery()
+        return $this->loadedOpenSchedulesForParties([$party])
             ->where('order_id', $order->id)
-            ->where('party', $party)
-            ->get()
             ->filter(fn (PaymentSchedule $schedule): bool => $this->amountMatchesSchedule($schedule, $amount))
             ->sortBy(fn (PaymentSchedule $schedule): array => $this->scheduleCandidateSortKey($schedule, $amount, $operationDate))
             ->first();
@@ -1608,15 +1612,14 @@ class ManagementAccountingMatchingService
         }
 
         $party = PaymentMatchToken::partyFromSide($parsed['side']);
-        $query = $this->openOperationalSchedulesQuery()
-            ->where('order_id', $order->id)
-            ->where('party', $party);
+        $schedules = $this->loadedOpenSchedulesForParties([$party])
+            ->where('order_id', $order->id);
 
         if ($parsed['sequence'] !== null && Schema::hasColumn('payment_schedules', 'installment_sequence')) {
-            $query->where('installment_sequence', $parsed['sequence']);
+            $schedules = $schedules->where('installment_sequence', $parsed['sequence']);
         }
 
-        $schedules = $query->get()
+        $schedules = $schedules
             ->filter(fn (PaymentSchedule $schedule): bool => $this->amountMatchesSchedule($schedule, $amount)
                 || $parsed['sequence'] !== null)
             ->sortBy(fn (PaymentSchedule $schedule): array => $this->scheduleCandidateSortKey($schedule, $amount, $operationDate))

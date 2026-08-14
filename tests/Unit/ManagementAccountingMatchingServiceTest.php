@@ -390,6 +390,59 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $this->assertStringContainsString('Несколько заявок', (string) $suggestion['match_notes']);
     }
 
+    public function test_partial_payment_with_two_same_rate_orders_stays_unselected(): void
+    {
+        $carrier = Contractor::query()->create([
+            'name' => 'ООО АВТОСПЕЦСТРОЙ',
+            'full_name' => 'ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ АВТОСПЕЦСТРОЙ',
+        ]);
+
+        $firstOrder = Order::query()->create([
+            'order_number' => 'Г-2607-0003',
+            'carrier_id' => $carrier->id,
+        ]);
+
+        $secondOrder = Order::query()->create([
+            'order_number' => 'АС-ЗА-21',
+            'carrier_id' => $carrier->id,
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $firstOrder->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 95000,
+            'remaining_amount' => 95000,
+            'status' => 'pending',
+            'counterparty_id' => $carrier->id,
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $secondOrder->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 95000,
+            'remaining_amount' => 95000,
+            'status' => 'pending',
+            'counterparty_id' => $carrier->id,
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-08-13',
+            'direction' => 'out',
+            'amount' => 35000,
+            'description' => 'АВТОСПЕЦСТРОЙ ООО / Оплата по счету 418 от 13.08.2026',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertNull($suggestion['suggested_order_id']);
+        $this->assertNull($suggestion['suggested_payment_schedule_id']);
+        $this->assertCount(2, $suggestion['suggested_candidates']);
+        $this->assertStringContainsString('Несколько заявок', (string) $suggestion['match_notes']);
+    }
+
     public function test_order_number_match_takes_priority_over_contractor_name(): void
     {
         $customer = Contractor::query()->create([

@@ -17,13 +17,23 @@
                         · разнесено {{ importData.lines_allocated }} / {{ importData.lines_count }}
                     </p>
                 </div>
-                <button
-                    type="button"
-                    class="rounded-lg border border-rose-200 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/30"
-                    @click="deleteImport"
-                >
-                    Удалить выписку
-                </button>
+                <div class="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        class="rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-600"
+                        :disabled="readyDirtyCount === 0 || allocatingBatch"
+                        @click="allocateReadyLines"
+                    >
+                        {{ allocatingBatch ? 'Разносим…' : `Разнести готовые (${readyDirtyCount})` }}
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded-lg border border-rose-200 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                        @click="deleteImport"
+                    >
+                        Удалить выписку
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -143,6 +153,7 @@
                                                         v-model="splitModes[line.id]"
                                                         type="checkbox"
                                                         class="rounded border-zinc-300"
+                                                        @change="markDirty(line)"
                                                     >
                                                     Несколько заявок
                                                 </label>
@@ -158,6 +169,7 @@
                                                             type="number"
                                                             placeholder="ID графика"
                                                             class="w-24 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                                                            @input="markDirty(line)"
                                                         >
                                                         <input
                                                             v-model.number="row.amount"
@@ -166,6 +178,7 @@
                                                             step="0.01"
                                                             placeholder="Сумма"
                                                             class="w-28 rounded border border-zinc-300 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-600 dark:bg-zinc-950"
+                                                            @input="markDirty(line)"
                                                         >
                                                         <button
                                                             v-if="splitAllocations[line.id].length > 2"
@@ -208,6 +221,7 @@
                                                         v-if="displayCandidates(line).length > 0"
                                                         v-model="allocationForms[line.id].payment_schedule_id"
                                                         class="min-w-[10rem] max-w-full flex-[2] rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                                                        @change="markDirty(line)"
                                                     >
                                                         <option disabled value="">Строка графика</option>
                                                         <option
@@ -224,6 +238,7 @@
                                                         type="number"
                                                         placeholder="ID графика"
                                                         class="w-24 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                                                        @input="markDirty(line)"
                                                     >
                                                 </template>
                                             </template>
@@ -232,6 +247,7 @@
                                                 <select
                                                     v-model="allocationForms[line.id].category_id"
                                                     class="min-w-[8rem] flex-1 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                                                    @change="markDirty(line)"
                                                 >
                                                     <option v-for="category in categoriesForType('payroll')" :key="category.id" :value="category.id">
                                                         {{ category.name }}
@@ -242,6 +258,7 @@
                                                     type="number"
                                                     placeholder="ID сотр."
                                                     class="w-20 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                                                    @input="markDirty(line)"
                                                 >
                                             </template>
 
@@ -249,6 +266,7 @@
                                                 <select
                                                     v-model="allocationForms[line.id].category_id"
                                                     class="min-w-[10rem] flex-1 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                                                    @change="markDirty(line)"
                                                 >
                                                     <option v-for="category in categoriesForType('category')" :key="category.id" :value="category.id">
                                                         {{ category.name }}
@@ -368,29 +386,28 @@ const splitAllocations = reactive({});
 const searchQueries = reactive({});
 const searchResults = reactive({});
 const searchLoading = reactive({});
+const dirtyFlags = reactive({});
+const allocatingBatch = ref(false);
 const debounceTimers = {};
 
 const COST_CATEGORY_CODES = ['operational_carrier_out', 'cost_own_fleet'];
 
 function defaultAllocationType(line) {
-    if (line.match_type === 'operational' || line.direction === 'in' || line.direction === 'out') {
-        return 'operational';
-    }
-
     if (line.match_type === 'payroll') {
         return 'payroll';
     }
 
+    if (line.match_type === 'category') {
+        return 'category';
+    }
+
     const candidates = Array.isArray(line.operational_candidates) ? line.operational_candidates : [];
 
-    if (candidates.length > 0) {
+    if (line.match_type === 'operational' || candidates.length > 0 || line.suggested_payment_schedule) {
         return 'operational';
     }
 
-    if (
-        line.direction === 'in'
-        && (line.needs_manual_selection || line.contractor_search_hint || line.suggested_payment_schedule)
-    ) {
+    if (line.needs_manual_selection || line.direction === 'in') {
         return 'operational';
     }
 
@@ -431,7 +448,12 @@ onMounted(() => {
             continue;
         }
 
-        if (line.contractor_search_hint || line.needs_manual_selection || line.direction === 'in') {
+        const existing = Array.isArray(line.operational_candidates) ? line.operational_candidates : [];
+        if (existing.length > 0) {
+            continue;
+        }
+
+        if (line.needs_manual_selection && (line.contractor_search_hint || line.direction === 'in')) {
             searchCandidates(line);
         }
     }
@@ -480,6 +502,8 @@ function displayCandidates(line) {
 }
 
 function onAllocationTypeChange(line) {
+    markDirty(line);
+
     if (allocationForms[line.id].allocation_type === 'operational' && !searchQueries[line.id]) {
         searchQueries[line.id] = line.contractor_search_hint ?? '';
         searchCandidates(line);
@@ -523,6 +547,10 @@ async function searchCandidates(line) {
 function canSubmit(line) {
     const form = allocationForms[line.id];
 
+    if (!form) {
+        return false;
+    }
+
     if (form.allocation_type === 'operational' && splitModes[line.id]) {
         const rows = splitAllocations[line.id] || [];
         const validRows = rows.filter((row) => row.payment_schedule_id && row.amount > 0);
@@ -540,6 +568,16 @@ function canSubmit(line) {
 
     return Boolean(form.category_id);
 }
+
+function markDirty(line) {
+    dirtyFlags[line.id] = true;
+}
+
+const readyDirtyLines = computed(() => props.lines.filter(
+    (line) => line.status !== 'allocated' && dirtyFlags[line.id] && canSubmit(line),
+));
+
+const readyDirtyCount = computed(() => readyDirtyLines.value.length);
 
 function candidateOptionLabel(candidate) {
     const order = candidate.order_number || `#${candidate.order_id}`;
@@ -561,7 +599,7 @@ function candidateOptionLabel(candidate) {
     return `${contractor}${slot}${order} · к оплате ${due}${lineAmount} · ${plan} · #${candidate.payment_schedule_id}${reason}`;
 }
 
-function allocateLine(line) {
+function allocationPayload(line) {
     const form = allocationForms[line.id];
     const rememberPayload = form.remember_enabled && form.remember_keyword
         ? {
@@ -571,7 +609,7 @@ function allocateLine(line) {
         : {};
 
     if (form.allocation_type === 'operational' && splitModes[line.id]) {
-        router.post(`/finance/management-accounting/lines/${line.id}/allocate`, {
+        return {
             allocation_type: 'operational',
             allocations: (splitAllocations[line.id] || [])
                 .filter((row) => row.payment_schedule_id && row.amount > 0)
@@ -580,30 +618,58 @@ function allocateLine(line) {
                     amount: row.amount,
                 })),
             ...rememberPayload,
-        }, {
-            preserveScroll: true,
-        });
-
-        return;
+        };
     }
 
-    router.post(`/finance/management-accounting/lines/${line.id}/allocate`, {
+    return {
         allocation_type: form.allocation_type,
         category_id: form.category_id,
         payment_schedule_id: form.payment_schedule_id,
         user_id: form.user_id,
         ...rememberPayload,
+    };
+}
+
+function allocateLine(line) {
+    router.post(`/finance/management-accounting/lines/${line.id}/allocate`, allocationPayload(line), {
+        preserveScroll: true,
+    });
+}
+
+function allocateReadyLines() {
+    const lines = readyDirtyLines.value;
+
+    if (lines.length === 0 || allocatingBatch.value) {
+        return;
+    }
+
+    if (!window.confirm(`Разнести ${lines.length} изменённых строк?`)) {
+        return;
+    }
+
+    allocatingBatch.value = true;
+
+    router.post(`/finance/management-accounting/imports/${importData.id}/allocate-batch`, {
+        items: lines.map((line) => ({
+            line_id: line.id,
+            ...allocationPayload(line),
+        })),
     }, {
         preserveScroll: true,
+        onFinish: () => {
+            allocatingBatch.value = false;
+        },
     });
 }
 
 function addSplitRow(line) {
     splitAllocations[line.id].push({ payment_schedule_id: null, amount: null });
+    markDirty(line);
 }
 
 function removeSplitRow(line, index) {
     splitAllocations[line.id].splice(index, 1);
+    markDirty(line);
 }
 
 function splitTotal(line) {

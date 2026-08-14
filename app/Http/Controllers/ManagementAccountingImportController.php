@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\DuplicateStatementImportException;
 use App\Http\Requests\AllocateManagementStatementLineRequest;
+use App\Http\Requests\BatchAllocateManagementStatementLinesRequest;
 use App\Http\Requests\DeallocateManagementStatementLineRequest;
 use App\Http\Requests\StoreManagementAccountingImportRequest;
 use App\Http\Requests\StoreManagementExpenseCategoryRequest;
@@ -21,11 +22,14 @@ use App\Services\ManagementAccounting\ManagementExpenseCategoryTreeService;
 use App\Services\ManagementAccounting\ManagementReconcileRuleService;
 use App\Services\OneC\OneCBridgeCheckService;
 use App\Support\RoleAccess;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
 
 class ManagementAccountingImportController extends Controller
 {
@@ -121,12 +125,13 @@ class ManagementAccountingImportController extends Controller
                     'name' => $line->suggestedUser->name,
                 ],
                 'operational_candidates' => $line->status !== 'allocated'
+                    && ($line->match_type === 'operational' || (int) ($line->match_confidence ?? 0) < 70)
                     ? $this->matchingService->operationalCandidatesForLine($line)
                     : [],
                 'contractor_search_hint' => $this->matchingService->extractSearchHintFromDescription((string) $line->description),
                 'needs_manual_selection' => $line->status !== 'allocated'
-                    && $line->match_confidence < 70
-                    && $line->suggested_payment_schedule_id === null,
+                    && $line->suggested_payment_schedule_id === null
+                    && ($line->match_type === 'operational' || $line->match_confidence < 70),
                 'allocation_summary' => $line->status === 'allocated' ? [
                     'match_type' => $line->match_type,
                     'amount' => (float) ($line->allocation_amount ?? $line->amount),
@@ -239,6 +244,63 @@ class ManagementAccountingImportController extends Controller
 
         return to_route('finance.management-accounting.index')
             ->with('flash', ['type' => 'success', 'message' => 'Ручная операция сохранена.']);
+    }
+
+    public function allocateBatch(
+        BatchAllocateManagementStatementLinesRequest $request,
+        ManagementStatementImport $import,
+    ): RedirectResponse {
+        $items = $request->validated('items');
+        $allocated = 0;
+        $failedIds = [];
+
+        $lines = ManagementStatementLine::query()
+            ->where('import_id', $import->id)
+            ->whereIn('id', collect($items)->pluck('line_id'))
+            ->get()
+            ->keyBy('id');
+
+        foreach ($items as $item) {
+            $lineId = (int) $item['line_id'];
+            $line = $lines->get($lineId);
+
+            if ($line === null) {
+                $failedIds[] = $lineId;
+
+                continue;
+            }
+
+            try {
+                $this->allocationService->allocateLine($line, $item, $request->user());
+                $line->refresh();
+
+                $explicitKeyword = trim((string) ($item['remember_keyword'] ?? ''));
+                if ($explicitKeyword !== '') {
+                    $this->reconcileRuleService->learnFromManualAllocation(
+                        $request->user(),
+                        $line,
+                        $explicitKeyword,
+                        $item['remember_notes'] ?? null,
+                    );
+                }
+
+                $allocated++;
+            } catch (AuthorizationException|InvalidArgumentException|ModelNotFoundException) {
+                $failedIds[] = $lineId;
+            }
+        }
+
+        $failedCount = count($failedIds);
+        $type = $allocated > 0 ? 'success' : 'error';
+        $message = 'Разнесено строк: '.$allocated.'.';
+        if ($failedCount > 0) {
+            $message = 'Разнесено '.$allocated.' из '.count($items).'. Не удалось: #'.implode(', #', $failedIds).'.';
+        }
+
+        return back()->with('flash', [
+            'type' => $type,
+            'message' => $message,
+        ]);
     }
 
     public function bridgeCheck(Request $request): JsonResponse

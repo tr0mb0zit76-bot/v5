@@ -23,7 +23,8 @@ final class ManagementAccountingOneCPullService
     public function __construct(
         private readonly OneCBpClient $oneC,
         private readonly ManagementAccountingMatchingService $matching,
-        private readonly ManagementAccountingAllocationService $allocationService,
+        private readonly ManagementAccountingAutoAllocateService $autoAllocate,
+        private readonly ManagementAccountingStatementDuplicateService $duplicates,
     ) {}
 
     /**
@@ -102,6 +103,18 @@ final class ManagementAccountingOneCPullService
                 }
 
                 $description = $this->formatDescription($movement);
+                if ($this->duplicates->existsTwin(
+                    (int) $bankAccount->id,
+                    (string) $movement['date'],
+                    (string) $movement['direction'],
+                    (float) $movement['amount'],
+                    $description,
+                    'one_c_odata',
+                )) {
+                    $skipped++;
+
+                    continue;
+                }
                 $line = ManagementStatementLine::query()->create([
                     'import_id' => $import->id,
                     'bank_account_id' => $bankAccount->id,
@@ -154,7 +167,7 @@ final class ManagementAccountingOneCPullService
                 foreach ($createdLines as $line) {
                     $line->refresh();
                     try {
-                        if ($this->tryAutoAllocate($line, $actor, $minConfidence)) {
+                        if ($this->autoAllocate->tryAutoAllocate($line, $actor, $minConfidence)) {
                             $allocated++;
                         }
                     } catch (\Throwable $e) {
@@ -179,48 +192,6 @@ final class ManagementAccountingOneCPullService
                 'allocation_errors' => $errors,
             ];
         });
-    }
-
-    private function tryAutoAllocate(ManagementStatementLine $line, User $actor, int $minConfidence): bool
-    {
-        if ($line->status === 'allocated') {
-            return false;
-        }
-
-        $confidence = (int) ($line->match_confidence ?? 0);
-        if ($confidence < $minConfidence) {
-            return false;
-        }
-
-        if ($line->suggested_payment_schedule_id) {
-            $this->allocationService->allocateLine($line, [
-                'allocation_type' => 'operational',
-                'payment_schedule_id' => (int) $line->suggested_payment_schedule_id,
-            ], $actor);
-
-            return true;
-        }
-
-        if ($line->suggested_user_id && ($line->match_type === 'payroll' || str_contains((string) $line->match_type, 'payroll'))) {
-            $this->allocationService->allocateLine($line, [
-                'allocation_type' => 'payroll',
-                'user_id' => (int) $line->suggested_user_id,
-                'category_id' => $line->suggested_category_id,
-            ], $actor);
-
-            return true;
-        }
-
-        if ($line->suggested_category_id) {
-            $this->allocationService->allocateLine($line, [
-                'allocation_type' => 'category',
-                'category_id' => (int) $line->suggested_category_id,
-            ], $actor);
-
-            return true;
-        }
-
-        return false;
     }
 
     /**

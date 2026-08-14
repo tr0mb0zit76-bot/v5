@@ -105,6 +105,7 @@ class ManagementAccountingAllocationService
 
             $line->save();
             $this->refreshImportCounters($line->import_id);
+            $this->matching->flushScheduleCache();
 
             return $line->fresh([
                 'allocationCategory',
@@ -217,6 +218,7 @@ class ManagementAccountingAllocationService
             }
 
             $this->refreshImportCounters($line->import_id);
+            $this->matching->flushScheduleCache();
 
             return $line->fresh([
                 'allocationCategory',
@@ -261,6 +263,7 @@ class ManagementAccountingAllocationService
             $line->fill($suggestion)->save();
 
             $this->refreshImportCounters($importId);
+            $this->matching->flushScheduleCache();
 
             return $line->fresh([
                 'allocationCategory',
