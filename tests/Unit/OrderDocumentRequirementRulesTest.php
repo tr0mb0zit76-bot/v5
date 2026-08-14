@@ -55,10 +55,10 @@ class OrderDocumentRequirementRulesTest extends TestCase
         $this->assertNull(collect($rules)->firstWhere('key', 'carrier_request:carrier-15'));
         $this->assertNotNull(collect($rules)->firstWhere('key', 'waybill'));
         $this->assertNotNull(collect($rules)->firstWhere('key', 'etrn'));
-        $this->assertNotNull(collect($rules)->firstWhere('key', 'expedition_receipt'));
+        $this->assertNull(collect($rules)->firstWhere('key', 'expedition_receipt'));
         $this->assertNull(collect($rules)->firstWhere('key', 'customer_closing:customer-all'));
         $this->assertNull(collect($rules)->firstWhere('key', 'carrier_closing:carrier-15'));
-        $this->assertCount(4, $rules);
+        $this->assertCount(3, $rules);
     }
 
     #[Test]
@@ -191,10 +191,7 @@ class OrderDocumentRequirementRulesTest extends TestCase
         $this->assertTrue($etrnRule['is_required']);
         $this->assertSame(['etrn'], $etrnRule['accepted_types']);
 
-        $receiptRule = collect($rules)->firstWhere('key', 'expedition_receipt');
-        $this->assertNotNull($receiptRule);
-        $this->assertFalse($receiptRule['is_required']);
-        $this->assertSame('customer', $receiptRule['party']);
+        $this->assertNull(collect($rules)->firstWhere('key', 'expedition_receipt'));
     }
 
     #[Test]
@@ -287,10 +284,10 @@ class OrderDocumentRequirementRulesTest extends TestCase
         $this->assertNull(collect($rules)->firstWhere('key', 'customer_closing:customer-all'));
         $this->assertNotNull(collect($rules)->firstWhere('key', 'waybill'));
         $this->assertNotNull(collect($rules)->firstWhere('key', 'etrn'));
-        $this->assertNotNull(collect($rules)->firstWhere('key', 'expedition_receipt'));
+        $this->assertNull(collect($rules)->firstWhere('key', 'expedition_receipt'));
         $this->assertNull(collect($rules)->firstWhere('key', 'carrier_request:carrier-99'));
         $this->assertNull(collect($rules)->firstWhere('key', 'contractor_closing:contractor-32-cost-vat'));
-        $this->assertCount(4, $rules);
+        $this->assertCount(3, $rules);
     }
 
     #[Test]
@@ -312,8 +309,8 @@ class OrderDocumentRequirementRulesTest extends TestCase
         $this->assertNotNull(collect($rules)->firstWhere('key', 'customer_closing:customer-all'));
         $this->assertNotNull(collect($rules)->firstWhere('key', 'waybill'));
         $this->assertNotNull(collect($rules)->firstWhere('key', 'etrn'));
-        $this->assertNotNull(collect($rules)->firstWhere('key', 'expedition_receipt'));
-        $this->assertCount(5, $rules);
+        $this->assertNull(collect($rules)->firstWhere('key', 'expedition_receipt'));
+        $this->assertCount(4, $rules);
     }
 
     #[Test]

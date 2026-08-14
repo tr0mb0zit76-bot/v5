@@ -442,7 +442,7 @@ function openWizardDocuments() {
                     <p v-if="loading" class="text-sm text-zinc-500">Загрузка…</p>
                     <p v-else-if="loadError" class="text-sm text-rose-600">{{ loadError }}</p>
                     <p v-if="!loading && !loadError && signedDocuments.length === 0 && printWorkflowDocuments.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">
-                        Подписанных файлов пока нет. В таблице ниже — пять обязательных пунктов для этапов «Оплата» и «Завершено».
+                        Подписанных файлов пока нет. В таблице ниже — обязательные пункты для этапов «Оплата» и «Завершено».
                     </p>
 
                     <OrderSignedDocumentsTable

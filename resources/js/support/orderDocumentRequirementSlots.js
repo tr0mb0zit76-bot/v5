@@ -1,6 +1,6 @@
 import { stageLabel, toStageKey } from '@/support/orderPrintFormSlots.js';
 import { expandPerformersForCarrierSlots, filterExternalCarrierSlots, isOwnFleetCarrierOnly, splitCarrierSlotLabel } from '@/support/orderPerformers.js';
-import { TRANSPORT_DOCUMENT_LABEL, PAPER_TRANSPORT_DOCUMENT_TYPES, ETRN_DOCUMENT_LABEL, EXPEDITION_RECEIPT_LABEL } from '@/support/orderDocumentTypes.js';
+import { TRANSPORT_DOCUMENT_LABEL, PAPER_TRANSPORT_DOCUMENT_TYPES, ETRN_DOCUMENT_LABEL } from '@/support/orderDocumentTypes.js';
 
 const REQUEST_TYPES = ['request', 'contract_request'];
 const CLOSING_TYPES = ['upd', 'invoice_factura', 'act'];
@@ -71,23 +71,6 @@ function buildEtrnRule(performers, clientRequestMode) {
     };
 }
 
-function buildExpeditionReceiptRule() {
-    return {
-        key: 'expedition_receipt',
-        label: EXPEDITION_RECEIPT_LABEL,
-        description: 'Экспедиторская расписка (клиент экспедиции): опционально. Файл или отметка «отправлено» (ЭДО). Не блокирует закрытие сделки.',
-        party: 'customer',
-        accepted_types: ['expedition_receipt'],
-        slot_kind: 'expedition_receipt',
-        slot_key: 'expedition_receipt',
-        contractor_id: null,
-        order_leg_stage: null,
-        counterparty_label: null,
-        allows_multiple: false,
-        is_required: false,
-    };
-}
-
 function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_request', paymentContext = {}) {
     const customerSlot = {
         slotKey: 'customer-all',
@@ -131,7 +114,6 @@ function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_r
 
     rules.push(buildWaybillRule(performers, clientRequestMode));
     rules.push(buildEtrnRule(performers, clientRequestMode));
-    rules.push(buildExpeditionReceiptRule());
 
     return rules;
 }
@@ -430,7 +412,6 @@ export function buildDocumentRequirementRules(
 
     rules.push(buildWaybillRule(performers, mode));
     rules.push(buildEtrnRule(performers, mode));
-    rules.push(buildExpeditionReceiptRule());
 
     return rules;
 }

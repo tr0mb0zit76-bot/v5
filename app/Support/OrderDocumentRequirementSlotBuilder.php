@@ -102,7 +102,6 @@ final class OrderDocumentRequirementSlotBuilder
 
         $rules[] = self::waybillRule($performers, $mode);
         $rules[] = self::etrnRule($performers, $mode);
-        $rules[] = self::expeditionReceiptRule();
 
         return $rules;
     }
@@ -152,27 +151,6 @@ final class OrderDocumentRequirementSlotBuilder
             'counterparty_label' => $carrierLabel,
             'allows_multiple' => false,
             'is_required' => true,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private static function expeditionReceiptRule(): array
-    {
-        return [
-            'key' => 'expedition_receipt',
-            'label' => OrderDocumentTransportTypes::EXPEDITION_RECEIPT_LABEL,
-            'description' => 'Экспедиторская расписка (клиент экспедиции): опционально. Файл или отметка «отправлено» (ЭДО). Не блокирует закрытие сделки.',
-            'party' => 'customer',
-            'accepted_types' => ['expedition_receipt'],
-            'slot_kind' => 'expedition_receipt',
-            'slot_key' => 'expedition_receipt',
-            'contractor_id' => null,
-            'order_leg_stage' => null,
-            'counterparty_label' => null,
-            'allows_multiple' => false,
-            'is_required' => false,
         ];
     }
 
@@ -243,7 +221,6 @@ final class OrderDocumentRequirementSlotBuilder
 
         $rules[] = self::waybillRule($performers, $clientRequestMode);
         $rules[] = self::etrnRule($performers, $clientRequestMode);
-        $rules[] = self::expeditionReceiptRule();
 
         return $rules;
     }
