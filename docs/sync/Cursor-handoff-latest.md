@@ -1,9 +1,9 @@
-# Cursor handoff — CRM v5 (для второго ПК)
+﻿# Cursor handoff — CRM v5 (для второго ПК)
 
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-16 21:00 (ОТДАТЬ) · **Ветка:** `master` · **тема:** проверка живого обмена ЭТрН/ЭПД в 1С
+**Обновлено:** 2026-08-16 21:00 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `20578cc4` · **тема:** проверка живого обмена ЭТрН/ЭПД в 1С
 
 ### Итог сессии 2026-08-16 — ЭПД: схема vs обмен
 
