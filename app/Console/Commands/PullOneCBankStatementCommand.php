@@ -8,10 +8,16 @@ use App\Services\OneC\OneCBridgeCheckService;
 use App\Services\OneC\OneCPublicationCatalog;
 use App\Support\SystemActorUser;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 
 class PullOneCBankStatementCommand extends Command
 {
+    /**
+     * Cron без --from: сколько дней назад смотреть (документы в 1С часто появляются с датой операции позже).
+     */
+    public const DEFAULT_LOOKBACK_DAYS = 7;
+
     protected $signature = 'management-accounting:pull-one-c-bank
         {--from= : Дата начала YYYY-MM-DD (включительно)}
         {--to= : Дата конца YYYY-MM-DD (включительно)}
@@ -34,7 +40,7 @@ class PullOneCBankStatementCommand extends Command
             return self::FAILURE;
         }
 
-        $from = (string) ($this->option('from') ?: now()->subDay()->toDateString());
+        $from = (string) ($this->option('from') ?: now()->subDays(self::DEFAULT_LOOKBACK_DAYS)->toDateString());
         $toInclusive = (string) ($this->option('to') ?: now()->toDateString());
         $toExclusive = date('Y-m-d', strtotime($toInclusive.' +1 day'));
         $allocate = (bool) $this->option('allocate');
@@ -66,13 +72,20 @@ class PullOneCBankStatementCommand extends Command
                     $code,
                 );
             } catch (InvalidArgumentException $e) {
-                $this->warn("[{$code}] ".$e->getMessage());
+                $message = "[{$code}] ".$e->getMessage();
+                $this->warn($message);
+                Log::warning('one_c.bank_pull_empty', [
+                    'company' => $code,
+                    'from' => $from,
+                    'to' => $toInclusive,
+                    'message' => $e->getMessage(),
+                ]);
 
                 continue;
             }
 
             $import = $result['import'];
-            $this->info(sprintf(
+            $summary = sprintf(
                 '[%s] Import #%d: fetched=%d created=%d skipped=%d allocated=%d pending=%d',
                 $code,
                 $import->id,
@@ -81,7 +94,19 @@ class PullOneCBankStatementCommand extends Command
                 $result['skipped'],
                 $result['allocated'],
                 $result['pending'],
-            ));
+            );
+            $this->info($summary);
+            Log::info('one_c.bank_pull', [
+                'company' => $code,
+                'from' => $from,
+                'to' => $toInclusive,
+                'import_id' => $import->id,
+                'fetched' => $result['fetched'],
+                'created' => $result['created'],
+                'skipped' => $result['skipped'],
+                'allocated' => $result['allocated'],
+                'pending' => $result['pending'],
+            ]);
 
             foreach ($result['allocation_errors'] as $error) {
                 $this->warn('allocate: '.$error);

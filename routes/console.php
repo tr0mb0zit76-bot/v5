@@ -16,12 +16,15 @@ Schedule::command('mail:sync')
     ->withoutOverlapping(60);
 Schedule::command('contractors:sync-operational-status')->dailyAt('02:30');
 Schedule::command('import-cost:sync-references')->weeklyOn(1, '03:15');
+$pullBankLog = storage_path('logs/pull-one-c-bank.log');
 Schedule::command('management-accounting:pull-one-c-bank --allocate --bridge-check')
     ->dailyAt('12:00')
-    ->withoutOverlapping();
+    ->withoutOverlapping(30)
+    ->appendOutputTo($pullBankLog);
 Schedule::command('management-accounting:pull-one-c-bank --allocate --bridge-check')
     ->dailyAt('00:05')
-    ->withoutOverlapping();
+    ->withoutOverlapping(30)
+    ->appendOutputTo($pullBankLog);
 Schedule::command('one-c:bridge-check')
     ->dailyAt('09:00')
     ->withoutOverlapping();
