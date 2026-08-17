@@ -8,16 +8,17 @@ declare(strict_types=1);
  *
  * Usage: php scripts/sync-leads-sales-book-article.php [--dry-run]
  */
-require __DIR__.'/../vendor/autoload.php';
-
-$app = require __DIR__.'/../bootstrap/app.php';
-$app->make(Kernel::class)->bootstrap();
 
 use App\Models\SalesBookArticle;
 use App\Models\User;
 use App\Services\SalesBook\SalesBookBlockSnapshotService;
 use App\Support\SalesBookContentNormalizer;
 use Illuminate\Contracts\Console\Kernel;
+
+require __DIR__.'/../vendor/autoload.php';
+
+$app = require __DIR__.'/../bootstrap/app.php';
+$app->make(Kernel::class)->bootstrap();
 
 $dryRun = in_array('--dry-run', $argv ?? [], true);
 $articleId = 19;
