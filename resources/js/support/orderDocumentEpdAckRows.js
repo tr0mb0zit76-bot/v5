@@ -24,6 +24,11 @@ function findSignedDocumentForEpdType(signedDocuments, context) {
             return false;
         }
 
+        const direction = String(document.direction ?? document.metadata?.direction ?? 'incoming');
+        if (direction === 'outgoing') {
+            return false;
+        }
+
         const party = document.party ?? document.metadata?.party ?? 'internal';
 
         if (party !== context.party) {
@@ -86,13 +91,15 @@ function buildEpdAckRow(baseRow, signedDocuments, edoAcknowledgements) {
         document_date: edoAcknowledgement?.document_date ?? null,
         original_name: null,
         uploaded_file_preview_url: null,
-        checklist_completed: edoActive,
+        // Бумажная ТН может закрыть ЭТрН через чек-лист (взаимозамена).
+        checklist_completed: edoActive || Boolean(baseRow.checklist_completed),
         is_placeholder: true,
         is_epd_edo_row: true,
         closing_edo_controls: true,
         edo_acknowledgement: edoAcknowledgement,
         edo_toggle_label: 'Отправлен',
         is_required: baseRow.is_required ?? true,
+        fulfilled_by_alternative: baseRow.fulfilled_by_alternative ?? null,
     };
 }
 

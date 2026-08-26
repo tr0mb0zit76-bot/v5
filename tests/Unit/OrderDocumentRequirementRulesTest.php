@@ -176,6 +176,50 @@ class OrderDocumentRequirementRulesTest extends TestCase
     }
 
     #[Test]
+    public function paper_waybill_fulfills_etrn_checklist_slot_as_alternative(): void
+    {
+        $rules = OrderDocumentRequirementSlotBuilder::buildRules([], 'single_request');
+        $service = app(OrderDocumentRequirementService::class);
+
+        $document = new OrderDocument([
+            'id' => 969,
+            'type' => 'waybill',
+            'status' => 'signed',
+            'metadata' => ['party' => 'carrier', 'requirement_slot_key' => 'waybill'],
+        ]);
+
+        $checklist = collect($service->checklistForDocuments([$document], $rules));
+        $waybill = $checklist->firstWhere('key', 'waybill');
+        $etrn = $checklist->firstWhere('key', 'etrn');
+
+        $this->assertTrue($waybill['completed']);
+        $this->assertTrue($etrn['completed']);
+        $this->assertSame('waybill', $etrn['fulfilled_by_alternative'] ?? null);
+    }
+
+    #[Test]
+    public function etrn_file_fulfills_waybill_checklist_slot_as_alternative(): void
+    {
+        $rules = OrderDocumentRequirementSlotBuilder::buildRules([], 'single_request');
+        $service = app(OrderDocumentRequirementService::class);
+
+        $document = new OrderDocument([
+            'id' => 1001,
+            'type' => 'etrn',
+            'status' => 'signed',
+            'metadata' => ['party' => 'carrier'],
+        ]);
+
+        $checklist = collect($service->checklistForDocuments([$document], $rules));
+        $waybill = $checklist->firstWhere('key', 'waybill');
+        $etrn = $checklist->firstWhere('key', 'etrn');
+
+        $this->assertTrue($etrn['completed']);
+        $this->assertTrue($waybill['completed']);
+        $this->assertSame('etrn', $waybill['fulfilled_by_alternative'] ?? null);
+    }
+
+    #[Test]
     public function transport_documents_share_unified_waybill_slot_label(): void
     {
         $rules = OrderDocumentRequirementSlotBuilder::buildRules([], 'single_request');

@@ -51,7 +51,7 @@ export function buildRegistryTableRows(
             });
 
             if (matchingDocs.length === 0) {
-                rows.push(buildPlaceholderRow(rule));
+                rows.push(buildPlaceholderRow(rule, completed, checklistItem));
 
                 return;
             }
@@ -81,7 +81,7 @@ export function buildRegistryTableRows(
             return;
         }
 
-        rows.push(buildPlaceholderRow(rule));
+        rows.push(buildPlaceholderRow(rule, completed, checklistItem));
     });
 
     signed
@@ -103,7 +103,7 @@ export function buildRegistryTableRows(
 /**
  * @param {Record<string, unknown>} rule
  */
-function buildPlaceholderRow(rule) {
+function buildPlaceholderRow(rule, completed = false, checklistItem = null) {
     const defaultType = Array.isArray(rule.accepted_types) ? rule.accepted_types[0] : 'other';
 
     return {
@@ -121,8 +121,9 @@ function buildPlaceholderRow(rule) {
         document_date: null,
         original_name: null,
         uploaded_file_preview_url: null,
-        checklist_completed: false,
+        checklist_completed: completed,
         is_placeholder: true,
+        fulfilled_by_alternative: checklistItem?.fulfilled_by_alternative ?? null,
     };
 }
 
@@ -160,7 +161,32 @@ function registryTypeLabel(document, rule, typeLabels) {
     return base;
 }
 
-/** @deprecated use documentMatchesRequirementRule */
-export function documentMatchesRule(document, rule) {
-    return documentMatchesRequirementRule(document, rule);
+/**
+ * Один подписанный файл не должен появляться дважды (слот + «доп.»), иначе удаление одного id снимает обе строки.
+ *
+ * @param {Array<Record<string, unknown>>} rows
+ * @returns {Array<Record<string, unknown>>}
+ */
+export function dedupeRegistryRowsByDocumentId(rows) {
+    const list = Array.isArray(rows) ? rows : [];
+    const seen = new Set();
+
+    return list.filter((row) => {
+        if (!row || row.is_placeholder || row.id == null || row.id === '') {
+            return true;
+        }
+
+        const id = Number(row.id);
+        if (!Number.isFinite(id) || id <= 0) {
+            return true;
+        }
+
+        if (seen.has(id)) {
+            return false;
+        }
+
+        seen.add(id);
+
+        return true;
+    });
 }

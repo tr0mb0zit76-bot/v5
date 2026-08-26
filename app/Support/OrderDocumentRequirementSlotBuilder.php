@@ -117,7 +117,7 @@ final class OrderDocumentRequirementSlotBuilder
         return [
             'key' => 'waybill',
             'label' => OrderDocumentTransportTypes::UNIFIED_LABEL,
-            'description' => 'Бумажная ТН, CMR или ТСД по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов. ЭТрН — отдельный слот ЭПД.',
+            'description' => 'Бумажная ТН, CMR или ТСД по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов. Достаточно вместо ЭТрН.',
             'party' => 'carrier',
             'accepted_types' => self::WAYBILL_TYPES,
             'slot_kind' => 'waybill',
@@ -141,7 +141,7 @@ final class OrderDocumentRequirementSlotBuilder
         return [
             'key' => 'etrn',
             'label' => OrderDocumentTransportTypes::ETRN_LABEL,
-            'description' => 'Электронная транспортная накладная: отправка болванки в 1С / файл ЭТрН или отметка «отправлено» (ЭДО).',
+            'description' => 'Электронная транспортная накладная: отправка болванки в 1С / файл ЭТрН или отметка «отправлено» (ЭДО). Достаточно вместо бумажной ТН.',
             'party' => 'carrier',
             'accepted_types' => ['etrn'],
             'slot_kind' => 'etrn',

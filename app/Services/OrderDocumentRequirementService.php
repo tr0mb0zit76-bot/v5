@@ -253,7 +253,7 @@ class OrderDocumentRequirementService
         $ruleList = $rules ?? $this->requirementRules();
         $usedDocumentIds = [];
 
-        return array_map(function (array $rule) use ($documentCollection, $edoCollection, &$usedDocumentIds): array {
+        $checklist = array_map(function (array $rule) use ($documentCollection, $edoCollection, &$usedDocumentIds): array {
             if (OrderDocumentClosingFulfillment::isClosingSlotKind((string) ($rule['slot_kind'] ?? ''))) {
                 $completed = OrderDocumentClosingFulfillment::isRuleFulfilled(
                     $rule,
@@ -317,6 +317,49 @@ class OrderDocumentRequirementService
                     : (is_array($matchedDocument) ? (int) ($matchedDocument['id'] ?? 0) ?: null : null),
             ];
         }, $ruleList);
+
+        return $this->applyPaperOrEtrnTransportAlternatives($checklist);
+    }
+
+    /**
+     * Бумажная ТН/CMR/ТСД и ЭТрН — взаимозамена: достаточно одного для закрытия сделки.
+     *
+     * @param  list<array<string, mixed>>  $checklist
+     * @return list<array<string, mixed>>
+     */
+    private function applyPaperOrEtrnTransportAlternatives(array $checklist): array
+    {
+        $waybillIndex = null;
+        $etrnIndex = null;
+
+        foreach ($checklist as $index => $item) {
+            $key = (string) ($item['key'] ?? '');
+            if ($key === 'waybill') {
+                $waybillIndex = $index;
+            }
+            if ($key === 'etrn') {
+                $etrnIndex = $index;
+            }
+        }
+
+        if ($waybillIndex === null || $etrnIndex === null) {
+            return $checklist;
+        }
+
+        $waybillDone = (bool) ($checklist[$waybillIndex]['completed'] ?? false);
+        $etrnDone = (bool) ($checklist[$etrnIndex]['completed'] ?? false);
+
+        if ($waybillDone && ! $etrnDone) {
+            $checklist[$etrnIndex]['completed'] = true;
+            $checklist[$etrnIndex]['fulfilled_by_alternative'] = 'waybill';
+        }
+
+        if ($etrnDone && ! $waybillDone) {
+            $checklist[$waybillIndex]['completed'] = true;
+            $checklist[$waybillIndex]['fulfilled_by_alternative'] = 'etrn';
+        }
+
+        return $checklist;
     }
 
     /**

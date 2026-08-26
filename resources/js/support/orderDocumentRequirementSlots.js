@@ -41,7 +41,7 @@ function buildWaybillRule(performers, clientRequestMode) {
     return {
         key: 'waybill',
         label: TRANSPORT_DOCUMENT_LABEL,
-        description: 'Бумажная ТН, CMR или ТСД по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов. ЭТрН — отдельный слот ЭПД.',
+        description: 'Бумажная ТН, CMR или ТСД по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов. Достаточно вместо ЭТрН.',
         party: 'carrier',
         accepted_types: WAYBILL_TYPES,
         slot_kind: 'waybill',
@@ -58,7 +58,7 @@ function buildEtrnRule(performers, clientRequestMode) {
     return {
         key: 'etrn',
         label: ETRN_DOCUMENT_LABEL,
-        description: 'Электронная транспортная накладная: отправка болванки в 1С / файл ЭТрН или отметка «отправлено» (ЭДО).',
+        description: 'Электронная транспортная накладная: отправка болванки в 1С / файл ЭТрН или отметка «отправлено» (ЭДО). Достаточно вместо бумажной ТН.',
         party: 'carrier',
         accepted_types: ['etrn'],
         slot_kind: 'etrn',
