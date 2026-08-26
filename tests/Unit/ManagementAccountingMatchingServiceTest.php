@@ -443,6 +443,115 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $this->assertStringContainsString('Несколько заявок', (string) $suggestion['match_notes']);
     }
 
+    public function test_unique_exact_amount_among_partial_candidates_is_selected(): void
+    {
+        $carrier = Contractor::query()->create([
+            'name' => 'ИП Кочергин Никита Иванович',
+            'full_name' => 'Индивидуальный предприниматель Кочергин Никита Иванович',
+        ]);
+
+        $exactOrder = Order::query()->create([
+            'order_number' => 'АС-ЗА-25',
+            'carrier_id' => $carrier->id,
+        ]);
+
+        $partialOrder = Order::query()->create([
+            'order_number' => 'Г-2607-0013',
+            'carrier_id' => $carrier->id,
+        ]);
+
+        $exactSchedule = PaymentSchedule::query()->create([
+            'order_id' => $exactOrder->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 15000,
+            'remaining_amount' => 15000,
+            'status' => 'pending',
+            'counterparty_id' => $carrier->id,
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $partialOrder->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 20000,
+            'remaining_amount' => 20000,
+            'status' => 'pending',
+            'counterparty_id' => $carrier->id,
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-08-18',
+            'direction' => 'out',
+            'amount' => 15000,
+            'description' => 'Кочергин Никита Иванович / Оплата по счету Н4182 от 30.07.2026 за транспортные услуги',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertSame($exactOrder->id, $suggestion['suggested_order_id']);
+        $this->assertSame($exactSchedule->id, $suggestion['suggested_payment_schedule_id']);
+        $this->assertGreaterThanOrEqual(70, (int) $suggestion['match_confidence']);
+        $this->assertStringContainsString('точной суммой', (string) $suggestion['match_notes']);
+        $this->assertGreaterThanOrEqual(2, count($suggestion['suggested_candidates']));
+    }
+
+    public function test_patronymic_token_does_not_match_unrelated_individual(): void
+    {
+        $kochergin = Contractor::query()->create([
+            'name' => 'ИП Кочергин Никита Иванович',
+        ]);
+
+        $torgaev = Contractor::query()->create([
+            'name' => 'ИП Торгаев Олег Иванович',
+        ]);
+
+        $kocherginOrder = Order::query()->create([
+            'order_number' => 'АС-ЗА-25',
+            'carrier_id' => $kochergin->id,
+        ]);
+
+        $torgaevOrder = Order::query()->create([
+            'order_number' => '1',
+            'carrier_id' => $torgaev->id,
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $kocherginOrder->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 15000,
+            'remaining_amount' => 15000,
+            'status' => 'pending',
+            'counterparty_id' => $kochergin->id,
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $torgaevOrder->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 20000,
+            'remaining_amount' => 20000,
+            'status' => 'pending',
+            'counterparty_id' => $torgaev->id,
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-08-18',
+            'direction' => 'out',
+            'amount' => 15000,
+            'description' => 'Кочергин Никита Иванович / Оплата по счету Н4182 от 30.07.2026',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame($kocherginOrder->id, $suggestion['suggested_order_id']);
+        $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
+        $candidateOrderNumbers = array_column($suggestion['suggested_candidates'], 'order_number');
+        $this->assertNotContains('1', $candidateOrderNumbers);
+    }
+
     public function test_order_number_match_takes_priority_over_contractor_name(): void
     {
         $customer = Contractor::query()->create([

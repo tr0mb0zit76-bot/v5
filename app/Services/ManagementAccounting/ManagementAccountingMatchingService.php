@@ -400,6 +400,28 @@ class ManagementAccountingMatchingService
         $serializedCandidates = $this->serializeOperationalCandidates($candidates);
 
         if ($candidates->count() > 1) {
+            $picked = $this->pickUniqueOperationalCandidate($serializedCandidates, $amount);
+            if ($picked !== null && in_array($picked['pick_reason'] ?? null, ['exact_amount', 'same_order'], true)) {
+                $scheduleId = (int) $picked['payment_schedule_id'];
+                $orderId = (int) $picked['order_id'];
+                $orderNumber = (string) ($picked['order_number'] ?? '');
+
+                return [
+                    'match_type' => 'operational',
+                    'match_confidence' => ($picked['pick_reason'] ?? null) === 'exact_amount' ? 78 : 74,
+                    'match_notes' => ($picked['pick_reason'] ?? null) === 'exact_amount'
+                        ? 'Единственный кандидат с точной суммой'.($orderNumber !== '' ? ': '.$orderNumber : '')
+                        : 'Все кандидаты одного заказа'.($orderNumber !== '' ? ': '.$orderNumber : ''),
+                    'suggested_order_id' => $orderId,
+                    'suggested_payment_schedule_id' => $scheduleId,
+                    'suggested_category_id' => $direction === 'in'
+                        ? $this->defaultCategoryId('operational_customer_in')
+                        : $this->suggestedCarrierCategoryId($orderId, null),
+                    'suggested_user_id' => null,
+                    'suggested_candidates' => $serializedCandidates,
+                ];
+            }
+
             $orderNumbers = $candidates
                 ->pluck('order_number')
                 ->filter()
@@ -1173,7 +1195,7 @@ class ManagementAccountingMatchingService
 
             foreach ($parts as $part) {
                 $part = trim($part);
-                if (mb_strlen($part) >= 5) {
+                if (mb_strlen($part) >= 5 && ! $this->isWeakPersonNameToken($part)) {
                     $tokens[] = $part;
                 }
             }
@@ -1287,6 +1309,17 @@ class ManagementAccountingMatchingService
         $label = trim((string) preg_replace('/^(ооо|оао|зао|пао|ип|ао|чп)\s+/u', '', $label));
 
         return trim((string) preg_replace('/^тк\s+/u', '', $label));
+    }
+
+    /**
+     * Отчества и прочие слабые токены ФИО — не матчить отдельно
+     * (иначе «Иванович» сшивает разных ИП в одном платеже).
+     */
+    private function isWeakPersonNameToken(string $token): bool
+    {
+        $token = mb_strtolower(trim($token));
+
+        return preg_match('/(?:ович|евич|овна|евна|ична|инична)$/u', $token) === 1;
     }
 
     private function plannedDateDistanceDays(PaymentSchedule $schedule, ?string $operationDate): int
