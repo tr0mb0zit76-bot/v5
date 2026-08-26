@@ -29,6 +29,28 @@ class OrderNumberGenerator
     }
 
     /**
+     * Код компании без резерва номера (для create/update, когда номер уже задан в форме).
+     */
+    public function resolveCompanyCodeOnly(?Contractor $ownCompany = null): string
+    {
+        $rule = $this->orderNumbering->findRuleForOwnCompany($ownCompany !== null ? (int) $ownCompany->id : null);
+
+        if ($rule !== null) {
+            return $this->orderNumbering->resolveCompanyCode($rule);
+        }
+
+        return $this->resolveCompanyCode($ownCompany);
+    }
+
+    /**
+     * Учесть уже выданный номер (превью/ручной ввод) в счётчике правила.
+     */
+    public function acknowledgeAssignedSequence(?Contractor $ownCompany, string $orderNumber): void
+    {
+        $this->orderNumbering->acknowledgeAssignedSequence($ownCompany, $orderNumber);
+    }
+
+    /**
      * @return array{company_code: string, order_number: string}
      */
     private function generateLegacy(?Contractor $ownCompany = null): array

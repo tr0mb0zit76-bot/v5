@@ -71,7 +71,14 @@ class OrderWizardService
             $ownerUser = User::query()->find($orderOwnerId) ?? $user;
             $generatedNumber = blank($validated['order_number'] ?? null)
                 ? $this->orderNumberGenerator->generate($ownCompany, $ownerUser)
-                : ['company_code' => $this->orderNumberGenerator->generate($ownCompany, $ownerUser)['company_code'], 'order_number' => $validated['order_number']];
+                : [
+                    'company_code' => $this->orderNumberGenerator->resolveCompanyCodeOnly($ownCompany),
+                    'order_number' => $validated['order_number'],
+                ];
+
+            if (! blank($validated['order_number'] ?? null)) {
+                $this->orderNumberGenerator->acknowledgeAssignedSequence($ownCompany, (string) $validated['order_number']);
+            }
 
             $order = Order::query()->create($this->extractOrderAttributes($validated, $user, $generatedNumber, true, null));
 
@@ -117,7 +124,10 @@ class OrderWizardService
             $ownerUser = User::query()->find($orderOwnerId) ?? $user;
             $generatedNumber = blank($validated['order_number'] ?? null)
                 ? $this->orderNumberGenerator->generate($ownCompany, $ownerUser)
-                : ['company_code' => $this->orderNumberGenerator->generate($ownCompany, $ownerUser)['company_code'], 'order_number' => $validated['order_number']];
+                : [
+                    'company_code' => $this->orderNumberGenerator->resolveCompanyCodeOnly($ownCompany),
+                    'order_number' => $validated['order_number'],
+                ];
 
             $validated = $this->normalizeBasicTermsInValidated($validated, $order);
             $order->update($this->extractOrderAttributes($validated, $user, $generatedNumber, false, $order));

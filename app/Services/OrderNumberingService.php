@@ -168,4 +168,47 @@ class OrderNumberingService
 
         return $next;
     }
+
+    /**
+     * Подтянуть счётчик до выданного вручную/из превью номера, без лишнего +1.
+     * Нужно при create с уже заполненным order_number, чтобы следующий reserve не выдал дубль.
+     */
+    public function acknowledgeAssignedSequence(?Contractor $ownCompany, string $orderNumber, ?CarbonInterface $at = null): void
+    {
+        $rule = $this->findRuleForOwnCompany($ownCompany !== null ? (int) $ownCompany->id : null);
+
+        if ($rule === null) {
+            return;
+        }
+
+        if (! preg_match('/(\d+)\s*$/u', $orderNumber, $matches)) {
+            return;
+        }
+
+        $assigned = (int) $matches[1];
+        if ($assigned < 1) {
+            return;
+        }
+
+        $at ??= now();
+
+        DB::transaction(function () use ($rule, $at, $assigned): void {
+            $locked = OrderNumberingRule::query()
+                ->whereKey($rule->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $key = $this->scopeKey($locked->sequence_scope, $at);
+            $counters = is_array($locked->sequence_counters) ? $locked->sequence_counters : [];
+            $current = (int) ($counters[$key] ?? 0);
+
+            if ($assigned <= $current) {
+                return;
+            }
+
+            $counters[$key] = $assigned;
+            $locked->sequence_counters = $counters;
+            $locked->save();
+        });
+    }
 }
