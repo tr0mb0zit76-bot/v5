@@ -491,6 +491,7 @@ class StoreOrderRequest extends FormRequest
             'compensation_owner_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'compensation_dispatcher_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'order_number' => ['nullable', 'string', 'max:255'],
+            'order_number_is_manual' => ['sometimes', 'boolean'],
             'special_notes' => ['nullable', 'string'],
             'customer_basic_terms' => ['nullable', 'array'],
             'customer_basic_terms.*' => ['nullable', 'string', 'max:8000'],

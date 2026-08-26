@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\OrderNumberSegmentType;
 use App\Enums\OrderNumberSequenceScope;
 use App\Models\Contractor;
+use App\Models\Order;
 use App\Models\OrderNumberingRule;
 use App\Models\User;
 use App\Support\ManagerInitialsResolver;
@@ -12,6 +13,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class OrderNumberingService
 {
@@ -77,13 +79,88 @@ class OrderNumberingService
                 ->firstOrFail();
 
             $sequence = $this->reserveNextSequence($locked, $at);
+            $orderNumber = $this->composeNumber($locked, $sequence, $at, $manager);
+
+            // На случай дыр/ручных правок: не отдаём номер, который уже есть у живого заказа.
+            for ($attempt = 0; $attempt < 30; $attempt++) {
+                if (! $this->orderNumberTaken($orderNumber)) {
+                    break;
+                }
+
+                $sequence = $this->reserveNextSequence($locked, $at);
+                $orderNumber = $this->composeNumber($locked, $sequence, $at, $manager);
+            }
 
             return [
-                'order_number' => $this->composeNumber($locked, $sequence, $at, $manager),
+                'order_number' => $orderNumber,
                 'company_code' => $this->resolveCompanyCode($locked),
                 'cipher' => $locked->cipher,
             ];
         });
+    }
+
+    /**
+     * Выдача номера при создании заказа.
+     * Превью из UI игнорируется (два таба иначе получают один номер); ручной ввод — только с флагом.
+     *
+     * @return array{order_number: string, company_code: string, cipher: string|null}
+     */
+    public function allocateForCreate(
+        ?Contractor $ownCompany,
+        ?User $manager = null,
+        ?string $requestedNumber = null,
+        bool $manualOverride = false,
+        ?CarbonInterface $at = null,
+    ): array {
+        $rule = $this->findRuleForOwnCompany($ownCompany !== null ? (int) $ownCompany->id : null);
+        $at ??= now();
+        $requested = is_string($requestedNumber) ? trim($requestedNumber) : '';
+
+        if ($rule === null) {
+            if ($requested !== '' && $manualOverride) {
+                if ($this->orderNumberTaken($requested)) {
+                    throw ValidationException::withMessages([
+                        'order_number' => 'Такой номер заказа уже занят.',
+                    ]);
+                }
+
+                return [
+                    'order_number' => $requested,
+                    'company_code' => app(OrderNumberGenerator::class)->resolveCompanyCodeOnly($ownCompany),
+                    'cipher' => null,
+                ];
+            }
+
+            return [
+                ...app(OrderNumberGenerator::class)->generate($ownCompany, $manager),
+                'cipher' => null,
+            ];
+        }
+
+        if ($manualOverride && $requested !== '') {
+            return DB::transaction(function () use ($rule, $at, $requested): array {
+                $locked = OrderNumberingRule::query()
+                    ->whereKey($rule->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($this->orderNumberTaken($requested)) {
+                    throw ValidationException::withMessages([
+                        'order_number' => 'Такой номер заказа уже занят.',
+                    ]);
+                }
+
+                $this->bumpCounterToAssigned($locked, $at, $requested);
+
+                return [
+                    'order_number' => $requested,
+                    'company_code' => $this->resolveCompanyCode($locked),
+                    'cipher' => $locked->cipher,
+                ];
+            });
+        }
+
+        return $this->generateAndReserve($ownCompany, $at, $manager);
     }
 
     public function composeNumber(OrderNumberingRule $rule, int $sequence, CarbonInterface $at, ?User $manager = null): string
@@ -198,17 +275,47 @@ class OrderNumberingService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $key = $this->scopeKey($locked->sequence_scope, $at);
-            $counters = is_array($locked->sequence_counters) ? $locked->sequence_counters : [];
-            $current = (int) ($counters[$key] ?? 0);
+            $this->bumpCounterToAssigned($locked, $at, (string) $assigned);
+        });
+    }
 
-            if ($assigned <= $current) {
+    private function orderNumberTaken(string $orderNumber): bool
+    {
+        $query = Order::query()->where('order_number', $orderNumber);
+
+        if (Schema::hasColumn('orders', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return $query->exists();
+    }
+
+    private function bumpCounterToAssigned(OrderNumberingRule $rule, CarbonInterface $at, string $orderNumberOrSequence): void
+    {
+        if (preg_match('/(\d+)\s*$/u', $orderNumberOrSequence, $matches) !== 1) {
+            if (! ctype_digit($orderNumberOrSequence)) {
                 return;
             }
 
-            $counters[$key] = $assigned;
-            $locked->sequence_counters = $counters;
-            $locked->save();
-        });
+            $assigned = (int) $orderNumberOrSequence;
+        } else {
+            $assigned = (int) $matches[1];
+        }
+
+        if ($assigned < 1) {
+            return;
+        }
+
+        $key = $this->scopeKey($rule->sequence_scope, $at);
+        $counters = is_array($rule->sequence_counters) ? $rule->sequence_counters : [];
+        $current = (int) ($counters[$key] ?? 0);
+
+        if ($assigned <= $current) {
+            return;
+        }
+
+        $counters[$key] = $assigned;
+        $rule->sequence_counters = $counters;
+        $rule->save();
     }
 }

@@ -51,6 +51,18 @@ class OrderNumberGenerator
     }
 
     /**
+     * @return array{order_number: string, company_code: string, cipher?: string|null}
+     */
+    public function allocateForCreate(
+        ?Contractor $ownCompany = null,
+        ?User $manager = null,
+        ?string $requestedNumber = null,
+        bool $manualOverride = false,
+    ): array {
+        return $this->orderNumbering->allocateForCreate($ownCompany, $manager, $requestedNumber, $manualOverride);
+    }
+
+    /**
      * @return array{company_code: string, order_number: string}
      */
     private function generateLegacy(?Contractor $ownCompany = null): array

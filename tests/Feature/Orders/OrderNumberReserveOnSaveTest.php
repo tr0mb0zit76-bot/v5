@@ -150,6 +150,72 @@ class OrderNumberReserveOnSaveTest extends TestCase
         ]);
     }
 
+    public function test_create_with_stale_preview_number_still_reserves_unique_server_number(): void
+    {
+        if (! Schema::hasTable('order_numbering_rules')) {
+            $this->markTestSkipped('order_numbering_rules missing');
+        }
+
+        $admin = $this->createAdminUser();
+
+        $ownCompanyId = DB::table('contractors')->insertGetId([
+            'type' => 'both',
+            'name' => 'ООО Нумератор Race',
+            'inn' => '1000000094',
+            'is_active' => true,
+            'is_own_company' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент Race',
+            'inn' => '1000000093',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        OrderNumberingRule::query()->create([
+            'cipher' => 'AS',
+            'own_company_id' => $ownCompanyId,
+            'separator' => '-',
+            'prefix_type' => OrderNumberSegmentType::Text,
+            'prefix_value' => 'АС',
+            'body_type' => OrderNumberSegmentType::Text,
+            'body_value' => 'ТД',
+            'suffix_type' => OrderNumberSegmentType::Sequence,
+            'suffix_value' => null,
+            'sequence_pad' => 0,
+            'sequence_scope' => OrderNumberSequenceScope::Year,
+            'sequence_counters' => ['2026' => 950],
+        ]);
+
+        $payload = [
+            'status' => 'new',
+            'own_company_id' => $ownCompanyId,
+            'client_id' => $clientId,
+            'order_date' => '2026-08-26',
+            'order_number' => 'АС-ТД-951',
+            'special_notes' => null,
+            'additional_expenses' => 0,
+            'insurance' => 0,
+            'bonus' => 0,
+            'performers' => [],
+            'route_points' => [],
+            'cargo_items' => [],
+            'client_payment_form' => 'vat',
+        ];
+
+        $first = app(OrderWizardService::class)->create($payload, $admin);
+        $second = app(OrderWizardService::class)->create($payload, $admin);
+
+        $this->assertSame('АС-ТД-951', $first->order_number);
+        $this->assertSame('АС-ТД-952', $second->order_number);
+        $this->assertNotSame($first->order_number, $second->order_number);
+    }
+
     public function test_create_with_explicit_number_does_not_burn_extra_sequence(): void
     {
         if (! Schema::hasTable('order_numbering_rules')) {
@@ -212,7 +278,7 @@ class OrderNumberReserveOnSaveTest extends TestCase
         $this->assertSame(
             941,
             (int) (OrderNumberingRule::query()->where('own_company_id', $ownCompanyId)->firstOrFail()->sequence_counters['2026'] ?? 0),
-            'Явный номер из превью должен подтянуть счётчик до своего sequence, без лишнего +1',
+            'Превью игнорируется: сервер резервирует следующий sequence под lock',
         );
     }
 

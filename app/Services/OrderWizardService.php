@@ -69,16 +69,12 @@ class OrderWizardService
             $ownCompany = $this->resolveOwnCompany($validated);
             $orderOwnerId = $this->resolveOrderOwnerIdFromValidated($validated, $user, true, null);
             $ownerUser = User::query()->find($orderOwnerId) ?? $user;
-            $generatedNumber = blank($validated['order_number'] ?? null)
-                ? $this->orderNumberGenerator->generate($ownCompany, $ownerUser)
-                : [
-                    'company_code' => $this->orderNumberGenerator->resolveCompanyCodeOnly($ownCompany),
-                    'order_number' => $validated['order_number'],
-                ];
-
-            if (! blank($validated['order_number'] ?? null)) {
-                $this->orderNumberGenerator->acknowledgeAssignedSequence($ownCompany, (string) $validated['order_number']);
-            }
+            $generatedNumber = $this->orderNumberGenerator->allocateForCreate(
+                $ownCompany,
+                $ownerUser,
+                blank($validated['order_number'] ?? null) ? null : (string) $validated['order_number'],
+                (bool) ($validated['order_number_is_manual'] ?? false),
+            );
 
             $order = Order::query()->create($this->extractOrderAttributes($validated, $user, $generatedNumber, true, null));
 

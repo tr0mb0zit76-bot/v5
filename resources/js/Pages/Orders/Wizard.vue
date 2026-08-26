@@ -206,7 +206,7 @@ const OrderWizardEpdTab = defineAsyncComponent(() => import('@/Components/Orders
 const OrderWizardClaimsTab = defineAsyncComponent(() => import('@/Components/Orders/OrderWizardClaimsTab.vue'));
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { ORDER_STATUS_ICON_META, resolveOrderStatusIconKey } from '@/support/orderStatusDisplay.js';
-import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { useDocumentUploadGate } from '@/support/documentUploadGate.js';
 import { syncRoutePointCityFromAddress } from '@/support/routePointNormalizedData.js';
 import { basicTermsPartiesForTemplateSelection } from '@/support/printFormBasicTerms.js';
 import { EMPTY_ORDER_DOCUMENTS } from '@/support/emptyOrderDocuments.js';
@@ -279,6 +279,7 @@ defineOptions({
 });
 
 const page = usePage();
+const uploadGate = useDocumentUploadGate();
 
 const additionalExpenseAmountFieldClass =
     'h-9 w-[6.75rem] max-w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-sm tabular-nums dark:border-zinc-700 dark:bg-zinc-950';
@@ -513,10 +514,20 @@ async function finalizeWorkflowPdf(doc, event) {
         return;
     }
 
-    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+    const accepted = await uploadGate.ensureDocumentWithinBudget(
+        file,
+        page.props.document_upload_limits ?? {},
+    );
+    if (!accepted) {
+        if (target) {
+            target.value = '';
+        }
+
+        return;
+    }
 
     const formData = new FormData();
-    formData.append('pdf', file);
+    formData.append('pdf', accepted);
 
     router.post(route('orders.documents.finalize', [props.order.id, doc.id]), formData, {
         forceFormData: true,
@@ -3533,6 +3544,7 @@ const { submit, markOrderDisruption } = useOrderWizardSubmit({
     orderBasicTermsDraft,
     activeIntakeDraftId,
     intakeDraftCommitted,
+    orderNumberManual,
 });
 
 // Watch for changes in contractors_costs to sync back to performers

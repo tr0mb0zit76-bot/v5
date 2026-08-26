@@ -74,6 +74,7 @@ export function useOrderWizardSubmit(deps) {
             compensation_dispatcher_percent: form.dispatcher_id ? form.compensation_dispatcher_percent : 0,
             order_date: form.order_date,
             order_number: form.order_number,
+            order_number_is_manual: Boolean(deps.orderNumberManual?.value),
             payment_terms: form.payment_terms,
             special_notes: form.special_notes,
             svh_name: form.svh_name,
