@@ -65,7 +65,7 @@ class FinanceIndexTest extends TestCase
             'order_date' => '2026-04-05',
             'customer_rate' => 120000,
             'carrier_rate' => 80000,
-            'customer_payment_form' => 'vat',
+            'customer_payment_form' => 'cash',
             'carrier_payment_form' => 'vat',
             'invoice_number' => 'INV-100',
             'upd_number' => 'UPD-100',
@@ -112,6 +112,8 @@ class FinanceIndexTest extends TestCase
             ->where('active_submodule', 'cashflow')
             ->where('cashFlowJournal.0.direction', 'Нам')
             ->where('cashFlowJournal.0.invoice_number', 'СЧ-PS-1')
+            ->where('cashFlowJournal.0.payment_form', 'cash')
+            ->where('cashFlowJournal.0.payment_form_label', 'Нал')
             ->where('cash_flow_stats.receivables.total', 120000)
             ->where('cash_flow_stats.receivables.pending', 120000)
             ->where('cash_flow_stats.receivables.overdue', 0)

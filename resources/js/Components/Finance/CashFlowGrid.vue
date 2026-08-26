@@ -273,6 +273,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    paymentFormOptions: {
+        type: Array,
+        default: () => [],
+    },
     initialPreset: {
         type: String,
         default: null,
@@ -282,6 +286,16 @@ const props = defineProps({
 const DIRECTION_FILTER_VALUES = ['Мы', 'Нам'];
 const PAYMENT_TYPE_FILTER_VALUES = ['Предоплата', 'Финальный платёж'];
 const STATUS_FILTER_VALUES = ['По плану', 'Частично оплачено', 'Оплачено', 'Просрочено', 'Отменено'];
+const PAYMENT_FORM_FILTER_VALUES = (() => {
+    const labels = (Array.isArray(props.paymentFormOptions) ? props.paymentFormOptions : [])
+        .map((option) => String(option?.label ?? '').trim())
+        .filter(Boolean);
+
+    // labelForCode('cash') → «Нал», options() → «Наличные» — оба оставляем для фильтра
+    const known = [...labels, 'Нал', 'Наличные', 'Без НДС', '—'];
+
+    return [...new Set(known)];
+})();
 const workModeOptions = [
     { key: 'due', label: 'К оплате' },
     { key: 'payment_run_today', label: 'Оплачиваем сегодня' },
@@ -722,6 +736,21 @@ function buildBaseColumnDefs() {
         floatingFilterRow: true,
     });
 
+    const paymentFormCol = {
+        colId: 'payment_form',
+        field: 'payment_form_label',
+        headerName: 'Форма оплаты',
+        minWidth: 120,
+        sortable: true,
+        valueGetter: (p) => p.data?.payment_form_label || '—',
+    };
+    applyAgSetListColumn(paymentFormCol, {
+        values: PAYMENT_FORM_FILTER_VALUES,
+        filterValueGetter: (p) => p.data?.payment_form_label || '—',
+        compact: true,
+        floatingFilterRow: true,
+    });
+
     const statusCol = {
         colId: 'status',
         headerName: 'Статус',
@@ -792,6 +821,7 @@ function buildBaseColumnDefs() {
         valueFormatter: (p) => p.value || '—',
     },
     paymentTypeCol,
+    paymentFormCol,
     {
         colId: 'invoice_number',
         field: 'invoice_number',

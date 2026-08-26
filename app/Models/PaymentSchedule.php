@@ -36,6 +36,7 @@ class PaymentSchedule extends Model
         'parent_payment_id',
         'is_partial',
         'notes',
+        'payment_form',
     ];
 
     /**

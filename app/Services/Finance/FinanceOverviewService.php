@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\PaymentSchedule;
 use App\Models\User;
 use App\Support\OrderViewAuthorization;
+use App\Support\PaymentFormDictionary;
 use App\Support\PaymentMatchToken;
 use App\Support\PaymentScheduleSettlementStatus;
 use App\Support\RoleAccess;
@@ -129,6 +130,18 @@ class FinanceOverviewService
             $select[] = 'payment_schedules.parent_payment_id';
         }
 
+        if (Schema::hasColumn('payment_schedules', 'payment_form')) {
+            $select[] = 'payment_schedules.payment_form';
+        }
+
+        if (Schema::hasColumn('orders', 'customer_payment_form')) {
+            $select[] = 'orders.customer_payment_form';
+        }
+
+        if (Schema::hasColumn('orders', 'carrier_payment_form')) {
+            $select[] = 'orders.carrier_payment_form';
+        }
+
         $rows = $journalQuery
             ->select($select)
             ->orderByDesc('payment_schedules.planned_date')
@@ -181,6 +194,9 @@ class FinanceOverviewService
         $requiresPaymentToken = in_array($party, ['carrier', 'contractor'], true)
             && (bool) config('one_c.payment_token.enforce_outgoing_bank', true);
 
+        $paymentFormCode = $this->resolveCashFlowPaymentFormCode($row, $isCustomerParty);
+        $paymentFormLabel = PaymentFormDictionary::labelForCode($paymentFormCode) ?? '—';
+
         return [
             'id' => $row->id,
             'order_id' => $row->order_id,
@@ -195,6 +211,8 @@ class FinanceOverviewService
                 ? ($row->counterparty_id ?? null)
                 : null,
             'payment_type' => $row->type === 'prepayment' ? 'Предоплата' : 'Финальный платёж',
+            'payment_form' => $paymentFormCode,
+            'payment_form_label' => $paymentFormLabel,
             'amount' => (float) ($row->amount ?? 0),
             'amount_due' => $amountDue,
             'planned_date' => $row->planned_date,
@@ -217,6 +235,24 @@ class FinanceOverviewService
                 ? PaymentMatchToken::purposeLine($scheduleStub)
                 : null,
         ];
+    }
+
+    private function resolveCashFlowPaymentFormCode(object $row, bool $isCustomerParty): ?string
+    {
+        $fromSchedule = trim((string) ($row->payment_form ?? ''));
+        if ($fromSchedule !== '') {
+            return PaymentFormDictionary::normalizeForStorage($fromSchedule) ?? $fromSchedule;
+        }
+
+        $fallback = $isCustomerParty
+            ? ($row->customer_payment_form ?? null)
+            : ($row->carrier_payment_form ?? null);
+
+        if ($fallback === null || trim((string) $fallback) === '') {
+            return null;
+        }
+
+        return PaymentFormDictionary::normalizeForStorage((string) $fallback) ?? trim((string) $fallback);
     }
 
     /**

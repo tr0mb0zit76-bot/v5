@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Support\PaymentScheduleTableColumns;
 use App\Support\TableColumnsPreset;
 use PHPUnit\Framework\TestCase;
 
@@ -42,5 +43,33 @@ class TableColumnsPresetTest extends TestCase
 
         $this->assertIsArray($trackColumn);
         $this->assertTrue($trackColumn['hide']);
+    }
+
+    public function test_payment_schedule_merge_shows_new_payment_form_column(): void
+    {
+        $presetWithoutForm = [
+            ['colId' => 'id', 'hide' => false, 'width' => 56, 'order' => 0],
+            ['colId' => 'payment_type', 'hide' => false, 'width' => 130, 'order' => 1],
+        ];
+
+        $merged = PaymentScheduleTableColumns::mergePresetWithCatalog($presetWithoutForm);
+        $paymentForm = collect($merged)->firstWhere('colId', 'payment_form');
+
+        $this->assertIsArray($paymentForm);
+        $this->assertFalse($paymentForm['hide']);
+        $this->assertContains('payment_form', PaymentScheduleTableColumns::fields());
+    }
+
+    public function test_payment_schedule_merge_keeps_explicit_hidden_payment_form(): void
+    {
+        $preset = [
+            ['colId' => 'payment_form', 'hide' => true, 'width' => 130, 'order' => 5],
+        ];
+
+        $merged = PaymentScheduleTableColumns::mergePresetWithCatalog($preset);
+        $paymentForm = collect($merged)->firstWhere('colId', 'payment_form');
+
+        $this->assertIsArray($paymentForm);
+        $this->assertTrue($paymentForm['hide']);
     }
 }

@@ -213,6 +213,7 @@
                     :initial-preset="cashFlowGridPreset"
                     :user-id="cashFlowGridUserId"
                     :available-columns="paymentScheduleColumns"
+                    :payment-form-options="paymentFormOptions"
                     :role-columns-config="roleColumnsConfig"
                     :can-manage-actions="canManagePaymentSchedule"
                     :can-show-actions-column="canShowPaymentScheduleActions"
@@ -327,6 +328,10 @@ const props = defineProps({
         default: false,
     },
     paymentScheduleColumns: {
+        type: Array,
+        default: () => [],
+    },
+    paymentFormOptions: {
         type: Array,
         default: () => [],
     },

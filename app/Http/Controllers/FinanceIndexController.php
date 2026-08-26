@@ -6,6 +6,7 @@ use App\Models\ManagementBankAccount;
 use App\Models\ManagementStatementImport;
 use App\Services\Finance\FinanceOverviewService;
 use App\Services\ManagementAccounting\ManagementBankAccountSyncService;
+use App\Support\PaymentFormDictionary;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PaymentScheduleTableColumns;
 use App\Support\RoleAccess;
@@ -66,6 +67,7 @@ class FinanceIndexController extends Controller
             'can_payment_schedule_record_payment' => RoleAccess::canRecordPaymentOnPaymentSchedule($user),
             'can_payment_schedule_cancel_row' => RoleAccess::canCancelPaymentScheduleRow($user),
             'paymentScheduleColumns' => PaymentScheduleTableColumns::options(),
+            'paymentFormOptions' => PaymentFormDictionary::options(),
         ];
 
         if ($activeSubmodule === 'cashflow' && $cashflowTab === 'reconcile') {

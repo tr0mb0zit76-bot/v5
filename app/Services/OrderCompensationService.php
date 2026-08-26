@@ -18,6 +18,7 @@ use App\Support\OrderPersistedId;
 use App\Support\OrderRouteMilestoneDateResolver;
 use App\Support\OrderTrackReceivedFields;
 use App\Support\OrderViewAuthorization;
+use App\Support\PaymentFormDictionary;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleAutomaticStatus;
@@ -728,6 +729,7 @@ class OrderCompensationService
                 $carrierContractorId,
                 $invoiceByKey,
                 $slot,
+                $paymentForm,
             );
         }
 
@@ -798,6 +800,7 @@ class OrderCompensationService
         ?int $carrierContractorId,
         array $invoiceByKey = [],
         ?int $installmentSequence = null,
+        ?string $paymentForm = null,
     ): array {
         $orderId = OrderPersistedId::resolveOrFail($order);
 
@@ -820,6 +823,12 @@ class OrderCompensationService
 
         if (Schema::hasColumn('payment_schedules', 'installment_sequence')) {
             $row['installment_sequence'] = $installmentSequence;
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'payment_form')) {
+            $normalizedForm = PaymentFormDictionary::normalizeForStorage($paymentForm)
+                ?? PaymentFormDictionary::normalizeForStorage($this->paymentFormForParty($order, $party));
+            $row['payment_form'] = $normalizedForm;
         }
 
         if (Schema::hasColumn('payment_schedules', 'invoice_number')) {

@@ -15,6 +15,7 @@ class PaymentScheduleTableColumns
             ['field' => 'direction', 'label' => 'Направление', 'width' => 140, 'minWidth' => 110],
             ['field' => 'counterparty_name', 'label' => 'Контрагент', 'width' => 200, 'minWidth' => 160],
             ['field' => 'payment_type', 'label' => 'Тип', 'width' => 130, 'minWidth' => 110],
+            ['field' => 'payment_form', 'label' => 'Форма оплаты', 'width' => 130, 'minWidth' => 110],
             ['field' => 'invoice_number', 'label' => 'Номер счёта', 'width' => 150, 'minWidth' => 120],
             ['field' => 'payment_run_date', 'label' => 'План оплаты', 'width' => 140, 'minWidth' => 120],
             ['field' => 'planned_date', 'label' => 'План', 'width' => 130, 'minWidth' => 110],
@@ -39,7 +40,22 @@ class PaymentScheduleTableColumns
      */
     public static function mergePresetWithCatalog(array $preset): array
     {
-        return TableColumnsPreset::mergeWithCatalog($preset, static::options());
+        $hadPaymentForm = collect($preset)->contains(
+            static fn ($column): bool => is_array($column) && ($column['colId'] ?? null) === 'payment_form',
+        );
+
+        $merged = TableColumnsPreset::mergeWithCatalog($preset, static::options());
+
+        // Новая колонка в каталоге: показываем сразу (mergeWithCatalog иначе прячет hide=true).
+        if (! $hadPaymentForm) {
+            foreach ($merged as $index => $column) {
+                if (($column['colId'] ?? null) === 'payment_form') {
+                    $merged[$index]['hide'] = false;
+                }
+            }
+        }
+
+        return $merged;
     }
 
     /**
@@ -53,6 +69,7 @@ class PaymentScheduleTableColumns
             'direction' => ['width' => 140, 'hide' => false],
             'counterparty_name' => ['width' => 200, 'hide' => false],
             'payment_type' => ['width' => 130, 'hide' => false],
+            'payment_form' => ['width' => 130, 'hide' => false],
             'invoice_number' => ['width' => 150, 'hide' => false],
             'payment_run_date' => ['width' => 140, 'hide' => false],
             'planned_date' => ['width' => 130, 'hide' => false],
