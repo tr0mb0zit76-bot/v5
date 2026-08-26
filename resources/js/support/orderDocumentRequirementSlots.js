@@ -530,3 +530,31 @@ export function documentMatchesRequirementRule(document, rule) {
 
     return true;
 }
+
+/**
+ * Бумажная ТН/CMR/ТСД и ЭТрН — взаимозамена (зеркало PHP OrderDocumentRequirementService).
+ *
+ * @param {Array<Record<string, unknown>>} checklist
+ * @returns {Array<Record<string, unknown>>}
+ */
+export function applyPaperOrEtrnTransportAlternatives(checklist) {
+    const items = (Array.isArray(checklist) ? checklist : []).map((item) => ({ ...item }));
+    const waybill = items.find((item) => item?.key === 'waybill');
+    const etrn = items.find((item) => item?.key === 'etrn');
+
+    if (!waybill || !etrn) {
+        return items;
+    }
+
+    if (waybill.completed && !etrn.completed) {
+        etrn.completed = true;
+        etrn.fulfilled_by_alternative = 'waybill';
+    }
+
+    if (etrn.completed && !waybill.completed) {
+        waybill.completed = true;
+        waybill.fulfilled_by_alternative = 'etrn';
+    }
+
+    return items;
+}

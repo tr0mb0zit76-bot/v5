@@ -22,6 +22,7 @@ import {
     customerRequestSlots,
     documentMatchesRequirementRule,
     findRequirementRuleForUpload,
+    applyPaperOrEtrnTransportAlternatives,
 } from '@/support/orderDocumentRequirementSlots.js';
 import { isTransportDocumentType } from '@/support/orderDocumentTypes.js';
 import { stageLabel, toStageKey } from '@/support/orderPrintFormSlots.js';
@@ -170,9 +171,14 @@ const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRu
 const effectiveDocumentChecklist = computed(() => {
     const rules = effectiveRequiredDocumentRules.value;
     const documents = signedDocuments.value ?? [];
+    const serverByKey = new Map(
+        (Array.isArray(props.requiredDocumentChecklist) ? props.requiredDocumentChecklist : [])
+            .map((item) => [item?.key, item]),
+    );
     const usedIds = new Set();
 
-    return rules.map((rule) => {
+    const checklist = rules.map((rule) => {
+        const serverItem = serverByKey.get(rule.key);
         const matchedDocument = documents.find((document) => {
             if (document?.id && usedIds.has(document.id)) {
                 return false;
@@ -191,12 +197,20 @@ const effectiveDocumentChecklist = computed(() => {
             usedIds.add(matchedDocument.id);
         }
 
+        const clientCompleted = matchedDocument !== undefined;
+        // ЭДО / закрывающие (УПД|акт+СФ) и серверная взаимозамена ТН↔ЭТрН.
+        const serverCompleted = Boolean(serverItem?.completed);
+        const completed = clientCompleted || serverCompleted;
+
         return {
             ...rule,
-            completed: matchedDocument !== undefined,
-            matched_document_id: matchedDocument?.id ?? null,
+            completed,
+            matched_document_id: matchedDocument?.id ?? serverItem?.matched_document_id ?? null,
+            fulfilled_by_alternative: serverItem?.fulfilled_by_alternative ?? null,
         };
     });
+
+    return applyPaperOrEtrnTransportAlternatives(checklist);
 });
 
 const workflowRejectTargetId = ref(null);
