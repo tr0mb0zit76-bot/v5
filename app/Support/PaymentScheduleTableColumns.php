@@ -46,12 +46,39 @@ class PaymentScheduleTableColumns
 
         $merged = TableColumnsPreset::mergeWithCatalog($preset, static::options());
 
-        // Новая колонка в каталоге: показываем сразу (mergeWithCatalog иначе прячет hide=true).
+        // Новая колонка в каталоге: показываем сразу (mergeWithCatalog иначе прячет hide=true)
+        // и ставим после «Тип», а не в конец (иначе в гриде её не видно без горизонтального скролла).
         if (! $hadPaymentForm) {
-            foreach ($merged as $index => $column) {
+            $paymentForm = null;
+            $without = [];
+
+            foreach ($merged as $column) {
                 if (($column['colId'] ?? null) === 'payment_form') {
-                    $merged[$index]['hide'] = false;
+                    $paymentForm = $column;
+                    $paymentForm['hide'] = false;
+
+                    continue;
                 }
+
+                $without[] = $column;
+            }
+
+            if (is_array($paymentForm)) {
+                $insertAt = count($without);
+
+                foreach ($without as $index => $column) {
+                    if (($column['colId'] ?? null) === 'payment_type') {
+                        $insertAt = $index + 1;
+                        break;
+                    }
+                }
+
+                array_splice($without, $insertAt, 0, [$paymentForm]);
+                $merged = array_values(array_map(
+                    static fn (array $column, int $order): array => [...$column, 'order' => $order],
+                    $without,
+                    array_keys($without),
+                ));
             }
         }
 

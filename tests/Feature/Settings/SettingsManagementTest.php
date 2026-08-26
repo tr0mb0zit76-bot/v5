@@ -290,6 +290,33 @@ class SettingsManagementTest extends TestCase
         ], $columnsConfig['payment_schedule']);
     }
 
+    public function test_admin_can_save_payment_schedule_preset_with_id_column_width_56(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $managerRoleId = $this->createRole('manager', 'Менеджер');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $response = $this->actingAs($admin)->patch(route('settings.tables.update', $managerRoleId), [
+            'table' => 'payment_schedule',
+            'columns' => [
+                ['colId' => 'id', 'hide' => false, 'width' => 56, 'order' => 0],
+                ['colId' => 'payment_form', 'hide' => false, 'width' => 130, 'order' => 1],
+                ['colId' => 'order_number', 'hide' => false, 'width' => 160, 'order' => 2],
+            ],
+        ]);
+
+        $response->assertRedirect(route('settings.tables.index'));
+
+        $role = DB::table('roles')->where('id', $managerRoleId)->first();
+        $columnsConfig = json_decode($role->columns_config, true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame([
+            ['hide' => false, 'colId' => 'id', 'order' => 0, 'width' => 56],
+            ['hide' => false, 'colId' => 'payment_form', 'order' => 1, 'width' => 130],
+            ['hide' => false, 'colId' => 'order_number', 'order' => 2, 'width' => 160],
+        ], $columnsConfig['payment_schedule']);
+    }
+
     public function test_admin_can_open_motivation_hub_page(): void
     {
         $adminRoleId = $this->createRole('admin', 'Администратор');

@@ -58,6 +58,13 @@ class TableColumnsPresetTest extends TestCase
         $this->assertIsArray($paymentForm);
         $this->assertFalse($paymentForm['hide']);
         $this->assertContains('payment_form', PaymentScheduleTableColumns::fields());
+
+        $paymentTypeIndex = collect($merged)->search(fn (array $column): bool => ($column['colId'] ?? null) === 'payment_type');
+        $paymentFormIndex = collect($merged)->search(fn (array $column): bool => ($column['colId'] ?? null) === 'payment_form');
+
+        $this->assertNotFalse($paymentTypeIndex);
+        $this->assertNotFalse($paymentFormIndex);
+        $this->assertSame($paymentTypeIndex + 1, $paymentFormIndex);
     }
 
     public function test_payment_schedule_merge_keeps_explicit_hidden_payment_form(): void

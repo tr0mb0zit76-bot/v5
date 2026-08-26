@@ -28,7 +28,8 @@ class UpdateRoleTablePresetRequest extends FormRequest
             'columns' => ['required', 'array', 'min:1'],
             'columns.*.colId' => ['required', 'string'],
             'columns.*.hide' => ['required', 'boolean'],
-            'columns.*.width' => ['required', 'integer', 'min:60', 'max:500'],
+            // ID-колонки в каталогах по умолчанию 56px (minWidth 48) — не резать сохранение пресета.
+            'columns.*.width' => ['required', 'integer', 'min:48', 'max:500'],
             'columns.*.order' => ['required', 'integer', 'min:0'],
         ];
     }

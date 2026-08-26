@@ -1253,6 +1253,19 @@ watch(currentWorkMode, async () => {
 
 function resetGridViewState() {
     if (gridApi.value) {
+        const roleState = dynamicColumnDefs.value
+            .filter((column) => column.colId && column.colId !== '__selection')
+            .map((column, index) => ({
+                colId: column.colId,
+                hide: Boolean(column.hide),
+                width: Number(column.width) || undefined,
+                order: index,
+            }));
+
+        gridApi.value.applyColumnState({
+            state: roleState,
+            applyOrder: true,
+        });
         gridApi.value.setFilterModel({});
     }
 

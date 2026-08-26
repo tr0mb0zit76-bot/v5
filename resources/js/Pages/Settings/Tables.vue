@@ -59,6 +59,14 @@
                     </div>
                 </div>
 
+                <div
+                    v-if="form.hasErrors"
+                    class="border-b border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200"
+                >
+                    Не удалось сохранить:
+                    {{ Object.values(form.errors).flat().join(' ') || 'проверьте ширину колонок (от 48 до 500) и набор полей.' }}
+                </div>
+
                 <div class="flex flex-wrap gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
                     <button
                         v-for="table in tableDefinitions"
@@ -103,7 +111,7 @@
                                         <input
                                             :value="item.column.width"
                                             type="number"
-                                            min="60"
+                                            min="48"
                                             max="500"
                                             class="w-24 border border-zinc-300 bg-white px-2 py-1 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50"
                                             @input="updateWidth(item.index, $event)"
@@ -432,7 +440,7 @@ function updateWidth(index, event) {
     patchSelectedColumns((columns) => {
         columns[index] = {
             ...columns[index],
-            width: Number.isNaN(width) ? columns[index].width : Math.min(500, Math.max(60, width)),
+            width: Number.isNaN(width) ? columns[index].width : Math.min(500, Math.max(48, width)),
         };
     });
 }
@@ -473,7 +481,7 @@ function saveSelectedRole() {
     form.columns = selectedColumns.value.map((column, index) => ({
         colId: column.colId,
         hide: Boolean(column.hide),
-        width: column.width,
+        width: Math.min(500, Math.max(48, Number(column.width) || 120)),
         order: index,
     }));
 
