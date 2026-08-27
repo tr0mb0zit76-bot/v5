@@ -90,4 +90,17 @@ class PartyNormsPenaltiesTest extends TestCase
         $this->assertSame(500, $merged['client_norms_penalties']['miss_amount']);
         $this->assertSame('leg_1', $merged['carrier_norms_by_leg'][0]['stage']);
     }
+
+    #[Test]
+    public function it_formats_print_summary_from_norms_row(): void
+    {
+        $summary = PartyNormsPenalties::formatSummaryForPrint([
+            'norm_loading_hours' => 24,
+            'norm_unloading_hours' => 24,
+            'downtime_amount' => 1000,
+            'downtime_currency' => 'RUB',
+        ]);
+
+        $this->assertSame('Погрузка: 24 ч; Выгрузка: 24 ч; Простой: 1 000,00 RUB', $summary);
+    }
 }

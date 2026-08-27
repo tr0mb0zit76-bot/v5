@@ -23,6 +23,7 @@ use App\Support\DocxTextRunPlaceholderMerger;
 use App\Support\DocxVmlOverlayStylePatcher;
 use App\Support\OrderOwnCompanySide;
 use App\Support\OrderPrintFormContext;
+use App\Support\PartyNormsPenalties;
 use App\Support\PaymentFormCodeLabel;
 use App\Support\PaymentScheduleSummaryFormatter;
 use App\Support\PhpWordTemplateOverlayImageInjector;
@@ -3037,11 +3038,30 @@ class OrderPrintFormDraftService
             $this->resolveStageForCarrierNormsPenalties($order, $context),
         );
 
+        $clientSnapshot = $this->normsPenaltiesRowForPrintSnapshot($client);
+        $carrierSnapshot = $this->normsPenaltiesRowForPrintSnapshot($carrierRowForContext);
+        $clientSummary = PartyNormsPenalties::formatSummaryForPrint($client);
+        $carrierSummary = PartyNormsPenalties::formatSummaryForPrint($carrierRowForContext);
+        $clientSnapshot['summary'] = $clientSummary;
+        $carrierSnapshot['summary'] = $carrierSummary;
+
+        $printParty = $context?->printParty;
+        $primarySummary = $printParty === 'carrier' ? $carrierSummary : $clientSummary;
+        $fallbackSummary = $printParty === 'carrier' ? $clientSummary : $carrierSummary;
+
         return [
-            'client_norms_penalties' => $this->normsPenaltiesRowForPrintSnapshot($client),
-            'carrier_norms_penalties' => $this->normsPenaltiesRowForPrintSnapshot($carrierRowForContext),
+            // ${normativ}: сводка по стороне шаблона, иначе — другая сторона, если своя пуста.
+            'normativ' => $primarySummary ?? $fallbackSummary,
+            'client_norms_penalties' => $clientSnapshot,
+            'carrier_norms_penalties' => $carrierSnapshot,
             'carrier_norms_by_leg' => array_values(array_map(
-                fn (mixed $row): array => $this->normsPenaltiesRowForPrintSnapshot(is_array($row) ? $row : []),
+                function (mixed $row): array {
+                    $raw = is_array($row) ? $row : [];
+                    $snapshot = $this->normsPenaltiesRowForPrintSnapshot($raw);
+                    $snapshot['summary'] = PartyNormsPenalties::formatSummaryForPrint($raw);
+
+                    return $snapshot;
+                },
                 $carrier,
             )),
         ];

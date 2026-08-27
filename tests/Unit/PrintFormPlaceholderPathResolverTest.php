@@ -113,4 +113,13 @@ class PrintFormPlaceholderPathResolverTest extends TestCase
         $this->assertSame('dispatcher.phone', $resolver->resolve('lp_dispatcher_tel', [], 'order', 'customer'));
         $this->assertSame('dispatcher.email', $resolver->resolve('lp_dispetcher_email', [], 'order', 'customer'));
     }
+
+    #[Test]
+    public function it_maps_normativ_to_assembled_financial_summary(): void
+    {
+        $resolver = new PrintFormPlaceholderPathResolver;
+
+        $this->assertSame('financial.normativ', $resolver->resolve('normativ', [], 'order', 'customer'));
+        $this->assertSame('financial.normativ', $resolver->resolve('normativ', [], 'order', 'carrier'));
+    }
 }

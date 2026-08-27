@@ -215,7 +215,6 @@ class PrintFormVariableCatalog
      */
     private function orderFinancialNormsPlaceholderOptions(): array
     {
-        $rows = [];
         $sharedKeys = [
             ['stage', 'этап (идентификатор плеча в мастере)'],
             ['miss_amount', 'срыв, сумма'],
@@ -231,6 +230,14 @@ class PrintFormVariableCatalog
             ['norm_loading_hours', 'норматив, погрузка (ч)'],
             ['norm_customs_hours', 'норматив, таможня (ч)'],
             ['norm_unloading_hours', 'норматив, выгрузка (ч)'],
+            ['summary', 'сводка нормативов/штрафов (текст)'],
+        ];
+
+        $rows = [
+            [
+                'value' => 'financial.normativ',
+                'label' => 'Нормативы: сводка для ${normativ} (сторона шаблона)',
+            ],
         ];
 
         foreach ($sharedKeys as [$key, $suffix]) {

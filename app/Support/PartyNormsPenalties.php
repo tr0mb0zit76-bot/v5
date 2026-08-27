@@ -143,6 +143,57 @@ class PartyNormsPenalties
     }
 
     /**
+     * Сводная строка для плейсхолдера ${normativ} и каталога переменных.
+     *
+     * @param  array<string, mixed>|null  $row
+     */
+    public static function formatSummaryForPrint(?array $row): ?string
+    {
+        if ($row === null) {
+            return null;
+        }
+
+        $parts = [];
+
+        $loading = self::nullableFloat($row['norm_loading_hours'] ?? null);
+        if ($loading !== null) {
+            $parts[] = 'Погрузка: '.self::formatHoursForSummary($loading).' ч';
+        }
+
+        $customs = self::nullableFloat($row['norm_customs_hours'] ?? null);
+        if ($customs !== null) {
+            $parts[] = 'Таможня: '.self::formatHoursForSummary($customs).' ч';
+        }
+
+        $unloading = self::nullableFloat($row['norm_unloading_hours'] ?? null);
+        if ($unloading !== null) {
+            $parts[] = 'Выгрузка: '.self::formatHoursForSummary($unloading).' ч';
+        }
+
+        $miss = self::nullableFloat($row['miss_amount'] ?? null);
+        if ($miss !== null) {
+            $parts[] = 'Срыв: '.self::formatMoneyForSummary($miss).' '.self::currencyCode($row['miss_currency'] ?? null, 'RUB');
+        }
+
+        $downtime = self::nullableFloat($row['downtime_amount'] ?? null);
+        if ($downtime !== null) {
+            $parts[] = 'Простой: '.self::formatMoneyForSummary($downtime).' '.self::currencyCode($row['downtime_currency'] ?? null, 'RUB');
+        }
+
+        $fine = self::nullableFloat($row['fine_amount'] ?? null);
+        if ($fine !== null) {
+            $parts[] = 'Штраф: '.self::formatMoneyForSummary($fine).' '.self::currencyCode($row['fine_currency'] ?? null, 'RUB');
+        }
+
+        $penalty = trim((string) ($row['penalty_terms'] ?? ''));
+        if ($penalty !== '') {
+            $parts[] = 'Пеня: '.$penalty;
+        }
+
+        return $parts === [] ? null : implode('; ', $parts);
+    }
+
+    /**
      * @param  array<string, mixed>|null  $row
      */
     public static function hasContent(?array $row): bool
@@ -156,12 +207,24 @@ class PartyNormsPenalties
         }
 
         foreach (['miss_amount', 'downtime_amount', 'fine_amount', 'norm_loading_hours', 'norm_customs_hours', 'norm_unloading_hours'] as $key) {
-            if ($row[$key] !== null) {
+            if (array_key_exists($key, $row) && $row[$key] !== null && $row[$key] !== '') {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static function formatHoursForSummary(float $hours): string
+    {
+        $formatted = rtrim(rtrim(number_format($hours, 2, ',', ' '), '0'), ',');
+
+        return $formatted !== '' ? $formatted : '0';
+    }
+
+    private static function formatMoneyForSummary(float $amount): string
+    {
+        return number_format($amount, 2, ',', ' ');
     }
 
     private static function nullableFloat(mixed $value): ?float

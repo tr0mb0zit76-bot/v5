@@ -202,7 +202,7 @@ class PrintFormPlaceholderPathResolver
             'class_opasnosti' => 'cargo.hazard_classes',
             'osobye_uslovia_pogruzki' => 'route.loading_special_conditions',
             'osobye_uslovia_vygruzki' => 'route.unloading_special_conditions',
-            'normativ' => 'financial.client_norms_penalties.norm_loading_hours',
+            'normativ' => 'financial.normativ',
             'cargo_declared_sum' => 'order.cargo_declared_sum',
             'volume' => 'cargo.total_volume',
             'fio_voditel' => 'driver.full_name',

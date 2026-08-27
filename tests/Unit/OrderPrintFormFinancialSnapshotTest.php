@@ -65,6 +65,11 @@ class OrderPrintFormFinancialSnapshotTest extends TestCase
         $this->assertSame('24', data_get($snapshot, 'financial.client_norms_penalties.norm_loading_hours'));
         $this->assertSame('48,5', data_get($snapshot, 'financial.client_norms_penalties.norm_customs_hours'));
         $this->assertSame('12', data_get($snapshot, 'financial.client_norms_penalties.norm_unloading_hours'));
+        $this->assertSame(
+            'Погрузка: 24 ч; Таможня: 48,5 ч; Выгрузка: 12 ч; Срыв: 1 000,00 USD; Простой: 500,00 RUB; Штраф: 100,00 EUR; Пеня: 0,1% в день',
+            data_get($snapshot, 'financial.normativ'),
+        );
+        $this->assertSame(data_get($snapshot, 'financial.normativ'), data_get($snapshot, 'financial.client_norms_penalties.summary'));
 
         $this->assertSame('leg-a', data_get($snapshot, 'financial.carrier_norms_by_leg.0.stage'));
         $this->assertSame('200,00 RUB', data_get($snapshot, 'financial.carrier_norms_by_leg.0.miss_amount_with_currency'));
@@ -78,7 +83,9 @@ class OrderPrintFormFinancialSnapshotTest extends TestCase
         $catalog = app(PrintFormVariableCatalog::class);
         $values = array_column($catalog->orderOptions(), 'value');
 
+        $this->assertContains('financial.normativ', $values);
         $this->assertContains('financial.client_norms_penalties.miss_amount_with_currency', $values);
+        $this->assertContains('financial.client_norms_penalties.summary', $values);
         $this->assertContains('financial.carrier_norms_penalties.norm_unloading_hours', $values);
         $this->assertContains('financial.carrier_norms_penalties.penalty_terms', $values);
     }
