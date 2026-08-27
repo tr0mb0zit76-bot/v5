@@ -39,10 +39,15 @@ export function useOrderWizardSubmit(deps) {
     } = deps;
 
     function normsPenaltiesForSubmit(row) {
-        const n = normalizePartyNormsPenalties(row && typeof row === 'object' ? row : {});
+        const raw = row && typeof row === 'object' ? row : {};
+        const n = normalizePartyNormsPenalties(raw);
+        // normalizePartyNormsPenalties strips stage — take it from the raw row.
+        const stage = raw.stage != null && String(raw.stage).trim() !== ''
+            ? String(raw.stage).trim()
+            : null;
 
         return {
-            ...(n.stage ? { stage: n.stage } : {}),
+            ...(stage ? { stage } : {}),
             miss_amount: n.miss_amount,
             miss_currency: n.miss_currency,
             downtime_amount: n.downtime_amount,
@@ -322,6 +327,9 @@ export function useOrderWizardSubmit(deps) {
         }
 
         syncContractorCostsFromPerformers();
+        if (typeof deps.syncCarrierNormsByLegFromPerformers === 'function') {
+            deps.syncCarrierNormsByLegFromPerformers();
+        }
 
         if (!skipCoreValidation && needsCargoPerformerAllocationUi.value) {
             const allocationErrors = validateCargoPerformerAllocations(

@@ -53,6 +53,26 @@ class PartyNormsPenaltiesTest extends TestCase
     }
 
     #[Test]
+    public function it_backfills_missing_carrier_stage_from_performers(): void
+    {
+        $rows = PartyNormsPenalties::normalizeCarrierNormsByLegForStorage(
+            [
+                [
+                    'miss_amount' => 1000,
+                    'miss_currency' => 'RUB',
+                ],
+            ],
+            [
+                ['stage' => 'leg_1', 'contractor_id' => 1],
+            ],
+        );
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('leg_1', $rows[0]['stage']);
+        $this->assertSame(1000.0, $rows[0]['miss_amount']);
+    }
+
+    #[Test]
     public function it_merges_incoming_norms_over_preserved_financial_term(): void
     {
         $merged = PartyNormsPenalties::mergeIncomingNormsIntoFinancialTerm(

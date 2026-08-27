@@ -803,8 +803,12 @@ function normalizeCarrierNormsByLegList(existingRows, performers) {
     const existing = Array.isArray(existingRows) ? existingRows : [];
     const legs = Array.isArray(performers) ? performers : [];
 
-    return legs.map((performer) => {
-        const existingRow = existing.find((row) => stageMatches(row.stage, performer.stage));
+    return legs.map((performer, index) => {
+        const existingRow = existing.find((row) => stageMatches(row?.stage, performer.stage))
+            // Legacy rows without stage (stripped on older submit): align by index.
+            ?? (existing[index] && (existing[index].stage == null || String(existing[index].stage).trim() === '')
+                ? existing[index]
+                : null);
 
         return normalizePartyNormsPenaltiesWithStage({
             ...existingRow,
@@ -3531,6 +3535,7 @@ const { submit, markOrderDisruption } = useOrderWizardSubmit({
     hasClientPrice,
     canShowMarkDisruptionButton,
     syncContractorCostsFromPerformers,
+    syncCarrierNormsByLegFromPerformers,
     needsCargoPerformerAllocationUi,
     cargoPerformerAllocationColumns,
     serializeCargoItemsForSubmit,

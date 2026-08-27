@@ -31,7 +31,10 @@ class OrderWizardStateService
             $financialTermPayload = [];
         }
 
-        $financialTermPayload = PartyNormsPenalties::normalizeFinancialTermForStorage($financialTermPayload);
+        $financialTermPayload = PartyNormsPenalties::normalizeFinancialTermForStorage(
+            $financialTermPayload,
+            is_array(Arr::get($validated, 'performers')) ? Arr::get($validated, 'performers') : null,
+        );
 
         if ($order->customer_rate !== null && is_numeric($order->customer_rate) && (float) $order->customer_rate > 0) {
             $financialTermPayload['client_price'] = round((float) $order->customer_rate, 2);

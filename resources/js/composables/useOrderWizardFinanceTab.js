@@ -95,8 +95,11 @@ export function useOrderWizardFinanceTab(deps) {
             ? form.financial_term.carrier_norms_by_leg
             : [];
 
-        form.financial_term.carrier_norms_by_leg = form.performers.map((performer) => {
-            const existingRow = existingRows.find((row) => stageMatchesFn(row.stage, performer.stage));
+        form.financial_term.carrier_norms_by_leg = form.performers.map((performer, index) => {
+            const existingRow = existingRows.find((row) => stageMatchesFn(row?.stage, performer.stage))
+                ?? (existingRows[index] && (existingRows[index].stage == null || String(existingRows[index].stage).trim() === '')
+                    ? existingRows[index]
+                    : null);
 
             return normalizePartyNormsPenaltiesWithStage({
                 ...existingRow,

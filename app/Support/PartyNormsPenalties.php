@@ -58,7 +58,10 @@ class PartyNormsPenalties
      * @param  array<string, mixed>  $financialTerm
      * @return array<string, mixed>
      */
-    public static function normalizeFinancialTermForStorage(array $financialTerm): array
+    /**
+     * @param  list<array<string, mixed>>|null  $performers
+     */
+    public static function normalizeFinancialTermForStorage(array $financialTerm, ?array $performers = null): array
     {
         $out = $financialTerm;
 
@@ -71,15 +74,19 @@ class PartyNormsPenalties
             unset($out['client_norms_penalties']);
         }
 
-        $out['carrier_norms_by_leg'] = self::normalizeCarrierNormsByLegForStorage($out['carrier_norms_by_leg'] ?? null);
+        $out['carrier_norms_by_leg'] = self::normalizeCarrierNormsByLegForStorage(
+            $out['carrier_norms_by_leg'] ?? null,
+            $performers,
+        );
 
         return $out;
     }
 
     /**
+     * @param  list<array<string, mixed>>|null  $performers  optional; fills missing stage by index
      * @return list<array<string, mixed>>
      */
-    public static function normalizeCarrierNormsByLegForStorage(mixed $rows): array
+    public static function normalizeCarrierNormsByLegForStorage(mixed $rows, ?array $performers = null): array
     {
         if (! is_array($rows)) {
             return [];
@@ -87,7 +94,7 @@ class PartyNormsPenalties
 
         $out = [];
 
-        foreach ($rows as $row) {
+        foreach (array_values($rows) as $index => $row) {
             if (! is_array($row)) {
                 continue;
             }
@@ -98,6 +105,9 @@ class PartyNormsPenalties
             }
 
             $stage = trim((string) ($row['stage'] ?? ''));
+            if ($stage === '' && is_array($performers)) {
+                $stage = trim((string) ($performers[$index]['stage'] ?? ''));
+            }
             if ($stage !== '') {
                 $normalized['stage'] = $stage;
             }

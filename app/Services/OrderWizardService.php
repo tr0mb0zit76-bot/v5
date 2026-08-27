@@ -1569,6 +1569,7 @@ class OrderWizardService
 
         $validated['financial_term'] = PartyNormsPenalties::normalizeFinancialTermForStorage(
             $this->normalizeFinancialTermPaymentForms($financialTerm),
+            is_array(Arr::get($validated, 'performers')) ? Arr::get($validated, 'performers') : null,
         );
 
         return $validated;
@@ -2072,6 +2073,7 @@ class OrderWizardService
                 $incomingFinancial,
                 is_array($validated['financial_term'] ?? null) ? $validated['financial_term'] : [],
             ),
+            is_array($validated['performers'] ?? null) ? $validated['performers'] : null,
         );
 
         if (array_key_exists('insurance', $validated)) {
