@@ -99,8 +99,21 @@ class PartyNormsPenaltiesTest extends TestCase
             'norm_unloading_hours' => 24,
             'downtime_amount' => 1000,
             'downtime_currency' => 'RUB',
+            'downtime_period' => 'day',
         ]);
 
-        $this->assertSame('Погрузка: 24 ч; Выгрузка: 24 ч; Простой: 1 000,00 RUB', $summary);
+        $this->assertSame('Погрузка: 24 ч; Выгрузка: 24 ч; Простой: 1 000,00 RUB в сутки', $summary);
+    }
+
+    #[Test]
+    public function it_formats_downtime_period_per_hour_in_print_summary(): void
+    {
+        $summary = PartyNormsPenalties::formatSummaryForPrint([
+            'downtime_amount' => 500,
+            'downtime_currency' => 'RUB',
+            'downtime_period' => 'hour',
+        ]);
+
+        $this->assertSame('Простой: 500,00 RUB в час', $summary);
     }
 }

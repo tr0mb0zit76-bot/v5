@@ -1,4 +1,6 @@
 <script setup>
+import { downtimePeriodOptions } from '@/support/normsPenalties.js';
+
 const clientNormsPenalties = defineModel('clientNormsPenalties', { type: Object, required: true });
 const carrierNormsByLeg = defineModel('carrierNormsByLeg', { type: Array, required: true });
 
@@ -58,6 +60,14 @@ const emit = defineEmits(['sync-carrier-norms']);
                         >
                         <select v-model="clientNormsPenalties.downtime_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
                             <option v-for="option in currencyOptions" :key="`cn-down-${option.value}`" :value="option.value">{{ option.value }}</option>
+                        </select>
+                        <select
+                            v-model="clientNormsPenalties.downtime_period"
+                            class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
+                            title="Период простоя"
+                            :disabled="!isOrderFormEditable"
+                        >
+                            <option v-for="option in downtimePeriodOptions" :key="`cn-down-period-${option.value}`" :value="option.value">{{ option.label }}</option>
                         </select>
                     </div>
                     <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
@@ -167,6 +177,14 @@ const emit = defineEmits(['sync-carrier-norms']);
                         >
                         <select v-model="normRow.downtime_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
                             <option v-for="option in currencyOptions" :key="`leg-${legIndex}-down-${option.value}`" :value="option.value">{{ option.value }}</option>
+                        </select>
+                        <select
+                            v-model="normRow.downtime_period"
+                            class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
+                            title="Период простоя"
+                            :disabled="!isOrderFormEditable"
+                        >
+                            <option v-for="option in downtimePeriodOptions" :key="`leg-${legIndex}-down-period-${option.value}`" :value="option.value">{{ option.label }}</option>
                         </select>
                     </div>
                     <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>

@@ -52,6 +52,7 @@ export function useOrderWizardSubmit(deps) {
             miss_currency: n.miss_currency,
             downtime_amount: n.downtime_amount,
             downtime_currency: n.downtime_currency,
+            downtime_period: n.downtime_period,
             fine_amount: n.fine_amount,
             fine_currency: n.fine_currency,
             penalty_terms: n.penalty_terms,

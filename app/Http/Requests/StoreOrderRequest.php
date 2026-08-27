@@ -15,6 +15,7 @@ use App\Support\OrderCargoItemsPayloadNormalizer;
 use App\Support\OrderDisruptionGuard;
 use App\Support\OrderDocumentRegistryTypes;
 use App\Support\OwnFleetCatalog;
+use App\Support\PartyNormsPenalties;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -682,6 +683,7 @@ class StoreOrderRequest extends FormRequest
             'financial_term.client_norms_penalties.miss_currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
             'financial_term.client_norms_penalties.downtime_amount' => ['nullable', 'numeric', 'min:0'],
             'financial_term.client_norms_penalties.downtime_currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
+            'financial_term.client_norms_penalties.downtime_period' => ['nullable', Rule::in(PartyNormsPenalties::downtimePeriodCodes())],
             'financial_term.client_norms_penalties.fine_amount' => ['nullable', 'numeric', 'min:0'],
             'financial_term.client_norms_penalties.fine_currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
             'financial_term.client_norms_penalties.penalty_terms' => ['nullable', 'string', 'max:2000'],
@@ -695,6 +697,7 @@ class StoreOrderRequest extends FormRequest
             'financial_term.carrier_norms_by_leg.*.miss_currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
             'financial_term.carrier_norms_by_leg.*.downtime_amount' => ['nullable', 'numeric', 'min:0'],
             'financial_term.carrier_norms_by_leg.*.downtime_currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
+            'financial_term.carrier_norms_by_leg.*.downtime_period' => ['nullable', Rule::in(PartyNormsPenalties::downtimePeriodCodes())],
             'financial_term.carrier_norms_by_leg.*.fine_amount' => ['nullable', 'numeric', 'min:0'],
             'financial_term.carrier_norms_by_leg.*.fine_currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
             'financial_term.carrier_norms_by_leg.*.penalty_terms' => ['nullable', 'string', 'max:2000'],

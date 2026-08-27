@@ -3105,6 +3105,7 @@ class OrderPrintFormDraftService
         $missCurrency = $this->normsPenaltyCurrencyCode($row['miss_currency'] ?? null);
         $downtimeAmount = $this->nullableNumericScalar($row['downtime_amount'] ?? null);
         $downtimeCurrency = $this->normsPenaltyCurrencyCode($row['downtime_currency'] ?? null);
+        $downtimePeriod = PartyNormsPenalties::downtimePeriodLabelForPrint($row['downtime_period'] ?? null);
         $fineAmount = $this->nullableNumericScalar($row['fine_amount'] ?? null);
         $fineCurrency = $this->normsPenaltyCurrencyCode($row['fine_currency'] ?? null);
 
@@ -3118,6 +3119,7 @@ class OrderPrintFormDraftService
             'miss_amount_with_currency' => $this->formatMoneyWithCurrency($missAmount, $missCurrency),
             'downtime_amount' => $downtimeAmount !== null ? $this->formatMoney($downtimeAmount) : null,
             'downtime_currency' => $downtimeCurrency,
+            'downtime_period' => $downtimePeriod,
             'downtime_amount_with_currency' => $this->formatMoneyWithCurrency($downtimeAmount, $downtimeCurrency),
             'fine_amount' => $fineAmount !== null ? $this->formatMoney($fineAmount) : null,
             'fine_currency' => $fineCurrency,

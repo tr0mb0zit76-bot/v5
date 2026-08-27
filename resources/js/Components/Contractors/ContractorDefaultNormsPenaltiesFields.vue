@@ -1,5 +1,5 @@
 <script setup>
-import { blankPartyNormsPenalties } from '@/support/normsPenalties.js';
+import { blankPartyNormsPenalties, downtimePeriodOptions } from '@/support/normsPenalties.js';
 import { crmFieldCompact, crmFieldFluid } from '@/support/crmUi.js';
 
 const model = defineModel({
@@ -41,6 +41,9 @@ defineProps({
                     <input v-model.number="model.downtime_amount" type="number" min="0" step="0.01" :class="crmFieldCompact" />
                     <select v-model="model.downtime_currency" :class="`${crmFieldCompact} !max-w-[4rem]`">
                         <option v-for="option in currencyOptions" :key="`down-${option.value}`" :value="option.value">{{ option.value }}</option>
+                    </select>
+                    <select v-model="model.downtime_period" :class="`${crmFieldCompact} !max-w-[5.5rem]`" title="Период простоя">
+                        <option v-for="option in downtimePeriodOptions" :key="`down-period-${option.value}`" :value="option.value">{{ option.label }}</option>
                     </select>
                 </div>
             </div>

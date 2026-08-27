@@ -6,6 +6,18 @@ use Illuminate\Validation\Rule;
 
 class PartyNormsPenalties
 {
+    public const DOWNTIME_PERIOD_HOUR = 'hour';
+
+    public const DOWNTIME_PERIOD_DAY = 'day';
+
+    /**
+     * @return list<string>
+     */
+    public static function downtimePeriodCodes(): array
+    {
+        return [self::DOWNTIME_PERIOD_HOUR, self::DOWNTIME_PERIOD_DAY];
+    }
+
     /**
      * @return array<string, array<int, mixed>>
      */
@@ -17,6 +29,7 @@ class PartyNormsPenalties
             "{$prefix}.miss_currency" => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
             "{$prefix}.downtime_amount" => ['nullable', 'numeric', 'min:0'],
             "{$prefix}.downtime_currency" => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
+            "{$prefix}.downtime_period" => ['nullable', Rule::in(self::downtimePeriodCodes())],
             "{$prefix}.fine_amount" => ['nullable', 'numeric', 'min:0'],
             "{$prefix}.fine_currency" => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
             "{$prefix}.penalty_terms" => ['nullable', 'string', 'max:2000'],
@@ -41,6 +54,7 @@ class PartyNormsPenalties
             'miss_currency' => self::currencyCode($raw['miss_currency'] ?? null, 'RUB'),
             'downtime_amount' => self::nullableFloat($raw['downtime_amount'] ?? null),
             'downtime_currency' => self::currencyCode($raw['downtime_currency'] ?? null, 'RUB'),
+            'downtime_period' => self::downtimePeriodCode($raw['downtime_period'] ?? null),
             'fine_amount' => self::nullableFloat($raw['fine_amount'] ?? null),
             'fine_currency' => self::currencyCode($raw['fine_currency'] ?? null, 'RUB'),
             'penalty_terms' => trim((string) ($raw['penalty_terms'] ?? '')),
@@ -53,13 +67,8 @@ class PartyNormsPenalties
     }
 
     /**
-     * Нормализует блок financial_term для wizard_state (заказчик + перевозчики по плечам).
-     *
-     * @param  array<string, mixed>  $financialTerm
-     * @return array<string, mixed>
-     */
-    /**
      * @param  list<array<string, mixed>>|null  $performers
+     * @return array<string, mixed>
      */
     public static function normalizeFinancialTermForStorage(array $financialTerm, ?array $performers = null): array
     {
@@ -143,7 +152,7 @@ class PartyNormsPenalties
     }
 
     /**
-     * Сводная строка для плейсхолдера ${normativ} и каталога переменных.
+     * Сводная строка для плейсхолдера ${normativ} / ${cp_normativy} / ${dp_normativy}.
      *
      * @param  array<string, mixed>|null  $row
      */
@@ -177,7 +186,9 @@ class PartyNormsPenalties
 
         $downtime = self::nullableFloat($row['downtime_amount'] ?? null);
         if ($downtime !== null) {
-            $parts[] = 'Простой: '.self::formatMoneyForSummary($downtime).' '.self::currencyCode($row['downtime_currency'] ?? null, 'RUB');
+            $parts[] = 'Простой: '.self::formatMoneyForSummary($downtime).' '
+                .self::currencyCode($row['downtime_currency'] ?? null, 'RUB')
+                .' '.self::downtimePeriodLabelForPrint($row['downtime_period'] ?? null);
         }
 
         $fine = self::nullableFloat($row['fine_amount'] ?? null);
@@ -191,6 +202,14 @@ class PartyNormsPenalties
         }
 
         return $parts === [] ? null : implode('; ', $parts);
+    }
+
+    public static function downtimePeriodLabelForPrint(mixed $period): string
+    {
+        return match (self::downtimePeriodCode($period)) {
+            self::DOWNTIME_PERIOD_HOUR => 'в час',
+            default => 'в сутки',
+        };
     }
 
     /**
@@ -213,6 +232,17 @@ class PartyNormsPenalties
         }
 
         return false;
+    }
+
+    private static function downtimePeriodCode(mixed $value): string
+    {
+        $code = strtolower(trim((string) ($value ?? '')));
+
+        if ($code === self::DOWNTIME_PERIOD_HOUR || $code === 'час' || $code === 'ч') {
+            return self::DOWNTIME_PERIOD_HOUR;
+        }
+
+        return self::DOWNTIME_PERIOD_DAY;
     }
 
     private static function formatHoursForSummary(float $hours): string

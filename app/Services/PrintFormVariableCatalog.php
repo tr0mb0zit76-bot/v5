@@ -222,6 +222,7 @@ class PrintFormVariableCatalog
             ['miss_amount_with_currency', 'срыв, сумма с валютой'],
             ['downtime_amount', 'простой, сумма'],
             ['downtime_currency', 'простой, валюта'],
+            ['downtime_period', 'простой, период (в час / в сутки)'],
             ['downtime_amount_with_currency', 'простой, сумма с валютой'],
             ['fine_amount', 'штраф, сумма'],
             ['fine_currency', 'штраф, валюта'],

@@ -66,7 +66,7 @@ class OrderPrintFormFinancialSnapshotTest extends TestCase
         $this->assertSame('48,5', data_get($snapshot, 'financial.client_norms_penalties.norm_customs_hours'));
         $this->assertSame('12', data_get($snapshot, 'financial.client_norms_penalties.norm_unloading_hours'));
         $this->assertSame(
-            'Погрузка: 24 ч; Таможня: 48,5 ч; Выгрузка: 12 ч; Срыв: 1 000,00 USD; Простой: 500,00 RUB; Штраф: 100,00 EUR; Пеня: 0,1% в день',
+            'Погрузка: 24 ч; Таможня: 48,5 ч; Выгрузка: 12 ч; Срыв: 1 000,00 USD; Простой: 500,00 RUB в сутки; Штраф: 100,00 EUR; Пеня: 0,1% в день',
             data_get($snapshot, 'financial.normativ'),
         );
         $this->assertSame(data_get($snapshot, 'financial.normativ'), data_get($snapshot, 'financial.client_norms_penalties.summary'));

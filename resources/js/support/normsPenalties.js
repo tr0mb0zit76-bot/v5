@@ -1,9 +1,18 @@
+export const DOWNTIME_PERIOD_HOUR = 'hour';
+export const DOWNTIME_PERIOD_DAY = 'day';
+
+export const downtimePeriodOptions = [
+    { value: DOWNTIME_PERIOD_HOUR, label: 'в час' },
+    { value: DOWNTIME_PERIOD_DAY, label: 'в сутки' },
+];
+
 export function blankPartyNormsPenalties() {
     return {
         miss_amount: null,
         miss_currency: 'RUB',
         downtime_amount: null,
         downtime_currency: 'RUB',
+        downtime_period: DOWNTIME_PERIOD_DAY,
         fine_amount: null,
         fine_currency: 'RUB',
         penalty_terms: '',
@@ -28,12 +37,18 @@ export function normalizePartyNormsPenalties(raw) {
         return Number.isFinite(n) ? n : null;
     };
 
+    const periodRaw = String(raw.downtime_period ?? base.downtime_period).toLowerCase();
+    const downtimePeriod = periodRaw === DOWNTIME_PERIOD_HOUR || periodRaw === 'час' || periodRaw === 'ч'
+        ? DOWNTIME_PERIOD_HOUR
+        : DOWNTIME_PERIOD_DAY;
+
     return {
         ...base,
         miss_amount: toNum(raw.miss_amount),
         miss_currency: String(raw.miss_currency ?? base.miss_currency).slice(0, 3) || base.miss_currency,
         downtime_amount: toNum(raw.downtime_amount),
         downtime_currency: String(raw.downtime_currency ?? base.downtime_currency).slice(0, 3) || base.downtime_currency,
+        downtime_period: downtimePeriod,
         fine_amount: toNum(raw.fine_amount),
         fine_currency: String(raw.fine_currency ?? base.fine_currency).slice(0, 3) || base.fine_currency,
         penalty_terms: String(raw.penalty_terms ?? '').slice(0, 2000),
