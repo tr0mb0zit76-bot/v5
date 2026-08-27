@@ -53,6 +53,86 @@ class PartyNormsPenalties
     }
 
     /**
+     * Нормализует блок financial_term для wizard_state (заказчик + перевозчики по плечам).
+     *
+     * @param  array<string, mixed>  $financialTerm
+     * @return array<string, mixed>
+     */
+    public static function normalizeFinancialTermForStorage(array $financialTerm): array
+    {
+        $out = $financialTerm;
+
+        $client = self::normalizeForStorage(
+            is_array($out['client_norms_penalties'] ?? null) ? $out['client_norms_penalties'] : null,
+        );
+        if ($client !== null) {
+            $out['client_norms_penalties'] = $client;
+        } else {
+            unset($out['client_norms_penalties']);
+        }
+
+        $out['carrier_norms_by_leg'] = self::normalizeCarrierNormsByLegForStorage($out['carrier_norms_by_leg'] ?? null);
+
+        return $out;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function normalizeCarrierNormsByLegForStorage(mixed $rows): array
+    {
+        if (! is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $normalized = self::normalizeForStorage($row);
+            if ($normalized === null) {
+                continue;
+            }
+
+            $stage = trim((string) ($row['stage'] ?? ''));
+            if ($stage !== '') {
+                $normalized['stage'] = $stage;
+            }
+
+            $out[] = $normalized;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Штрафы/нормативы не входят в блокировку финансовых ставок — подмешиваем из запроса.
+     *
+     * @param  array<string, mixed>|null  $incomingFinancial
+     * @param  array<string, mixed>  $preservedFinancial
+     * @return array<string, mixed>
+     */
+    public static function mergeIncomingNormsIntoFinancialTerm(?array $incomingFinancial, array $preservedFinancial): array
+    {
+        if (! is_array($incomingFinancial)) {
+            return $preservedFinancial;
+        }
+
+        if (array_key_exists('client_norms_penalties', $incomingFinancial)) {
+            $preservedFinancial['client_norms_penalties'] = $incomingFinancial['client_norms_penalties'];
+        }
+
+        if (array_key_exists('carrier_norms_by_leg', $incomingFinancial)) {
+            $preservedFinancial['carrier_norms_by_leg'] = $incomingFinancial['carrier_norms_by_leg'];
+        }
+
+        return $preservedFinancial;
+    }
+
+    /**
      * @param  array<string, mixed>|null  $row
      */
     public static function hasContent(?array $row): bool

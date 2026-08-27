@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Order;
 use App\Support\CargoPerformerAllocationBuilder;
 use App\Support\ContractorCostRowClassification;
+use App\Support\PartyNormsPenalties;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
 
@@ -29,6 +30,8 @@ class OrderWizardStateService
         if (! is_array($financialTermPayload)) {
             $financialTermPayload = [];
         }
+
+        $financialTermPayload = PartyNormsPenalties::normalizeFinancialTermForStorage($financialTermPayload);
 
         if ($order->customer_rate !== null && is_numeric($order->customer_rate) && (float) $order->customer_rate > 0) {
             $financialTermPayload['client_price'] = round((float) $order->customer_rate, 2);

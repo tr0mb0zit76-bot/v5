@@ -25,6 +25,7 @@ use App\Support\OrderFinancialEditAuthorization;
 use App\Support\OrderPersistedId;
 use App\Support\OrderRouteMilestoneDateResolver;
 use App\Support\OwnFleetCatalog;
+use App\Support\PartyNormsPenalties;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
@@ -1566,7 +1567,9 @@ class OrderWizardService
             return $validated;
         }
 
-        $validated['financial_term'] = $this->normalizeFinancialTermPaymentForms($financialTerm);
+        $validated['financial_term'] = PartyNormsPenalties::normalizeFinancialTermForStorage(
+            $this->normalizeFinancialTermPaymentForms($financialTerm),
+        );
 
         return $validated;
     }
@@ -2044,6 +2047,8 @@ class OrderWizardService
     {
         $order->loadMissing('financialTerms');
 
+        $incomingFinancial = is_array($validated['financial_term'] ?? null) ? $validated['financial_term'] : [];
+
         $wizardState = is_array($order->wizard_state) ? $order->wizard_state : [];
         $wizardFinancial = is_array($wizardState['financial_term'] ?? null) ? $wizardState['financial_term'] : null;
 
@@ -2061,6 +2066,13 @@ class OrderWizardService
                 'kpi_percent' => $order->kpi_percent,
             ];
         }
+
+        $validated['financial_term'] = PartyNormsPenalties::normalizeFinancialTermForStorage(
+            PartyNormsPenalties::mergeIncomingNormsIntoFinancialTerm(
+                $incomingFinancial,
+                is_array($validated['financial_term'] ?? null) ? $validated['financial_term'] : [],
+            ),
+        );
 
         if (array_key_exists('insurance', $validated)) {
             $validated['insurance'] = $order->insurance;

@@ -31,4 +31,43 @@ class PartyNormsPenaltiesTest extends TestCase
             'penalty_terms' => '',
         ]));
     }
+
+    #[Test]
+    public function it_normalizes_carrier_norms_by_leg_and_keeps_stage(): void
+    {
+        $rows = PartyNormsPenalties::normalizeCarrierNormsByLegForStorage([
+            [
+                'stage' => 'leg_1',
+                'miss_amount' => 2000,
+                'miss_currency' => 'rub',
+            ],
+            [
+                'stage' => 'leg_2',
+                'miss_currency' => 'RUB',
+            ],
+        ]);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('leg_1', $rows[0]['stage']);
+        $this->assertSame(2000.0, $rows[0]['miss_amount']);
+    }
+
+    #[Test]
+    public function it_merges_incoming_norms_over_preserved_financial_term(): void
+    {
+        $merged = PartyNormsPenalties::mergeIncomingNormsIntoFinancialTerm(
+            [
+                'client_norms_penalties' => ['miss_amount' => 500],
+                'carrier_norms_by_leg' => [['stage' => 'leg_1', 'miss_amount' => 100]],
+            ],
+            [
+                'client_price' => 120000,
+                'client_norms_penalties' => ['miss_amount' => 1],
+            ],
+        );
+
+        $this->assertSame(120000, $merged['client_price']);
+        $this->assertSame(500, $merged['client_norms_penalties']['miss_amount']);
+        $this->assertSame('leg_1', $merged['carrier_norms_by_leg'][0]['stage']);
+    }
 }
