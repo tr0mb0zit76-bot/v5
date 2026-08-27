@@ -122,4 +122,24 @@ class PrintFormPlaceholderPathResolverTest extends TestCase
         $this->assertSame('financial.normativ', $resolver->resolve('normativ', [], 'order', 'customer'));
         $this->assertSame('financial.normativ', $resolver->resolve('normativ', [], 'order', 'carrier'));
     }
+
+    #[Test]
+    public function it_maps_cp_and_dp_normativy_placeholders(): void
+    {
+        $resolver = new PrintFormPlaceholderPathResolver;
+
+        $this->assertSame(
+            'financial.client_norms_penalties.summary',
+            $resolver->resolve('cp_normativy', [], 'order', 'customer'),
+        );
+        // Кириллическая «с» в префиксе cp_ (частая опечатка в Word).
+        $this->assertSame(
+            'financial.client_norms_penalties.summary',
+            $resolver->resolve('сp_normativy', [], 'order', 'customer'),
+        );
+        $this->assertSame(
+            'financial.carrier_norms_penalties.summary',
+            $resolver->resolve('dp_normativy', [], 'order', 'carrier'),
+        );
+    }
 }

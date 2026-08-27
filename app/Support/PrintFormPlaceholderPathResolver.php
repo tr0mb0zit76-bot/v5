@@ -318,6 +318,7 @@ class PrintFormPlaceholderPathResolver
             $out['cp_manager_tel'] = 'contacts.customer_phone';
             $out['cp_r/s'] = 'customer.account_number';
             $out['cp_k/s'] = 'customer.correspondent_account';
+            $out['cp_normativy'] = 'financial.client_norms_penalties.summary';
         }
 
         if ($prefix === 'dp_') {
@@ -332,6 +333,7 @@ class PrintFormPlaceholderPathResolver
             $out['dp_k/s'] = 'carrier.correspondent_account';
             // В макетах перевозчика ФИО — dp_FIO_podpisant_im; dp_podpisant — строка должности (аналог cp_/lp_ceo_title).
             $out['dp_podpisant'] = 'carrier.signer_position';
+            $out['dp_normativy'] = 'financial.carrier_norms_penalties.summary';
         }
 
         return $out;

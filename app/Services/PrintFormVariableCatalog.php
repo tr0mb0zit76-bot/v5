@@ -238,6 +238,14 @@ class PrintFormVariableCatalog
                 'value' => 'financial.normativ',
                 'label' => 'Нормативы: сводка для ${normativ} (сторона шаблона)',
             ],
+            [
+                'value' => 'financial.client_norms_penalties.summary',
+                'label' => 'Заказчик: сводка нормативов (${cp_normativy})',
+            ],
+            [
+                'value' => 'financial.carrier_norms_penalties.summary',
+                'label' => 'Перевозчик: сводка нормативов (${dp_normativy})',
+            ],
         ];
 
         foreach ($sharedKeys as [$key, $suffix]) {

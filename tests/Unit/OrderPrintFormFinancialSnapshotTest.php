@@ -86,6 +86,7 @@ class OrderPrintFormFinancialSnapshotTest extends TestCase
         $this->assertContains('financial.normativ', $values);
         $this->assertContains('financial.client_norms_penalties.miss_amount_with_currency', $values);
         $this->assertContains('financial.client_norms_penalties.summary', $values);
+        $this->assertContains('financial.carrier_norms_penalties.summary', $values);
         $this->assertContains('financial.carrier_norms_penalties.norm_unloading_hours', $values);
         $this->assertContains('financial.carrier_norms_penalties.penalty_terms', $values);
     }
