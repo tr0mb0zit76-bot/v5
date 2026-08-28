@@ -120,6 +120,45 @@ final class PaymentFormDictionary
     }
 
     /**
+     * Укрупнённая форма оплаты для графика платежей: наличка / НДС / без НДС.
+     */
+    public static function journalLabelForCode(?string $code): ?string
+    {
+        if ($code === null || trim($code) === '') {
+            return null;
+        }
+
+        $normalized = self::normalizeForStorage($code) ?? trim($code);
+        $lower = mb_strtolower($normalized, 'UTF-8');
+
+        if ($lower === 'cash') {
+            return 'Наличка';
+        }
+
+        if ($lower === 'no_vat') {
+            return 'Без НДС';
+        }
+
+        if ($lower === 'mixed') {
+            return 'Разные';
+        }
+
+        if ($lower === self::LEGACY_VAT || in_array($lower, self::vatRateCodes(), true)) {
+            return 'НДС';
+        }
+
+        return 'НДС';
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function journalFilterLabels(): array
+    {
+        return ['Наличка', 'НДС', 'Без НДС', 'Разные', '—'];
+    }
+
+    /**
      * Нормализация перед сохранением в БД (inline, мастер): legacy `vat` → конкретная ставка.
      */
     public static function normalizeForStorage(?string $value): ?string

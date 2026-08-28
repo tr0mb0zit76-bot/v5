@@ -95,4 +95,65 @@ class FinanceOverviewCashFlowStatsTest extends TestCase
         $this->assertSame(40000.0, $row['amount_due']);
         $this->assertTrue($row['is_partially_settled']);
     }
+
+    public function test_cash_flow_journal_resolves_carrier_payment_form_from_contractors_costs(): void
+    {
+        $customerId = DB::table('contractors')->insertGetId([
+            'name' => 'Клиент',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'ИП Перевозчик',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $orderId = $this->insertOrderRow([
+            'order_number' => 'ORD-CASH-149',
+            'customer_id' => $customerId,
+            'carrier_id' => $carrierId,
+            'carrier_payment_form' => null,
+            'customer_payment_form' => 'no_vat',
+        ]);
+
+        DB::table('financial_terms')->insert([
+            'order_id' => $orderId,
+            'contractors_costs' => json_encode([
+                [
+                    'contractor_id' => $carrierId,
+                    'amount' => 37000,
+                    'payment_form' => 'cash',
+                    'payment_schedule' => [
+                        'installments' => [
+                            ['percent' => 100, 'amount' => 37000, 'basis' => 'unloading'],
+                        ],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $orderId,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 37000,
+            'paid_amount' => 0,
+            'remaining_amount' => 37000,
+            'status' => 'pending',
+            'planned_date' => now()->toDateString(),
+            'counterparty_id' => $carrierId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $row = app(FinanceOverviewService::class)
+            ->cashFlowJournal(null)
+            ->firstWhere('party', 'carrier');
+
+        $this->assertNotNull($row);
+        $this->assertSame('cash', $row['payment_form']);
+        $this->assertSame('Наличка', $row['payment_form_label']);
+    }
 }

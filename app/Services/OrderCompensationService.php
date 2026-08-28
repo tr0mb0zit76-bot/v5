@@ -9,6 +9,7 @@ use App\Models\PaymentSchedule;
 use App\Models\SalaryCoefficient;
 use App\Services\Finance\PaymentScheduleSettlementSyncService;
 use App\Support\CalendarBankDayShifter;
+use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\ContractorCostRowClassification;
 use App\Support\OrderAdditionalCostNormalizer;
@@ -978,29 +979,7 @@ class OrderCompensationService
                 : null;
         }
 
-        $costs = $this->extractContractorsCosts($order);
-
-        foreach ($costs as $cost) {
-            $contractorId = isset($cost['contractor_id']) && $cost['contractor_id'] !== null && $cost['contractor_id'] !== ''
-                ? (int) $cost['contractor_id']
-                : null;
-
-            if ($contractorId === null) {
-                continue;
-            }
-
-            if (filled($cost['payment_form'] ?? null)) {
-                if ($party === 'carrier' && (int) ($order->carrier_id ?? 0) === $contractorId) {
-                    return (string) $cost['payment_form'];
-                }
-
-                if ($party === 'contractor') {
-                    return (string) $cost['payment_form'];
-                }
-            }
-        }
-
-        return filled($order->carrier_payment_form) ? (string) $order->carrier_payment_form : null;
+        return CarrierPaymentFormResolver::forOrder($order);
     }
 
     /**

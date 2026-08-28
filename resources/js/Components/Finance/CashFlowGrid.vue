@@ -286,16 +286,7 @@ const props = defineProps({
 const DIRECTION_FILTER_VALUES = ['Мы', 'Нам'];
 const PAYMENT_TYPE_FILTER_VALUES = ['Предоплата', 'Финальный платёж'];
 const STATUS_FILTER_VALUES = ['По плану', 'Частично оплачено', 'Оплачено', 'Просрочено', 'Отменено'];
-const PAYMENT_FORM_FILTER_VALUES = (() => {
-    const labels = (Array.isArray(props.paymentFormOptions) ? props.paymentFormOptions : [])
-        .map((option) => String(option?.label ?? '').trim())
-        .filter(Boolean);
-
-    // labelForCode('cash') → «Нал», options() → «Наличные» — оба оставляем для фильтра
-    const known = [...labels, 'Нал', 'Наличные', 'Без НДС', '—'];
-
-    return [...new Set(known)];
-})();
+const PAYMENT_FORM_FILTER_VALUES = ['Наличка', 'НДС', 'Без НДС', 'Разные', '—'];
 const workModeOptions = [
     { key: 'due', label: 'К оплате' },
     { key: 'payment_run_today', label: 'Оплачиваем сегодня' },

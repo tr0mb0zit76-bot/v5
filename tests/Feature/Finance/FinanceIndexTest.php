@@ -113,7 +113,7 @@ class FinanceIndexTest extends TestCase
             ->where('cashFlowJournal.0.direction', 'Нам')
             ->where('cashFlowJournal.0.invoice_number', 'СЧ-PS-1')
             ->where('cashFlowJournal.0.payment_form', 'cash')
-            ->where('cashFlowJournal.0.payment_form_label', 'Нал')
+            ->where('cashFlowJournal.0.payment_form_label', 'Наличка')
             ->where('cash_flow_stats.receivables.total', 120000)
             ->where('cash_flow_stats.receivables.pending', 120000)
             ->where('cash_flow_stats.receivables.overdue', 0)

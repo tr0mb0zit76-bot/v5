@@ -152,14 +152,19 @@ class FinanceOverviewService
             $rows->pluck('order_id')->map(fn ($id): int => (int) $id)->unique()->values()->all()
         );
 
-        return $rows->map(fn (object $row): array => $this->mapCashFlowJournalRow($row, $carrierSummaries));
+        $contractorPaymentForms = $this->contractorPaymentFormsByOrderIds(
+            $rows->pluck('order_id')->map(fn ($id): int => (int) $id)->unique()->values()->all()
+        );
+
+        return $rows->map(fn (object $row): array => $this->mapCashFlowJournalRow($row, $carrierSummaries, $contractorPaymentForms));
     }
 
     /**
      * @param  Collection<int, array{count: int, label: string}>  $carrierSummaries
+     * @param  Collection<int, array<int, string>>  $contractorPaymentForms
      * @return array<string, mixed>
      */
-    private function mapCashFlowJournalRow(object $row, Collection $carrierSummaries): array
+    private function mapCashFlowJournalRow(object $row, Collection $carrierSummaries, Collection $contractorPaymentForms): array
     {
         $party = strtolower(trim((string) ($row->party ?? '')));
         $isCustomerParty = ($party === 'customer');
@@ -194,8 +199,8 @@ class FinanceOverviewService
         $requiresPaymentToken = in_array($party, ['carrier', 'contractor'], true)
             && (bool) config('one_c.payment_token.enforce_outgoing_bank', true);
 
-        $paymentFormCode = $this->resolveCashFlowPaymentFormCode($row, $isCustomerParty);
-        $paymentFormLabel = PaymentFormDictionary::labelForCode($paymentFormCode) ?? '—';
+        $paymentFormCode = $this->resolveCashFlowPaymentFormCode($row, $isCustomerParty, $contractorPaymentForms);
+        $paymentFormLabel = PaymentFormDictionary::journalLabelForCode($paymentFormCode) ?? '—';
 
         return [
             'id' => $row->id,
@@ -237,22 +242,108 @@ class FinanceOverviewService
         ];
     }
 
-    private function resolveCashFlowPaymentFormCode(object $row, bool $isCustomerParty): ?string
+    /**
+     * @param  Collection<int, array<int, string>>  $contractorPaymentForms
+     */
+    private function resolveCashFlowPaymentFormCode(object $row, bool $isCustomerParty, Collection $contractorPaymentForms): ?string
     {
         $fromSchedule = trim((string) ($row->payment_form ?? ''));
         if ($fromSchedule !== '') {
             return PaymentFormDictionary::normalizeForStorage($fromSchedule) ?? $fromSchedule;
         }
 
-        $fallback = $isCustomerParty
-            ? ($row->customer_payment_form ?? null)
-            : ($row->carrier_payment_form ?? null);
+        if ($isCustomerParty) {
+            $fallback = $row->customer_payment_form ?? null;
+
+            if ($fallback === null || trim((string) $fallback) === '') {
+                return null;
+            }
+
+            return PaymentFormDictionary::normalizeForStorage((string) $fallback) ?? trim((string) $fallback);
+        }
+
+        $counterpartyId = isset($row->counterparty_id) ? (int) $row->counterparty_id : 0;
+        $orderId = (int) ($row->order_id ?? 0);
+
+        if ($counterpartyId > 0 && $orderId > 0) {
+            $fromCosts = $contractorPaymentForms
+                ->get($orderId, [])[$counterpartyId] ?? null;
+
+            if (filled($fromCosts)) {
+                return PaymentFormDictionary::normalizeForStorage((string) $fromCosts) ?? trim((string) $fromCosts);
+            }
+        }
+
+        if ($orderId > 0) {
+            $formsForOrder = $contractorPaymentForms->get($orderId, []);
+            if (count($formsForOrder) === 1) {
+                $onlyForm = reset($formsForOrder);
+
+                return PaymentFormDictionary::normalizeForStorage((string) $onlyForm) ?? trim((string) $onlyForm);
+            }
+        }
+
+        $fallback = $row->carrier_payment_form ?? null;
 
         if ($fallback === null || trim((string) $fallback) === '') {
             return null;
         }
 
         return PaymentFormDictionary::normalizeForStorage((string) $fallback) ?? trim((string) $fallback);
+    }
+
+    /**
+     * @param  list<int>  $orderIds
+     * @return Collection<int, array<int, string>>
+     */
+    private function contractorPaymentFormsByOrderIds(array $orderIds): Collection
+    {
+        if ($orderIds === [] || ! Schema::hasTable('financial_terms')) {
+            return collect();
+        }
+
+        $rows = DB::table('financial_terms')
+            ->whereIn('order_id', $orderIds)
+            ->orderByDesc('id')
+            ->get(['order_id', 'contractors_costs']);
+
+        $map = [];
+
+        foreach ($rows as $row) {
+            $orderId = (int) $row->order_id;
+
+            if (isset($map[$orderId])) {
+                continue;
+            }
+
+            $costs = json_decode((string) ($row->contractors_costs ?? '[]'), true);
+            if (! is_array($costs)) {
+                $map[$orderId] = [];
+
+                continue;
+            }
+
+            $forms = [];
+
+            foreach ($costs as $cost) {
+                if (! is_array($cost)) {
+                    continue;
+                }
+
+                $contractorId = isset($cost['contractor_id']) && $cost['contractor_id'] !== null && $cost['contractor_id'] !== ''
+                    ? (int) $cost['contractor_id']
+                    : 0;
+                $paymentForm = trim((string) ($cost['payment_form'] ?? ''));
+
+                if ($contractorId > 0 && $paymentForm !== '') {
+                    $forms[$contractorId] = $paymentForm;
+                }
+            }
+
+            $map[$orderId] = $forms;
+        }
+
+        return collect($map);
     }
 
     /**
