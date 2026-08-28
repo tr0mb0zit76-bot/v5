@@ -151,6 +151,55 @@ class OrderClosingDocumentsNotificationTest extends TestCase
         );
     }
 
+    public function test_clerk_receives_notification_when_carrier_waybill_attached_without_unloading_date(): void
+    {
+        $clerk = $this->createClerkUser();
+
+        $order = Order::factory()->create([
+            'order_number' => 'ORD-3003',
+        ]);
+
+        $service = app(OrderClosingDocumentsNotificationService::class);
+        $this->assertFalse($service->maybeNotify($order->fresh(['documents'])));
+
+        OrderDocument::query()->create([
+            'order_id' => $order->id,
+            'type' => 'waybill',
+            'status' => 'draft',
+            'original_name' => 'tsd-draft.pdf',
+            'file_path' => 'orders/'.$order->id.'/tsd-draft.pdf',
+            'metadata' => ['party' => 'carrier', 'flow' => 'uploaded'],
+            'entity_type' => 'order',
+            'entity_id' => $order->id,
+        ]);
+
+        $this->assertTrue($service->isTransportCompleted($order->fresh(['documents'])));
+        $this->assertSame(1, $clerk->fresh()->unreadNotifications()->count());
+    }
+
+    public function test_notification_is_not_sent_for_customer_party_transport_document(): void
+    {
+        $clerk = $this->createClerkUser();
+
+        $order = Order::factory()->create();
+
+        OrderDocument::query()->create([
+            'order_id' => $order->id,
+            'type' => 'waybill',
+            'status' => 'signed',
+            'original_name' => 'customer-tn.pdf',
+            'file_path' => 'orders/'.$order->id.'/customer-tn.pdf',
+            'metadata' => ['party' => 'customer', 'flow' => 'uploaded'],
+            'entity_type' => 'order',
+            'entity_id' => $order->id,
+        ]);
+
+        $service = app(OrderClosingDocumentsNotificationService::class);
+
+        $this->assertFalse($service->maybeNotify($order->fresh(['documents'])));
+        $this->assertSame(0, $clerk->fresh()->unreadNotifications()->count());
+    }
+
     private function createClerkUser(): User
     {
         $role = Role::query()->firstOrCreate(

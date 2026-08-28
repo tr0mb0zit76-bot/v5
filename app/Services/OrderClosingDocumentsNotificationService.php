@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Notifications\CabinetInAppNotification;
 use App\Services\Mobile\MobilePushService;
 use App\Support\OrderClipboardSummaryResolver;
-use App\Support\RoutePointActualMilestones;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -67,13 +66,12 @@ class OrderClosingDocumentsNotificationService
         return true;
     }
 
+    /**
+     * Уведомление делопроизводителю: прикреплён ТСД перевозчика (не полный пакет документов).
+     */
     public function isTransportCompleted(Order $order): bool
     {
-        if (! $this->hasActualUnloadingDate($order)) {
-            return false;
-        }
-
-        return $this->hasFulfilledWaybill($order);
+        return $this->documentRequirementService->carrierTransportDocumentAttachedAt($order) !== null;
     }
 
     public function buildNotificationBody(Order $order): string
@@ -139,26 +137,6 @@ class OrderClosingDocumentsNotificationService
             )
             ->whereHas('role', fn ($query) => $query->where('name', 'clerk'))
             ->get();
-    }
-
-    private function hasActualUnloadingDate(Order $order): bool
-    {
-        $milestones = RoutePointActualMilestones::forOrder($order);
-
-        return $milestones['actual_unloading'] !== null;
-    }
-
-    private function hasFulfilledWaybill(Order $order): bool
-    {
-        $checklist = $this->documentRequirementService->checklistForOrder($order);
-
-        foreach ($checklist as $item) {
-            if (($item['key'] ?? '') === 'waybill' && ($item['completed'] ?? false) === true) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function resolveRouteCity(Order $order, string $type, bool $last = false): ?string

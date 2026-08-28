@@ -231,6 +231,25 @@ class OrderDocumentRequirementService
     }
 
     /**
+     * Дата прикрепления товаросопроводительного документа от перевозчика (ТН / ЭТрН / CMR / ТСД).
+     * Учитываются входящие файлы с party carrier|internal — без полного пакета закрывающих.
+     */
+    public function carrierTransportDocumentAttachedAt(Order $order): ?CarbonInterface
+    {
+        $documents = $order->relationLoaded('documents')
+            ? $order->documents
+            : $order->documents()->get();
+
+        $transportDocuments = $documents->filter(
+            fn (OrderDocument $document): bool => ! OrderDocumentDirection::isOutgoing($document)
+                && $this->matchesType($document, OrderDocumentTransportTypes::VALUES)
+                && in_array($this->resolvePartyForMatching($document), ['carrier', 'internal'], true),
+        );
+
+        return $this->latestDocumentDate($transportDocuments);
+    }
+
+    /**
      * @param  iterable<OrderDocument|array<string, mixed>>  $documents
      * @return list<array{
      *     key: string,
