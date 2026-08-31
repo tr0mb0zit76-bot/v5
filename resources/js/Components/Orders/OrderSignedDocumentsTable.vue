@@ -5,7 +5,7 @@ import { ExternalLink, Trash2 } from 'lucide-vue-next';
 import axios from 'axios';
 import { expandClosingRowsForEdo, edoAcknowledgementToggleLabel, rowHasClosingEdoControls } from '@/support/orderDocumentClosingEdoRows.js';
 import { expandEpdRowsForAck, rowHasEpdEdoControls } from '@/support/orderDocumentEpdAckRows.js';
-import { buildRegistryTableRows } from '@/support/orderDocumentRegistryRows.js';
+import { buildRegistryTableRows, dedupeRegistryRowsByDocumentId } from '@/support/orderDocumentRegistryRows.js';
 import { attachTrackReceivedToRegistryRows } from '@/support/orderTrackingDates.js';
 import {
     documentTypeDisplayLabel,
@@ -60,7 +60,7 @@ const rows = computed(() => {
     );
 
     return attachTrackReceivedToRegistryRows(
-        expandedRows,
+        dedupeRegistryRowsByDocumentId(expandedRows),
         trackingContext.value,
         props.requiredDocumentRules,
     );

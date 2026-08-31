@@ -25,6 +25,11 @@ function findSignedDocumentForClosingType(signedDocuments, context) {
             return false;
         }
 
+        const direction = String(document.direction ?? document.metadata?.direction ?? 'incoming');
+        if (direction === 'outgoing') {
+            return false;
+        }
+
         const party = document.party ?? document.metadata?.party ?? 'internal';
 
         if (party !== context.party) {

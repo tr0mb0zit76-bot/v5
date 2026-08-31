@@ -1,5 +1,5 @@
 import { computed, ref, watch } from 'vue';
-import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { useDocumentUploadGate } from '@/support/documentUploadGate.js';
 
 export const ORDER_DOCUMENT_UPLOAD_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'webp']);
 
@@ -13,6 +13,9 @@ export function useOrderWizardDocumentAttach(deps) {
         stageMatches,
         addDocumentFor,
     } = deps;
+
+    const uploadGate = useDocumentUploadGate();
+    const documentUploadLimits = computed(() => page.props.document_upload_limits ?? {});
 
     const showOrderDocumentAttachModal = ref(false);
     const orderDocumentAttachPendingFile = ref(null);
@@ -122,8 +125,11 @@ export function useOrderWizardDocumentAttach(deps) {
 
             return;
         }
-        await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
-        orderDocumentAttachPendingFile.value = file;
+        const accepted = await uploadGate.ensureDocumentWithinBudget(file, documentUploadLimits.value);
+        if (!accepted) {
+            return;
+        }
+        orderDocumentAttachPendingFile.value = accepted;
     }
 
     async function openOrderDocumentAttachModal(options = {}) {
@@ -218,9 +224,12 @@ export function useOrderWizardDocumentAttach(deps) {
 
             return;
         }
-        await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
-        form.documents[index].file = file;
-        form.documents[index].original_name = file.name;
+        const accepted = await uploadGate.ensureDocumentWithinBudget(file, documentUploadLimits.value);
+        if (!accepted) {
+            return;
+        }
+        form.documents[index].file = accepted;
+        form.documents[index].original_name = accepted.name;
     }
 
     function documentTypeLabel(type) {

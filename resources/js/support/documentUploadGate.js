@@ -1,12 +1,16 @@
 import { inject, provide, ref, shallowRef } from 'vue';
-import { assessDocumentUploadBudget } from '@/support/documentUploadClientCheck.js';
+import { usePage } from '@inertiajs/vue3';
+import {
+    assessDocumentUploadBudget,
+    mergeDocumentUploadLimits,
+} from '@/support/documentUploadClientCheck.js';
 
 const GATE_KEY = Symbol('documentUploadGate');
 
 /**
  * @typedef {{
  *   file: File,
- *   limits: Record<string, number|string>,
+ *   limits: Record<string, number|string|boolean>,
  *   budget: { pages: number, maxBytes: number, exceeds: boolean, overAbsolute: boolean, canOptimize: boolean },
  * }} DocumentUploadGateState
  */
@@ -15,11 +19,12 @@ const GATE_KEY = Symbol('documentUploadGate');
  * @returns {{
  *   modalOpen: import('vue').Ref<boolean>,
  *   modalState: import('vue').ShallowRef<DocumentUploadGateState|null>,
- *   ensureDocumentWithinBudget: (file: File, limits: Record<string, number|string>) => Promise<File|null>,
+ *   ensureDocumentWithinBudget: (file: File, limits?: Record<string, number|string|boolean>) => Promise<File|null>,
  *   complete: (file: File|null) => void,
  * }}
  */
 export function provideDocumentUploadGate() {
+    const page = usePage();
     const modalOpen = ref(false);
     /** @type {import('vue').ShallowRef<DocumentUploadGateState|null>} */
     const modalState = shallowRef(null);
@@ -27,8 +32,19 @@ export function provideDocumentUploadGate() {
     let pendingResolve = null;
 
     /**
+     * @param {Record<string, number|string|boolean>|undefined|null} limits
+     * @returns {Record<string, number|string|boolean>}
+     */
+    function resolveLimits(limits) {
+        return mergeDocumentUploadLimits(
+            limits ?? page.props.document_upload_limits ?? {},
+            page.props.document_optimize ?? {},
+        );
+    }
+
+    /**
      * @param {File} file
-     * @param {Record<string, number|string>} limits
+     * @param {Record<string, number|string|boolean>} [limits]
      * @returns {Promise<File|null>}
      */
     async function ensureDocumentWithinBudget(file, limits) {
@@ -36,7 +52,8 @@ export function provideDocumentUploadGate() {
             return null;
         }
 
-        const budget = await assessDocumentUploadBudget(file, limits);
+        const mergedLimits = resolveLimits(limits);
+        const budget = await assessDocumentUploadBudget(file, mergedLimits);
 
         if (!budget.exceeds) {
             return file;
@@ -45,12 +62,12 @@ export function provideDocumentUploadGate() {
         if (budget.canOptimize) {
             return new Promise((resolve) => {
                 pendingResolve = resolve;
-                modalState.value = { file, limits, budget };
+                modalState.value = { file, limits: mergedLimits, budget };
                 modalOpen.value = true;
             });
         }
 
-        showManualPrepareAlert(file, limits, budget);
+        showManualPrepareAlert(file, mergedLimits, budget);
 
         return null;
     }
@@ -80,7 +97,7 @@ export function provideDocumentUploadGate() {
 
 /**
  * @returns {{
- *   ensureDocumentWithinBudget: (file: File, limits?: Record<string, number|string>) => Promise<File|null>,
+ *   ensureDocumentWithinBudget: (file: File, limits?: Record<string, number|string|boolean>) => Promise<File|null>,
  *   modalOpen?: import('vue').Ref<boolean>,
  *   modalState?: import('vue').ShallowRef<DocumentUploadGateState|null>,
  *   complete?: (file: File|null) => void,
@@ -100,7 +117,7 @@ export function useDocumentUploadGate() {
 
 /**
  * @param {File} file
- * @param {Record<string, number|string>} limits
+ * @param {Record<string, number|string|boolean>} limits
  * @param {{ pages: number, maxBytes: number, exceeds: boolean, overAbsolute: boolean, canOptimize: boolean }} budget
  */
 function showManualPrepareAlert(file, limits, budget) {

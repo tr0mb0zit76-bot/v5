@@ -4,12 +4,14 @@ import { Paperclip, Trash2 } from 'lucide-vue-next';
 import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import { crmBtnCreate, crmBtnNeutral, crmModalFieldLabel, crmModalFieldRow, crmModalFieldsWrap } from '@/support/crmUi.js';
-import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { useDocumentUploadGate } from '@/support/documentUploadGate.js';
 import { usePage } from '@inertiajs/vue3';
 
 const documents = defineModel({ type: Array, default: () => [] });
 
 const page = usePage();
+const uploadGate = useDocumentUploadGate();
+const documentUploadLimits = computed(() => page.props.document_upload_limits ?? {});
 
 const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp';
 const ALLOWED_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'webp']);
@@ -62,10 +64,13 @@ async function openAttachModal(file) {
         return;
     }
 
-    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+    const accepted = await uploadGate.ensureDocumentWithinBudget(file, documentUploadLimits.value);
+    if (!accepted) {
+        return;
+    }
 
-    attachPendingFile.value = file;
-    attachTitle.value = file.name.replace(/\.[^.]+$/, '') || file.name;
+    attachPendingFile.value = accepted;
+    attachTitle.value = accepted.name.replace(/\.[^.]+$/, '') || accepted.name;
     attachDocumentDate.value = todayIsoDate();
     attachModalOpen.value = true;
 }
@@ -108,11 +113,19 @@ async function onAttachModalFileChange(event) {
         return;
     }
 
-    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
-    attachPendingFile.value = file;
+    const accepted = await uploadGate.ensureDocumentWithinBudget(file, documentUploadLimits.value);
+    if (!accepted) {
+        if (event.target) {
+            event.target.value = '';
+        }
+
+        return;
+    }
+
+    attachPendingFile.value = accepted;
 
     if (!String(attachTitle.value ?? '').trim()) {
-        attachTitle.value = file.name.replace(/\.[^.]+$/, '') || file.name;
+        attachTitle.value = accepted.name.replace(/\.[^.]+$/, '') || accepted.name;
     }
 
     if (event.target) {

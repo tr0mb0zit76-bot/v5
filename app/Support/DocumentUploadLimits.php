@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Services\Documents\OcrServiceClient;
+
 /**
  * Лимиты загрузки документов для фронта (предупреждение до отправки формы).
  *
@@ -16,6 +18,7 @@ namespace App\Support;
  *     pdf_head_scan_bytes: int,
  *     pdf_tail_scan_bytes: int,
  *     estimate_budget_url: string,
+ *     optimize_enabled: bool,
  *     hint_ru: string
  * }
  */
@@ -45,6 +48,7 @@ final class DocumentUploadLimits
             'pdf_head_scan_bytes' => max(256_000, (int) config('documents.pdf_head_scan_bytes', 4 * 1024 * 1024)),
             'pdf_tail_scan_bytes' => max(256_000, (int) config('documents.pdf_tail_scan_bytes', 4 * 1024 * 1024)),
             'estimate_budget_url' => route('documents.estimate-upload-budget', absolute: false),
+            'optimize_enabled' => app(OcrServiceClient::class)->isOptimizeEnabled(),
             'hint_ru' => self::hintRu($kbPerPage, $cap, $policyAbs, $effectiveAbs),
         ];
     }

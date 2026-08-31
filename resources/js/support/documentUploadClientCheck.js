@@ -74,8 +74,11 @@ export async function assessDocumentUploadBudget(file, limits) {
 }
 
 /**
+ * Legacy alert-only check. Prefer `useDocumentUploadGate().ensureDocumentWithinBudget`
+ * so PDF over budget opens the optimize modal instead of a dead-end alert.
+ *
  * @param {File} file
- * @param {Record<string, number|string>} limits
+ * @param {Record<string, number|string|boolean>} limits
  * @returns {Promise<File|null>}
  */
 export async function warnIfDocumentExceedsBudget(file, limits) {
@@ -89,10 +92,8 @@ export async function warnIfDocumentExceedsBudget(file, limits) {
         return file;
     }
 
-    if (budget.canOptimize) {
-        return file;
-    }
-
+    // Never silently accept oversized files — even when optimize is available.
+    // Callers that want the optimize modal must use documentUploadGate.
     const abs = Number(limits.absolute_max_bytes);
     if (budget.overAbsolute) {
         const maxMb = (abs / 1024 / 1024).toFixed(1);
@@ -211,8 +212,15 @@ async function fetchServerPdfUploadBudget(file, limits) {
  * @param {{ enabled?: boolean }} documentOptimize
  */
 export function mergeDocumentUploadLimits(limits, documentOptimize = {}) {
+    const fromLimits = limits?.optimize_enabled;
+    const fromOptimizeProp = documentOptimize?.enabled;
+
     return {
         ...limits,
-        optimize_enabled: Boolean(documentOptimize?.enabled),
+        optimize_enabled: Boolean(
+            fromOptimizeProp !== undefined && fromOptimizeProp !== null
+                ? fromOptimizeProp
+                : fromLimits,
+        ),
     };
 }

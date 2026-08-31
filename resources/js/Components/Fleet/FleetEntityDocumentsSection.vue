@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import { ExternalLink, Paperclip, Trash2 } from 'lucide-vue-next';
-import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { useDocumentUploadGate } from '@/support/documentUploadGate.js';
 import { crmBtnCreate, crmFieldFluid, crmPanel, crmSectionTitle } from '@/support/crmUi.js';
 
 const props = defineProps({
@@ -20,7 +20,9 @@ const props = defineProps({
 const emit = defineEmits(['saved']);
 
 const page = usePage();
-const documentUploadHint = computed(() => page.props.document_upload_limits?.hint_ru ?? '');
+const uploadGate = useDocumentUploadGate();
+const documentUploadLimits = computed(() => page.props.document_upload_limits ?? {});
+const documentUploadHint = computed(() => documentUploadLimits.value?.hint_ru ?? '');
 
 const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp';
 
@@ -89,8 +91,12 @@ async function assignFile(file) {
         return;
     }
 
-    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
-    uploadForm.file = file;
+    const accepted = await uploadGate.ensureDocumentWithinBudget(file, documentUploadLimits.value);
+    if (!accepted) {
+        return;
+    }
+
+    uploadForm.file = accepted;
     uploadForm.clearErrors('file');
 }
 
