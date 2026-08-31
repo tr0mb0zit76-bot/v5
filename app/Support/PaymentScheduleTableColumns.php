@@ -17,7 +17,7 @@ class PaymentScheduleTableColumns
             ['field' => 'payment_type', 'label' => 'Тип', 'width' => 130, 'minWidth' => 110],
             ['field' => 'payment_form', 'label' => 'Форма оплаты', 'width' => 130, 'minWidth' => 110],
             ['field' => 'invoice_number', 'label' => 'Номер счёта', 'width' => 150, 'minWidth' => 120],
-            ['field' => 'payment_run_date', 'label' => 'План оплаты', 'width' => 140, 'minWidth' => 120],
+            ['field' => 'payment_run_date', 'label' => 'Реестр', 'width' => 140, 'minWidth' => 120],
             ['field' => 'planned_date', 'label' => 'План', 'width' => 130, 'minWidth' => 110],
             ['field' => 'actual_date', 'label' => 'Факт', 'width' => 130, 'minWidth' => 110],
             ['field' => 'amount', 'label' => 'Сумма', 'width' => 130, 'minWidth' => 110],

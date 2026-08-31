@@ -327,6 +327,10 @@ final class PaymentScheduleSettlementPreserver
             ? (float) ($row->remaining_amount ?? max(0, $amount - $paidAmount))
             : max(0, $amount - $paidAmount);
 
+        $manualPaymentRun = Schema::hasColumn('payment_schedules', 'payment_run_by')
+            && isset($row->payment_run_by)
+            && $row->payment_run_by !== null;
+
         return [
             'paid_amount' => $paidAmount,
             'remaining_amount' => $remainingAmount,
@@ -335,9 +339,13 @@ final class PaymentScheduleSettlementPreserver
             'payment_method' => isset($row->payment_method) ? (string) $row->payment_method : null,
             'transaction_reference' => isset($row->transaction_reference) ? (string) $row->transaction_reference : null,
             'notes' => isset($row->notes) ? (string) $row->notes : null,
-            'payment_run_date' => isset($row->payment_run_date) && $row->payment_run_date !== null ? (string) $row->payment_run_date : null,
-            'payment_run_by' => isset($row->payment_run_by) && $row->payment_run_by !== null ? (int) $row->payment_run_by : null,
-            'payment_run_note' => isset($row->payment_run_note) && $row->payment_run_note !== null ? (string) $row->payment_run_note : null,
+            'payment_run_date' => $manualPaymentRun && isset($row->payment_run_date) && $row->payment_run_date !== null
+                ? (string) $row->payment_run_date
+                : null,
+            'payment_run_by' => $manualPaymentRun ? (int) $row->payment_run_by : null,
+            'payment_run_note' => $manualPaymentRun && isset($row->payment_run_note) && $row->payment_run_note !== null
+                ? (string) $row->payment_run_note
+                : null,
             'partials' => [],
         ];
     }
@@ -356,7 +364,9 @@ final class PaymentScheduleSettlementPreserver
             return true;
         }
 
-        return isset($row->payment_run_date) && $row->payment_run_date !== null && $row->payment_run_date !== '';
+        return Schema::hasColumn('payment_schedules', 'payment_run_by')
+            && isset($row->payment_run_by)
+            && $row->payment_run_by !== null;
     }
 
     private function isPartialRow(object $row): bool

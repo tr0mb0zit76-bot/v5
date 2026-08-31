@@ -200,6 +200,15 @@
                 </div>
             </div>
 
+            <div
+                v-if="outgoingRegistrySummary.length"
+                class="grid shrink-0 gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-100 lg:grid-cols-2"
+            >
+                <div v-for="(line, index) in outgoingRegistrySummary" :key="index">
+                    {{ line }}
+                </div>
+            </div>
+
             <p
                 v-if="cashFlowPresetLabel"
                 class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
@@ -397,9 +406,56 @@ const canShowPaymentScheduleActions = computed(() => props.can_show_payment_sche
 const canPaymentScheduleRecordPayment = computed(() => props.can_payment_schedule_record_payment);
 const canPaymentScheduleCancelRow = computed(() => props.can_payment_schedule_cancel_row);
 
-const cashFlowStats = computed(() => summarizeCashFlowJournal(props.cashFlowJournal));
+const cashFlowStats = computed(() => {
+    const fromJournal = summarizeCashFlowJournal(props.cashFlowJournal);
+    const fromServer = props.cash_flow_stats ?? {};
+
+    return {
+        ...fromJournal,
+        outgoing_registry: fromServer.outgoing_registry ?? {
+            tuesday: { date: null, amount: 0, counterparties: 0 },
+            thursday: { date: null, amount: 0, counterparties: 0 },
+        },
+    };
+});
+
+function formatRegistryDate(value) {
+    if (!value) {
+        return '';
+    }
+
+    const parts = String(value).slice(0, 10).split('-');
+
+    if (parts.length !== 3) {
+        return String(value);
+    }
+
+    const [year, month, day] = parts;
+
+    return `${day.padStart(2, '0')}.${month.padStart(2, '0')}.${year}`;
+}
+
+function registrySummaryLabel(entry, weekdayLabel) {
+    if (!entry?.date) {
+        return `${weekdayLabel}: нет данных`;
+    }
+
+    const counterparties = Number(entry.counterparties ?? 0);
+    const counterpartyLabel = counterparties === 1 ? 'контрагент' : 'контрагентов';
+
+    return `На ${weekdayLabel.toLowerCase()} ${formatRegistryDate(entry.date)} к отправке: ${formatMoney(entry.amount)}, ${counterparties} ${counterpartyLabel}`;
+}
 
 const todaysCashFlow = computed(() => cashFlowStats.value.periods.today);
+
+const outgoingRegistrySummary = computed(() => {
+    const registry = cashFlowStats.value.outgoing_registry ?? {};
+
+    return [
+        registrySummaryLabel(registry.tuesday, 'Вторник'),
+        registrySummaryLabel(registry.thursday, 'Четверг'),
+    ];
+});
 
 const submoduleTiles = computed(() => {
     const tiles = [];

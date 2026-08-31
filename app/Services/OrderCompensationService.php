@@ -19,6 +19,7 @@ use App\Support\OrderPersistedId;
 use App\Support\OrderRouteMilestoneDateResolver;
 use App\Support\OrderTrackReceivedFields;
 use App\Support\OrderViewAuthorization;
+use App\Support\OutgoingPaymentRunDateResolver;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
@@ -836,6 +837,12 @@ class OrderCompensationService
         if (Schema::hasColumn('payment_schedules', 'invoice_number')) {
             $key = $this->paymentScheduleInvoiceKey($party, $type, $plannedDate, $installmentSequence);
             $row['invoice_number'] = $invoiceByKey[$key] ?? null;
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'payment_run_date')
+            && OutgoingPaymentRunDateResolver::isOutgoingParty($party)
+            && $plannedDate !== null) {
+            $row['payment_run_date'] = OutgoingPaymentRunDateResolver::suggestForPlannedDate($plannedDate);
         }
 
         return $row;

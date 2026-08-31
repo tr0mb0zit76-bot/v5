@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\PaymentSchedule;
 use App\Models\User;
 use App\Support\OrderViewAuthorization;
+use App\Support\OutgoingPaymentRunDateResolver;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentMatchToken;
 use App\Support\PaymentScheduleSettlementStatus;
@@ -567,6 +568,8 @@ class FinanceOverviewService
         $pendingOutgoing = (float) (optional($carrierRow)->pending_only ?? 0) + (float) (optional($contractorRow)->pending_only ?? 0);
         $overdueOutgoing = (float) (optional($carrierRow)->overdue ?? 0) + (float) (optional($contractorRow)->overdue ?? 0);
 
+        $registryStats = $this->outgoingRegistryStats($user, $today, $effective);
+
         return [
             'periods' => [
                 'today' => [
@@ -592,6 +595,62 @@ class FinanceOverviewService
                 'pending' => $pendingOutgoing,
                 'overdue' => $overdueOutgoing,
             ],
+            'outgoing_registry' => $registryStats,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     tuesday: array{date: ?string, amount: float, counterparties: int},
+     *     thursday: array{date: ?string, amount: float, counterparties: int},
+     * }
+     */
+    private function outgoingRegistryStats(?User $user, Carbon $today, string $effectiveAmountSql): array
+    {
+        $empty = [
+            'tuesday' => ['date' => null, 'amount' => 0.0, 'counterparties' => 0],
+            'thursday' => ['date' => null, 'amount' => 0.0, 'counterparties' => 0],
+        ];
+
+        if (! Schema::hasColumn('payment_schedules', 'payment_run_date')) {
+            return $empty;
+        }
+
+        $tuesdayDate = OutgoingPaymentRunDateResolver::nextSpecificWeekdayFrom($today, 2);
+        $thursdayDate = OutgoingPaymentRunDateResolver::nextSpecificWeekdayFrom($today, 4);
+
+        return [
+            'tuesday' => $this->outgoingRegistryStatsForDate($user, $tuesdayDate, $effectiveAmountSql),
+            'thursday' => $this->outgoingRegistryStatsForDate($user, $thursdayDate, $effectiveAmountSql),
+        ];
+    }
+
+    /**
+     * @return array{date: ?string, amount: float, counterparties: int}
+     */
+    private function outgoingRegistryStatsForDate(?User $user, ?string $registryDate, string $effectiveAmountSql): array
+    {
+        if ($registryDate === null) {
+            return ['date' => null, 'amount' => 0.0, 'counterparties' => 0];
+        }
+
+        $counterpartyExpr = Schema::hasColumn('payment_schedules', 'counterparty_id')
+            ? 'COALESCE(payment_schedules.counterparty_id, orders.carrier_id)'
+            : 'orders.carrier_id';
+
+        $row = $this->paymentSchedulesOpenRootsBaseQuery($user)
+            ->whereIn(DB::raw('LOWER(TRIM(payment_schedules.party))'), ['carrier', 'contractor'])
+            ->where('payment_schedules.payment_run_date', $registryDate)
+            ->selectRaw(
+                "SUM({$effectiveAmountSql}) as amount, ".
+                "COUNT(DISTINCT {$counterpartyExpr}) as counterparties",
+            )
+            ->first();
+
+        return [
+            'date' => $registryDate,
+            'amount' => round((float) ($row->amount ?? 0), 2),
+            'counterparties' => (int) ($row->counterparties ?? 0),
         ];
     }
 
@@ -608,6 +667,10 @@ class FinanceOverviewService
             ],
             'receivables' => ['total' => 0.0, 'pending' => 0.0, 'overdue' => 0.0],
             'payables' => ['total' => 0.0, 'pending' => 0.0, 'overdue' => 0.0],
+            'outgoing_registry' => [
+                'tuesday' => ['date' => null, 'amount' => 0.0, 'counterparties' => 0],
+                'thursday' => ['date' => null, 'amount' => 0.0, 'counterparties' => 0],
+            ],
         ];
     }
 

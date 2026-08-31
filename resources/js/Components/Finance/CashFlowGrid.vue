@@ -122,7 +122,7 @@
 
                     <div class="space-y-3 p-5">
                         <label class="block text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                            Дата оплаты
+                            Дата реестра
                         </label>
                         <input
                             v-model="paymentRunDateInput"
@@ -289,6 +289,9 @@ const STATUS_FILTER_VALUES = ['По плану', 'Частично оплаче�
 const PAYMENT_FORM_FILTER_VALUES = ['Наличка', 'НДС', 'Без НДС', 'Разные', '—'];
 const workModeOptions = [
     { key: 'due', label: 'К оплате' },
+    { key: 'registry_tuesday', label: 'Реестр: вторник' },
+    { key: 'registry_thursday', label: 'Реестр: четверг' },
+    { key: 'registry_ready', label: 'Готово к реестру' },
     { key: 'payment_run_today', label: 'Оплачиваем сегодня' },
     { key: 'overdue', label: 'Просрочено' },
     { key: 'today', label: 'План сегодня' },
@@ -333,8 +336,8 @@ const paymentRunBulkActions = computed(() => ([
     {
         key: 'clear',
         icon: Ban,
-        title: 'Снять план оплаты',
-        label: 'Снять план',
+        title: 'Снять дату реестра',
+        label: 'Снять реестр',
         danger: true,
     },
 ]));
@@ -396,6 +399,39 @@ function isOpenPaymentRow(row) {
     return Number(cashFlowRowDisplayAmount(row) || 0) > 0.009;
 }
 
+function isoWeekdayFromDate(dateIso) {
+    const date = new Date(`${dateIso}T12:00:00`);
+    const day = date.getDay();
+
+    return day === 0 ? 7 : day;
+}
+
+function nextSpecificWeekdayIso(fromIso, targetIsoWeekday) {
+    let cursor = fromIso || todayIsoDate();
+
+    for (let i = 0; i < 14; i += 1) {
+        if (isoWeekdayFromDate(cursor) === targetIsoWeekday) {
+            return cursor;
+        }
+
+        cursor = addDaysIso(cursor, 1);
+    }
+
+    return cursor;
+}
+
+function upcomingTuesdayIso() {
+    return nextSpecificWeekdayIso(todayIsoDate(), 2);
+}
+
+function upcomingThursdayIso() {
+    return nextSpecificWeekdayIso(todayIsoDate(), 4);
+}
+
+function isOutgoingPaymentRow(row) {
+    return row?.direction === 'Мы';
+}
+
 function matchesPaymentWorkMode(row, mode) {
     if (mode === 'all') {
         return true;
@@ -411,6 +447,21 @@ function matchesPaymentWorkMode(row, mode) {
 
     if (mode === 'payment_run_today') {
         return paymentRunDate === today;
+    }
+
+    if (mode === 'registry_tuesday') {
+        return paymentRunDate === upcomingTuesdayIso();
+    }
+
+    if (mode === 'registry_thursday') {
+        return paymentRunDate === upcomingThursdayIso();
+    }
+
+    if (mode === 'registry_ready') {
+        return isOutgoingPaymentRow(row)
+            && planned !== ''
+            && planned <= today
+            && paymentRunDate !== '';
     }
 
     if (mode === 'no_date') {
@@ -434,7 +485,11 @@ function matchesPaymentWorkMode(row, mode) {
     }
 
     if (mode === 'due') {
-        return planned <= today || paymentRunDate === today || row?.status === 'overdue';
+        if (isOutgoingPaymentRow(row)) {
+            return (paymentRunDate !== '' && paymentRunDate <= today) || row?.status === 'overdue';
+        }
+
+        return planned <= today || row?.status === 'overdue';
     }
 
     return true;
@@ -457,8 +512,28 @@ function formatGridDate(value) {
     return `${day.padStart(2, '0')}.${month.padStart(2, '0')}.${year}`;
 }
 
-const operationalExportRows = computed(() => {
-    return gridRows.value.filter((row) => isOpenPaymentRow(row));
+const operationalExportRows = computed(() => gridRows.value.filter((row) => isOpenPaymentRow(row)));
+
+const operationalExportTitle = computed(() => {
+    const mode = currentWorkMode.value;
+
+    if (mode === 'registry_tuesday') {
+        return `Реестр на ${formatGridDate(upcomingTuesdayIso())}`;
+    }
+
+    if (mode === 'registry_thursday') {
+        return `Реестр на ${formatGridDate(upcomingThursdayIso())}`;
+    }
+
+    if (mode === 'registry_ready') {
+        return 'Готово к реестру';
+    }
+
+    if (mode === 'payment_run_today') {
+        return `Оплачиваем сегодня (${formatGridDate(todayIsoDate())})`;
+    }
+
+    return `Просрочено и план на ${formatGridDate(todayIsoDate())}`;
 });
 
 function operationalExportTableHtml(rows) {
@@ -471,6 +546,7 @@ function operationalExportTableHtml(rows) {
             <th>Тип</th>
             <th>Номер счёта</th>
             <th>План</th>
+            <th>Реестр</th>
             <th>Сумма</th>
             <th>Статус</th>
         </tr>
@@ -487,6 +563,7 @@ function operationalExportTableHtml(rows) {
             <td>${row.payment_type ?? ''}</td>
             <td>${row.invoice_number ?? '—'}</td>
             <td>${formatGridDate(row.planned_date)}</td>
+            <td>${formatGridDate(row.payment_run_date)}</td>
             <td>${formatMoneyValue(cashFlowRowDisplayAmount(row))}</td>
             <td>${cashFlowRowStatusLabel(row)}</td>
         </tr>
@@ -504,7 +581,7 @@ function printOperationalPayments() {
         return;
     }
 
-    const todayLabel = formatGridDate(todayIsoDate());
+    const exportTitle = operationalExportTitle.value;
 
     printHtmlDocument(
         `
@@ -512,7 +589,7 @@ function printOperationalPayments() {
         <html lang="ru">
         <head>
             <meta charset="utf-8" />
-            <title>График оплат — просрочено и на ${todayLabel}</title>
+            <title>График оплат — ${exportTitle}</title>
             <style>
                 ${PRINT_DOCUMENT_BASE_STYLES}
                 body { font-family: Arial, sans-serif; font-size: 12px; padding: 16px; }
@@ -523,13 +600,13 @@ function printOperationalPayments() {
             </style>
         </head>
         <body>
-            <h1>График оплат: просрочено и план на ${todayLabel}</h1>
+            <h1>График оплат: ${exportTitle}</h1>
             <p>Строк: ${rows.length}</p>
             ${operationalExportTableHtml(rows)}
         </body>
         </html>
     `,
-        `График оплат — ${todayLabel}`,
+        `График оплат — ${exportTitle}`,
     );
 }
 
@@ -540,7 +617,7 @@ function downloadOperationalPaymentsCsv() {
         return;
     }
 
-    const headers = ['ID', 'Заказ', 'Направление', 'Контрагент', 'Тип', 'Номер счёта', 'План', 'Сумма', 'Статус'];
+    const headers = ['ID', 'Заказ', 'Направление', 'Контрагент', 'Тип', 'Номер счёта', 'План', 'Реестр', 'Сумма', 'Статус'];
     const escapeCsv = (value) => {
         const text = String(value ?? '');
         if (/[;"\n]/.test(text)) {
@@ -561,6 +638,7 @@ function downloadOperationalPaymentsCsv() {
                 row.payment_type,
                 row.invoice_number,
                 formatGridDate(row.planned_date),
+                formatGridDate(row.payment_run_date),
                 cashFlowRowDisplayAmount(row),
                 cashFlowRowStatusLabel(row),
             ]
@@ -573,7 +651,7 @@ function downloadOperationalPaymentsCsv() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `grafik-oplat-${todayIsoDate()}.csv`;
+    link.download = `grafik-oplat-${currentWorkMode.value}-${todayIsoDate()}.csv`;
     link.click();
     URL.revokeObjectURL(url);
 }
@@ -828,7 +906,7 @@ function buildBaseColumnDefs() {
     {
         colId: 'payment_run_date',
         field: 'payment_run_date',
-        headerName: 'План оплаты',
+        headerName: 'Реестр',
         minWidth: 130,
         sortable: true,
         filter: 'agDateColumnFilter',
