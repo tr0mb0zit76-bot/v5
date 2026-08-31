@@ -250,6 +250,43 @@ class OrderDocumentRequirementService
     }
 
     /**
+     * Обязательный чек-лист документов стороны (или перевозчика по counterparty_id) полностью закрыт.
+     */
+    public function partyRequiredChecklistComplete(Order $order, string $scheduleParty, ?int $counterpartyId = null): bool
+    {
+        $documentParty = $scheduleParty === 'contractor' ? 'carrier' : $scheduleParty;
+
+        if (! in_array($documentParty, ['customer', 'carrier'], true)) {
+            return false;
+        }
+
+        foreach ($this->checklistForOrder($order) as $item) {
+            if (($item['party'] ?? '') !== $documentParty) {
+                continue;
+            }
+
+            if (! ($item['is_required'] ?? true)) {
+                continue;
+            }
+
+            $ruleContractorId = isset($item['contractor_id']) && (int) $item['contractor_id'] > 0
+                ? (int) $item['contractor_id']
+                : null;
+
+            if ($documentParty === 'carrier' && $counterpartyId !== null && $ruleContractorId !== null
+                && $ruleContractorId !== $counterpartyId) {
+                continue;
+            }
+
+            if (! ($item['completed'] ?? false)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @param  iterable<OrderDocument|array<string, mixed>>  $documents
      * @return list<array{
      *     key: string,

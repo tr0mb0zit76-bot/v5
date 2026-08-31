@@ -715,7 +715,7 @@ class OrderCompensationService
 
         foreach ($installments as $index => $row) {
             $slot = $index + 1;
-            $planned = $this->plannedDateForInstallmentRow($order, $party, $row, $ctx, $paymentForm);
+            $planned = $this->plannedDateForInstallmentRow($order, $party, $row, $ctx, $paymentForm, $carrierContractorId);
             $partAmount = round((float) ($row['amount'] ?? 0), 2);
             if ($partAmount <= 0) {
                 continue;
@@ -763,6 +763,7 @@ class OrderCompensationService
         array $row,
         array $contextDates,
         ?string $paymentForm = null,
+        ?int $counterpartyId = null,
     ): ?string {
         $basis = PaymentScheduleCashBasis::effectiveBasis(
             $paymentForm ?? $this->paymentFormForParty($order, $party),
@@ -773,7 +774,7 @@ class OrderCompensationService
         $offsetUnit = (string) ($row['offset_unit'] ?? CalendarBankDayShifter::UNIT_CALENDAR);
 
         if (in_array($basis, ['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading', 'waybill'], true)) {
-            $eventDate = $this->resolveScheduleDate($order, $party, $basis, 0, false);
+            $eventDate = $this->resolveScheduleDate($order, $party, $basis, 0, false, $counterpartyId);
             if ($eventDate === null) {
                 return null;
             }
@@ -893,16 +894,16 @@ class OrderCompensationService
         string $mode,
         int $days,
         bool $isPrepayment,
+        ?int $counterpartyId = null,
     ): ?string {
         $modeLower = strtolower((string) $mode);
 
         $trackParty = $party === 'customer' ? 'customer' : 'carrier';
 
         $baseDate = match ($modeLower) {
-            'ottn' => OrderTrackReceivedFields::resolveForPaymentBasis($order, $trackParty, 'ottn'),
-            'fttn_receipt' => $isPrepayment
+            'ottn', 'fttn_receipt' => $isPrepayment
                 ? OrderRouteMilestoneDateResolver::resolveLoadingDate($order)
-                : $this->resolveFttnWithReceiptDate($order, $party),
+                : $this->resolveOriginalsScheduleDate($order, $party, $counterpartyId),
             'fttn' => $isPrepayment
                 ? OrderRouteMilestoneDateResolver::resolveLoadingDate($order)
                 : $this->resolveFttnDate($order, $party),
@@ -921,30 +922,23 @@ class OrderCompensationService
         return $this->addWorkingDays(Carbon::parse($baseDate), max(0, $days))->toDateString();
     }
 
+    private function resolveOriginalsScheduleDate(Order $order, string $party, ?int $counterpartyId = null): ?string
+    {
+        if (! $this->orderDocumentRequirementService->partyRequiredChecklistComplete($order, $party, $counterpartyId)) {
+            return null;
+        }
+
+        $trackParty = $party === 'customer' ? 'customer' : 'carrier';
+        $originalsStart = OrderTrackReceivedFields::resolveOriginalsPaymentStartDate($order, $trackParty);
+
+        return $originalsStart?->toDateString();
+    }
+
     private function resolveFttnDate(Order $order, string $party): ?string
     {
         $attachedAt = $this->orderDocumentRequirementService->paymentPackageAttachedAt($order, $party);
 
         return $attachedAt?->toDateString();
-    }
-
-    private function resolveFttnWithReceiptDate(Order $order, string $party): ?string
-    {
-        $attachedAt = $this->orderDocumentRequirementService->paymentPackageAttachedAt($order, $party);
-        if ($attachedAt === null) {
-            return null;
-        }
-
-        $trackParty = $party === 'customer' ? 'customer' : 'carrier';
-        $receivedDate = OrderTrackReceivedFields::resolveForPaymentBasis($order, $trackParty, 'fttn_receipt');
-
-        if ($receivedDate === null) {
-            return null;
-        }
-
-        $receivedAt = Carbon::parse($receivedDate);
-
-        return ($receivedAt->greaterThan($attachedAt) ? $receivedAt : $attachedAt)->toDateString();
     }
 
     private function addWorkingDays(Carbon $date, int $days): Carbon

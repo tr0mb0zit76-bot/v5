@@ -46,11 +46,8 @@ final class OrderTrackReceivedRequirementResolver
 
             $basis = strtolower(trim((string) ($row['basis'] ?? '')));
 
-            if ($basis === 'ottn') {
+            if (in_array($basis, ['ottn', 'fttn_receipt'], true)) {
                 $kinds['request'] = true;
-            }
-
-            if ($basis === 'fttn_receipt') {
                 $kinds['closing'] = true;
             }
         }

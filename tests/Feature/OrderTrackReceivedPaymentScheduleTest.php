@@ -14,10 +14,10 @@ use Tests\TestCase;
 
 class OrderTrackReceivedPaymentScheduleTest extends TestCase
 {
-    public function test_ottn_customer_planned_date_appears_after_track_received_is_set(): void
+    public function test_ottn_customer_planned_date_requires_full_checklist_and_both_original_dates(): void
     {
-        if (! Schema::hasTable('payment_schedules')) {
-            $this->markTestSkipped('Таблица payment_schedules недоступна.');
+        if (! Schema::hasTable('payment_schedules') || ! Schema::hasColumn('orders', 'track_received_date_customer_request')) {
+            $this->markTestSkipped('Колонки request/closing или payment_schedules недоступны.');
         }
 
         $manager = $this->makeManagerUser();
@@ -26,7 +26,8 @@ class OrderTrackReceivedPaymentScheduleTest extends TestCase
             'manager_id' => $manager->id,
             'order_date' => '2026-06-01',
             'customer_rate' => 34000,
-            'track_received_date_customer' => null,
+            'track_received_date_customer_request' => null,
+            'track_received_date_customer_closing' => null,
         ], [
             'client' => [
                 'payment_schedule' => [
@@ -44,20 +45,16 @@ class OrderTrackReceivedPaymentScheduleTest extends TestCase
         ]);
 
         app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh());
+        $this->assertNull(PaymentSchedule::query()->where('order_id', $order->id)->where('party', 'customer')->value('planned_date'));
 
-        $before = PaymentSchedule::query()
-            ->where('order_id', $order->id)
-            ->where('party', 'customer')
-            ->first();
+        $this->attachSignedCustomerDocumentPackage($order);
 
-        $this->assertNotNull($before);
-        $this->assertNull($before->planned_date);
+        $order->forceFill([
+            'track_received_date_customer_request' => '2026-06-05',
+            'track_received_date_customer_closing' => '2026-06-08',
+        ])->saveQuietly();
 
-        $this->actingAs($manager)->patch(route('orders.inline-update', $order->id), [
-            'field' => 'track_received_date_customer',
-            'value' => '2026-06-05',
-            'wizard_context' => true,
-        ])->assertRedirect(route('orders.edit', $order->id));
+        app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh(['documents']));
 
         $after = PaymentSchedule::query()
             ->where('order_id', $order->id)
@@ -65,7 +62,80 @@ class OrderTrackReceivedPaymentScheduleTest extends TestCase
             ->first();
 
         $this->assertNotNull($after);
-        $this->assertSame('2026-06-10', $after->planned_date?->toDateString());
+        $this->assertSame('2026-06-11', $after->planned_date?->toDateString());
+    }
+
+    public function test_ottn_carrier_planned_date_stays_empty_when_only_request_is_attached(): void
+    {
+        if (! Schema::hasTable('payment_schedules') || ! Schema::hasColumn('orders', 'track_received_date_carrier_request')) {
+            $this->markTestSkipped('Колонки request/closing или payment_schedules недоступны.');
+        }
+
+        $contractorId = (int) DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Перевозчик по оригиналам',
+            'is_active' => true,
+            'is_verified' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $contractorsCosts = [
+            [
+                'contractor_id' => $contractorId,
+                'payment_form' => 'vat_22',
+                'amount' => 48000,
+                'payment_schedule' => [
+                    'installments' => [
+                        [
+                            'percent' => 100,
+                            'amount' => 48000,
+                            'offset_days' => 3,
+                            'offset_unit' => 'calendar_days',
+                            'anchor' => 'last_unloading',
+                            'basis' => 'ottn',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $order = Order::factory()->create($this->onlyExistingOrderColumns([
+            'order_date' => '2026-08-01',
+            'track_received_date_carrier_request' => '2026-08-07',
+            'track_received_date_carrier_closing' => null,
+            'wizard_state' => [
+                'financial_term' => [
+                    'contractors_costs' => $contractorsCosts,
+                ],
+            ],
+        ]));
+
+        FinancialTerm::factory()->create([
+            'order_id' => $order->id,
+            'contractors_costs' => $contractorsCosts,
+        ]);
+
+        OrderDocument::query()->create([
+            'order_id' => $order->id,
+            'type' => 'request',
+            'status' => 'signed',
+            'original_name' => 'carrier-request.pdf',
+            'file_path' => 'orders/'.$order->id.'/carrier-request.pdf',
+            'metadata' => ['party' => 'carrier', 'carrier_contractor_id' => $contractorId, 'flow' => 'uploaded'],
+            'entity_type' => 'order',
+            'entity_id' => $order->id,
+        ]);
+
+        app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh(['documents']));
+
+        $row = PaymentSchedule::query()
+            ->where('order_id', $order->id)
+            ->where('party', 'carrier')
+            ->first();
+
+        $this->assertNotNull($row);
+        $this->assertNull($row->planned_date);
     }
 
     public function test_cash_carrier_ottn_planned_date_appears_after_waybill_is_attached(): void
@@ -158,19 +228,15 @@ class OrderTrackReceivedPaymentScheduleTest extends TestCase
         $this->assertSame('2026-06-09', $after->planned_date?->toDateString());
     }
 
-    public function test_ottn_uses_request_date_not_closing(): void
+    public function test_ottn_uses_later_originals_date_when_checklist_complete(): void
     {
         if (! Schema::hasTable('payment_schedules') || ! Schema::hasColumn('orders', 'track_received_date_customer_request')) {
             $this->markTestSkipped('Колонки request/closing или payment_schedules недоступны.');
         }
 
-        $manager = $this->makeManagerUser();
-
         $order = $this->createOrderWithPaymentTerms([
-            'manager_id' => $manager->id,
             'order_date' => '2026-06-01',
             'customer_rate' => 34000,
-            'track_received_date_customer' => null,
             'track_received_date_customer_request' => '2026-06-05',
             'track_received_date_customer_closing' => '2026-06-20',
         ], [
@@ -189,7 +255,9 @@ class OrderTrackReceivedPaymentScheduleTest extends TestCase
             ],
         ]);
 
-        app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh());
+        $this->attachSignedCustomerDocumentPackage($order);
+
+        app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh(['documents']));
 
         $row = PaymentSchedule::query()
             ->where('order_id', $order->id)
@@ -197,7 +265,32 @@ class OrderTrackReceivedPaymentScheduleTest extends TestCase
             ->first();
 
         $this->assertNotNull($row);
-        $this->assertSame('2026-06-10', $row->planned_date?->toDateString());
+        $this->assertSame('2026-06-24', $row->planned_date?->toDateString());
+    }
+
+    private function attachSignedCustomerDocumentPackage(Order $order): void
+    {
+        OrderDocument::query()->create([
+            'order_id' => $order->id,
+            'type' => 'request',
+            'status' => 'signed',
+            'original_name' => 'customer-request.pdf',
+            'file_path' => 'orders/'.$order->id.'/customer-request.pdf',
+            'metadata' => ['party' => 'customer', 'flow' => 'uploaded'],
+            'entity_type' => 'order',
+            'entity_id' => $order->id,
+        ]);
+
+        OrderDocument::query()->create([
+            'order_id' => $order->id,
+            'type' => 'upd',
+            'status' => 'signed',
+            'original_name' => 'customer-upd.pdf',
+            'file_path' => 'orders/'.$order->id.'/customer-upd.pdf',
+            'metadata' => ['party' => 'customer', 'flow' => 'uploaded'],
+            'entity_type' => 'order',
+            'entity_id' => $order->id,
+        ]);
     }
 
     private function makeManagerUser(): User

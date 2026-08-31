@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Models\Order;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Даты получения оригиналов: отдельно заявка и закрывающие по стороне.
@@ -99,19 +101,53 @@ final class OrderTrackReceivedFields
     }
 
     /**
+     * Для ottn / fttn_receipt — дата старта отсчёта «по оригиналам»: обе даты пакета
+     * (заявка и закрывающие) должны быть проставлены явно; берётся более поздняя.
+     */
+    public static function resolveOriginalsPaymentStartDate(Order $order, string $party): ?CarbonInterface
+    {
+        $party = trim($party);
+
+        if (! in_array($party, ['customer', 'carrier'], true)) {
+            return null;
+        }
+
+        $requestField = $party === 'customer' ? self::CUSTOMER_REQUEST : self::CARRIER_REQUEST;
+        $closingField = $party === 'customer' ? self::CUSTOMER_CLOSING : self::CARRIER_CLOSING;
+
+        if (! Schema::hasColumn('orders', $requestField) || ! Schema::hasColumn('orders', $closingField)) {
+            return null;
+        }
+
+        $requestAt = $order->{$requestField};
+        $closingAt = $order->{$closingField};
+
+        if ($requestAt === null || $closingAt === null) {
+            return null;
+        }
+
+        if (! $requestAt instanceof CarbonInterface) {
+            $requestAt = Carbon::parse((string) $requestAt);
+        }
+
+        if (! $closingAt instanceof CarbonInterface) {
+            $closingAt = Carbon::parse((string) $closingAt);
+        }
+
+        return $requestAt->greaterThan($closingAt) ? $requestAt : $closingAt;
+    }
+
+    /**
      * Для ottn — дата оригиналов заявки; для fttn_receipt — закрывающих.
+     * Оба базиса «по оригиналам» используют {@see resolveOriginalsPaymentStartDate()}.
      */
     public static function resolveForPaymentBasis(Order $order, string $party, string $basis): ?CarbonInterface
     {
         $basis = strtolower(trim($basis));
         $party = trim($party);
 
-        if ($basis === 'ottn') {
-            return self::resolvePackageDate($order, $party, 'request');
-        }
-
-        if ($basis === 'fttn_receipt') {
-            return self::resolvePackageDate($order, $party, 'closing');
+        if (in_array($basis, ['ottn', 'fttn_receipt'], true)) {
+            return self::resolveOriginalsPaymentStartDate($order, $party);
         }
 
         return self::resolveLegacyPartyDate($order, $party);

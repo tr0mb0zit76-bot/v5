@@ -9,7 +9,7 @@ use Tests\TestCase;
 
 class OrderTrackReceivedFieldsTest extends TestCase
 {
-    public function test_resolve_for_payment_basis_prefers_package_over_legacy(): void
+    public function test_resolve_for_payment_basis_uses_later_originals_date_for_ottn_and_fttn_receipt(): void
     {
         if (! Schema::hasColumn('orders', 'track_received_date_customer_request')) {
             $this->markTestSkipped('Колонки request/closing недоступны.');
@@ -22,7 +22,7 @@ class OrderTrackReceivedFieldsTest extends TestCase
         ]);
 
         $this->assertSame(
-            '2026-08-05',
+            '2026-08-12',
             OrderTrackReceivedFields::resolveForPaymentBasis($order, 'customer', 'ottn')?->toDateString(),
         );
         $this->assertSame(
