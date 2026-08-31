@@ -9,6 +9,8 @@ import {
     writeLocalCrmAppearance,
 } from '@/support/crmAppearance.js';
 import { writeLocalAgGridDensity } from '@/support/agGridUserDensity.js';
+import { crmNavIconWrapClass } from '@/support/crmNavIconStyle.js';
+import { Package, Target, Wallet } from 'lucide-vue-next';
 
 const props = defineProps({
     show: { type: Boolean, default: false },
@@ -24,6 +26,7 @@ const form = reactive({
     button_radius: 'sharp',
     primary_accent: 'emerald',
     tab_style: 'filled',
+    nav_icon_style: 'monochrome',
 });
 
 function syncFormFromUser() {
@@ -32,6 +35,7 @@ function syncFormFromUser() {
     form.button_radius = resolved.button_radius;
     form.primary_accent = resolved.primary_accent;
     form.tab_style = resolved.tab_style;
+    form.nav_icon_style = resolved.nav_icon_style;
 }
 
 watch(() => props.show, (visible) => {
@@ -55,6 +59,7 @@ function save() {
         button_radius: form.button_radius,
         primary_accent: form.primary_accent,
         tab_style: form.tab_style,
+        nav_icon_style: form.nav_icon_style,
         ag_grid_density: density,
     });
 
@@ -86,6 +91,24 @@ const workspaceSkinOptions = [
         value: 'sky',
         label: 'Sky',
         hint: 'Мягкие карточки и голубой акцент, как в модуле «Сколько влезет».',
+    },
+];
+
+const navIconStyleOptions = [
+    {
+        value: 'monochrome',
+        label: 'Монохромные',
+        hint: 'Как сейчас: цвет иконки совпадает с текстом меню.',
+    },
+    {
+        value: 'semantic',
+        label: 'Цвет по разделу',
+        hint: 'Лиды — зелёные, заказы — голубые, финансы — жёлтые и т.д.',
+    },
+    {
+        value: 'tinted',
+        label: 'С подложкой',
+        hint: 'Цветная плашка за иконкой — проще отличать разделы в свёрнутом меню.',
     },
 ];
 </script>
@@ -162,6 +185,57 @@ const workspaceSkinOptions = [
                                 Пример
                             </span>
                             <div class="mt-2 text-sm font-medium text-zinc-800 dark:text-zinc-200">{{ option.label }}</div>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Иконки меню</div>
+                    <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                        Помогает быстрее узнавать разделы, особенно когда боковое меню свёрнуто.
+                    </p>
+                    <div class="grid gap-2">
+                        <button
+                            v-for="option in navIconStyleOptions"
+                            :key="option.value"
+                            type="button"
+                            class="rounded-xl border px-3 py-3 text-left text-sm transition"
+                            :class="form.nav_icon_style === option.value
+                                ? 'border-zinc-900 bg-zinc-50 dark:border-zinc-100 dark:bg-zinc-800'
+                                : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800'"
+                            @click="form.nav_icon_style = option.value; preview()"
+                        >
+                            <div class="flex items-center gap-3">
+                                <span
+                                    class="inline-flex shrink-0 items-center justify-center"
+                                    :class="[
+                                        crmNavIconWrapClass('leads'),
+                                        form.nav_icon_style === 'tinted' ? '' : 'h-7 w-7',
+                                    ]"
+                                >
+                                    <Target class="h-4 w-4" />
+                                </span>
+                                <span
+                                    class="inline-flex shrink-0 items-center justify-center"
+                                    :class="[
+                                        crmNavIconWrapClass('orders'),
+                                        form.nav_icon_style === 'tinted' ? '' : 'h-7 w-7',
+                                    ]"
+                                >
+                                    <Package class="h-4 w-4" />
+                                </span>
+                                <span
+                                    class="inline-flex shrink-0 items-center justify-center"
+                                    :class="[
+                                        crmNavIconWrapClass('finance'),
+                                        form.nav_icon_style === 'tinted' ? '' : 'h-7 w-7',
+                                    ]"
+                                >
+                                    <Wallet class="h-4 w-4" />
+                                </span>
+                            </div>
+                            <div class="mt-2 font-medium">{{ option.label }}</div>
+                            <div class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{{ option.hint }}</div>
                         </button>
                     </div>
                 </div>

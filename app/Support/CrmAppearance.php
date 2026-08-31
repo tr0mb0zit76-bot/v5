@@ -20,8 +20,14 @@ final class CrmAppearance
 
     public const WORKSPACE_SKIN_SKY = 'sky';
 
+    public const NAV_ICON_STYLE_MONOCHROME = 'monochrome';
+
+    public const NAV_ICON_STYLE_SEMANTIC = 'semantic';
+
+    public const NAV_ICON_STYLE_TINTED = 'tinted';
+
     /**
-     * @return array{button_radius: string, primary_accent: string, tab_style: string, workspace_skin: string, ag_grid_density: string}
+     * @return array{button_radius: string, primary_accent: string, tab_style: string, workspace_skin: string, nav_icon_style: string, ag_grid_density: string}
      */
     public static function defaults(): array
     {
@@ -30,6 +36,7 @@ final class CrmAppearance
             'primary_accent' => self::PRIMARY_ACCENT_SKY,
             'tab_style' => self::TAB_STYLE_FILLED,
             'workspace_skin' => self::WORKSPACE_SKIN_SKY,
+            'nav_icon_style' => self::NAV_ICON_STYLE_MONOCHROME,
             'ag_grid_density' => 'normal',
         ];
     }
@@ -79,8 +86,20 @@ final class CrmAppearance
     }
 
     /**
+     * @return list<array{value: string, label: string}>
+     */
+    public static function navIconStyleOptions(): array
+    {
+        return [
+            ['value' => self::NAV_ICON_STYLE_MONOCHROME, 'label' => 'Монохромные'],
+            ['value' => self::NAV_ICON_STYLE_SEMANTIC, 'label' => 'Цвет по разделу'],
+            ['value' => self::NAV_ICON_STYLE_TINTED, 'label' => 'С цветной подложкой'],
+        ];
+    }
+
+    /**
      * @param  array<string, mixed>|null  $stored
-     * @return array{button_radius: string, primary_accent: string, tab_style: string, workspace_skin: string, ag_grid_density: string}
+     * @return array{button_radius: string, primary_accent: string, tab_style: string, workspace_skin: string, nav_icon_style: string, ag_grid_density: string}
      */
     public static function resolve(?array $stored): array
     {
@@ -92,6 +111,7 @@ final class CrmAppearance
             'primary_accent' => self::normalizePrimaryAccent($stored['primary_accent'] ?? null) ?? $defaults['primary_accent'],
             'tab_style' => self::normalizeTabStyle($stored['tab_style'] ?? null) ?? $defaults['tab_style'],
             'workspace_skin' => self::normalizeWorkspaceSkin($stored['workspace_skin'] ?? null) ?? $defaults['workspace_skin'],
+            'nav_icon_style' => self::normalizeNavIconStyle($stored['nav_icon_style'] ?? null) ?? $defaults['nav_icon_style'],
             'ag_grid_density' => self::normalizeAgGridDensity($stored['ag_grid_density'] ?? null) ?? $defaults['ag_grid_density'],
         ];
     }
@@ -121,6 +141,9 @@ final class CrmAppearance
                     : null,
                 'workspace_skin' => isset($validated['workspace_skin'])
                     ? self::normalizeWorkspaceSkin($validated['workspace_skin'])
+                    : null,
+                'nav_icon_style' => isset($validated['nav_icon_style'])
+                    ? self::normalizeNavIconStyle($validated['nav_icon_style'])
                     : null,
                 'ag_grid_density' => isset($validated['ag_grid_density'])
                     ? self::normalizeAgGridDensity($validated['ag_grid_density'])
@@ -153,6 +176,17 @@ final class CrmAppearance
     private static function normalizeWorkspaceSkin(mixed $value): ?string
     {
         return in_array($value, [self::WORKSPACE_SKIN_CLASSIC, self::WORKSPACE_SKIN_SKY], true)
+            ? (string) $value
+            : null;
+    }
+
+    private static function normalizeNavIconStyle(mixed $value): ?string
+    {
+        return in_array($value, [
+            self::NAV_ICON_STYLE_MONOCHROME,
+            self::NAV_ICON_STYLE_SEMANTIC,
+            self::NAV_ICON_STYLE_TINTED,
+        ], true)
             ? (string) $value
             : null;
     }

@@ -845,3 +845,167 @@ html[data-crm-radius='sharp'] .crm-wizard-shell,
 html[data-crm-radius='sharp'] .crm-modal-entity-shell {
     border-radius: 0;
 }
+
+/* ——— Иконки меню (data-crm-nav-icons на <html>) ——— */
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon {
+    display: inline-flex;
+    height: 1.75rem;
+    width: 1.75rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--dashboard,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--dashboard {
+    @apply text-zinc-600 dark:text-zinc-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--dashboard {
+    @apply bg-zinc-100 dark:bg-zinc-800;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--favorites,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--favorites {
+    @apply text-amber-700 dark:text-amber-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--favorites {
+    @apply bg-amber-100 dark:bg-amber-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--leads,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--leads {
+    @apply text-emerald-700 dark:text-emerald-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--leads {
+    @apply bg-emerald-100 dark:bg-emerald-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--orders,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--orders {
+    @apply text-sky-700 dark:text-sky-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--orders {
+    @apply bg-sky-100 dark:bg-sky-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--load-board,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--load-board {
+    @apply text-orange-700 dark:text-orange-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--load-board {
+    @apply bg-orange-100 dark:bg-orange-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--contractors,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--contractors {
+    @apply text-violet-700 dark:text-violet-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--contractors {
+    @apply bg-violet-100 dark:bg-violet-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--fleet,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--fleet {
+    @apply text-amber-800 dark:text-amber-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--fleet {
+    @apply bg-amber-100 dark:bg-amber-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--own-fleet,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--own-fleet {
+    @apply text-cyan-700 dark:text-cyan-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--own-fleet {
+    @apply bg-cyan-100 dark:bg-cyan-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--documents,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--documents {
+    @apply text-indigo-700 dark:text-indigo-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--documents {
+    @apply bg-indigo-100 dark:bg-indigo-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--claims,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--claims {
+    @apply text-rose-700 dark:text-rose-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--claims {
+    @apply bg-rose-100 dark:bg-rose-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--mail,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--mail {
+    @apply text-blue-700 dark:text-blue-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--mail {
+    @apply bg-blue-100 dark:bg-blue-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--finance,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--finance {
+    @apply text-yellow-700 dark:text-yellow-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--finance {
+    @apply bg-yellow-100 dark:bg-yellow-950/40;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--planning,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--planning {
+    @apply text-purple-700 dark:text-purple-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--planning {
+    @apply bg-purple-100 dark:bg-purple-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--sales-assistant,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--sales-assistant {
+    @apply text-fuchsia-700 dark:text-fuchsia-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--sales-assistant {
+    @apply bg-fuchsia-100 dark:bg-fuchsia-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--reports,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--reports {
+    @apply text-violet-700 dark:text-violet-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--reports {
+    @apply bg-violet-100 dark:bg-violet-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--modules,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--modules {
+    @apply text-teal-700 dark:text-teal-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--modules {
+    @apply bg-teal-100 dark:bg-teal-950/50;
+}
+
+html[data-crm-nav-icons='semantic'] .crm-nav-icon--settings,
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--settings {
+    @apply text-zinc-600 dark:text-zinc-300;
+}
+
+html[data-crm-nav-icons='tinted'] .crm-nav-icon--settings {
+    @apply bg-zinc-100 dark:bg-zinc-800;
+}

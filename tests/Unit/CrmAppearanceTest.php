@@ -18,6 +18,7 @@ class CrmAppearanceTest extends TestCase
         $this->assertSame('filled', $resolved['tab_style']);
         $this->assertSame('sky', $resolved['workspace_skin']);
         $this->assertSame('normal', $resolved['ag_grid_density']);
+        $this->assertSame('monochrome', $resolved['nav_icon_style']);
     }
 
     #[Test]
@@ -56,5 +57,21 @@ class CrmAppearanceTest extends TestCase
         $resolved = CrmAppearance::resolve(['workspace_skin' => 'sky']);
 
         $this->assertSame('sky', $resolved['workspace_skin']);
+    }
+
+    #[Test]
+    public function it_accepts_semantic_nav_icon_style(): void
+    {
+        $resolved = CrmAppearance::resolve(['nav_icon_style' => 'semantic']);
+
+        $this->assertSame('semantic', $resolved['nav_icon_style']);
+    }
+
+    #[Test]
+    public function it_rejects_unknown_nav_icon_style(): void
+    {
+        $resolved = CrmAppearance::resolve(['nav_icon_style' => 'rainbow']);
+
+        $this->assertSame('monochrome', $resolved['nav_icon_style']);
     }
 }

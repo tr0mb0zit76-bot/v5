@@ -7,6 +7,7 @@ export const CRM_APPEARANCE_DEFAULTS = {
     primary_accent: 'sky',
     tab_style: 'filled',
     workspace_skin: 'sky',
+    nav_icon_style: 'monochrome',
 };
 
 const STORAGE_KEY = 'crm_appearance_v1';
@@ -59,6 +60,10 @@ function pickAppearanceFields(source) {
 
     if (source.workspace_skin === 'classic' || source.workspace_skin === 'sky') {
         result.workspace_skin = source.workspace_skin;
+    }
+
+    if (source.nav_icon_style === 'monochrome' || source.nav_icon_style === 'semantic' || source.nav_icon_style === 'tinted') {
+        result.nav_icon_style = source.nav_icon_style;
     }
 
     return result;
@@ -118,6 +123,7 @@ export function applyCrmAppearanceToDocument(appearance) {
     html.dataset.crmAccent = resolved.primary_accent;
     html.dataset.crmTabStyle = resolved.tab_style;
     html.dataset.crmWorkspaceSkin = resolved.workspace_skin;
+    html.dataset.crmNavIcons = resolved.nav_icon_style;
 }
 
 /**

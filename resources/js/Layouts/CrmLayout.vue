@@ -230,7 +230,7 @@
             class="crm-layout-sidebar fixed inset-y-0 left-0 z-50 flex flex-col border-r border-zinc-200 bg-zinc-50 transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-950"
             :class="[
                 mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
-                collapsed ? 'w-20' : 'w-64',
+                collapsed ? 'crm-sidebar-collapsed w-20' : 'w-64',
             ]"
         >
             <div class="flex h-14 items-center justify-between gap-2 border-b border-zinc-200 px-2 dark:border-zinc-800 sm:px-3">
@@ -287,10 +287,14 @@
                             :href="menuHrefFor(item.key)"
                             class="crm-nav-link relative flex min-w-0 flex-1 items-center gap-3 px-3 py-2"
                             :class="activeKey === item.key ? 'crm-nav-link--active' : ''"
-                            :title="collapsed ? item.label : false"
+                            @mouseenter="showSidebarHoverTip($event, item.label)"
+                            @mouseleave="hideSidebarHoverTip"
                             @click="onMenuLinkClick(item.key, $event)"
                         >
-                            <span class="relative inline-flex shrink-0">
+                            <span
+                                class="relative inline-flex shrink-0"
+                                :class="crmNavIconWrapClass(item.key)"
+                            >
                                 <component :is="item.icon" class="h-5 w-5" />
                                 <span
                                     v-if="menuBadgeFor(item.key) > 0"
@@ -306,10 +310,14 @@
                             type="button"
                             class="crm-nav-link relative flex min-w-0 flex-1 items-center gap-3 px-3 py-2"
                             :class="activeKey === item.key ? 'crm-nav-link--active' : ''"
-                            :title="collapsed ? item.label : false"
+                            @mouseenter="showSidebarHoverTip($event, item.label)"
+                            @mouseleave="hideSidebarHoverTip"
                             @click="handleMenuSelect(item.key, $event)"
                         >
-                            <span class="relative inline-flex shrink-0">
+                            <span
+                                class="relative inline-flex shrink-0"
+                                :class="crmNavIconWrapClass(item.key)"
+                            >
                                 <component :is="item.icon" class="h-5 w-5" />
                                 <span
                                     v-if="menuBadgeFor(item.key) > 0"
@@ -495,7 +503,8 @@
                         as="button"
                         class="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
                         :class="collapsed ? 'px-2' : ''"
-                        :title="collapsed ? 'Выйти' : false"
+                        @mouseenter="showSidebarHoverTip($event, 'Выйти')"
+                        @mouseleave="hideSidebarHoverTip"
                     >
                         <LogOut class="h-4 w-4 shrink-0" />
                         <span v-if="!collapsed">Выйти</span>
@@ -505,6 +514,13 @@
         </aside>
 
         <Teleport to="body">
+            <div
+                v-if="sidebarHoverTip"
+                class="pointer-events-none fixed z-[82] max-w-[min(100vw-1rem,16rem)] -translate-y-1/2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-900 shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                :style="{ top: `${sidebarHoverTip.top}px`, left: `${sidebarHoverTip.left}px` }"
+            >
+                {{ sidebarHoverTip.label }}
+            </div>
             <div
                 v-if="collapsedFlyout"
                 class="fixed inset-0 z-[80]"
@@ -685,6 +701,7 @@ import {
     applyCrmAppearanceToDocument,
     resolveCrmAppearance,
 } from '@/support/crmAppearance.js';
+import { crmNavIconWrapClass } from '@/support/crmNavIconStyle.js';
 import { visitInertiaPath } from '@/support/inertiaHttpsVisit.js';
 import {
     clearAgentThread as clearPersistedAgentThread,
@@ -847,6 +864,7 @@ function applyRouteToExpandedGroups() {
 const collapsed = ref(readSidebarCollapsedFromStorage());
 const expandedGroups = ref(readExpandedGroupsFromStorage());
 const mobileMenuOpen = ref(false);
+const sidebarHoverTip = ref(null);
 const collapsedFlyout = ref(null);
 const deferredInstallPrompt = ref(null);
 const isStandaloneApp = ref(false);
@@ -958,6 +976,7 @@ const MENU_ROUTES = {
     'fleet-vehicles': '/fleet/vehicles',
     'fleet-trips': '/fleet/trips',
     'fleet-efficiency': '/fleet/efficiency',
+    'fleet-cost-norms': '/fleet/cost-norms',
     'fleet-containers': '/fleet/containers',
     'fleet-drivers': '/drivers',
     documents: '/documents',
@@ -1322,7 +1341,20 @@ const menuItems = computed(() => {
             children: [
                 { key: 'fleet-trips', area: 'fleet_trips', label: 'Рейсы' },
                 { key: 'fleet-efficiency', area: 'fleet_efficiency', label: 'Эффективность' },
-            ].filter((part) => isAdmin || hasOwnFleetSubmoduleAccess(areas, part.area))
+                { key: 'fleet-cost-norms', area: 'own_fleet', label: 'Нормы себестоимости' },
+            ].filter((part) => {
+                if (isAdmin) {
+                    return true;
+                }
+                if (part.key === 'fleet-cost-norms') {
+                    return areas.includes('own_fleet')
+                        || hasOwnFleetSubmoduleAccess(areas, 'fleet_trips')
+                        || hasOwnFleetSubmoduleAccess(areas, 'fleet_efficiency')
+                        || areas.includes('drivers');
+                }
+
+                return hasOwnFleetSubmoduleAccess(areas, part.area);
+            })
                 .map(({ key, label }) => ({ key, label })),
         },
         { key: 'documents', label: 'Документы', icon: FileText, visibilityArea: 'documents' },
@@ -1539,6 +1571,7 @@ watch(
 watch(collapsed, (value) => {
     if (!value) {
         closeCollapsedFlyout();
+        hideSidebarHoverTip();
     }
     try {
         localStorage.setItem(sidebarCollapsedStorageKey, value ? '1' : '0');
@@ -1666,6 +1699,31 @@ function closeCollapsedFlyout() {
     collapsedFlyout.value = null;
 }
 
+function showSidebarHoverTip(event, label) {
+    if (!collapsed.value || !label) {
+        return;
+    }
+
+    const el = event?.currentTarget;
+    if (!(el instanceof HTMLElement)) {
+        return;
+    }
+
+    const rect = el.getBoundingClientRect();
+    const panelWidth = 200;
+    const left = Math.min(rect.right + 8, window.innerWidth - panelWidth);
+
+    sidebarHoverTip.value = {
+        label,
+        top: rect.top + rect.height / 2,
+        left: Math.max(8, left),
+    };
+}
+
+function hideSidebarHoverTip() {
+    sidebarHoverTip.value = null;
+}
+
 function collectMenuLeaves(menuItem, prefix = '') {
     const out = [];
     for (const n of menuItem.children || []) {
@@ -1680,6 +1738,7 @@ function collectMenuLeaves(menuItem, prefix = '') {
 }
 
 function openCollapsedFlyout(item, event) {
+    hideSidebarHoverTip();
     const el = event?.currentTarget;
     if (!(el instanceof HTMLElement)) {
         return;

@@ -36,6 +36,11 @@ class UpdateUiPreferencesRequest extends FormRequest
                 CrmAppearance::WORKSPACE_SKIN_CLASSIC,
                 CrmAppearance::WORKSPACE_SKIN_SKY,
             ])],
+            'nav_icon_style' => ['sometimes', Rule::in([
+                CrmAppearance::NAV_ICON_STYLE_MONOCHROME,
+                CrmAppearance::NAV_ICON_STYLE_SEMANTIC,
+                CrmAppearance::NAV_ICON_STYLE_TINTED,
+            ])],
             'ag_grid_density' => ['sometimes', Rule::in(['compact', 'normal', 'comfortable'])],
         ];
     }

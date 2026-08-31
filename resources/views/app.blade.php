@@ -14,6 +14,7 @@
     data-crm-accent="{{ $crmHtmlAppearance['primary_accent'] }}"
     data-crm-tab-style="{{ $crmHtmlAppearance['tab_style'] }}"
     data-crm-workspace-skin="{{ $crmHtmlAppearance['workspace_skin'] }}"
+    data-crm-nav-icons="{{ $crmHtmlAppearance['nav_icon_style'] }}"
 >
     <head>
         <meta charset="utf-8">
