@@ -26,6 +26,7 @@ use App\Http\Controllers\FleetEfficiencyController;
 use App\Http\Controllers\FleetTripController;
 use App\Http\Controllers\FleetVehicleController;
 use App\Http\Controllers\GridViewController;
+use App\Http\Controllers\HowMuchCostsController;
 use App\Http\Controllers\ImportCostCalculatorController;
 use App\Http\Controllers\ImprovementLoopController;
 use App\Http\Controllers\Integrations\AstralEpdWebhookController;
@@ -55,6 +56,7 @@ use App\Http\Controllers\Orders\OrderOneCRealizationController;
 use App\Http\Controllers\Orders\OrderPortalInviteController;
 use App\Http\Controllers\Orders\OrderTransportSummaryController;
 use App\Http\Controllers\Orders\OrderWizardController;
+use App\Http\Controllers\OwnFleetCostNormsController;
 use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\PipelineController;
 use App\Http\Controllers\Portal\OrderCarrierPortalController;
@@ -717,6 +719,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('visibility.area.any:fleet_efficiency|own_fleet|drivers')
         ->name('fleet.efficiency.index');
 
+    Route::controller(OwnFleetCostNormsController::class)
+        ->middleware('visibility.area:own_fleet')
+        ->group(function () {
+            Route::get('/fleet/cost-norms', 'edit')->name('fleet.cost-norms.edit');
+            Route::put('/fleet/cost-norms', 'update')->name('fleet.cost-norms.update');
+        });
+
     Route::get('/fleet/options/drivers', [FleetDriverController::class, 'optionsForOrder'])
         ->middleware('visibility.area:orders')
         ->name('fleet.options.drivers');
@@ -843,9 +852,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
     });
 
-    Route::get('/modules/how-much-costs', fn () => Inertia::render('Modules/HowMuchCosts'))
-        ->middleware('visibility.area:modules_how_much_costs')
-        ->name('modules.how-much-costs.index');
+    Route::middleware('visibility.area:modules_how_much_costs')->group(function () {
+        Route::get('/modules/how-much-costs', [HowMuchCostsController::class, 'index'])
+            ->name('modules.how-much-costs.index');
+        Route::post('/modules/how-much-costs/calculate', [HowMuchCostsController::class, 'calculate'])
+            ->name('modules.how-much-costs.calculate');
+    });
 
     Route::middleware('visibility.area:modules_import_cost')->group(function () {
         Route::controller(ImportCostCalculatorController::class)->prefix('modules/import-cost')->name('modules.import-cost.')->group(function () {

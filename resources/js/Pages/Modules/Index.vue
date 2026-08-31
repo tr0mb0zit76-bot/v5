@@ -59,13 +59,13 @@
                     <div class="crm-module-card__icon flex h-12 w-12 items-center justify-center rounded-2xl">
                         <Calculator class="h-6 w-6" />
                     </div>
-                    <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                        Скоро
+                    <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                        Новый
                     </span>
                 </div>
                 <div class="mt-5 text-xl font-semibold">Сколько стоит?</div>
                 <p class="mt-2 text-sm leading-6">
-                    Калькулятор ставки на перевозку: маршрут, тариф и условия рейса для быстрой оценки стоимости.
+                    Км до/от границы по нормам парка (топливо, труд, наценка) → цена клиенту.
                 </p>
                 <div class="crm-module-card__cta mt-5 text-sm font-medium group-hover:underline">
                     Открыть модуль

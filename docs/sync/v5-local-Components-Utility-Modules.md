@@ -14,7 +14,7 @@ tags: [modules, calculator]
 | Модуль | URL | Область роли |
 | --- | --- | --- |
 | Сколько влезет | `/modules/how-much-fits` | `modules_how_much_fits` |
-| Сколько стоит (маржа) | `/modules/how-much-costs` | `modules_how_much_costs` |
+| Сколько стоит (ставка по нормам парка) | `/modules/how-much-costs` | `modules_how_much_costs` |
 | **HTML-шаблоны КП** | `/modules/proposal-templates` | `modules_proposal_templates` |
 | Считалка | `/modules/counter` | `modules` / sales assistant |
 | **Растаможка** | `/modules/import-cost` | `modules_import_cost` |
@@ -23,6 +23,7 @@ tags: [modules, calculator]
 
 - `LoadingPlannerController`, `ModuleManager`
 - `SalesMarginCounterService` — считалка
+- `HowMuchCostsCalculatorService` + `OwnFleetCostNormsService` — ставка по нормам (см. [[Fleet and Own Fleet]])
 - `ImportCostCalculatorService` — растаможка (см. [[Import Cost Calculator]])
 
 ## Frontend

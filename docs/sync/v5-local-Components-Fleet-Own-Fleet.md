@@ -17,6 +17,7 @@ tags: [fleet, own_fleet, fleet_trips, contractors]
 | --- | --- | --- |
 | Рейсы | `/fleet/trips` | `fleet_trips` / `own_fleet` |
 | Эффективность | `/fleet/efficiency` | `fleet_efficiency` |
+| Нормы себестоимости | `/fleet/cost-norms` | `own_fleet` (admin / ответственный за парк) |
 | ТС / водители | `/fleet/vehicles`, `/fleet/drivers` | `own_fleet`, `drivers` |
 
 Меню: `CrmLayout.vue`, области — `RoleAccess.php` (`own_fleet`, подмодули `fleet_trips`, `fleet_efficiency`).
