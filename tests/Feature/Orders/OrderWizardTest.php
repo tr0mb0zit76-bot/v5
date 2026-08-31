@@ -2901,6 +2901,111 @@ class OrderWizardTest extends TestCase
         );
     }
 
+    public function test_payment_settlement_last_payment_at_falls_back_to_ledger_payment_date(): void
+    {
+        if (! Schema::hasTable('payment_schedule_payment_events')) {
+            $this->markTestSkipped('Журнал оплат недоступен.');
+        }
+
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Client Ledger Date',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ИП Черкасов Иван Юрьевич',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = $this->insertOrderRow([
+            'order_number' => 'ORD-PS-LEDGER',
+            'manager_id' => $admin->id,
+            'customer_id' => $clientId,
+            'carrier_id' => $carrierId,
+            'customer_rate' => 14000,
+            'customer_payment_form' => 'vat_22',
+            'carrier_rate' => 10000,
+            'carrier_payment_form' => 'no_vat',
+            'status' => 'new',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $customerScheduleId = DB::table('payment_schedules')->insertGetId([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 14000,
+            'planned_date' => '2026-06-10',
+            'actual_date' => null,
+            'status' => 'paid',
+            'paid_amount' => 14000,
+            'remaining_amount' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierScheduleId = DB::table('payment_schedules')->insertGetId([
+            'order_id' => $orderId,
+            'counterparty_id' => $carrierId,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 10000,
+            'planned_date' => '2026-06-10',
+            'actual_date' => null,
+            'status' => 'paid',
+            'paid_amount' => 10000,
+            'remaining_amount' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedule_payment_events')->insert([
+            [
+                'order_id' => $orderId,
+                'contractor_id' => $clientId,
+                'payment_schedule_id' => $customerScheduleId,
+                'party' => 'customer',
+                'amount' => 14000,
+                'payment_date' => '2026-06-10',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'order_id' => $orderId,
+                'contractor_id' => $carrierId,
+                'payment_schedule_id' => $carrierScheduleId,
+                'party' => 'carrier',
+                'amount' => 10000,
+                'payment_date' => '2026-06-10',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('orders.edit', $orderId));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Orders/Wizard')
+            ->has('order.payment_settlement.lines', 2)
+            ->where('order.payment_settlement.lines.0.party', 'customer')
+            ->where('order.payment_settlement.lines.0.state', 'complete')
+            ->where('order.payment_settlement.lines.0.last_payment_at', '2026-06-10')
+            ->where('order.payment_settlement.lines.1.party', 'carrier')
+            ->where('order.payment_settlement.lines.1.state', 'complete')
+            ->where('order.payment_settlement.lines.1.last_payment_at', '2026-06-10')
+        );
+    }
+
     public function test_admin_can_save_order_with_actual_route_date_without_planned_date(): void
     {
         $admin = $this->createAdminUser();

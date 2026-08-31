@@ -285,33 +285,62 @@ class PaymentSettlementSummaryBuilder
     private function latestPaymentDate(PaymentSchedule $row): ?Carbon
     {
         $dates = collect();
+        $scheduleIds = [(int) $row->id];
 
         if ($row->actual_date !== null) {
             $dates->push(Carbon::parse($row->actual_date));
         }
 
-        if (! Schema::hasColumn('payment_schedules', 'parent_payment_id')) {
-            /** @var Carbon|null $max */
-            $max = $dates->max();
+        if (Schema::hasColumn('payment_schedules', 'parent_payment_id')) {
+            $partialQuery = PaymentSchedule::query()->where('parent_payment_id', $row->id);
 
-            return $max;
-        }
-
-        $partialQuery = PaymentSchedule::query()->where('parent_payment_id', $row->id);
-
-        if (Schema::hasColumn('payment_schedules', 'is_partial')) {
-            $partialQuery->where('is_partial', true);
-        }
-
-        foreach ($partialQuery->get(['actual_date']) as $child) {
-            if ($child->actual_date !== null) {
-                $dates->push(Carbon::parse($child->actual_date));
+            if (Schema::hasColumn('payment_schedules', 'is_partial')) {
+                $partialQuery->where('is_partial', true);
             }
+
+            foreach ($partialQuery->get(['id', 'actual_date']) as $child) {
+                $scheduleIds[] = (int) $child->id;
+
+                if ($child->actual_date !== null) {
+                    $dates->push(Carbon::parse($child->actual_date));
+                }
+            }
+        }
+
+        $ledgerDate = $this->latestLedgerPaymentDate($scheduleIds);
+        if ($ledgerDate !== null) {
+            $dates->push($ledgerDate);
         }
 
         /** @var Carbon|null $max */
         $max = $dates->max();
 
         return $max;
+    }
+
+    /**
+     * @param  list<int>  $scheduleIds
+     */
+    private function latestLedgerPaymentDate(array $scheduleIds): ?Carbon
+    {
+        if ($scheduleIds === [] || ! Schema::hasTable('payment_schedule_payment_events')) {
+            return null;
+        }
+
+        if (! Schema::hasColumn('payment_schedule_payment_events', 'payment_date')) {
+            return null;
+        }
+
+        $query = PaymentSchedulePaymentEvent::query()
+            ->whereIn('payment_schedule_id', $scheduleIds)
+            ->whereNotNull('payment_date');
+
+        if (Schema::hasColumn('payment_schedule_payment_events', 'reversed_at')) {
+            $query->whereNull('reversed_at');
+        }
+
+        $max = $query->max('payment_date');
+
+        return $max !== null ? Carbon::parse((string) $max) : null;
     }
 }
