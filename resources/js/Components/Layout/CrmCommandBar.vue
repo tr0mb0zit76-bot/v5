@@ -731,7 +731,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import CrmNotificationBell from '@/Components/Layout/CrmNotificationBell.vue';
 import { usePersistedPanelSize } from '@/composables/usePersistedPanelSize.js';
-import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { useDocumentUploadGate } from '@/support/documentUploadGate.js';
 import { formatConversationPreview } from '@/support/messengerConversationText.js';
 import { appendUniqueMessage, createClientMessageId, formatMessengerFileSize } from '@/support/messengerMessages.js';
 import { crmBtnCreate, crmBtnPrimary, crmFieldFluid } from '@/support/crmUi.js';
@@ -797,6 +797,7 @@ const emit = defineEmits([
 ]);
 
 const page = usePage();
+const uploadGate = useDocumentUploadGate();
 const agentOptions = computed(() => {
     const list = page.props.ai_agents;
 
@@ -1503,10 +1504,16 @@ function autosize() {
 async function handleFiles(event) {
     const files = Array.from(event.target.files || []);
     const limits = page.props.document_upload_limits ?? {};
+    const acceptedFiles = [];
+
     for (const file of files) {
-        await warnIfDocumentExceedsBudget(file, limits);
+        const accepted = await uploadGate.ensureDocumentWithinBudget(file, limits);
+        if (accepted) {
+            acceptedFiles.push(accepted);
+        }
     }
-    attachedFiles.value = [...attachedFiles.value, ...files];
+
+    attachedFiles.value = [...attachedFiles.value, ...acceptedFiles];
     event.target.value = '';
 }
 

@@ -300,7 +300,7 @@
                 </div>
 
                 <section class="space-y-3 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
-                    <h3 class="text-sm font-semibold">Суть сделки</h3>
+                    <h3 class="text-sm font-semibold">Суть лида</h3>
                     <div
                         class="grid gap-3"
                         :class="isCompactLeadCard ? 'md:grid-cols-2' : 'md:grid-cols-3'"
@@ -330,7 +330,7 @@
                         </div>
                     </div>
                     <div class="space-y-1.5">
-                        <label :class="crmLabel">Запрос клиента</label>
+                        <label :class="crmLabel">Описание лида</label>
                         <textarea
                             v-model="form.description"
                             rows="3"
@@ -584,7 +584,7 @@ import {
     isCompleteContractorInn,
     normalizedContractorInn,
 } from '@/support/contractorPartyAutofill.js';
-import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { useDocumentUploadGate } from '@/support/documentUploadGate.js';
 import { normalizeLeadCargoItems } from '@/support/leadWizardCargo.js';
 import { isNextStepOffPlaybook } from '@/support/leadNextStepPlaybookAlign.js';
 import { defaultLeadRoutePoints, normalizeLeadRoutePoints } from '@/support/leadWizardRoute.js';
@@ -805,6 +805,7 @@ function leadToForm(lead) {
 }
 
 const page = usePage();
+const uploadGate = useDocumentUploadGate();
 const followUpPrompt = ref(null);
 const canUseLoadBoard = computed(() => {
     const role = page.props.auth?.user?.role ?? {};
@@ -1441,10 +1442,28 @@ function openTask(taskId) {
 async function onAttachmentSelected(event) {
     const files = event.target?.files;
     const picked = files && files[0] ? files[0] : null;
-    if (picked) {
-        await warnIfDocumentExceedsBudget(picked, page.props.document_upload_limits ?? {});
+    if (!picked) {
+        attachmentFile.value = null;
+        attachmentForm.file = null;
+
+        return;
     }
-    attachmentFile.value = picked;
+
+    const accepted = await uploadGate.ensureDocumentWithinBudget(
+        picked,
+        page.props.document_upload_limits ?? {},
+    );
+    if (!accepted) {
+        if (event.target) {
+            event.target.value = '';
+        }
+        attachmentFile.value = null;
+        attachmentForm.file = null;
+
+        return;
+    }
+
+    attachmentFile.value = accepted;
     attachmentForm.file = attachmentFile.value;
 }
 
