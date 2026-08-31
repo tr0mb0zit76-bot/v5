@@ -839,10 +839,10 @@ class OrderCompensationService
             $row['invoice_number'] = $invoiceByKey[$key] ?? null;
         }
 
-        if (Schema::hasColumn('payment_schedules', 'payment_run_date')
-            && OutgoingPaymentRunDateResolver::isOutgoingParty($party)
-            && $plannedDate !== null) {
-            $row['payment_run_date'] = OutgoingPaymentRunDateResolver::suggestForPlannedDate($plannedDate);
+        if (Schema::hasColumn('payment_schedules', 'payment_run_date')) {
+            $row['payment_run_date'] = OutgoingPaymentRunDateResolver::isOutgoingParty($party) && $plannedDate !== null
+                ? OutgoingPaymentRunDateResolver::suggestForPlannedDate($plannedDate)
+                : null;
         }
 
         return $row;

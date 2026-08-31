@@ -109,6 +109,169 @@ class PaymentScheduleOutgoingRegistryTest extends TestCase
 
         Carbon::setTestNow(Carbon::parse('2026-06-01'));
 
+        $contractorId = (int) DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Перевозчик смешанного графика',
+            'is_active' => true,
+            'is_verified' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $contractorsCosts = [
+            [
+                'contractor_id' => $contractorId,
+                'payment_form' => 'vat_22',
+                'amount' => 48000,
+                'payment_schedule' => [
+                    'installments' => [
+                        [
+                            'percent' => 100,
+                            'amount' => 48000,
+                            'offset_days' => 1,
+                            'offset_unit' => 'calendar_days',
+                            'anchor' => 'last_unloading',
+                            'basis' => 'unloading',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $order = Order::factory()->create($this->onlyExistingOrderColumns([
+            'order_date' => '2026-06-01',
+            'customer_rate' => 100000,
+            'carrier_id' => $contractorId,
+            'unloading_date' => '2026-06-02',
+            'wizard_state' => [
+                'financial_term' => [
+                    'contractors_costs' => $contractorsCosts,
+                ],
+            ],
+        ]));
+
+        FinancialTerm::factory()->create([
+            'order_id' => $order->id,
+            'client_price' => 100000,
+            'contractors_costs' => $contractorsCosts,
+            'payment_terms_snapshot' => json_encode([
+                'client' => [
+                    'payment_schedule' => [
+                        'installments' => [
+                            [
+                                'percent' => 100,
+                                'offset_days' => 1,
+                                'offset_unit' => 'calendar_days',
+                                'anchor' => 'last_unloading',
+                                'basis' => 'unloading',
+                            ],
+                        ],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        ]);
+
+        app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh());
+
+        $customerRow = PaymentSchedule::query()
+            ->where('order_id', $order->id)
+            ->where('party', 'customer')
+            ->first();
+        $carrierRow = PaymentSchedule::query()
+            ->where('order_id', $order->id)
+            ->where('party', 'carrier')
+            ->first();
+
+        $this->assertNotNull($customerRow);
+        $this->assertSame('2026-06-03', $customerRow->planned_date?->toDateString());
+        $this->assertNull($customerRow->payment_run_date);
+
+        $this->assertNotNull($carrierRow);
+        $this->assertSame('2026-06-04', $carrierRow->payment_run_date?->toDateString());
+    }
+
+    public function test_mixed_party_resync_inserts_rows_with_uniform_columns(): void
+    {
+        $this->skipIfPaymentRunColumnsAreMissing();
+
+        Carbon::setTestNow(Carbon::parse('2026-06-01'));
+
+        $contractorId = (int) DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Перевозчик batch insert',
+            'is_active' => true,
+            'is_verified' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $contractorsCosts = [
+            [
+                'contractor_id' => $contractorId,
+                'payment_form' => 'vat_22',
+                'amount' => 48000,
+                'payment_schedule' => [
+                    'installments' => [
+                        [
+                            'percent' => 100,
+                            'amount' => 48000,
+                            'offset_days' => 1,
+                            'offset_unit' => 'calendar_days',
+                            'anchor' => 'last_unloading',
+                            'basis' => 'unloading',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $order = Order::factory()->create($this->onlyExistingOrderColumns([
+            'order_date' => '2026-06-01',
+            'customer_rate' => 100000,
+            'carrier_id' => $contractorId,
+            'unloading_date' => '2026-06-02',
+            'wizard_state' => [
+                'financial_term' => [
+                    'contractors_costs' => $contractorsCosts,
+                ],
+            ],
+        ]));
+
+        FinancialTerm::factory()->create([
+            'order_id' => $order->id,
+            'client_price' => 100000,
+            'contractors_costs' => $contractorsCosts,
+            'payment_terms_snapshot' => json_encode([
+                'client' => [
+                    'payment_schedule' => [
+                        'installments' => [
+                            [
+                                'percent' => 100,
+                                'offset_days' => 1,
+                                'offset_unit' => 'calendar_days',
+                                'anchor' => 'last_unloading',
+                                'basis' => 'unloading',
+                            ],
+                        ],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        ]);
+
+        app(OrderCompensationService::class)->resyncPaymentSchedulesForOrder($order->fresh());
+
+        $this->assertSame(
+            2,
+            PaymentSchedule::query()->where('order_id', $order->id)->count(),
+        );
+    }
+
+    public function test_customer_only_order_has_null_registry_date(): void
+    {
+        $this->skipIfPaymentRunColumnsAreMissing();
+
+        Carbon::setTestNow(Carbon::parse('2026-06-01'));
+
         $order = $this->createOrderWithPaymentTerms([
             'order_date' => '2026-06-01',
             'customer_rate' => 100000,
