@@ -3,7 +3,32 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-31 19:40 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `2d0f24a9` · **тема:** дата оплаты в сводке мастера из журнала
+**Обновлено:** 2026-08-31 19:45 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** _(после push)_ · **тема:** WIP ЭДО заявок в git + сводка оплат уже на прод
+
+### Итог сессии 2026-08-31 — ЭДО WIP в git (для ноутбука)
+
+| Блок | Статус |
+| --- | --- |
+| ЭДО-ack для **заявок** (`request` / `contract_request`): fulfillment + API types | ✅ в git (не на прод) |
+| `ContractorExpectsEdo`, UI `OrderSignedDocumentsTable` / registry rows / Contractors Index | ✅ |
+| Тесты DocumentEdo + RequirementRules + RequestEdoFulfillment | ✅ 29 passed |
+| Сводка оплат: дата из журнала | ✅ `2d0f24a9` **на прод** |
+
+**Прод рантайм:** ещё `2d0f24a9` (сводка). ЭДО-коммит **не деплоили** — только git для ЗАБРАТЬ на ноутбуке.
+
+```text
+git pull
+pwsh -File scripts/sync-docs-to-yandex.ps1
+# фронт ЭДО: npm run build (если правите UI)
+```
+
+**Следующий шаг (ноутбук):** ЗАБРАТЬ. Untracked локально: `u_tromb_test` (не в git).
+
+**Отложено:** деплой ЭДО на прод; фаза 3 уведомлений реестра; sync status 121/160.
+
+---
+
+**Обновлено (архив):** 2026-08-31 19:40 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `2d0f24a9` · **тема:** дата оплаты в сводке мастера из журнала
 
 ### Итог сессии 2026-08-31 — сводка «Расчёты по графику»
 
@@ -23,9 +48,7 @@ pwsh -File scripts/sync-docs-to-yandex.ps1
 
 **Следующий шаг (другой ПК):** ЗАБРАТЬ.
 
-**Локально не в этом коммите:** WIP ЭДО (request/closing fulfillment, Contractors Index, OrderSignedDocumentsTable и тесты) + untracked `u_tromb_test`.
-
-**Отложено:** фаза 3 уведомлений реестра; sync status 121/160; коммит WIP ЭДО.
+**Отложено:** фаза 3 уведомлений реестра; sync status 121/160.
 
 ---
 
