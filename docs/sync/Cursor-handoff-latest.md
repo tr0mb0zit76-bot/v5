@@ -3,28 +3,29 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-31 14:10 (деплой) · **Ветка:** `master` · **HEAD:** `586e7f65` · **тема:** прод догнал git (HowMuchCosts/OneC/docs + объём в мастере)
+**Обновлено:** 2026-08-31 19:40 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `2d0f24a9` · **тема:** дата оплаты в сводке мастера из журнала
 
-### Итог сессии 2026-08-31 — деплой на прод
+### Итог сессии 2026-08-31 — сводка «Расчёты по графику»
 
 | Блок | Статус |
 | --- | --- |
-| HowMuchCosts + нормы себестоимости парка | ✅ на прод; миграция `own_fleet_cost_norms` |
-| OneC: телефон контрагента + EPD mapper | ✅ на прод |
-| Документы: upload limits / outgoing closing dedupe | ✅ на прод |
-| Лиды гайды + Wizard/Tasks/CommandBar | ✅ на прод |
-| Мастер заказов: убрана подсказка «Объём», ломавшая сетку | ✅ `586e7f65` |
+| Причина «рассчитался: да» вместо даты (заказ 10): `actual_date` null при оплаченном графике | ✅ разобрано |
+| `PaymentSettlementSummaryBuilder`: fallback `payment_date` из `payment_schedule_payment_events` | ✅ `2d0f24a9` на прод |
+| Тест `test_payment_settlement_last_payment_at_falls_back_to_ledger_payment_date` | ✅ |
+| Проверка заказ 10 на прод: `last_payment_at` = 2026-06-10 | ✅ |
 
-**Прод:** `586e7f65` = `origin/master` · `git pull --ff-only` · `migrate --force` · `npm run build` · `optimize:clear`.
+**Прод:** `2d0f24a9` · `git pull --ff-only` · `php artisan optimize:clear` (фронт/миграции не нужны).
 
 ```text
 git pull
 pwsh -File scripts/sync-docs-to-yandex.ps1
 ```
 
-**Следующий шаг (другой ПК):** ЗАБРАТЬ. Локально untracked: `u_tromb_test`.
+**Следующий шаг (другой ПК):** ЗАБРАТЬ.
 
-**Отложено:** фаза 3 уведомлений реестра; sync status 121/160.
+**Локально не в этом коммите:** WIP ЭДО (request/closing fulfillment, Contractors Index, OrderSignedDocumentsTable и тесты) + untracked `u_tromb_test`.
+
+**Отложено:** фаза 3 уведомлений реестра; sync status 121/160; коммит WIP ЭДО.
 
 ---
 
