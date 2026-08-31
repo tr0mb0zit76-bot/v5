@@ -3,7 +3,36 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-26 16:25 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `1946635a` · **тема:** график оплат + нумератор заказов (дубли / сжигание номеров)
+**Обновлено:** 2026-08-31 13:16 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `492028b2` · **тема:** платёжные дни вт/чт + нал↔нал чек-лист + repair оплат после resync
+
+### Итог сессии 2026-08-31 — график оплат / реестр / наличка
+
+| Блок | Статус |
+| --- | --- |
+| Платёжные дни вт/чт → `payment_run_date` (не `planned_date`); авто для carrier/contractor; пресеты/сводка/экспорт | ✅ `29bf8eb0` + hotfix batch insert `b279d8ce` на прод; sync 168 заказов |
+| Нал↔нал: пустой чек-лист (без заявок/ТСД); даты от выгрузки; закрытие = выгрузка+оплаты; подрядчик cash без закрывающих | ✅ `f1ca1ba3` на прод |
+| После sync «слетели» оплаты (заказ 5: оба транша 50/50 → всё на первый) | ✅ `492028b2` relinker + `payment-schedules:repair-settlement --force` (176 событий); заказ 5 снова `closed` |
+| Аудит перекоса траншей на проде | ✅ `SKEWED_GROUPS=0`; остались только 121/160 со stale status `documents`→`payment` (оплат нет — не баг) |
+
+**Прод:** `492028b2` (+ frontend build по ходу сессии). Миграций нет.
+
+**Ключевые файлы:**
+- `app/Support/OutgoingPaymentRunDateResolver.php`, `config/payment_schedules.php`
+- `app/Support/PaymentScheduleCashBasis.php`, `OrderDocumentRequirementSlotBuilder.php` ↔ `orderDocumentRequirementSlots.js`
+- `app/Support/PaymentSchedulePaymentEventRelinker.php` (`--force` в `payment-schedules:repair-settlement`)
+
+```text
+git pull
+pwsh -File scripts/sync-docs-to-yandex.ps1
+```
+
+**Следующий шаг (другой ПК):** ЗАБРАТЬ. Локально остаются **незакоммиченные** WIP: HowMuchCosts / OwnFleet CostNorms / OneC / document upload / leads docs / Tasks — **не** входили в этот ОТДАТЬ.
+
+**Отложено:** фаза 3 уведомлений по реестру вт/чт; sync status для 121/160 (по желанию).
+
+---
+
+**Обновлено (архив):** 2026-08-26 16:25 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `1946635a` · **тема:** график оплат + нумератор заказов (дубли / сжигание номеров)
 
 ### Итог сессии 2026-08-26 — финансы / нумератор / операционка
 
