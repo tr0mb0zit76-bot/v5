@@ -11,7 +11,9 @@ use Illuminate\Support\Facades\Schema;
 
 class RepairPaymentScheduleSettlementCommand extends Command
 {
-    protected $signature = 'payment-schedules:repair-settlement {--order= : ID заказа для точечного восстановления}';
+    protected $signature = 'payment-schedules:repair-settlement
+        {--order= : ID заказа для точечного восстановления}
+        {--force : Сбросить привязку активных событий и распределить по траншам заново}';
 
     protected $description = 'Перепривязать журнал оплат к строкам графика и пересчитать paid_amount / remaining_amount';
 
@@ -31,13 +33,18 @@ class RepairPaymentScheduleSettlementCommand extends Command
             return self::FAILURE;
         }
 
+        $force = (bool) $this->option('force');
         $orderId = $this->option('order');
         $orderIds = $orderId !== null && $orderId !== ''
             ? [(int) $orderId]
-            : $this->orderIdsWithOrphanedEvents();
+            : ($force
+                ? $this->orderIdsWithActiveEvents()
+                : $this->orderIdsWithOrphanedEvents());
 
         if ($orderIds === []) {
-            $this->info('Сиротских записей журнала не найдено.');
+            $this->info($force
+                ? 'Активных записей журнала не найдено.'
+                : 'Сиротских записей журнала не найдено.');
 
             return self::SUCCESS;
         }
@@ -46,7 +53,9 @@ class RepairPaymentScheduleSettlementCommand extends Command
         $updatedTotal = 0;
 
         foreach ($orderIds as $id) {
-            $relinked = $relinker->relinkOrphanedEventsForOrder($id);
+            $relinked = $force
+                ? $relinker->forceRelinkActiveEventsForOrder($id)
+                : $relinker->relinkOrphanedEventsForOrder($id);
             $relinkedTotal += $relinked;
 
             $updated = $this->syncOrderRoots($sync, $id);
@@ -76,6 +85,26 @@ class RepairPaymentScheduleSettlementCommand extends Command
                             ->whereColumn('payment_schedules.id', 'payment_schedule_payment_events.payment_schedule_id');
                     });
             });
+
+        if (Schema::hasColumn('payment_schedule_payment_events', 'reversed_at')) {
+            $query->whereNull('reversed_at');
+        }
+
+        return $query
+            ->distinct()
+            ->orderBy('order_id')
+            ->pluck('order_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function orderIdsWithActiveEvents(): array
+    {
+        $query = DB::table('payment_schedule_payment_events');
 
         if (Schema::hasColumn('payment_schedule_payment_events', 'reversed_at')) {
             $query->whereNull('reversed_at');

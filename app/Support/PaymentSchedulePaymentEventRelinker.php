@@ -37,6 +37,12 @@ final class PaymentSchedulePaymentEventRelinker
 
         $rootsByGroup = [];
         foreach ($roots as $root) {
+            // Распределение событий в рамках этого прохода — с нуля.
+            // Иначе paid_amount после SettlementPreserver/прошлой синхронизации
+            // отправляет все orphan-события в единственный «незакрытый» транш.
+            $root->paid_amount = 0;
+            $root->remaining_amount = round((float) ($root->amount ?? 0), 2);
+
             $groupKey = $this->rootGroupKey(
                 (string) $root->party,
                 $this->resolveContractorIdForRoot($root, $orderPartyContractorIds),
@@ -57,12 +63,11 @@ final class PaymentSchedulePaymentEventRelinker
                 isset($event->contractor_id) ? (int) $event->contractor_id : null,
             );
 
-            $candidates = $rootsByGroup[$groupKey] ?? [];
-            if ($candidates === []) {
+            if (! isset($rootsByGroup[$groupKey])) {
                 continue;
             }
 
-            $targetRoot = $this->pickRootForEvent($candidates, (float) ($event->amount ?? 0));
+            $targetRoot = $this->pickRootForEvent($rootsByGroup[$groupKey], (float) ($event->amount ?? 0));
             if ($targetRoot === null) {
                 continue;
             }
@@ -74,12 +79,63 @@ final class PaymentSchedulePaymentEventRelinker
                     'updated_at' => now(),
                 ]);
 
+            $this->applyEventAmountToRoot($targetRoot, (float) ($event->amount ?? 0));
             $relinked++;
         }
 
         $relinked += $this->relinkManagementAllocationsForOrder($orderId);
 
         return $relinked;
+    }
+
+    /**
+     * Сбросить привязку активных событий заказа и распределить заново по траншам.
+     * Нужно после ошибочной пересборки, когда события уже сидят на одной строке.
+     */
+    public function forceRelinkActiveEventsForOrder(int $orderId): int
+    {
+        if (! $this->ledgerTableExists() || ! Schema::hasTable('payment_schedules')) {
+            return 0;
+        }
+
+        $query = DB::table('payment_schedule_payment_events')
+            ->where('order_id', $orderId);
+
+        if (Schema::hasColumn('payment_schedule_payment_events', 'reversed_at')) {
+            $query->whereNull('reversed_at');
+        }
+
+        $updated = $query->update([
+            'payment_schedule_id' => null,
+            'updated_at' => now(),
+        ]);
+
+        if ($updated === 0) {
+            return 0;
+        }
+
+        // Иначе «перекошенные» paid_amount после прошлой синхронизации уведут все события в один транш.
+        $rootQuery = DB::table('payment_schedules')->where('order_id', $orderId);
+        if (Schema::hasColumn('payment_schedules', 'parent_payment_id')) {
+            $rootQuery->whereNull('parent_payment_id');
+        }
+        if (Schema::hasColumn('payment_schedules', 'is_partial')) {
+            $rootQuery->where(function ($q): void {
+                $q->whereNull('is_partial')->orWhere('is_partial', false);
+            });
+        }
+
+        $rootUpdate = ['updated_at' => now()];
+        if (Schema::hasColumn('payment_schedules', 'paid_amount')) {
+            $rootUpdate['paid_amount'] = 0;
+        }
+        if (Schema::hasColumn('payment_schedules', 'remaining_amount')) {
+            $rootUpdate['remaining_amount'] = 0;
+        }
+
+        $rootQuery->update($rootUpdate);
+
+        return $this->relinkOrphanedEventsForOrder($orderId);
     }
 
     /**
@@ -328,24 +384,34 @@ final class PaymentSchedulePaymentEventRelinker
             return $roots[0] ?? null;
         }
 
-        $bestExact = null;
+        $bestExactUnpaid = null;
+        $bestFit = null;
+        $bestFitLeftover = INF;
         $bestCapacity = null;
         $maxCapacity = -1.0;
 
         foreach ($roots as $root) {
             $rootAmount = round((float) ($root->amount ?? 0), 2);
             $paidAmount = round((float) ($root->paid_amount ?? 0), 2);
-            $remaining = Schema::hasColumn('payment_schedules', 'remaining_amount') && $root->remaining_amount !== null
-                ? round((float) $root->remaining_amount, 2)
-                : max(0, $rootAmount - $paidAmount);
+            $remaining = max(0.0, round($rootAmount - $paidAmount, 2));
 
-            if (abs($rootAmount - $eventAmount) <= 0.02) {
-                $bestExact = $root;
-                break;
+            if ($remaining <= 0.009) {
+                continue;
             }
 
-            if ($remaining <= 0.009 && $paidAmount + 0.009 >= $rootAmount && $rootAmount > 0) {
+            // Пустой транш ровно на сумму события — типичный случай 50/50.
+            if ($paidAmount <= 0.009 && abs($rootAmount - $eventAmount) <= 0.02) {
+                $bestExactUnpaid ??= $root;
+
                 continue;
+            }
+
+            if ($remaining + 0.02 >= $eventAmount) {
+                $leftover = round($remaining - $eventAmount, 2);
+                if ($leftover < $bestFitLeftover) {
+                    $bestFitLeftover = $leftover;
+                    $bestFit = $root;
+                }
             }
 
             if ($remaining > $maxCapacity) {
@@ -354,6 +420,22 @@ final class PaymentSchedulePaymentEventRelinker
             }
         }
 
-        return $bestExact ?? $bestCapacity ?? ($roots[0] ?? null);
+        return $bestExactUnpaid ?? $bestFit ?? $bestCapacity ?? ($roots[0] ?? null);
+    }
+
+    private function applyEventAmountToRoot(object $root, float $eventAmount): void
+    {
+        $eventAmount = round($eventAmount, 2);
+        if ($eventAmount <= 0) {
+            return;
+        }
+
+        $paidAmount = round((float) ($root->paid_amount ?? 0), 2);
+        $root->paid_amount = round($paidAmount + $eventAmount, 2);
+
+        if (isset($root->remaining_amount) || property_exists($root, 'remaining_amount')) {
+            $rootAmount = round((float) ($root->amount ?? 0), 2);
+            $root->remaining_amount = max(0.0, round($rootAmount - (float) $root->paid_amount, 2));
+        }
     }
 }

@@ -220,4 +220,107 @@ class PaymentScheduleSettlementRepairTest extends TestCase
         $this->assertSame($finalId, (int) DB::table('payment_schedule_payment_events')->where('transaction_reference', 'mgmt:101')->value('payment_schedule_id'));
         $this->assertSame($finalId, (int) DB::table('payment_schedule_payment_events')->where('transaction_reference', 'mgmt:102')->value('payment_schedule_id'));
     }
+
+    public function test_force_relink_splits_equal_installments_instead_of_piling_on_first(): void
+    {
+        if (! Schema::hasTable('payment_schedules') || ! Schema::hasTable('payment_schedule_payment_events')) {
+            $this->markTestSkipped('Таблицы графика оплат недоступны.');
+        }
+
+        $manager = User::factory()->create();
+        $order = Order::factory()->create([
+            'manager_id' => $manager->id,
+            'customer_rate' => 1234461,
+        ]);
+
+        $prepaymentId = DB::table('payment_schedules')->insertGetId([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'prepayment',
+            'amount' => 617230.50,
+            'planned_date' => '2026-06-26',
+            'paid_amount' => 1234461,
+            'remaining_amount' => 0,
+            'status' => 'paid',
+            'installment_sequence' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $finalId = DB::table('payment_schedules')->insertGetId([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 617230.50,
+            'planned_date' => '2026-06-26',
+            'paid_amount' => 0,
+            'remaining_amount' => 0,
+            'status' => 'overdue',
+            'installment_sequence' => 2,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Все события ошибочно на первом транше (как после buggy resync).
+        DB::table('payment_schedule_payment_events')->insert([
+            [
+                'order_id' => $order->id,
+                'contractor_id' => $order->customer_id,
+                'payment_schedule_id' => $prepaymentId,
+                'party' => 'customer',
+                'amount' => 567230.50,
+                'payment_date' => '2026-06-10',
+                'transaction_reference' => 'mgmt:14',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'order_id' => $order->id,
+                'contractor_id' => $order->customer_id,
+                'payment_schedule_id' => $prepaymentId,
+                'party' => 'customer',
+                'amount' => 617230.50,
+                'payment_date' => '2026-06-19',
+                'transaction_reference' => 'mgmt:43',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'order_id' => $order->id,
+                'contractor_id' => $order->customer_id,
+                'payment_schedule_id' => $prepaymentId,
+                'party' => 'customer',
+                'amount' => 50000,
+                'payment_date' => '2026-06-09',
+                'transaction_reference' => 'mgmt:9',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->artisan('payment-schedules:repair-settlement', [
+            '--order' => (string) $order->id,
+            '--force' => true,
+        ])->assertSuccessful();
+
+        $linked = DB::table('payment_schedule_payment_events')
+            ->where('order_id', $order->id)
+            ->whereNull('reversed_at')
+            ->orderBy('id')
+            ->get(['amount', 'payment_schedule_id']);
+
+        $prepaymentPaid = (float) $linked->where('payment_schedule_id', $prepaymentId)->sum('amount');
+        $finalPaid = (float) $linked->where('payment_schedule_id', $finalId)->sum('amount');
+
+        $this->assertEqualsWithDelta(617230.50, $prepaymentPaid, 0.01);
+        $this->assertEqualsWithDelta(617230.50, $finalPaid, 0.01);
+
+        $prepayment = PaymentSchedule::query()->find($prepaymentId);
+        $final = PaymentSchedule::query()->find($finalId);
+
+        $this->assertNotNull($prepayment);
+        $this->assertNotNull($final);
+        $this->assertSame('paid', $prepayment->status);
+        $this->assertSame('paid', $final->status);
+    }
 }
