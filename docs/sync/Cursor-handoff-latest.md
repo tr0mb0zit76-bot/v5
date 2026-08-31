@@ -3,7 +3,32 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-31 13:22 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `09b6b090` · **тема:** полный WIP в git (финансы уже на прод + HowMuchCosts/OneC/docs)
+**Обновлено:** 2026-08-31 14:10 (деплой) · **Ветка:** `master` · **HEAD:** `586e7f65` · **тема:** прод догнал git (HowMuchCosts/OneC/docs + объём в мастере)
+
+### Итог сессии 2026-08-31 — деплой на прод
+
+| Блок | Статус |
+| --- | --- |
+| HowMuchCosts + нормы себестоимости парка | ✅ на прод; миграция `own_fleet_cost_norms` |
+| OneC: телефон контрагента + EPD mapper | ✅ на прод |
+| Документы: upload limits / outgoing closing dedupe | ✅ на прод |
+| Лиды гайды + Wizard/Tasks/CommandBar | ✅ на прод |
+| Мастер заказов: убрана подсказка «Объём», ломавшая сетку | ✅ `586e7f65` |
+
+**Прод:** `586e7f65` = `origin/master` · `git pull --ff-only` · `migrate --force` · `npm run build` · `optimize:clear`.
+
+```text
+git pull
+pwsh -File scripts/sync-docs-to-yandex.ps1
+```
+
+**Следующий шаг (другой ПК):** ЗАБРАТЬ. Локально untracked: `u_tromb_test`.
+
+**Отложено:** фаза 3 уведомлений реестра; sync status 121/160.
+
+---
+
+**Обновлено (архив):** 2026-08-31 13:22 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `09b6b090` · **тема:** полный WIP в git (финансы уже на прод + HowMuchCosts/OneC/docs)
 
 ### Итог сессии 2026-08-31 (повторный ОТДАТЬ — весь локальный WIP)
 
