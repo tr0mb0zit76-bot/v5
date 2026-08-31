@@ -1,6 +1,11 @@
 import { computed, watch } from 'vue';
 import { parseLocaleDecimal, sanitizeDecimalInput } from '@/support/wizardDictionaryHelpers.js';
 import {
+    cargoDimensionToMeters,
+    cargoDimensionUnitLabel,
+    normalizeCargoDimensionUnit,
+} from '@/support/cargoDimensionUnit.js';
+import {
     allocationWeightPlaceholder,
     cargoAllocationRowStatus,
     cargoLinePerPlaceWeightKg,
@@ -109,6 +114,10 @@ export function buildNormalizeCargoItem(props, normalizeNullableNumber) {
             weight_kg: weightValue,
             weight_unit: raw.weight_unit === 't' ? 't' : 'kg',
             volume_m3: raw.volume_m3 ?? null,
+            dimension_unit: normalizeCargoDimensionUnit(raw.dimension_unit),
+            length_value: raw.length_value ?? raw.length_m ?? null,
+            width_value: raw.width_value ?? raw.width_m ?? null,
+            height_value: raw.height_value ?? raw.height_m ?? null,
             length_m: raw.length_m ?? null,
             width_m: raw.width_m ?? null,
             height_m: raw.height_m ?? null,
@@ -284,32 +293,41 @@ export function useOrderWizardCargoTab(deps) {
         return per * cargoPackageCountFactor(item);
     }
 
+    function cargoDimensionMeters(item) {
+        const unit = normalizeCargoDimensionUnit(item.dimension_unit);
+        const length = cargoDimensionToMeters(parseLocaleDecimal(item.length_value ?? item.length_m), unit);
+        const width = cargoDimensionToMeters(parseLocaleDecimal(item.width_value ?? item.width_m), unit);
+        const height = cargoDimensionToMeters(parseLocaleDecimal(item.height_value ?? item.height_m), unit);
+
+        return { length, width, height, unit };
+    }
+
     function cargoHasDimensions(item) {
-        return [item.length_m, item.width_m, item.height_m].some((v) => v !== null && v !== undefined && String(v).trim() !== '');
+        return [item.length_value ?? item.length_m, item.width_value ?? item.width_m, item.height_value ?? item.height_m]
+            .some((v) => v !== null && v !== undefined && String(v).trim() !== '');
     }
 
     function cargoDimensionsLabel(item) {
-        const l = parseLocaleDecimal(item.length_m);
-        const w = parseLocaleDecimal(item.width_m);
-        const h = parseLocaleDecimal(item.height_m);
+        const { unit } = cargoDimensionMeters(item);
+        const displayLength = parseLocaleDecimal(item.length_value ?? item.length_m);
+        const displayWidth = parseLocaleDecimal(item.width_value ?? item.width_m);
+        const displayHeight = parseLocaleDecimal(item.height_value ?? item.height_m);
 
-        const lengthLabel = l !== null ? l.toFixed(2) : '—';
-        const widthLabel = w !== null ? w.toFixed(2) : '—';
-        const heightLabel = h !== null ? h.toFixed(2) : '—';
+        const lengthLabel = displayLength !== null ? displayLength.toFixed(2) : '—';
+        const widthLabel = displayWidth !== null ? displayWidth.toFixed(2) : '—';
+        const heightLabel = displayHeight !== null ? displayHeight.toFixed(2) : '—';
 
-        return `${lengthLabel}×${widthLabel}×${heightLabel} м`;
+        return `${lengthLabel}×${widthLabel}×${heightLabel} ${cargoDimensionUnitLabel(unit)}`;
     }
 
     function cargoComputedVolumeM3(item) {
-        const l = parseLocaleDecimal(item.length_m);
-        const w = parseLocaleDecimal(item.width_m);
-        const h = parseLocaleDecimal(item.height_m);
+        const { length, width, height } = cargoDimensionMeters(item);
 
-        if (l === null || w === null || h === null || l <= 0 || w <= 0 || h <= 0) {
+        if (length === null || width === null || height === null || length <= 0 || width <= 0 || height <= 0) {
             return null;
         }
 
-        return l * w * h;
+        return length * width * height;
     }
 
     function onCargoDecimalInput(item, field, event) {
@@ -521,9 +539,22 @@ export function useOrderWizardCargoTab(deps) {
                 weight_kg: item.weight_value ?? item.weight_kg,
                 weight_unit: item.weight_unit === 't' ? 't' : 'kg',
                 volume_m3: item.volume_m3,
-                length_m: item.length_m,
-                width_m: item.width_m,
-                height_m: item.height_m,
+                dimension_unit: normalizeCargoDimensionUnit(item.dimension_unit),
+                length_value: item.length_value ?? item.length_m,
+                width_value: item.width_value ?? item.width_m,
+                height_value: item.height_value ?? item.height_m,
+                length_m: cargoDimensionToMeters(
+                    parseLocaleDecimal(item.length_value ?? item.length_m),
+                    item.dimension_unit,
+                ),
+                width_m: cargoDimensionToMeters(
+                    parseLocaleDecimal(item.width_value ?? item.width_m),
+                    item.dimension_unit,
+                ),
+                height_m: cargoDimensionToMeters(
+                    parseLocaleDecimal(item.height_value ?? item.height_m),
+                    item.dimension_unit,
+                ),
                 diameter_m: item.diameter_m,
                 package_type: item.package_type,
                 pack_type_id: normalizeNullableNumber(item.pack_type_id),

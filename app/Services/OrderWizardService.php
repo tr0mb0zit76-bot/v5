@@ -15,6 +15,7 @@ use App\Models\PrintFormBasicTerm;
 use App\Models\RoutePoint;
 use App\Models\User;
 use App\Services\PrintForm\PrintFormBasicTermsService;
+use App\Support\CargoDimensionUnit;
 use App\Support\CargoPerformerAllocationBuilder;
 use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierPaymentTermResolver;
@@ -711,12 +712,12 @@ class OrderWizardService
                 $weightKg = $weightKg * 1000;
             }
 
-            $length = $this->normalizeNullableFloat($cargoItem['length_m'] ?? null);
-            $width = $this->normalizeNullableFloat($cargoItem['width_m'] ?? null);
-            $height = $this->normalizeNullableFloat($cargoItem['height_m'] ?? null);
-            $volume = $length !== null && $width !== null && $height !== null && $length > 0 && $width > 0 && $height > 0
-                ? round($length * $width * $height, 3)
-                : $this->normalizeNullableFloat($cargoItem['volume_m3'] ?? null);
+            $lengthResolved = CargoDimensionUnit::resolveFromPayload($cargoItem);
+            $length = $lengthResolved['length_m'];
+            $width = $lengthResolved['width_m'];
+            $height = $lengthResolved['height_m'];
+            $volume = CargoDimensionUnit::volumeM3($length, $width, $height)
+                ?? $this->normalizeNullableFloat($cargoItem['volume_m3'] ?? null);
             $cargoType = $this->nullIfTrimmedEmpty($cargoType);
             $packType = $this->nullIfTrimmedEmpty($cargoItem['package_type'] ?? null);
             $dictionaryItems = [
@@ -761,6 +762,12 @@ class OrderWizardService
                 $cargoAttributes['ati_cargo_name'] = $cargoTitle;
                 $cargoAttributes['weight_value'] = $weightValue;
                 $cargoAttributes['weight_unit'] = $weightUnit;
+                if (Schema::hasColumn('cargos', 'dimension_unit')) {
+                    $cargoAttributes['dimension_unit'] = $lengthResolved['unit'];
+                    $cargoAttributes['length_value'] = $lengthResolved['length'];
+                    $cargoAttributes['width_value'] = $lengthResolved['width'];
+                    $cargoAttributes['height_value'] = $lengthResolved['height'];
+                }
                 $cargoAttributes['cargo_type_id'] = $this->normalizeNullableInteger($cargoItem['cargo_type_id'] ?? null);
                 $cargoAttributes['cargo_type_label'] = $this->nullIfTrimmedEmpty($cargoItem['cargo_type_label'] ?? null);
                 $cargoAttributes['pack_type_id'] = $this->normalizeNullableInteger($cargoItem['pack_type_id'] ?? null);

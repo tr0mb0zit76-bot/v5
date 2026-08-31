@@ -6,6 +6,11 @@ import {
     normalizeNullableNumber,
     parseLocaleDecimal,
 } from '@/support/wizardDictionaryHelpers.js';
+import {
+    cargoDimensionToMeters,
+    cargoDimensionUnitLabel,
+    normalizeCargoDimensionUnit,
+} from '@/support/cargoDimensionUnit.js';
 
 export function blankLeadCargoItem() {
     return {
@@ -15,6 +20,10 @@ export function blankLeadCargoItem() {
         weight_kg: null,
         weight_unit: 'kg',
         volume_m3: null,
+        dimension_unit: 'm',
+        length_value: null,
+        width_value: null,
+        height_value: null,
         length_m: null,
         width_m: null,
         height_m: null,
@@ -95,6 +104,10 @@ export function normalizeLeadCargoItem(raw = {}, dictionaries = {}) {
         weight_kg: weightValue,
         weight_unit: raw.weight_unit === 't' ? 't' : 'kg',
         volume_m3: raw.volume_m3 ?? null,
+        dimension_unit: normalizeCargoDimensionUnit(raw.dimension_unit),
+        length_value: raw.length_value ?? raw.length_m ?? null,
+        width_value: raw.width_value ?? raw.width_m ?? null,
+        height_value: raw.height_value ?? raw.height_m ?? null,
         length_m: raw.length_m ?? null,
         width_m: raw.width_m ?? null,
         height_m: raw.height_m ?? null,
@@ -198,31 +211,34 @@ export function cargoLineTotalVolumeM3(item) {
 }
 
 export function cargoHasDimensions(item) {
-    return [item.length_m, item.width_m, item.height_m].some((value) => value !== null && value !== undefined && String(value).trim() !== '');
+    return [item.length_value ?? item.length_m, item.width_value ?? item.width_m, item.height_value ?? item.height_m]
+        .some((value) => value !== null && value !== undefined && String(value).trim() !== '');
 }
 
 export function cargoDimensionFieldsEmpty(item) {
-    return [item.length_m, item.width_m, item.height_m].every(
+    return [item.length_value ?? item.length_m, item.width_value ?? item.width_m, item.height_value ?? item.height_m].every(
         (value) => value === null || value === undefined || String(value).trim() === '',
     );
 }
 
 export function cargoDimensionsLabel(item) {
-    const length = parseLocaleDecimal(item.length_m);
-    const width = parseLocaleDecimal(item.width_m);
-    const height = parseLocaleDecimal(item.height_m);
+    const unit = normalizeCargoDimensionUnit(item.dimension_unit);
+    const displayLength = parseLocaleDecimal(item.length_value ?? item.length_m);
+    const displayWidth = parseLocaleDecimal(item.width_value ?? item.width_m);
+    const displayHeight = parseLocaleDecimal(item.height_value ?? item.height_m);
 
-    const lengthLabel = length !== null ? length.toFixed(2) : '—';
-    const widthLabel = width !== null ? width.toFixed(2) : '—';
-    const heightLabel = height !== null ? height.toFixed(2) : '—';
+    const lengthLabel = displayLength !== null ? displayLength.toFixed(2) : '—';
+    const widthLabel = displayWidth !== null ? displayWidth.toFixed(2) : '—';
+    const heightLabel = displayHeight !== null ? displayHeight.toFixed(2) : '—';
 
-    return `${lengthLabel}×${widthLabel}×${heightLabel} м`;
+    return `${lengthLabel}×${widthLabel}×${heightLabel} ${cargoDimensionUnitLabel(unit)}`;
 }
 
 export function cargoComputedVolumeM3(item) {
-    const length = parseLocaleDecimal(item.length_m);
-    const width = parseLocaleDecimal(item.width_m);
-    const height = parseLocaleDecimal(item.height_m);
+    const unit = normalizeCargoDimensionUnit(item.dimension_unit);
+    const length = cargoDimensionToMeters(parseLocaleDecimal(item.length_value ?? item.length_m), unit);
+    const width = cargoDimensionToMeters(parseLocaleDecimal(item.width_value ?? item.width_m), unit);
+    const height = cargoDimensionToMeters(parseLocaleDecimal(item.height_value ?? item.height_m), unit);
 
     if (length === null || width === null || height === null || length <= 0 || width <= 0 || height <= 0) {
         return null;

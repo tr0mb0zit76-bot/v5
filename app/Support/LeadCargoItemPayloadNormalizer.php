@@ -21,18 +21,22 @@ final class LeadCargoItemPayloadNormalizer
             $weightKg *= 1000;
         }
 
-        $length = self::normalizeFloat($item['length_m'] ?? null);
-        $width = self::normalizeFloat($item['width_m'] ?? null);
-        $height = self::normalizeFloat($item['height_m'] ?? null);
-        $volume = $length !== null && $width !== null && $height !== null && $length > 0 && $width > 0 && $height > 0
-            ? round($length * $width * $height, 3)
-            : self::normalizeFloat($item['volume_m3'] ?? null);
+        $dimensions = CargoDimensionUnit::resolveFromPayload($item);
+        $length = $dimensions['length_m'];
+        $width = $dimensions['width_m'];
+        $height = $dimensions['height_m'];
+        $volume = CargoDimensionUnit::volumeM3($length, $width, $height)
+            ?? self::normalizeFloat($item['volume_m3'] ?? null);
 
         $cargoType = self::resolveCargoType($item);
 
         $metadata = array_filter([
             'weight_value' => $weightValue,
             'weight_unit' => $weightUnit,
+            'dimension_unit' => $dimensions['unit'],
+            'length_value' => $dimensions['length'],
+            'width_value' => $dimensions['width'],
+            'height_value' => $dimensions['height'],
             'length_m' => $length,
             'width_m' => $width,
             'height_m' => $height,
@@ -90,6 +94,10 @@ final class LeadCargoItemPayloadNormalizer
             'weight_kg' => $metadata['weight_value'] ?? $cargo->weight_kg,
             'weight_unit' => $metadata['weight_unit'] ?? 'kg',
             'volume_m3' => $cargo->volume_m3,
+            'dimension_unit' => $metadata['dimension_unit'] ?? 'm',
+            'length_value' => $metadata['length_value'] ?? $metadata['length_m'] ?? null,
+            'width_value' => $metadata['width_value'] ?? $metadata['width_m'] ?? null,
+            'height_value' => $metadata['height_value'] ?? $metadata['height_m'] ?? null,
             'length_m' => $metadata['length_m'] ?? null,
             'width_m' => $metadata['width_m'] ?? null,
             'height_m' => $metadata['height_m'] ?? null,

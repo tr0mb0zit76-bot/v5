@@ -1,6 +1,7 @@
 <script setup>
 import { inject } from 'vue';
 import { ORDER_WIZARD_CARGO_TAB_KEY } from '@/support/orderWizardCargoTabKey.js';
+import { CARGO_DIMENSION_UNITS } from '@/support/cargoDimensionUnit.js';
 
 const {
     form,
@@ -174,34 +175,41 @@ const {
                         <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
                             <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Д</label>
                             <input
-                                :value="item.length_m ?? ''"
+                                :value="item.length_value ?? ''"
                                 type="text"
                                 inputmode="decimal"
                                 class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                @input="onCargoDecimalInput(item, 'length_m', $event)"
+                                @input="onCargoDecimalInput(item, 'length_value', $event)"
                             />
                         </div>
                         <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
                             <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Ш</label>
                             <input
-                                :value="item.width_m ?? ''"
+                                :value="item.width_value ?? ''"
                                 type="text"
                                 inputmode="decimal"
                                 class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                @input="onCargoDecimalInput(item, 'width_m', $event)"
+                                @input="onCargoDecimalInput(item, 'width_value', $event)"
                             />
                         </div>
                         <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
                             <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">В</label>
                             <input
-                                :value="item.height_m ?? ''"
+                                :value="item.height_value ?? ''"
                                 type="text"
                                 inputmode="decimal"
                                 class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
-                                @input="onCargoDecimalInput(item, 'height_m', $event)"
+                                @input="onCargoDecimalInput(item, 'height_value', $event)"
                             />
                         </div>
-                        <div class="flex w-[9.5rem] shrink-0 items-center gap-1">
+                        <select
+                            v-model="item.dimension_unit"
+                            class="h-8 w-[4.25rem] shrink-0 rounded border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
+                            title="Единица размеров"
+                        >
+                            <option v-for="option in CARGO_DIMENSION_UNITS" :key="option.value" :value="option.value">{{ option.label }}</option>
+                        </select>
+                        <div class="flex w-[8.5rem] shrink-0 items-center gap-1">
                             <label class="w-12 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Объём</label>
                             <input
                                 :value="item.volume_m3 ?? ''"
@@ -209,7 +217,7 @@ const {
                                 inputmode="decimal"
                                 :readonly="!cargoVolumeIsManual(item)"
                                 :title="cargoVolumeIsManual(item) ? 'Можно указать вручную без габаритов и мест' : 'Считается из Д×Ш×В'"
-                                :placeholder="cargoVolumeIsManual(item) ? 'м³' : '—'"
+                                :placeholder="cargoVolumeIsManual(item) ? '' : '—'"
                                 :class="[
                                     'h-8 min-w-0 flex-1 rounded px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950',
                                     cargoVolumeIsManual(item)

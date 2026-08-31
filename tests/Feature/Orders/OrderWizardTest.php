@@ -385,6 +385,10 @@ class OrderWizardTest extends TestCase
             'length' => '2.50',
             'width' => '2.00',
             'height' => '1.50',
+            'dimension_unit' => 'm',
+            'length_value' => '2.500',
+            'width_value' => '2.000',
+            'height_value' => '1.500',
         ]);
         $cargo = DB::table('cargos')->where('order_id', $orderId)->first();
         $this->assertNotNull($cargo);
