@@ -3,7 +3,34 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-31 13:16 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `492028b2` · **тема:** платёжные дни вт/чт + нал↔нал чек-лист + repair оплат после resync
+**Обновлено:** 2026-08-31 13:22 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `09b6b090` · **тема:** полный WIP в git (финансы уже на прод + HowMuchCosts/OneC/docs)
+
+### Итог сессии 2026-08-31 (повторный ОТДАТЬ — весь локальный WIP)
+
+| Блок | Статус |
+| --- | --- |
+| График: реестр вт/чт, нал↔нал чек-лист, repair оплат после resync | ✅ на прод до `492028b2`; handoff ранее |
+| HowMuchCosts + нормы себестоимости собственного парка | ✅ `1ee9b75f` — **миграция** `own_fleet_cost_norms`; маршруты `/fleet/cost-norms`, calculate API |
+| OneC: телефон контрагента (kinds) + EPD mapper + ТЗ ЭТрН title | ✅ `27b84d9a` |
+| Документы: upload limits / gate / outgoing closing dedupe | ✅ `e152915b` |
+| Лиды гайды + Wizard/Tasks/CommandBar + audit skew script | ✅ `09b6b090` |
+
+**Прод (рантайм):** ещё `492028b2` по финансам. Коммиты после `dcbca73a` **нужно задеплоить** на большом ПК / при следующем деплое: `git pull` + `php artisan migrate --force` + `npm run build`.
+
+```text
+git pull
+php artisan migrate --force   # own_fleet_cost_norms
+npm run build                 # если нужен фронт HowMuchCosts/CostNorms
+pwsh -File scripts/sync-docs-to-yandex.ps1
+```
+
+**Следующий шаг (другой ПК):** ЗАБРАТЬ → при работе с модулем парка — migrate. Рабочее дерево после ОТДАТЬ должно быть чистое.
+
+**Отложено:** деплой HowMuchCosts/OneC/docs на прод; фаза 3 уведомлений реестра; sync status 121/160.
+
+---
+
+**Обновлено (архив):** 2026-08-31 13:16 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `492028b2` · **тема:** платёжные дни вт/чт + нал↔нал чек-лист + repair оплат после resync
 
 ### Итог сессии 2026-08-31 — график оплат / реестр / наличка
 
