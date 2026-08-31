@@ -201,31 +201,23 @@ const {
                                 @input="onCargoDecimalInput(item, 'height_m', $event)"
                             />
                         </div>
-                        <div class="flex w-[9.5rem] shrink-0 flex-col gap-0.5">
-                            <div class="flex items-center gap-1">
-                                <label class="w-12 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Объём</label>
-                                <input
-                                    :value="item.volume_m3 ?? ''"
-                                    type="text"
-                                    inputmode="decimal"
-                                    :readonly="!cargoVolumeIsManual(item)"
-                                    :title="cargoVolumeIsManual(item) ? 'Можно указать вручную без габаритов и мест' : 'Считается из Д×Ш×В'"
-                                    :placeholder="cargoVolumeIsManual(item) ? 'м³' : '—'"
-                                    :class="[
-                                        'h-8 min-w-0 flex-1 rounded px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950',
-                                        cargoVolumeIsManual(item)
-                                            ? 'border border-zinc-200 bg-white dark:border-zinc-700'
-                                            : 'cursor-default border border-dashed border-zinc-200 bg-zinc-50 text-zinc-800 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-100',
-                                    ]"
-                                    @input="onCargoDecimalInput(item, 'volume_m3', $event)"
-                                />
-                            </div>
-                            <p
-                                v-if="cargoVolumeIsManual(item)"
-                                class="pl-[3.25rem] text-[10px] leading-tight text-zinc-500 dark:text-zinc-400"
-                            >
-                                Вручную, если нет Д×Ш×В
-                            </p>
+                        <div class="flex w-[9.5rem] shrink-0 items-center gap-1">
+                            <label class="w-12 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Объём</label>
+                            <input
+                                :value="item.volume_m3 ?? ''"
+                                type="text"
+                                inputmode="decimal"
+                                :readonly="!cargoVolumeIsManual(item)"
+                                :title="cargoVolumeIsManual(item) ? 'Можно указать вручную без габаритов и мест' : 'Считается из Д×Ш×В'"
+                                :placeholder="cargoVolumeIsManual(item) ? 'м³' : '—'"
+                                :class="[
+                                    'h-8 min-w-0 flex-1 rounded px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950',
+                                    cargoVolumeIsManual(item)
+                                        ? 'border border-zinc-200 bg-white dark:border-zinc-700'
+                                        : 'cursor-default border border-dashed border-zinc-200 bg-zinc-50 text-zinc-800 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-100',
+                                ]"
+                                @input="onCargoDecimalInput(item, 'volume_m3', $event)"
+                            />
                         </div>
                     </div>
                 </div>
