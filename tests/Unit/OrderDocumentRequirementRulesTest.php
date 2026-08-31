@@ -2,9 +2,11 @@
 
 namespace Tests\Unit;
 
+use App\Models\Contractor;
 use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\OrderDocument;
+use App\Models\OrderDocumentEdoAcknowledgement;
 use App\Services\OrderDocumentRequirementService;
 use App\Support\OrderDocumentRequirementSlotBuilder;
 use App\Support\OrderDocumentTransportTypes;
@@ -175,6 +177,32 @@ class OrderDocumentRequirementRulesTest extends TestCase
     }
 
     #[Test]
+    public function non_cash_customer_request_completes_with_edo_acknowledgement(): void
+    {
+        $service = app(OrderDocumentRequirementService::class);
+
+        $rules = OrderDocumentRequirementSlotBuilder::buildRules([], 'single_request', [], [
+            'customer' => 'vat_20',
+            'carriers' => [],
+        ]);
+
+        $acknowledgement = new OrderDocumentEdoAcknowledgement([
+            'party' => 'customer',
+            'document_type' => 'request',
+            'slot_key' => 'customer-all',
+            'contractor_id' => 0,
+            'received_via_edo' => true,
+            'document_number' => 'ZAY-EDO-1',
+        ]);
+
+        $checklist = $service->checklistForDocuments([], $rules, [$acknowledgement]);
+        $customerRequest = collect($checklist)->firstWhere('key', 'customer_request:customer-all');
+
+        $this->assertNotNull($customerRequest);
+        $this->assertTrue($customerRequest['completed']);
+    }
+
+    #[Test]
     public function paper_waybill_fulfills_etrn_checklist_slot_as_alternative(): void
     {
         $rules = OrderDocumentRequirementSlotBuilder::buildRules([], 'single_request');
@@ -285,6 +313,36 @@ class OrderDocumentRequirementRulesTest extends TestCase
         $rules = $service->requirementRulesForOrder($order);
 
         $this->assertNull(collect($rules)->firstWhere('key', 'customer_closing:customer-all'));
+    }
+
+    #[Test]
+    public function requirement_rules_for_order_flag_expects_edo_from_customer_edo_fields(): void
+    {
+        $customer = Contractor::query()->create([
+            'name' => 'ООО С ЭДО',
+            'type' => 'customer',
+            'edo_provider' => 'diadoc',
+            'edo_number' => '2BE-TEST',
+        ]);
+
+        $order = Order::factory()->create([
+            'customer_id' => $customer->id,
+            'customer_payment_form' => 'bank_transfer',
+        ]);
+
+        FinancialTerm::factory()->create([
+            'order_id' => $order->id,
+            'contractors_costs' => [],
+        ]);
+
+        $rules = app(OrderDocumentRequirementService::class)->requirementRulesForOrder($order);
+        $customerRequest = collect($rules)->firstWhere('key', 'customer_request:customer-all');
+        $customerClosing = collect($rules)->firstWhere('key', 'customer_closing:customer-all');
+
+        $this->assertNotNull($customerRequest);
+        $this->assertTrue($customerRequest['expects_edo']);
+        $this->assertNotNull($customerClosing);
+        $this->assertTrue($customerClosing['expects_edo']);
     }
 
     #[Test]

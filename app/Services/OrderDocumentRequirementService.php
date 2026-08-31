@@ -2,15 +2,18 @@
 
 namespace App\Services;
 
+use App\Models\Contractor;
 use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\OrderDocumentEdoAcknowledgement;
 use App\Models\PrintFormTemplate;
+use App\Support\ContractorExpectsEdo;
 use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderDocumentClosingFulfillment;
 use App\Support\OrderDocumentDirection;
 use App\Support\OrderDocumentEpdFulfillment;
+use App\Support\OrderDocumentRequestEdoFulfillment;
 use App\Support\OrderDocumentRequirementSlotBuilder;
 use App\Support\OrderDocumentTransportTypes;
 use App\Support\OrderDocumentWorkflowStatus;
@@ -70,14 +73,68 @@ class OrderDocumentRequirementService
     private function enrichRequirementRulesWithCounterpartyLabels(Order $order, array $rules): array
     {
         $customerName = $this->resolveCustomerDisplayName($order);
+        $expectsEdoByContractorId = $this->resolveExpectsEdoByContractorId($order, $rules);
+        $customerId = (int) ($order->customer_id ?? 0);
+        $customerExpectsEdo = $customerId > 0 && ($expectsEdoByContractorId[$customerId] ?? false);
 
-        return array_map(static function (array $rule) use ($customerName): array {
+        return array_map(static function (array $rule) use ($customerName, $expectsEdoByContractorId, $customerExpectsEdo): array {
             if (($rule['party'] ?? '') === 'customer' && blank($rule['counterparty_label'] ?? null) && $customerName !== '') {
                 $rule['counterparty_label'] = $customerName;
             }
 
+            $ruleContractorId = isset($rule['contractor_id']) && (int) $rule['contractor_id'] > 0
+                ? (int) $rule['contractor_id']
+                : 0;
+
+            if ($ruleContractorId > 0) {
+                $rule['expects_edo'] = $expectsEdoByContractorId[$ruleContractorId] ?? false;
+            } elseif (($rule['party'] ?? '') === 'customer') {
+                $rule['expects_edo'] = $customerExpectsEdo;
+            } else {
+                $rule['expects_edo'] = false;
+            }
+
             return $rule;
         }, $rules);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rules
+     * @return array<int, bool>
+     */
+    private function resolveExpectsEdoByContractorId(Order $order, array $rules): array
+    {
+        $ids = [];
+
+        $customerId = (int) ($order->customer_id ?? 0);
+        if ($customerId > 0) {
+            $ids[] = $customerId;
+        }
+
+        foreach ($rules as $rule) {
+            $contractorId = isset($rule['contractor_id']) && (int) $rule['contractor_id'] > 0
+                ? (int) $rule['contractor_id']
+                : 0;
+            if ($contractorId > 0) {
+                $ids[] = $contractorId;
+            }
+        }
+
+        $ids = array_values(array_unique($ids));
+        if ($ids === []) {
+            return [];
+        }
+
+        return Contractor::query()
+            ->whereIn('id', $ids)
+            ->get(['id', 'edo_provider', 'edo_number'])
+            ->mapWithKeys(static fn (Contractor $contractor): array => [
+                (int) $contractor->id => ContractorExpectsEdo::fromFields(
+                    $contractor->edo_provider,
+                    $contractor->edo_number,
+                ),
+            ])
+            ->all();
     }
 
     private function resolveCustomerDisplayName(Order $order): string
@@ -312,6 +369,20 @@ class OrderDocumentRequirementService
         $checklist = array_map(function (array $rule) use ($documentCollection, $edoCollection, &$usedDocumentIds): array {
             if (OrderDocumentClosingFulfillment::isClosingSlotKind((string) ($rule['slot_kind'] ?? ''))) {
                 $completed = OrderDocumentClosingFulfillment::isRuleFulfilled(
+                    $rule,
+                    $documentCollection,
+                    $edoCollection,
+                );
+
+                return [
+                    ...$rule,
+                    'completed' => $completed,
+                    'matched_document_id' => null,
+                ];
+            }
+
+            if (OrderDocumentRequestEdoFulfillment::isRequestSlotKind((string) ($rule['slot_kind'] ?? ''))) {
+                $completed = OrderDocumentRequestEdoFulfillment::isRuleFulfilled(
                     $rule,
                     $documentCollection,
                     $edoCollection,

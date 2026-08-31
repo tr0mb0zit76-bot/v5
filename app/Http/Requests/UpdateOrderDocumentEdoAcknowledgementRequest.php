@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Support\OrderDocumentClosingFulfillment;
 use App\Support\OrderDocumentEpdFulfillment;
+use App\Support\OrderDocumentRequestEdoFulfillment;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -22,6 +23,7 @@ class UpdateOrderDocumentEdoAcknowledgementRequest extends FormRequest
         $documentTypes = array_values(array_unique([
             ...OrderDocumentClosingFulfillment::CLOSING_TYPES,
             ...OrderDocumentEpdFulfillment::EPD_TYPES,
+            ...OrderDocumentRequestEdoFulfillment::REQUEST_TYPES,
         ]));
 
         return [

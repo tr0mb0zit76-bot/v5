@@ -8,6 +8,7 @@ use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\OrderDocumentRequirementService;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -51,6 +52,80 @@ class DocumentEdoAcknowledgementTest extends TestCase
             'document_number' => 'UPD-77',
             'received_via_edo' => true,
         ]);
+    }
+
+    public function test_clerk_can_mark_request_document_received_via_edo(): void
+    {
+        if (! Schema::hasTable('order_document_edo_acknowledgements')) {
+            $this->markTestSkipped('Таблица order_document_edo_acknowledgements недоступна.');
+        }
+
+        $clerk = $this->makeClerkUser();
+        $customer = Contractor::query()->create([
+            'name' => 'ООО Клиент ЭДО',
+            'type' => 'customer',
+        ]);
+
+        $order = Order::factory()->create([
+            'manager_id' => $clerk->id,
+            'customer_id' => $customer->id,
+            'customer_payment_form' => 'bank_transfer',
+        ]);
+
+        $this->actingAs($clerk)
+            ->patchJson(route('documents.orders.edo-acknowledgement', $order), [
+                'party' => 'customer',
+                'document_type' => 'request',
+                'slot_key' => 'customer-all',
+                'received_via_edo' => true,
+                'document_number' => 'ZAY-15',
+                'document_date' => '2026-08-31',
+            ])
+            ->assertOk()
+            ->assertJsonPath('acknowledgement.document_number', 'ZAY-15')
+            ->assertJsonPath('acknowledgement.document_type', 'request')
+            ->assertJsonPath('acknowledgement.received_via_edo', true);
+
+        $this->assertDatabaseHas('order_document_edo_acknowledgements', [
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'document_type' => 'request',
+            'document_number' => 'ZAY-15',
+            'received_via_edo' => true,
+        ]);
+
+        $checklist = app(OrderDocumentRequirementService::class)
+            ->checklistForOrder($order->fresh(['documents', 'edoAcknowledgements']));
+
+        $customerRequest = collect($checklist)->first(
+            fn (array $item): bool => ($item['slot_kind'] ?? '') === 'customer_request'
+        );
+
+        $this->assertNotNull($customerRequest);
+        $this->assertTrue($customerRequest['completed']);
+    }
+
+    public function test_request_edo_acknowledgement_requires_document_number_when_marked_received(): void
+    {
+        if (! Schema::hasTable('order_document_edo_acknowledgements')) {
+            $this->markTestSkipped('Таблица order_document_edo_acknowledgements недоступна.');
+        }
+
+        $clerk = $this->makeClerkUser();
+        $order = Order::factory()->create([
+            'manager_id' => $clerk->id,
+            'customer_payment_form' => 'bank_transfer',
+        ]);
+
+        $this->actingAs($clerk)
+            ->patchJson(route('documents.orders.edo-acknowledgement', $order), [
+                'party' => 'customer',
+                'document_type' => 'request',
+                'slot_key' => 'customer-all',
+                'received_via_edo' => true,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['document_number']);
     }
 
     public function test_edo_acknowledgement_requires_document_number_when_marked_received(): void

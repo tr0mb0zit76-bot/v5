@@ -5,6 +5,7 @@ import { ExternalLink, Trash2 } from 'lucide-vue-next';
 import axios from 'axios';
 import { expandClosingRowsForEdo, edoAcknowledgementToggleLabel, rowHasClosingEdoControls } from '@/support/orderDocumentClosingEdoRows.js';
 import { expandEpdRowsForAck, rowHasEpdEdoControls } from '@/support/orderDocumentEpdAckRows.js';
+import { expandRequestRowsForEdo, rowHasRequestEdoControls } from '@/support/orderDocumentRequestEdoRows.js';
 import { buildRegistryTableRows, dedupeRegistryRowsByDocumentId } from '@/support/orderDocumentRegistryRows.js';
 import { attachTrackReceivedToRegistryRows } from '@/support/orderTrackingDates.js';
 import {
@@ -50,8 +51,12 @@ const rows = computed(() => {
     );
 
     const expandedRows = expandEpdRowsForAck(
-        expandClosingRowsForEdo(
-            registryRows,
+        expandRequestRowsForEdo(
+            expandClosingRowsForEdo(
+                registryRows,
+                props.signedDocuments,
+                props.edoAcknowledgements,
+            ),
             props.signedDocuments,
             props.edoAcknowledgements,
         ),
@@ -67,7 +72,13 @@ const rows = computed(() => {
 });
 
 const showReceivedDateColumn = computed(() => rows.value.some((row) => row.track_field));
-const showEdoColumn = computed(() => rows.value.some((row) => rowHasClosingEdoControls(row) || rowHasEpdEdoControls(row) || row.slot_kind?.endsWith('_closing')));
+const showEdoColumn = computed(() => rows.value.some((row) => (
+    rowHasClosingEdoControls(row)
+    || rowHasEpdEdoControls(row)
+    || rowHasRequestEdoControls(row)
+    || row.slot_kind?.endsWith('_closing')
+    || row.slot_kind?.endsWith('_request')
+)));
 
 const localReceivedDates = reactive({});
 const savingTrackFields = reactive({});
@@ -98,7 +109,7 @@ watch(
                 delete trackSaveErrors[row.track_field];
             }
 
-            if (rowHasClosingEdoControls(row) || rowHasEpdEdoControls(row)) {
+            if (rowHasClosingEdoControls(row) || rowHasEpdEdoControls(row) || rowHasRequestEdoControls(row)) {
                 const key = edoRowKey(row);
                 activeEdoKeys.add(key);
                 localEdoState[key] = {
@@ -287,10 +298,20 @@ function onReceivedDateBlur(row) {
 }
 
 function canEditEdoForRow(row) {
-    return props.canEditEdo
-        && resolvedOrderId.value
-        && (rowHasClosingEdoControls(row) || rowHasEpdEdoControls(row))
-        && !row.uploaded_file_preview_url;
+    const hasEdoControls = rowHasClosingEdoControls(row)
+        || rowHasEpdEdoControls(row)
+        || rowHasRequestEdoControls(row);
+
+    if (!props.canEditEdo || !resolvedOrderId.value || !hasEdoControls) {
+        return false;
+    }
+
+    // Скан закрывает слот; при expects_edo оставляем галочку, чтобы отметить ЭДО поверх файла.
+    if (row.uploaded_file_preview_url && !row.expects_edo) {
+        return false;
+    }
+
+    return true;
 }
 
 function edoToggleLabel(row) {
@@ -310,6 +331,10 @@ function checklistCellClass(row) {
         return '';
     }
 
+    if (row.edo_scan_without_ack) {
+        return 'bg-amber-50/90 dark:bg-amber-950/35';
+    }
+
     if (row.checklist_completed) {
         return 'bg-emerald-50/90 dark:bg-emerald-950/35';
     }
@@ -324,6 +349,10 @@ function checklistCheckboxClass(row) {
         return `${base} border-zinc-300 text-zinc-400 dark:border-zinc-600`;
     }
 
+    if (row.edo_scan_without_ack) {
+        return `${base} border-amber-500 bg-amber-100 text-amber-700 focus:ring-amber-400 dark:border-amber-400 dark:bg-amber-950/60 dark:text-amber-300`;
+    }
+
     if (row.checklist_completed) {
         return `${base} border-emerald-500 bg-emerald-100 text-emerald-700 focus:ring-emerald-400 dark:border-emerald-400 dark:bg-emerald-950/60 dark:text-emerald-300`;
     }
@@ -336,11 +365,27 @@ function checklistStatusTitle(row) {
         return 'Дополнительный документ';
     }
 
+    if (row.edo_scan_without_ack) {
+        return `${row.requirement_label ?? 'Обязательный документ'} — есть файл, ЭДО не отмечен`;
+    }
+
     if (row.checklist_completed) {
         return `${row.requirement_label ?? 'Обязательный документ'} — выполнено`;
     }
 
     return `${row.requirement_label ?? 'Обязательный документ'} — не хватает документа`;
+}
+
+function registryRowClass(row) {
+    if (row.edo_scan_without_ack) {
+        return 'bg-amber-50/70 dark:bg-amber-950/25';
+    }
+
+    if (row.is_placeholder) {
+        return 'bg-zinc-50/80 dark:bg-zinc-900/30';
+    }
+
+    return '';
 }
 
 async function saveEdoRow(row) {
@@ -433,7 +478,7 @@ function onEdoFieldBlur(row) {
                 <tr
                     v-for="row in rows"
                     :key="`registry-row-${row.id ?? row._localKey}`"
-                    :class="row.is_placeholder ? 'bg-zinc-50/80 dark:bg-zinc-900/30' : ''"
+                    :class="registryRowClass(row)"
                 >
                     <td
                         class="px-2 py-2.5 text-center align-middle"
@@ -451,6 +496,13 @@ function onEdoFieldBlur(row) {
                         <div class="flex flex-wrap items-center gap-1.5">
                             <span>{{ partyLabel(row) }}</span>
                             <span
+                                v-if="row.expects_edo"
+                                class="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sky-800 dark:bg-sky-950 dark:text-sky-200"
+                                title="У контрагента заполнены данные ЭДО — ожидается отметка ЭДО по заявке/УПД"
+                            >
+                                ЭДО
+                            </span>
+                            <span
                                 v-if="row.direction === 'outgoing'"
                                 class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800 dark:bg-amber-950 dark:text-amber-200"
                             >
@@ -460,7 +512,7 @@ function onEdoFieldBlur(row) {
                     </td>
                     <td class="w-[96px] min-w-[96px] px-3 py-2.5 text-zinc-700 dark:text-zinc-300">
                         <select
-                            v-if="canEdit && row.id && !row.is_placeholder && !row.is_closing_edo_row"
+                            v-if="canEdit && row.id && !row.is_placeholder && !row.is_closing_edo_row && !row.is_request_edo_row"
                             :value="row.type"
                             class="w-full min-w-[140px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                             @change="onFieldChange(row, 'type', $event.target.value)"
@@ -529,7 +581,7 @@ function onEdoFieldBlur(row) {
                         <span v-else>—</span>
                     </td>
                     <td v-if="showEdoColumn" class="px-3 py-2.5 text-zinc-500 dark:text-zinc-400">
-                        <template v-if="rowHasClosingEdoControls(row)">
+                        <template v-if="rowHasClosingEdoControls(row) || rowHasRequestEdoControls(row) || rowHasEpdEdoControls(row)">
                             <label v-if="canEditEdoForRow(row)" class="inline-flex items-center gap-2">
                                 <input
                                     type="checkbox"
@@ -540,6 +592,13 @@ function onEdoFieldBlur(row) {
                                 >
                                 <span class="text-xs">{{ edoToggleLabel(row) }}</span>
                             </label>
+                            <span
+                                v-else-if="row.edo_scan_without_ack"
+                                class="text-xs font-medium text-amber-700 dark:text-amber-300"
+                                title="Есть файл, ЭДО не отмечен"
+                            >
+                                скан · ЭДО?
+                            </span>
                             <span
                                 v-else-if="row.uploaded_file_preview_url"
                                 class="text-xs text-zinc-400"

@@ -9,6 +9,7 @@ use App\Models\OrderDocumentEdoAcknowledgement;
 use App\Models\User;
 use App\Support\OrderDocumentClosingFulfillment;
 use App\Support\OrderDocumentEpdFulfillment;
+use App\Support\OrderDocumentRequestEdoFulfillment;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -68,9 +69,10 @@ final class OrderDocumentEdoAcknowledgementService
         $allowedTypes = [
             ...OrderDocumentClosingFulfillment::CLOSING_TYPES,
             ...OrderDocumentEpdFulfillment::EPD_TYPES,
+            ...OrderDocumentRequestEdoFulfillment::REQUEST_TYPES,
         ];
         if (! in_array($payload['document_type'], $allowedTypes, true)) {
-            throw new \InvalidArgumentException('ЭДО доступно только для закрывающих документов и ЭПД.');
+            throw new \InvalidArgumentException('ЭДО доступно только для заявок, закрывающих документов и ЭПД.');
         }
 
         $slotKey = trim((string) ($payload['slot_key'] ?? ''));

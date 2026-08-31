@@ -118,6 +118,8 @@ function buildClosingTypeRow(baseRow, closingType, signedDocuments, edoAcknowled
     const edoAcknowledgement = findEdoAcknowledgement(edoAcknowledgements, context);
     const edoActive = Boolean(edoAcknowledgement?.received_via_edo && edoAcknowledgement?.document_number);
 
+    const expectsEdo = Boolean(baseRow.expects_edo);
+
     if (matchedDocument) {
         const hasScan = Boolean(matchedDocument.uploaded_file_preview_url);
 
@@ -134,7 +136,9 @@ function buildClosingTypeRow(baseRow, closingType, signedDocuments, edoAcknowled
             checklist_completed: true,
             is_placeholder: false,
             is_closing_edo_row: false,
-            closing_edo_controls: !hasScan,
+            closing_edo_controls: !hasScan || expectsEdo,
+            expects_edo: expectsEdo,
+            edo_scan_without_ack: hasScan && expectsEdo && !edoActive,
             edo_acknowledgement: edoAcknowledgement,
             closing_package_key: baseRow.requirement_key,
         };
@@ -159,6 +163,8 @@ function buildClosingTypeRow(baseRow, closingType, signedDocuments, edoAcknowled
         is_placeholder: true,
         is_closing_edo_row: true,
         closing_edo_controls: true,
+        expects_edo: expectsEdo,
+        edo_scan_without_ack: false,
         edo_acknowledgement: edoAcknowledgement,
         closing_package_key: baseRow.requirement_key,
     };

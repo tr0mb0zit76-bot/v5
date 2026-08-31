@@ -3359,6 +3359,9 @@ function goToPage(pageNumber) {
 
                                 <div class="border border-zinc-200 p-4 dark:border-zinc-800">
                                     <div class="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">ЭДО</div>
+                                    <p class="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+                                        При заполнении провайдера или номера CRM ждёт отметку ЭДО по заявке и УПД в чек-листе документов заказа (без блокировки закрытия сделки).
+                                    </p>
                                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Провайдер ЭДО</label>
