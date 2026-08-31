@@ -421,7 +421,13 @@ final class OneCBpClient
             $name = $label.' '.$inn;
         }
 
-        return $this->ensureCounterpartyRef($inn, $kpp !== '' ? $kpp : null, $name, $baseUrl);
+        return $this->ensureCounterpartyRef(
+            $inn,
+            $kpp !== '' ? $kpp : null,
+            $name,
+            $baseUrl,
+            isset($party['phone']) ? (string) $party['phone'] : null,
+        );
     }
 
     private function epdODataPath(string $documentType): string
@@ -1208,16 +1214,22 @@ final class OneCBpClient
     /**
      * Найти контрагента или создать минимальную карточку в 1С.
      */
-    public function ensureCounterpartyRef(string $inn, ?string $kpp, string $name, ?string $baseUrl = null): string
-    {
+    public function ensureCounterpartyRef(
+        string $inn,
+        ?string $kpp,
+        string $name,
+        ?string $baseUrl = null,
+        ?string $phone = null,
+    ): string {
         $existing = $this->findCounterpartyRef($inn, $kpp, $baseUrl);
         if ($existing !== null) {
             $this->repairCounterpartyLegalFormIfNeeded($existing, $inn, $name, $baseUrl);
+            $this->ensureCounterpartyPhone($existing, $phone, $baseUrl);
 
             return $existing;
         }
 
-        return $this->createCounterparty($inn, $kpp, $name, $baseUrl);
+        return $this->createCounterparty($inn, $kpp, $name, $baseUrl, $phone);
     }
 
     public function findCounterpartyRef(string $inn, ?string $kpp = null, ?string $baseUrl = null): ?string
@@ -1282,8 +1294,13 @@ final class OneCBpClient
      * Создать контрагента в 1С (минимальные реквизиты для реализации).
      * ИНН 12 → физлицо + ИндивидуальныйПредприниматель (иначе 1С ругается на «длинный ИНН»).
      */
-    public function createCounterparty(string $inn, ?string $kpp, string $name, ?string $baseUrl = null): string
-    {
+    public function createCounterparty(
+        string $inn,
+        ?string $kpp,
+        string $name,
+        ?string $baseUrl = null,
+        ?string $phone = null,
+    ): string {
         $driver = (string) config('one_c.driver', 'fake');
         if ($driver === 'fake') {
             return (string) Str::uuid();
@@ -1297,6 +1314,11 @@ final class OneCBpClient
         }
 
         $body = $this->counterpartyWriteBody($inn, $kpp, $name);
+        $phoneRow = $this->counterpartyPhoneRow($phone, $base);
+        if ($phoneRow !== null) {
+            $body['КонтактнаяИнформация'] = [$phoneRow];
+        }
+
         $path = (string) config('one_c.odata.counterparty_path');
         $response = $this->http()->post($base.$path, $body);
 
@@ -1312,6 +1334,170 @@ final class OneCBpClient
         }
 
         return $ref;
+    }
+
+    /**
+     * Дописать телефон в карточку контрагента, если его ещё нет.
+     * Нужен ЭТрН: форма 1С ругается «Не заполнен номер телефона контрагента».
+     */
+    public function ensureCounterpartyPhone(string $ref, ?string $phone, ?string $baseUrl = null): void
+    {
+        $phone = trim((string) ($phone ?? ''));
+        if ($phone === '' || $ref === '') {
+            return;
+        }
+
+        $driver = (string) config('one_c.driver', 'fake');
+        if ($driver !== 'http') {
+            return;
+        }
+
+        $base = rtrim($baseUrl ?? (string) config('one_c.base_url', ''), '/');
+        if ($base === '') {
+            return;
+        }
+
+        $path = (string) config('one_c.odata.counterparty_path');
+        $url = $base.$path."(guid'{$ref}')";
+        $current = $this->http()->get($url, ['$format' => 'json']);
+        if (! $current->successful()) {
+            return;
+        }
+
+        $existing = $current->json('КонтактнаяИнформация');
+        $rows = is_array($existing) ? $existing : [];
+        if ($this->counterpartyContactRowsHavePhone($rows)) {
+            return;
+        }
+
+        $phoneRow = $this->counterpartyPhoneRow($phone, $base);
+        if ($phoneRow === null) {
+            return;
+        }
+
+        $phoneRow['LineNumber'] = (string) (count($rows) + 1);
+        $rows[] = $phoneRow;
+
+        $response = $this->http()->patch($url, [
+            'КонтактнаяИнформация' => $rows,
+        ]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                '1С: не удалось записать телефон контрагента: HTTP '.$response->status().' '.$response->body()
+            );
+        }
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function counterpartyContactRowsHavePhone(array $rows): bool
+    {
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $type = (string) ($row['Тип'] ?? '');
+            $number = trim((string) ($row['НомерТелефона'] ?? ''));
+            if ($type === 'Телефон' || $number !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function counterpartyPhoneRow(?string $phone, string $baseUrl): ?array
+    {
+        $phone = trim((string) ($phone ?? ''));
+        if ($phone === '') {
+            return null;
+        }
+
+        $kindRef = $this->resolveCounterpartyPhoneKindRef($baseUrl);
+        if ($kindRef === null) {
+            return null;
+        }
+
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+        $country = '7';
+        $area = '';
+        $local = $digits;
+        if (str_starts_with($digits, '7') && strlen($digits) >= 11) {
+            $area = substr($digits, 1, 3);
+            $local = substr($digits, 4);
+        } elseif (str_starts_with($digits, '8') && strlen($digits) >= 11) {
+            $area = substr($digits, 1, 3);
+            $local = substr($digits, 4);
+        }
+
+        $valueJson = json_encode([
+            'version' => 5,
+            'value' => $phone,
+            'type' => 'Телефон',
+            'countryCode' => $country,
+            'areaCode' => $area,
+            'number' => $local,
+        ], JSON_UNESCAPED_UNICODE);
+
+        $xml = '<КонтактнаяИнформация xmlns="http://www.v8.1c.ru/ssl/contactinfo"'
+            .' xmlns:xs="http://www.w3.org/2001/XMLSchema"'
+            .' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"'
+            .' Представление="'.htmlspecialchars($phone, ENT_QUOTES | ENT_XML1).'">'
+            .'<Состав xsi:type="НомерТелефона" КодСтраны="'.$country.'"'
+            .' КодГорода="'.htmlspecialchars($area, ENT_QUOTES | ENT_XML1).'"'
+            .' Номер="'.htmlspecialchars($local, ENT_QUOTES | ENT_XML1).'"/>'
+            .'</КонтактнаяИнформация>';
+
+        return [
+            'LineNumber' => '1',
+            'Тип' => 'Телефон',
+            'Вид_Key' => $kindRef,
+            'Представление' => $phone,
+            'ЗначенияПолей' => $xml,
+            'Страна' => '',
+            'Регион' => '',
+            'Город' => '',
+            'АдресЭП' => '',
+            'ДоменноеИмяСервера' => '',
+            'НомерТелефона' => $phone,
+            'НомерТелефонаБезКодов' => $local,
+            'ВидДляСписка_Key' => $kindRef,
+            'Значение' => is_string($valueJson) ? $valueJson : $phone,
+        ];
+    }
+
+    private function resolveCounterpartyPhoneKindRef(string $baseUrl): ?string
+    {
+        $configured = trim((string) config('one_c.odata.counterparty_phone_kind_ref', ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        $kindsPath = (string) config(
+            'one_c.odata.contact_info_kinds_path',
+            '/odata/standard.odata/Catalog_ВидыКонтактнойИнформации'
+        );
+        $response = $this->http()->get($baseUrl.$kindsPath, [
+            '$format' => 'json',
+            '$filter' => "PredefinedDataName eq 'ТелефонКонтрагента'",
+            '$top' => 1,
+            '$select' => 'Ref_Key,PredefinedDataName',
+        ]);
+
+        if ($response->successful()) {
+            $ref = $response->json('value.0.Ref_Key');
+            if (is_string($ref) && $ref !== '') {
+                return $ref;
+            }
+        }
+
+        // Предопределённый вид из типовой БП (совпал на prod/test ИБ Автоальянс).
+        return '7b727858-320e-11f1-acc9-b69a48ddb3f4';
     }
 
     /**

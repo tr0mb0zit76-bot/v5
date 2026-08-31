@@ -66,6 +66,12 @@ return [
             'ONE_C_ODATA_COUNTERPARTY_PATH',
             '/odata/standard.odata/Catalog_Контрагенты'
         ),
+        'contact_info_kinds_path' => (string) env(
+            'ONE_C_ODATA_CONTACT_INFO_KINDS_PATH',
+            '/odata/standard.odata/Catalog_ВидыКонтактнойИнформации'
+        ),
+        /** PrefefinedDataName=ТелефонКонтрагента; пусто → lookup / fallback UUID. */
+        'counterparty_phone_kind_ref' => (string) env('ONE_C_ODATA_COUNTERPARTY_PHONE_KIND_REF', ''),
         'bank_incoming_path' => (string) env(
             'ONE_C_ODATA_BANK_INCOMING_PATH',
             '/odata/standard.odata/Document_ПоступлениеНаРасчетныйСчет'

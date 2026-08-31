@@ -32,8 +32,8 @@ final class OneCEpdStubMapper
         }
 
         $order->loadMissing([
-            'client:id,name,inn,kpp',
-            'carrier:id,name,inn,kpp',
+            'client:id,name,inn,kpp,phone,contact_person_phone',
+            'carrier:id,name,inn,kpp,phone,contact_person_phone',
             'ownCompany:id,name,inn',
             'routePoints',
             'cargoItems',
@@ -89,6 +89,11 @@ final class OneCEpdStubMapper
             ? $order->routePoints
             : $order->legs->flatMap(fn ($leg) => $leg->routePoints)->values();
 
+        $customerPhone = $this->firstPhone(
+            $client->phone ?? null,
+            $client->contact_person_phone ?? null,
+        );
+
         $payload = [
             'document_type' => $documentType,
             'order_id' => (int) $order->id,
@@ -100,6 +105,7 @@ final class OneCEpdStubMapper
                     'inn' => $inn,
                     'kpp' => $kpp,
                     'name' => $client->name !== null ? (string) $client->name : null,
+                    'phone' => $customerPhone,
                 ],
                 'carrier' => $carrier,
             ],
@@ -107,6 +113,7 @@ final class OneCEpdStubMapper
                 'inn' => $inn,
                 'kpp' => $kpp,
                 'name' => $client->name !== null ? (string) $client->name : null,
+                'phone' => $customerPhone,
             ],
             'route_points' => $routePoints->map(static fn ($point): array => [
                 'type' => $point->type,
@@ -139,12 +146,11 @@ final class OneCEpdStubMapper
             'base_url' => $baseUrl,
         ];
 
-        $comment = sprintf('CRM %s (id %d)', $orderNumber, $order->id);
         $odataStub = [
             'Date' => $payload['document_date'].'T00:00:00',
             'Posted' => false,
             'DeletionMark' => false,
-            'Комментарий' => $comment,
+            'Комментарий' => $this->buildComment($payload),
             '_crm_counterparty_match' => $payload['counterparty'],
             '_crm_carrier_match' => $carrier,
             '_crm_organization_ref' => $organizationRef,
@@ -166,10 +172,15 @@ final class OneCEpdStubMapper
     }
 
     /**
-     * @return array{id: mixed, inn: ?string, kpp: ?string, name: ?string}
+     * @return array{id: mixed, inn: ?string, kpp: ?string, name: ?string, phone: ?string}
      */
     private function resolveCarrier(Order $order): array
     {
+        $carrierPhone = $this->firstPhone(
+            $order->carrier?->phone,
+            $order->carrier?->contact_person_phone,
+        );
+
         $performers = is_array($order->performers) ? $order->performers : [];
         foreach ($performers as $row) {
             if (! is_array($row)) {
@@ -180,11 +191,14 @@ final class OneCEpdStubMapper
                 ? (int) $row['contractor_id']
                 : null;
             if ($name !== '' || ($id !== null && $id > 0)) {
+                $rowPhone = $this->firstPhone($row['contractor_phone'] ?? null, $row['phone'] ?? null);
+
                 return [
                     'id' => $id ?? $order->carrier_id,
                     'inn' => isset($row['contractor_inn']) ? $this->digits((string) $row['contractor_inn']) ?: null : ($order->carrier?->inn ? $this->digits((string) $order->carrier->inn) : null),
                     'kpp' => $order->carrier?->kpp ? $this->digits((string) $order->carrier->kpp) : null,
                     'name' => $name !== '' ? $name : ($order->carrier?->name !== null ? (string) $order->carrier->name : null),
+                    'phone' => $rowPhone ?? $carrierPhone,
                 ];
             }
         }
@@ -196,7 +210,104 @@ final class OneCEpdStubMapper
             'inn' => $carrier?->inn ? $this->digits((string) $carrier->inn) : null,
             'kpp' => $carrier?->kpp ? $this->digits((string) $carrier->kpp) : null,
             'name' => $carrier?->name !== null ? (string) $carrier->name : null,
+            'phone' => $carrierPhone,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function buildComment(array $payload): string
+    {
+        // В БП у ЭТрН Комментарий — строка ~250 символов (OData обрезает длиннее).
+        $maxLen = 250;
+        $parts = [
+            sprintf('CRM %s (id %d)', (string) ($payload['order_number'] ?? ''), (int) ($payload['order_id'] ?? 0)),
+        ];
+
+        $loading = null;
+        $unloading = null;
+        foreach (is_array($payload['route_points'] ?? null) ? $payload['route_points'] : [] as $point) {
+            if (! is_array($point)) {
+                continue;
+            }
+            $type = (string) ($point['type'] ?? '');
+            if ($type === 'loading' && $loading === null) {
+                $loading = $point;
+            }
+            if ($type === 'unloading') {
+                $unloading = $point;
+            }
+        }
+
+        if (is_array($loading)) {
+            $parts[] = 'погр: '.$this->routePointLabel($loading);
+        }
+        if (is_array($unloading)) {
+            $parts[] = 'выгр: '.$this->routePointLabel($unloading);
+        }
+
+        $cargoBits = [];
+        foreach (is_array($payload['cargo'] ?? null) ? $payload['cargo'] : [] as $cargo) {
+            if (! is_array($cargo)) {
+                continue;
+            }
+            $title = trim((string) ($cargo['title'] ?? ''));
+            if ($title === '') {
+                continue;
+            }
+            $meta = [];
+            if (($cargo['weight'] ?? null) !== null && $cargo['weight'] !== '') {
+                $meta[] = rtrim(rtrim((string) $cargo['weight'], '0'), '.').'кг';
+            }
+            $cargoBits[] = $meta === [] ? $title : $title.' '.$meta[0];
+        }
+        if ($cargoBits !== []) {
+            $parts[] = 'груз: '.implode('; ', $cargoBits);
+        }
+
+        $driver = trim((string) ($payload['driver']['name'] ?? ''));
+        if ($driver !== '') {
+            $parts[] = 'вод: '.$driver;
+        }
+
+        $plates = array_values(array_filter([
+            trim((string) ($payload['vehicle']['tractor_plate'] ?? '')),
+            trim((string) ($payload['vehicle']['trailer_plate'] ?? '')),
+        ], static fn (string $bit): bool => $bit !== ''));
+        if ($plates !== []) {
+            $parts[] = 'ТС: '.implode('/', $plates);
+        }
+
+        $comment = implode(' | ', $parts);
+        if (mb_strlen($comment) <= $maxLen) {
+            return $comment;
+        }
+
+        return rtrim(mb_substr($comment, 0, $maxLen - 1)).'…';
+    }
+
+    /**
+     * @param  array<string, mixed>  $point
+     */
+    private function routePointLabel(array $point): string
+    {
+        $address = trim((string) ($point['address'] ?? ''));
+        $date = trim((string) ($point['planned_date'] ?? ''));
+
+        return trim($address.($date !== '' ? ' '.$date : ''));
+    }
+
+    private function firstPhone(mixed ...$candidates): ?string
+    {
+        foreach ($candidates as $candidate) {
+            $phone = trim((string) ($candidate ?? ''));
+            if ($phone !== '') {
+                return $phone;
+            }
+        }
+
+        return null;
     }
 
     private function nullableConfigString(string $key): ?string
