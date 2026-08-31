@@ -11,6 +11,7 @@ use App\Services\Finance\PaymentScheduleSettlementSyncService;
 use App\Support\CalendarBankDayShifter;
 use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierRateFromFinancialTerms;
+use App\Support\CashToCashMarginCalculator;
 use App\Support\ContractorCostRowClassification;
 use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderCompensationSplitResolver;
@@ -770,6 +771,10 @@ class OrderCompensationService
             $paymentForm ?? $this->paymentFormForParty($order, $party),
             (string) ($row['basis'] ?? 'fttn'),
             $party,
+            CashToCashMarginCalculator::isCashToCash(
+                filled($order->customer_payment_form) ? (string) $order->customer_payment_form : null,
+                $this->extractContractorsCosts($order),
+            ),
         );
         $offsetDays = (int) ($row['offset_days'] ?? 0);
         $offsetUnit = (string) ($row['offset_unit'] ?? CalendarBankDayShifter::UNIT_CALENDAR);

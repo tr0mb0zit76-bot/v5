@@ -38,7 +38,7 @@ class OrderDocumentRequirementRulesTest extends TestCase
     }
 
     #[Test]
-    public function cash_to_cash_deal_requires_customer_request_and_transport_without_carrier_request(): void
+    public function cash_to_cash_deal_omits_customer_request_and_transport(): void
     {
         $performers = [[
             'stage' => 'leg_1',
@@ -51,14 +51,13 @@ class OrderDocumentRequirementRulesTest extends TestCase
             'carriers' => [15 => 'cash'],
         ]);
 
-        $this->assertNotNull(collect($rules)->firstWhere('key', 'customer_request:customer-all'));
+        $this->assertNull(collect($rules)->firstWhere('key', 'customer_request:customer-all'));
         $this->assertNull(collect($rules)->firstWhere('key', 'carrier_request:carrier-15'));
-        $this->assertNotNull(collect($rules)->firstWhere('key', 'waybill'));
-        $this->assertNotNull(collect($rules)->firstWhere('key', 'etrn'));
-        $this->assertNull(collect($rules)->firstWhere('key', 'expedition_receipt'));
+        $this->assertNull(collect($rules)->firstWhere('key', 'waybill'));
+        $this->assertNull(collect($rules)->firstWhere('key', 'etrn'));
         $this->assertNull(collect($rules)->firstWhere('key', 'customer_closing:customer-all'));
         $this->assertNull(collect($rules)->firstWhere('key', 'carrier_closing:carrier-15'));
-        $this->assertCount(3, $rules);
+        $this->assertCount(0, $rules);
     }
 
     #[Test]
@@ -303,7 +302,25 @@ class OrderDocumentRequirementRulesTest extends TestCase
     }
 
     #[Test]
-    public function own_fleet_carrier_only_with_cash_customer_requires_request_and_transport(): void
+    public function own_fleet_carrier_only_cash_to_cash_has_empty_checklist(): void
+    {
+        $performers = [[
+            'stage' => 'leg_1',
+            'contractor_id' => 99,
+            'contractor_name' => 'Собственный парк',
+            'execution_mode' => 'own_fleet',
+        ]];
+
+        $rules = OrderDocumentRequirementSlotBuilder::buildRules($performers, 'single_request', [], [
+            'customer' => 'cash',
+            'carriers' => [99 => 'cash'],
+        ]);
+
+        $this->assertSame([], $rules);
+    }
+
+    #[Test]
+    public function own_fleet_carrier_only_with_cash_customer_and_non_cash_additional_keeps_request_and_transport(): void
     {
         $performers = [[
             'stage' => 'leg_1',
@@ -328,7 +345,6 @@ class OrderDocumentRequirementRulesTest extends TestCase
         $this->assertNull(collect($rules)->firstWhere('key', 'customer_closing:customer-all'));
         $this->assertNotNull(collect($rules)->firstWhere('key', 'waybill'));
         $this->assertNotNull(collect($rules)->firstWhere('key', 'etrn'));
-        $this->assertNull(collect($rules)->firstWhere('key', 'expedition_receipt'));
         $this->assertNull(collect($rules)->firstWhere('key', 'carrier_request:carrier-99'));
         $this->assertNull(collect($rules)->firstWhere('key', 'contractor_closing:contractor-32-cost-vat'));
         $this->assertCount(3, $rules);

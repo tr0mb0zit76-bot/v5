@@ -39,7 +39,12 @@ final class OrderDocumentRequirementSlotBuilder
         array $paymentContext = [],
     ): array {
         if (OwnFleetCatalog::isOwnFleetCarrierOnly($performers)) {
-            return self::buildOwnFleetCarrierOnlyRules($performers, $clientRequestMode, $paymentContext);
+            return self::buildOwnFleetCarrierOnlyRules(
+                $performers,
+                $clientRequestMode,
+                $paymentContext,
+                $additionalCosts,
+            );
         }
 
         $mode = $clientRequestMode === 'split_by_leg' ? 'split_by_leg' : 'single_request';
@@ -47,8 +52,14 @@ final class OrderDocumentRequirementSlotBuilder
         $customerPaymentForm = isset($paymentContext['customer']) ? (string) $paymentContext['customer'] : null;
         /** @var array<int, string|null> $carrierPaymentForms */
         $carrierPaymentForms = is_array($paymentContext['carriers'] ?? null) ? $paymentContext['carriers'] : [];
+        $cashToCashDeal = self::isCashToCashDeal($customerPaymentForm, $carrierPaymentForms, $additionalCosts);
 
         foreach (self::customerRequestSlots($performers, $mode) as $slot) {
+            // Нал ↔ нал: заявка заказчика не в чек-листе (сроки от выгрузки).
+            if (! self::customerRequestRequired($customerPaymentForm, $cashToCashDeal)) {
+                continue;
+            }
+
             $rules[] = self::requestRule('customer', $slot, 'customer_request', 'Заявка заказчика', self::REQUEST_TYPES);
         }
 
@@ -71,7 +82,7 @@ final class OrderDocumentRequirementSlotBuilder
                 : null;
             $carrierPaymentForm = $contractorId !== null ? ($carrierPaymentForms[$contractorId] ?? null) : null;
 
-            // Нал перевозчику: заявка не в чек-листе; срок оплаты от ТСД/ТН (см. PaymentScheduleCashBasis).
+            // Нал перевозчику: заявка/закрывающие не в чек-листе (ТСД или выгрузка — см. PaymentScheduleCashBasis).
             if (self::closingRequiredForPaymentForm($carrierPaymentForm)) {
                 $rules[] = self::requestRule('carrier', $slot, 'carrier_request', 'Заявка перевозчику', self::REQUEST_TYPES);
                 $rules[] = self::requestRule(
@@ -88,6 +99,7 @@ final class OrderDocumentRequirementSlotBuilder
         foreach (self::contractorAdditionalCostSlots($additionalCosts) as $slot) {
             $contractorPaymentForm = isset($slot['paymentForm']) ? (string) $slot['paymentForm'] : null;
 
+            // Нал подрядчику: закрывающие не в чек-листе.
             if (self::closingRequiredForPaymentForm($contractorPaymentForm)) {
                 $rules[] = self::requestRule(
                     'contractor',
@@ -100,8 +112,10 @@ final class OrderDocumentRequirementSlotBuilder
             }
         }
 
-        $rules[] = self::waybillRule($performers, $mode);
-        $rules[] = self::etrnRule($performers, $mode);
+        if (! $cashToCashDeal) {
+            $rules[] = self::waybillRule($performers, $mode);
+            $rules[] = self::etrnRule($performers, $mode);
+        }
 
         return $rules;
     }
@@ -183,7 +197,8 @@ final class OrderDocumentRequirementSlotBuilder
     }
 
     /**
-     * Собственный парк: ТСД/ТН + заявка заказчика; закрывающие заказчику — только при безнале.
+     * Собственный парк: при безнале заказчику — заявка + закрывающие + ТСД;
+     * при нал ↔ нал — пустой чек-лист (сроки и закрытие от выгрузки + оплат).
      * Без заявок и закрывающих перевозчика и подрядчиков.
      *
      * @param  array{customer?: string|null, carriers?: array<int, string|null>}  $paymentContext
@@ -193,6 +208,7 @@ final class OrderDocumentRequirementSlotBuilder
         array $performers,
         string $clientRequestMode,
         array $paymentContext = [],
+        array $additionalCosts = [],
     ): array {
         $customerSlot = [
             'slotKey' => 'customer-all',
@@ -203,10 +219,15 @@ final class OrderDocumentRequirementSlotBuilder
         ];
 
         $customerPaymentForm = isset($paymentContext['customer']) ? (string) $paymentContext['customer'] : null;
+        /** @var array<int, string|null> $carrierPaymentForms */
+        $carrierPaymentForms = is_array($paymentContext['carriers'] ?? null) ? $paymentContext['carriers'] : [];
+        $cashToCashDeal = self::isCashToCashDeal($customerPaymentForm, $carrierPaymentForms, $additionalCosts);
 
         $rules = [];
 
-        $rules[] = self::requestRule('customer', $customerSlot, 'customer_request', 'Заявка заказчика', self::REQUEST_TYPES);
+        if (self::customerRequestRequired($customerPaymentForm, $cashToCashDeal)) {
+            $rules[] = self::requestRule('customer', $customerSlot, 'customer_request', 'Заявка заказчика', self::REQUEST_TYPES);
+        }
 
         if (self::closingRequiredForPaymentForm($customerPaymentForm)) {
             $rules[] = self::requestRule(
@@ -219,8 +240,10 @@ final class OrderDocumentRequirementSlotBuilder
             );
         }
 
-        $rules[] = self::waybillRule($performers, $clientRequestMode);
-        $rules[] = self::etrnRule($performers, $clientRequestMode);
+        if (! $cashToCashDeal) {
+            $rules[] = self::waybillRule($performers, $clientRequestMode);
+            $rules[] = self::etrnRule($performers, $clientRequestMode);
+        }
 
         return $rules;
     }
@@ -395,11 +418,45 @@ final class OrderDocumentRequirementSlotBuilder
 
     /**
      * Безнал / неизвестная форма: нужны заявка и закрывающие.
-     * Наличка (`cash`): в обязательном чек-листе только транспортный слот (waybill).
+     * Наличка (`cash`): закрывающие не в чек-листе.
      */
     private static function closingRequiredForPaymentForm(?string $paymentForm): bool
     {
         return ! PaymentScheduleCashBasis::isCash($paymentForm);
+    }
+
+    /**
+     * Заявка заказчика: всегда при безнале; при наличке — только если сделка не «нал ↔ нал».
+     */
+    private static function customerRequestRequired(?string $customerPaymentForm, bool $cashToCashDeal): bool
+    {
+        if (! PaymentScheduleCashBasis::isCash($customerPaymentForm)) {
+            return true;
+        }
+
+        return ! $cashToCashDeal;
+    }
+
+    /**
+     * @param  array<int, string|null>  $carrierPaymentForms
+     * @param  list<array<string, mixed>>  $additionalCosts
+     */
+    private static function isCashToCashDeal(
+        ?string $customerPaymentForm,
+        array $carrierPaymentForms,
+        array $additionalCosts,
+    ): bool {
+        $additionalForms = [];
+
+        foreach (self::contractorAdditionalCostSlots($additionalCosts) as $slot) {
+            $additionalForms[] = isset($slot['paymentForm']) ? (string) $slot['paymentForm'] : null;
+        }
+
+        return PaymentScheduleCashBasis::isCashToCashDeal(
+            $customerPaymentForm,
+            $carrierPaymentForms,
+            $additionalForms,
+        );
     }
 
     /**

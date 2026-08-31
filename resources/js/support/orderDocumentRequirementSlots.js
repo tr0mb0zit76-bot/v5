@@ -14,6 +14,49 @@ function closingRequiredForPaymentForm(paymentForm) {
     return !isCashPaymentForm(paymentForm);
 }
 
+/**
+ * @param {string|null|undefined} customerPaymentForm
+ * @param {Record<number, string|null>|null|undefined} carrierPaymentForms
+ * @param {Array<Record<string, unknown>>} additionalCosts
+ */
+function isCashToCashDeal(customerPaymentForm, carrierPaymentForms = {}, additionalCosts = []) {
+    if (!isCashPaymentForm(customerPaymentForm)) {
+        return false;
+    }
+
+    const outgoing = [];
+
+    Object.values(carrierPaymentForms ?? {}).forEach((form) => {
+        outgoing.push(form);
+    });
+
+    (Array.isArray(additionalCosts) ? additionalCosts : []).forEach((row) => {
+        const contractorId = row?.contractor_id != null && row?.contractor_id !== ''
+            ? Number(row.contractor_id)
+            : null;
+
+        if (!contractorId) {
+            return;
+        }
+
+        outgoing.push(row?.payment_form ?? null);
+    });
+
+    if (outgoing.length === 0) {
+        return false;
+    }
+
+    return outgoing.every((form) => isCashPaymentForm(form));
+}
+
+function customerRequestRequired(customerPaymentForm, cashToCashDeal) {
+    if (!isCashPaymentForm(customerPaymentForm)) {
+        return true;
+    }
+
+    return !cashToCashDeal;
+}
+
 const CLOSING_DESCRIPTION = 'УПД, счёт-фактура или акт: статус «Отправлен» или «Подписан».';
 
 function primaryCarrierTransportLabel(performers, clientRequestMode) {
@@ -71,7 +114,12 @@ function buildEtrnRule(performers, clientRequestMode) {
     };
 }
 
-function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_request', paymentContext = {}) {
+function buildOwnFleetCarrierOnlyRules(
+    performers,
+    clientRequestMode = 'single_request',
+    paymentContext = {},
+    additionalCosts = [],
+) {
     const customerSlot = {
         slotKey: 'customer-all',
         orderLegStage: null,
@@ -81,21 +129,25 @@ function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_r
     };
 
     const customerPaymentForm = paymentContext?.customer ?? null;
+    const carrierPaymentForms = paymentContext?.carriers ?? {};
+    const cashToCashDeal = isCashToCashDeal(customerPaymentForm, carrierPaymentForms, additionalCosts);
 
     const rules = [];
 
-    rules.push({
-        key: `customer_request:${customerSlot.slotKey}`,
-        label: 'Заявка заказчика',
-        description: 'Загружаемый файл: статус «Отправлен» или «Подписан». Печатная форма: финальный PDF и подписи по шаблону.',
-        party: 'customer',
-        accepted_types: REQUEST_TYPES,
-        slot_kind: 'customer_request',
-        slot_key: customerSlot.slotKey,
-        contractor_id: customerSlot.contractorId,
-        order_leg_stage: customerSlot.orderLegStage,
-        counterparty_label: customerSlot.contractorName,
-    });
+    if (customerRequestRequired(customerPaymentForm, cashToCashDeal)) {
+        rules.push({
+            key: `customer_request:${customerSlot.slotKey}`,
+            label: 'Заявка заказчика',
+            description: 'Загружаемый файл: статус «Отправлен» или «Подписан». Печатная форма: финальный PDF и подписи по шаблону.',
+            party: 'customer',
+            accepted_types: REQUEST_TYPES,
+            slot_kind: 'customer_request',
+            slot_key: customerSlot.slotKey,
+            contractor_id: customerSlot.contractorId,
+            order_leg_stage: customerSlot.orderLegStage,
+            counterparty_label: customerSlot.contractorName,
+        });
+    }
 
     if (closingRequiredForPaymentForm(customerPaymentForm)) {
         rules.push({
@@ -112,8 +164,10 @@ function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_r
         });
     }
 
-    rules.push(buildWaybillRule(performers, clientRequestMode));
-    rules.push(buildEtrnRule(performers, clientRequestMode));
+    if (!cashToCashDeal) {
+        rules.push(buildWaybillRule(performers, clientRequestMode));
+        rules.push(buildEtrnRule(performers, clientRequestMode));
+    }
 
     return rules;
 }
@@ -297,15 +351,20 @@ export function buildDocumentRequirementRules(
     paymentContext = {},
 ) {
     if (isOwnFleetCarrierOnly(performers)) {
-        return buildOwnFleetCarrierOnlyRules(performers, clientRequestMode, paymentContext);
+        return buildOwnFleetCarrierOnlyRules(performers, clientRequestMode, paymentContext, additionalCosts);
     }
 
     const mode = clientRequestMode === 'split_by_leg' ? 'split_by_leg' : 'single_request';
     const rules = [];
     const customerPaymentForm = paymentContext?.customer ?? null;
     const carrierPaymentForms = paymentContext?.carriers ?? {};
+    const cashToCashDeal = isCashToCashDeal(customerPaymentForm, carrierPaymentForms, additionalCosts);
 
     customerRequestSlots(performers, mode).forEach((slot) => {
+        if (!customerRequestRequired(customerPaymentForm, cashToCashDeal)) {
+            return;
+        }
+
         rules.push({
             key: `customer_request:${slot.slotKey}`,
             label: `Заявка заказчика${slot.labelSuffix}`,
@@ -344,7 +403,7 @@ export function buildDocumentRequirementRules(
             ? (carrierPaymentForms[Number(slot.contractorId)] ?? null)
             : null;
 
-        // Нал перевозчику: заявка не в чек-листе; срок оплаты от ТСД/ТН.
+        // Нал перевозчику: заявка не в чек-листе; срок оплаты от ТСД/ТН или выгрузки.
         if (!closingRequiredForPaymentForm(carrierPaymentForm)) {
             return;
         }
@@ -410,8 +469,10 @@ export function buildDocumentRequirementRules(
         });
     });
 
-    rules.push(buildWaybillRule(performers, mode));
-    rules.push(buildEtrnRule(performers, mode));
+    if (!cashToCashDeal) {
+        rules.push(buildWaybillRule(performers, mode));
+        rules.push(buildEtrnRule(performers, mode));
+    }
 
     return rules;
 }

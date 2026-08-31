@@ -24,6 +24,38 @@ class PaymentScheduleCashBasisTest extends TestCase
     }
 
     #[Test]
+    public function it_maps_document_bases_to_unloading_for_cash_to_cash_deal(): void
+    {
+        $this->assertSame(
+            'unloading',
+            PaymentScheduleCashBasis::effectiveBasis('cash', 'ottn', 'customer', true),
+        );
+        $this->assertSame(
+            'unloading',
+            PaymentScheduleCashBasis::effectiveBasis('cash', 'ottn', 'carrier', true),
+        );
+        $this->assertSame(
+            'unloading',
+            PaymentScheduleCashBasis::effectiveBasis('cash', 'fttn_receipt', 'carrier', true),
+        );
+        $this->assertSame(
+            'unloading',
+            PaymentScheduleCashBasis::effectiveBasis('cash', 'waybill', 'carrier', true),
+        );
+    }
+
+    #[Test]
+    public function it_detects_cash_to_cash_deal(): void
+    {
+        $this->assertTrue(PaymentScheduleCashBasis::isCashToCashDeal('cash', [15 => 'cash']));
+        $this->assertFalse(PaymentScheduleCashBasis::isCashToCashDeal('cash', [15 => 'vat_22']));
+        $this->assertFalse(PaymentScheduleCashBasis::isCashToCashDeal('cash', []));
+        $this->assertFalse(PaymentScheduleCashBasis::isCashToCashDeal('vat_22', [15 => 'cash']));
+        $this->assertTrue(PaymentScheduleCashBasis::isCashToCashDeal('cash', [15 => 'cash'], ['cash']));
+        $this->assertFalse(PaymentScheduleCashBasis::isCashToCashDeal('cash', [15 => 'cash'], ['vat_22']));
+    }
+
+    #[Test]
     public function it_keeps_customer_cash_ottn_and_fttn_receipt(): void
     {
         $this->assertSame('ottn', PaymentScheduleCashBasis::effectiveBasis('cash', 'ottn', 'customer'));
