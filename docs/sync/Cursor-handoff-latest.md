@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-31 19:45 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** _(после push)_ · **тема:** WIP ЭДО заявок в git + сводка оплат уже на прод
+**Обновлено:** 2026-08-31 19:45 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `a55525fc` · **тема:** WIP ЭДО заявок в git + сводка оплат уже на прод
 
 ### Итог сессии 2026-08-31 — ЭДО WIP в git (для ноутбука)
 
