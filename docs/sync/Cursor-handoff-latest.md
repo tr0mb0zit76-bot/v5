@@ -12,7 +12,7 @@
 | Причина «рассчитался: да» вместо даты (заказ 10): `actual_date` null при оплаченном графике | ✅ разобрано |
 | `PaymentSettlementSummaryBuilder`: fallback `payment_date` из `payment_schedule_payment_events` | ✅ `2d0f24a9` на прод |
 | Тест `test_payment_settlement_last_payment_at_falls_back_to_ledger_payment_date` | ✅ |
-| Проверка заказ 10 на прод: `last_payment_at` = 2026-06-10 | ✅ |
+| Заказ 10 до фикса: `actual_date` null, в журнале `payment_date` 2026-06-10 | ✅ |
 
 **Прод:** `2d0f24a9` · `git pull --ff-only` · `php artisan optimize:clear` (фронт/миграции не нужны).
 
