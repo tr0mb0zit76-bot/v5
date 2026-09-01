@@ -189,6 +189,7 @@ class LoadingPlannerController extends Controller
                             ? ($itemData['max_stack'] ?? 5)
                             : ($itemData['max_stack'] ?? 1),
                         'can_tilt' => (bool) ($itemData['can_tilt'] ?? false),
+                        'allow_oversize' => (bool) ($itemData['allow_oversize'] ?? false),
                         'color' => $itemData['color'] ?? ($groupData['color'] ?? '#60a5fa'),
                         'sort_order' => $itemIndex + 1,
                     ]);
@@ -427,6 +428,7 @@ class LoadingPlannerController extends Controller
             'cargo_groups.*.items.*.stackable' => ['nullable', 'boolean'],
             'cargo_groups.*.items.*.max_stack' => ['nullable', 'integer', 'min:1', 'max:20'],
             'cargo_groups.*.items.*.can_tilt' => ['nullable', 'boolean'],
+            'cargo_groups.*.items.*.allow_oversize' => ['nullable', 'boolean'],
             'cargo_groups.*.items.*.color' => ['nullable', 'string', 'max:20'],
         ];
     }
@@ -610,6 +612,7 @@ class LoadingPlannerController extends Controller
                     'stackable' => (bool) $item->stackable,
                     'max_stack' => $item->max_stack,
                     'can_tilt' => (bool) $item->can_tilt,
+                    'allow_oversize' => (bool) $item->allow_oversize,
                     'color' => $item->color,
                 ])->values(),
             ])->values(),

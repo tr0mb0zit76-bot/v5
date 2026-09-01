@@ -316,12 +316,13 @@
                                                     selectedBlockKey === block.key ? 'cargo-cube-selected' : '',
                                                     block.locked ? 'cargo-cube-locked' : '',
                                                     block.in_trailer ? '' : 'cargo-cube-staging',
+                                                    block.allow_oversize && block.in_trailer ? 'cargo-cube-oversize' : '',
                                                     blockDrag?.key === block.key ? 'cargo-cube-dragging' : '',
                                                     blockDrag?.key === block.key && blockDrag?.overlapping ? 'cargo-cube-overlap' : '',
                                                     ...cubeAlignGuideClasses(block),
                                                 ]"
                                                 :style="cubePositionStyle(block)"
-                                                :title="`${block.name}${block.stack_count > 1 ? `, ярус ${block.stack_count}` : ''}${block.in_trailer ? '' : ' (зона сборки)'}`"
+                                                :title="`${block.name}${block.stack_count > 1 ? `, ярус ${block.stack_count}` : ''}${block.in_trailer ? (block.allow_oversize ? ' (негабарит)' : '') : ' (зона сборки)'}`"
                                                 @pointerdown.stop.prevent="startBlockDrag($event, block)"
                                                 @click.stop="selectBlock(block)"
                                             >
@@ -485,6 +486,12 @@
                             <option :value="false">Нет</option>
                         </select>
                     </div>
+                    <div class="md:col-span-2">
+                        <label class="label inline-flex items-center gap-2">
+                            <input v-model="cargoItemDraft.allow_oversize" type="checkbox" class="rounded" />
+                            Негабарит — может выступать за кузов (не уходит на площадку сборки)
+                        </label>
+                    </div>
                     <div v-if="cargoItemDraft.stackable">
                         <label class="label">Макс. ярусов</label>
                         <input v-model.number="cargoItemDraft.max_stack" type="number" min="1" max="20" class="field" :placeholder="String(DEFAULT_MAX_STACK)" />
@@ -551,9 +558,12 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnDangerMuted, crmBtnPrimary, crmBtnSecondary, crmFieldFluid, crmGridSearchField, crmPanel } from '@/support/crmUi.js';
 import {
     blockInTrailer,
+    blocksOverlapTrailerXY,
     blocksOverlap3D,
     blocksOverlapXY,
     buildSceneBounds,
+    SCENE_BASE_DECK_WIDTH_PX,
+    sceneZScalePxPerMm,
     calculateLayout,
     calculateMultiVehicleLayout,
     clientPointToSceneMm,
@@ -839,10 +849,10 @@ const deckStyle = computed(() => {
         return {};
     }
     const trailerRatio = transport.width_mm / transport.length_mm;
-    const baseWidth = 760;
+
     return {
-        width: `${Math.round(baseWidth * (bounds.total_length_mm / bounds.trailer_length_mm))}px`,
-        height: `${Math.max(150, Math.round(baseWidth * trailerRatio * (bounds.total_width_mm / bounds.trailer_width_mm)))}px`,
+        width: `${Math.round(SCENE_BASE_DECK_WIDTH_PX * (bounds.total_length_mm / bounds.trailer_length_mm))}px`,
+        height: `${Math.max(150, Math.round(SCENE_BASE_DECK_WIDTH_PX * trailerRatio * (bounds.total_width_mm / bounds.trailer_width_mm)))}px`,
     };
 });
 
@@ -988,6 +998,7 @@ const cargoLayoutSignature = computed(() => {
             item.height_mm,
             item.stackable,
             item.max_stack,
+            item.allow_oversize,
         ].join(':')))
         .join('|');
 });
@@ -1078,6 +1089,7 @@ function blankCargoItem(color = '#60a5fa') {
         stackable: false,
         max_stack: DEFAULT_MAX_STACK,
         can_tilt: false,
+        allow_oversize: false,
         color,
     };
 }
@@ -1364,6 +1376,7 @@ function projectPayload() {
                 stackable: Boolean(item.stackable),
                 max_stack: Number(item.stackable ? (item.max_stack || DEFAULT_MAX_STACK) : (item.max_stack || 1)),
                 can_tilt: Boolean(item.can_tilt),
+                allow_oversize: Boolean(item.allow_oversize),
                 color: item.color,
             })),
         })),
@@ -1423,10 +1436,6 @@ function deleteTransportTemplate(template) {
     if (window.confirm(`Удалить шаблон «${template.name}»?`)) {
         router.delete(route('modules.how-much-fits.transport-templates.destroy', template.id), { preserveScroll: true });
     }
-}
-
-function sceneZScalePxPerMm(transport) {
-    return 92 / transport.height_mm;
 }
 
 function layoutZOptions() {
@@ -1595,24 +1604,36 @@ function collectFreezeSettleKeys(key, x, y, length, width, blocks) {
         .map((block) => block.key);
 }
 
-function resolvePlacementZ(key, x, y, length, width, unitHeight, { preferTop = true } = {}) {
+function blockAllowsOversize(block) {
+    return Boolean(block?.allow_oversize) || selectedTransport.value?.category === 'platform';
+}
+
+function resolvePlacementZ(key, x, y, length, width, unitHeight, { preferTop = true, allowOversize = null } = {}) {
     const transport = selectedTransport.value;
     if (!transport) {
         return 0;
     }
 
+    const block = layoutResult.value.blocks.find((entry) => entry.key === key);
+    const oversize = allowOversize ?? blockAllowsOversize(block);
     const probe = { x, y, length, width, unit_height: unitHeight };
-    if (!blockInTrailer(probe, transport)) {
+
+    if (!oversize && !blockInTrailer(probe, transport)) {
         return 0;
     }
 
-    const others = layoutResult.value.blocks.filter((block) => block.key !== key);
-
-    if (preferTop) {
-        return findTopSupportedZForBlock(probe, others, transport, layoutZOptions());
+    if (oversize && !blocksOverlapTrailerXY(probe, transport)) {
+        return 0;
     }
 
-    return findSupportedZForBlock(probe, others, transport, layoutZOptions());
+    const others = layoutResult.value.blocks.filter((entry) => entry.key !== key);
+    const zOptions = { ...layoutZOptions(), allowOversize: oversize };
+
+    if (preferTop) {
+        return findTopSupportedZForBlock(probe, others, transport, zOptions);
+    }
+
+    return findSupportedZForBlock(probe, others, transport, zOptions);
 }
 
 function placementWouldOverlap(key, x, y, length, width, unitHeight) {
@@ -2482,6 +2503,11 @@ function formatMm(value) {
 
 .cargo-cube-staging {
     outline: 1px dashed rgb(161 161 170 / 0.8);
+    outline-offset: 1px;
+}
+
+.cargo-cube-oversize {
+    outline: 2px dashed rgb(245 158 11 / 0.85);
     outline-offset: 1px;
 }
 

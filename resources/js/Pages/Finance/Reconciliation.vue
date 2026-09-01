@@ -2,7 +2,7 @@
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         <CrmPageHeader
             title="Акты сверок"
-            lead="Сверка как в бухучёте: начисление после УПД. Долг — красным, переплата/аванс без УПД — зелёным."
+            lead="Сверка по графику оплат: начисление = сумма траншей. Долг — красным, переплата — зелёным."
         />
 
         <nav class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">

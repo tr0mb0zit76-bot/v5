@@ -30,8 +30,12 @@ class LoadingPlannerLayoutTest extends TestCase
         $this->assertStringContainsString('verticalStackGapMm', $contents);
         $this->assertStringContainsString('buildLengthRulerTicks', $contents);
         $this->assertStringContainsString('buildHeightRulerTicks', $contents);
+        $this->assertStringContainsString('sceneZScalePxPerMm', $contents);
+        $this->assertStringContainsString('SCENE_BASE_DECK_WIDTH_PX', $contents);
         $this->assertStringContainsString('calculateMultiVehicleLayout', $contents);
         $this->assertStringContainsString('unitFitsTransportDimensions', $contents);
+        $this->assertStringContainsString('itemAllowsOversize', $contents);
+        $this->assertStringContainsString('blockCountsAsLoaded', $contents);
     }
 
     public function test_multi_vehicle_layout_splits_overflow_cargo(): void

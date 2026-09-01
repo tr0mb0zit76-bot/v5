@@ -173,7 +173,7 @@ class ContractorReconciliationServiceTest extends TestCase
         $this->assertSame('Переплата', $row['balance_label']);
     }
 
-    public function test_payment_without_upd_counts_as_overpayment_advance(): void
+    public function test_payment_without_upd_is_settled_when_schedule_fully_paid(): void
     {
         $contractor = Contractor::query()->create([
             'name' => 'ООО Без УПД',
@@ -221,11 +221,66 @@ class ContractorReconciliationServiceTest extends TestCase
 
         $row = $report['as_customer']['rows'][0];
         $this->assertFalse($row['has_upd']);
-        $this->assertSame(0.0, $row['accrued']);
+        $this->assertSame(417000.0, $row['accrued']);
         $this->assertSame(417000.0, $row['paid']);
-        $this->assertSame(-417000.0, $row['balance']);
-        $this->assertSame('overpayment', $row['balance_status']);
-        $this->assertSame('Переплата · без УПД', $row['balance_label']);
-        $this->assertSame(417000.0, $report['as_customer']['totals']['overpayment']);
+        $this->assertSame(0.0, $row['balance']);
+        $this->assertSame('settled', $row['balance_status']);
+        $this->assertNull($row['balance_label']);
+        $this->assertSame('settled', $report['as_customer']['totals']['balance_status']);
+    }
+
+    public function test_payment_without_upd_and_without_schedule_counts_as_overpayment_advance(): void
+    {
+        $contractor = Contractor::query()->create([
+            'name' => 'ООО Аванс без графика',
+            'type' => 'customer',
+        ]);
+
+        $orderId = $this->insertOrderRow([
+            'customer_id' => $contractor->id,
+            'order_number' => 'АС-2606-0004',
+            'order_date' => '2026-06-01',
+            'customer_rate' => 100000,
+        ]);
+
+        if (Schema::hasColumn('orders', 'upd_number')) {
+            DB::table('orders')->where('id', $orderId)->update(['upd_number' => null]);
+        }
+
+        $scheduleId = (int) DB::table('payment_schedules')->insertGetId([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 100000,
+            'paid_amount' => 50000,
+            'remaining_amount' => 50000,
+            'planned_date' => '2026-06-10',
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedule_payment_events')->insert([
+            'payment_schedule_id' => $scheduleId,
+            'order_id' => $orderId,
+            'contractor_id' => $contractor->id,
+            'party' => 'customer',
+            'amount' => 50000,
+            'payment_date' => '2026-06-12',
+            'transaction_reference' => 'ПП-050',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $report = (new ContractorReconciliationService(new PaymentSchedulePaymentLedgerService))
+            ->build($contractor->id, null, null, null);
+
+        $row = $report['as_customer']['rows'][0];
+        $this->assertFalse($row['has_upd']);
+        $this->assertSame(100000.0, $row['accrued']);
+        $this->assertSame(50000.0, $row['paid']);
+        $this->assertSame(50000.0, $row['balance']);
+        $this->assertSame('receivable', $row['balance_status']);
+        $this->assertSame('Долг', $row['balance_label']);
     }
 }

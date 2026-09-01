@@ -82,10 +82,9 @@ class ContractorReconciliationService
         $rows = $orders->map(function (Order $order) use ($paidByOrder, $tranchesByOrder): array {
             $orderRate = $this->resolveCustomerAccrued($order);
             $hasUpd = $this->orderHasCustomerUpd($order);
-            // Как в 1С: в сверку начисление попадает после УПД. Оплата без УПД = переплата/аванс.
-            $accrued = $hasUpd ? $orderRate : 0.0;
             $paid = (float) ($paidByOrder[(int) $order->id] ?? 0);
             $tranches = $tranchesByOrder[(int) $order->id] ?? [];
+            $accrued = $this->resolveCustomerAccruedForRow($orderRate, $hasUpd, $tranches);
 
             return $this->enrichReconciliationRow([
                 'order_id' => $order->id,
@@ -102,7 +101,7 @@ class ContractorReconciliationService
 
         return [
             'title' => 'Услуги для контрагента (он — заказчик)',
-            'description' => 'Начислено — только заказы с УПД (как в бухучёте). Оплата без УПД = переплата (аванс). Красный остаток — долг, зелёный — переплата.',
+            'description' => 'Начислено — сумма траншей графика оплат (тариф заказа). Без графика начисление только при заполненном УПД. Красный остаток — долг, зелёный — переплата.',
             'rows' => $rows,
             'totals' => $this->sumRows($rows),
         ];
@@ -489,6 +488,23 @@ class ContractorReconciliationService
         }
 
         return trim((string) ($order->upd_number ?? '')) !== '';
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $tranches
+     */
+    private function resolveCustomerAccruedForRow(float $orderRate, bool $hasUpd, array $tranches): float
+    {
+        $accruedFromTranches = round(array_sum(array_map(
+            fn (array $tranche): float => (float) ($tranche['accrued'] ?? 0),
+            $tranches,
+        )), 2);
+
+        if ($accruedFromTranches > 0) {
+            return $accruedFromTranches;
+        }
+
+        return $hasUpd ? round($orderRate, 2) : 0.0;
     }
 
     /**

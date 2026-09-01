@@ -4,6 +4,8 @@ import {
     buildWidthRulerTicks,
     calculateLayout,
     footprintPositionAfterRotation,
+    SCENE_BASE_DECK_WIDTH_PX,
+    sceneZScalePxPerMm,
     sortBlocksForScenePaint,
 } from '../../resources/js/support/loadingPlannerLayout.js';
 
@@ -63,4 +65,14 @@ if (heightTicks.map((tick) => tick.label).join(',') !== '0,1,2,2.7') {
 const rotated = footprintPositionAfterRotation(100, 200, 1200, 800, 800, 1200);
 if (rotated.x !== 300 || rotated.y !== 0) {
     throw new Error(`rotation must preserve center: got ${rotated.x},${rotated.y}`);
+}
+
+const megaTent = { length_mm: 13600, width_mm: 2450, height_mm: 3000 };
+const cageHeightPx = megaTent.height_mm * sceneZScalePxPerMm(megaTent);
+const trailerWidthPx = SCENE_BASE_DECK_WIDTH_PX * megaTent.width_mm / megaTent.length_mm;
+const expectedHeightWidthRatio = megaTent.height_mm / megaTent.width_mm;
+const actualHeightWidthRatio = cageHeightPx / trailerWidthPx;
+
+if (Math.abs(actualHeightWidthRatio - expectedHeightWidthRatio) > 0.001) {
+    throw new Error(`scene height/width ratio ${actualHeightWidthRatio} !== ${expectedHeightWidthRatio}`);
 }
