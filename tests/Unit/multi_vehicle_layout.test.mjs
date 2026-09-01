@@ -203,4 +203,25 @@ const topBlock = { key: 'b-0', x: 500, y: 200, length: 1000, width: 800, z: 1000
 assert.equal(pickBlockAtScenePoint(600, 400, [floorBlock, topBlock])?.key, 'b-0', 'pick top of stack');
 assert.equal(pickBlockAtScenePoint(100, 100, [floorBlock, topBlock])?.key, 'a-0', 'pick floor when not under stack');
 
+const heightOversizeLayout = calculateLayout(platformTrailer, [{
+    source_key: 'cabin',
+    name: 'Кабина',
+    quantity: 1,
+    length_mm: 4940,
+    width_mm: 1700,
+    height_mm: 4000,
+    weight_kg: 4300,
+    can_rotate: true,
+    stackable: false,
+    color: '#22c55e',
+}]);
+assert.equal(heightOversizeLayout.blocks.length, 1, 'height-oversize cabin should be placed');
+assert.equal(heightOversizeLayout.blocks[0].in_trailer, true, 'height-oversize cabin counts as in trailer');
+assert.equal(heightOversizeLayout.blocks[0].is_oversize, true, 'height-oversize cabin marked oversize');
+assert.equal(blockInTrailer(heightOversizeLayout.blocks[0], platformTrailer), true, 'footprint fits trailer');
+assert.ok(
+    heightOversizeLayout.warnings.some((warning) => warning.includes('высоту кузова')),
+    'height oversize warning expected',
+);
+
 console.log('multi_vehicle_layout.test.mjs: ok');

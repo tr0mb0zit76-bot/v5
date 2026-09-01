@@ -71,4 +71,53 @@ class ContractorVisibilityScopeTest extends TestCase
 
         $this->assertContains($foreignCarrier->id, $carrierIds);
     }
+
+    public function test_manager_with_own_contractors_scope_sees_own_company_profile_even_if_not_owner(): void
+    {
+        $managerRole = Role::query()->create([
+            'name' => 'manager_own_company_test',
+            'display_name' => 'Менеджер own company',
+            'permissions' => [],
+            'visibility_areas' => RoleAccess::defaultVisibilityAreas('manager'),
+            'visibility_scopes' => [
+                'contractors' => 'own',
+            ],
+        ]);
+
+        $manager = User::factory()->create(['role_id' => $managerRole->id]);
+        RoleAccess::syncUserRoles($manager, [$managerRole->id]);
+
+        $owner = User::factory()->create();
+
+        $ownCompany = Contractor::query()->create([
+            'type' => 'customer',
+            'name' => 'ООО Автоальянс',
+            'owner_id' => $owner->id,
+            'is_own_company' => true,
+            'is_active' => true,
+        ]);
+
+        $foreignCustomer = Contractor::query()->create([
+            'type' => 'customer',
+            'name' => 'Чужой клиент',
+            'owner_id' => $owner->id,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager);
+
+        $searchResponse = $this->getJson(route('contractors.search', [
+            'q' => '',
+            'type' => 'customer',
+            'limit' => 100,
+        ]));
+
+        $searchResponse->assertOk();
+        $customerIds = collect($searchResponse->json('contractors'))->pluck('id')->all();
+
+        $this->assertContains($ownCompany->id, $customerIds);
+        $this->assertNotContains($foreignCustomer->id, $customerIds);
+
+        $this->get(route('contractors.show', $ownCompany))->assertOk();
+    }
 }

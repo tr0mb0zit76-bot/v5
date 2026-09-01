@@ -2252,6 +2252,17 @@ function startSceneRotate(event) {
     if (blockDrag.value) {
         return;
     }
+
+    if (manualMode.value && activeStep.value === 'calculation' && event.button === 0 && deckEl.value) {
+        const block = pickBlockFromPointerEvent(event);
+        if (block) {
+            event.preventDefault();
+            startBlockDrag(event, block);
+
+            return;
+        }
+    }
+
     if (event.target instanceof Element && event.target.closest('.cargo-cube')) {
         return;
     }

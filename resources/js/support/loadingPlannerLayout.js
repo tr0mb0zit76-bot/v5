@@ -757,6 +757,8 @@ export function manualPlacementWarnings(transport, bounds, blocks) {
             warnings.push(`${block.name}: позиция выходит за пределы площадки.`);
         } else if (block.is_oversize && blocksOverlapTrailerXY(block, transport) && !blockInTrailer(block, transport)) {
             warnings.push(`${block.name}: выступает за габарит кузова (негабарит).`);
+        } else if (block.is_oversize && block.in_trailer && Number(block.unit_height || block.height || 0) > Number(transport.height_mm || 0)) {
+            warnings.push(`${block.name}: превышает высоту кузова (негабарит).`);
         } else if (!blockCountsAsLoaded(block, transport) && block.locked) {
             warnings.push(`${block.name}: зафиксирован вне кузова — перенесите в прицеп.`);
         }
@@ -915,8 +917,7 @@ function buildBlockFromPlacement(item, blockKey, placement, transport) {
     };
 
     block.is_oversize = unitNeedsOversizePlacement(item, transport)
-        && blocksOverlapTrailerXY(block, transport)
-        && !blockInTrailer(block, transport);
+        && blocksOverlapTrailerXY(block, transport);
     block.in_trailer = blockCountsAsLoaded(block, transport);
     if (!block.in_trailer) {
         block.z = 0;

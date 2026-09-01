@@ -364,6 +364,8 @@ class Contractor extends Model
                             ->whereIn('owner_id', $ownerUserIds);
                     });
             });
+
+            $outer->orWhere(fn ($ownCompanyQuery) => $ownCompanyQuery->ownCompanyProfiles());
         });
     }
 
