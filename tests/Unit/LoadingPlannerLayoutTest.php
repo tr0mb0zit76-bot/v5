@@ -30,11 +30,11 @@ class LoadingPlannerLayoutTest extends TestCase
         $this->assertStringContainsString('verticalStackGapMm', $contents);
         $this->assertStringContainsString('buildLengthRulerTicks', $contents);
         $this->assertStringContainsString('buildHeightRulerTicks', $contents);
-        $this->assertStringContainsString('sceneZScalePxPerMm', $contents);
-        $this->assertStringContainsString('SCENE_BASE_DECK_WIDTH_PX', $contents);
         $this->assertStringContainsString('calculateMultiVehicleLayout', $contents);
         $this->assertStringContainsString('unitFitsTransportDimensions', $contents);
-        $this->assertStringContainsString('itemAllowsOversize', $contents);
+        $this->assertStringContainsString('transportAllowsOversize', $contents);
+        $this->assertStringContainsString('isOversizeUnit', $contents);
+        $this->assertStringContainsString('unitNeedsOversizePlacement', $contents);
         $this->assertStringContainsString('blockCountsAsLoaded', $contents);
     }
 

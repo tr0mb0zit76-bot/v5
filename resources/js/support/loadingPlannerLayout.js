@@ -43,12 +43,61 @@ export function blockInTrailer(block, transport) {
         && block.y + block.width <= transport.width_mm;
 }
 
-export function itemAllowsOversize(item, transport = null) {
-    if (Boolean(item?.allow_oversize)) {
+export function transportAllowsOversize(transport) {
+    if (!transport) {
+        return false;
+    }
+
+    if (Boolean(transport.allows_oversize)) {
         return true;
     }
 
-    return transport?.category === 'platform';
+    return transport.category === 'platform';
+}
+
+export function unitFitsStrictTransportDimensions(item, transport) {
+    if (!transport || !item) {
+        return false;
+    }
+
+    const length = Number(item.length_mm || 0);
+    const width = Number(item.width_mm || 0);
+    const height = Number(item.height_mm || 0);
+
+    if (length <= 0 || width <= 0 || height <= 0) {
+        return false;
+    }
+
+    const trailerLength = Number(transport.length_mm || 0);
+    const trailerWidth = Number(transport.width_mm || 0);
+    const trailerHeight = Number(transport.height_mm || 0);
+
+    const footprints = item.can_rotate && length !== width
+        ? [[length, width], [width, length]]
+        : [[length, width]];
+
+    return footprints.some(([footprintLength, footprintWidth]) => (
+        footprintLength <= trailerLength
+        && footprintWidth <= trailerWidth
+        && height <= trailerHeight
+    ));
+}
+
+export function isOversizeUnit(item, transport) {
+    if (!transport || !item) {
+        return false;
+    }
+
+    return !unitFitsStrictTransportDimensions(item, transport);
+}
+
+export function unitNeedsOversizePlacement(item, transport) {
+    return isOversizeUnit(item, transport) && transportAllowsOversize(transport);
+}
+
+/** @deprecated Используйте unitNeedsOversizePlacement */
+export function itemAllowsOversize(item, transport = null) {
+    return unitNeedsOversizePlacement(item, transport);
 }
 
 export function blocksOverlapTrailerXY(block, transport) {
@@ -63,7 +112,7 @@ export function blockCountsAsLoaded(block, transport) {
         return true;
     }
 
-    return Boolean(block.allow_oversize) && blocksOverlapTrailerXY(block, transport);
+    return Boolean(block.is_oversize) && blocksOverlapTrailerXY(block, transport);
 }
 
 export function blocksOverlapXY(a, b) {
@@ -310,7 +359,7 @@ export function stackCountInColumn(item, placedBlocks, candidate) {
 export function maxStackForItem(item, transport) {
     const unitHeight = Number(item.height_mm || 1);
 
-    if (itemAllowsOversize(item, transport)) {
+    if (unitNeedsOversizePlacement(item, transport)) {
         return Math.max(1, Number(item.max_stack || 1));
     }
 
@@ -320,7 +369,7 @@ export function maxStackForItem(item, transport) {
 export function placementAllowedForItem(item, placedBlocks, candidate, transport, options = {}) {
     const unitHeight = Number(item.height_mm || 1);
     const z = Number(candidate.z || 0);
-    const allowOversize = options.allowOversize ?? itemAllowsOversize(item, transport);
+    const allowOversize = options.allowOversize ?? unitNeedsOversizePlacement(item, transport);
 
     if (!allowOversize && z + unitHeight > transport.height_mm) {
         return false;
@@ -390,10 +439,10 @@ export function scoreAutoPlacement(candidate, zone) {
 }
 
 export function findBestAutoPlacement(bounds, placedBlocks, item, transport, options = {}) {
-    const { placementGapMm = null, zones = null } = options;
-    const allowOversize = itemAllowsOversize(item, transport);
+    const { placementGapMm = null, zones = null, trailerOnly = false } = options;
+    const allowOversize = unitNeedsOversizePlacement(item, transport);
     const zoneOptions = { allowOversize, transport };
-    const placementZones = zones ?? (allowOversize ? ['trailer'] : ['trailer', 'all']);
+    const placementZones = zones ?? ((trailerOnly || allowOversize) ? ['trailer'] : ['trailer', 'all']);
     const unitHeight = Number(item.height_mm || 1);
     const zOptions = { placementGapMm, allowOversize };
     const variants = [{ rotationZ: 0, footprint: footprintForItem(item, 0) }];
@@ -668,7 +717,7 @@ export function manualPlacementWarnings(transport, bounds, blocks) {
     for (const block of blocks) {
         if (!blockFitsInBounds(bounds, block)) {
             warnings.push(`${block.name}: позиция выходит за пределы площадки.`);
-        } else if (block.allow_oversize && blocksOverlapTrailerXY(block, transport) && !blockInTrailer(block, transport)) {
+        } else if (block.is_oversize && blocksOverlapTrailerXY(block, transport) && !blockInTrailer(block, transport)) {
             warnings.push(`${block.name}: выступает за габарит кузова (негабарит).`);
         } else if (!blockCountsAsLoaded(block, transport) && block.locked) {
             warnings.push(`${block.name}: зафиксирован вне кузова — перенесите в прицеп.`);
@@ -823,10 +872,13 @@ function buildBlockFromPlacement(item, blockKey, placement, transport) {
         tilted: rotationY,
         locked: Boolean(placement.locked),
         manual: Boolean(placement.manual),
-        allow_oversize: itemAllowsOversize(item, transport),
         in_trailer: false,
+        is_oversize: false,
     };
 
+    block.is_oversize = unitNeedsOversizePlacement(item, transport)
+        && blocksOverlapTrailerXY(block, transport)
+        && !blockInTrailer(block, transport);
     block.in_trailer = blockCountsAsLoaded(block, transport);
     if (!block.in_trailer) {
         block.z = 0;
@@ -915,6 +967,7 @@ function calculateAutoLayout(transport, items, options = {}) {
     let overflow = false;
     const maxBlocks = 320;
     const placementGapMm = options.placementGapMm ?? null;
+    const trailerOnly = Boolean(options.trailerOnly);
 
     for (const item of items) {
         const quantity = Math.max(0, Number(item.quantity || 0));
@@ -926,7 +979,7 @@ function calculateAutoLayout(transport, items, options = {}) {
 
         while (remaining > 0) {
             const blockKey = `${item.source_key}-${quantity - remaining}`;
-            const placement = findBestAutoPlacement(bounds, blocks, item, transport, { placementGapMm });
+            const placement = findBestAutoPlacement(bounds, blocks, item, transport, { placementGapMm, trailerOnly });
 
             if (!placement) {
                 overflow = true;
@@ -1066,31 +1119,11 @@ export function unitFitsTransportDimensions(item, transport) {
         return false;
     }
 
-    if (itemAllowsOversize(item, transport)) {
+    if (unitFitsStrictTransportDimensions(item, transport)) {
         return true;
     }
 
-    const length = Number(item.length_mm || 0);
-    const width = Number(item.width_mm || 0);
-    const height = Number(item.height_mm || 0);
-
-    if (length <= 0 || width <= 0 || height <= 0) {
-        return false;
-    }
-
-    const trailerLength = Number(transport.length_mm || 0);
-    const trailerWidth = Number(transport.width_mm || 0);
-    const trailerHeight = Number(transport.height_mm || 0);
-
-    const footprints = item.can_rotate && length !== width
-        ? [[length, width], [width, length]]
-        : [[length, width]];
-
-    return footprints.some(([footprintLength, footprintWidth]) => (
-        footprintLength <= trailerLength
-        && footprintWidth <= trailerWidth
-        && height <= trailerHeight
-    ));
+    return unitNeedsOversizePlacement(item, transport);
 }
 
 /**
@@ -1133,7 +1166,7 @@ export function calculateMultiVehicleLayout(transport, items, options = {}) {
             placedUnits: 0,
             unplacedUnits: sumItemUnits(items),
             warnings: [
-                ...uniqueNames.map((name) => `${name}: габарит больше кузова — нужен другой тип транспорта (платформа / негабарит).`),
+                ...uniqueNames.map((name) => `${name}: габарит больше кузова — выберите прицеп с негабаритом (платформа) или уменьшите место.`),
             ],
             oversizedItems: uniqueNames,
             usedPayloadPercent: 0,
@@ -1142,7 +1175,7 @@ export function calculateMultiVehicleLayout(transport, items, options = {}) {
     }
 
     while (sumItemUnits(remainingItems) > 0 && trucks.length < maxVehicles) {
-        const layout = calculateAutoLayout(transport, remainingItems, layoutOptions);
+        const layout = calculateAutoLayout(transport, remainingItems, { ...layoutOptions, trailerOnly: true });
         const inTrailerBlocks = layout.blocks.filter((block) => blockCountsAsLoaded(block, transport));
         const trimmed = trimTrailerBlocksToPayload(inTrailerBlocks, transport, itemsBySource);
         const placedKeys = new Set(trimmed.map((block) => block.key));
@@ -1153,10 +1186,7 @@ export function calculateMultiVehicleLayout(transport, items, options = {}) {
         }
 
         const truckLayout = finalizeLayoutMetrics({
-            blocks: [
-                ...trimmed,
-                ...layout.blocks.filter((block) => !block.in_trailer),
-            ],
+            blocks: trimmed,
             bounds: layout.bounds,
             warnings: [...layout.warnings],
             fits: trimmed.length === layout.placedInTrailer,

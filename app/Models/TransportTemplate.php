@@ -14,6 +14,7 @@ class TransportTemplate extends Model
         'created_by',
         'name',
         'category',
+        'allows_oversize',
         'length_mm',
         'width_mm',
         'height_mm',
@@ -33,6 +34,7 @@ class TransportTemplate extends Model
         return [
             'is_active' => 'boolean',
             'is_system' => 'boolean',
+            'allows_oversize' => 'boolean',
             'settings' => 'array',
         ];
     }

@@ -4,6 +4,8 @@ import {
     blockInTrailer,
     calculateLayout,
     calculateMultiVehicleLayout,
+    isOversizeUnit,
+    transportAllowsOversize,
     unitFitsTransportDimensions,
 } from '../../resources/js/support/loadingPlannerLayout.js';
 
@@ -12,6 +14,8 @@ const transport = {
     width_mm: 2450,
     height_mm: 2700,
     max_payload_kg: 22000,
+    allows_oversize: false,
+    category: 'truck',
 };
 
 const palletItem = {
@@ -40,6 +44,19 @@ assert.ok(multi.truckCount >= 2, 'should require at least two trucks');
 assert.equal(multi.placedUnits, 40, 'all units should be placed');
 assert.equal(multi.unplacedUnits, 0, 'no unplaced units');
 
+for (const truck of multi.trucks) {
+    assert.equal(
+        truck.blocks.every((block) => block.in_trailer),
+        true,
+        `truck ${truck.truckIndex} must not spill to staging`,
+    );
+    assert.equal(
+        new Set(truck.blocks.map((block) => block.key)).size,
+        truck.blocks.length,
+        `truck ${truck.truckIndex} must not duplicate keys within one layout`,
+    );
+}
+
 const oversized = calculateMultiVehicleLayout(transport, [{
     source_key: 'transformer',
     name: 'Трансформатор',
@@ -53,14 +70,28 @@ const oversized = calculateMultiVehicleLayout(transport, [{
     color: '#f00',
 }]);
 
-assert.equal(oversized.fits, false, 'oversized cargo without flag should not fit');
+assert.equal(oversized.fits, false, 'oversized cargo on strict trailer should not fit');
 assert.ok(oversized.warnings.some((warning) => warning.includes('габарит')), 'oversized warning expected');
+assert.equal(isOversizeUnit({
+    length_mm: 15000,
+    width_mm: 3000,
+    height_mm: 4000,
+    can_rotate: false,
+}, transport), true);
 assert.equal(unitFitsTransportDimensions({
     length_mm: 15000,
     width_mm: 3000,
     height_mm: 4000,
     can_rotate: false,
 }, transport), false);
+
+const platformTransport = {
+    ...transport,
+    allows_oversize: true,
+    category: 'platform',
+};
+
+assert.equal(transportAllowsOversize(platformTransport), true);
 
 const oversizeItem = {
     source_key: 'beam',
@@ -72,20 +103,20 @@ const oversizeItem = {
     weight_kg: 5000,
     can_rotate: false,
     stackable: false,
-    allow_oversize: true,
     color: '#f59e0b',
 };
 
-assert.equal(unitFitsTransportDimensions(oversizeItem, transport), true, 'allow_oversize bypasses dimension gate');
+assert.equal(unitFitsTransportDimensions(oversizeItem, platformTransport), true, 'platform allows oversize units');
+assert.equal(isOversizeUnit(oversizeItem, platformTransport), true, 'beam is oversize relative to deck');
 
-const oversizeLayout = calculateLayout(transport, [oversizeItem]);
-assert.equal(oversizeLayout.placedUnits, 1, 'oversize item should be placed');
+const oversizeLayout = calculateLayout(platformTransport, [oversizeItem]);
+assert.equal(oversizeLayout.placedUnits, 1, 'oversize item should be placed on platform');
 assert.equal(oversizeLayout.placedInTrailer, 1, 'oversize item should count as loaded');
 assert.equal(oversizeLayout.blocks.length, 1, 'one block on scene');
 assert.equal(oversizeLayout.blocks[0].in_trailer, true, 'oversize block counts as loaded');
-assert.equal(oversizeLayout.blocks[0].allow_oversize, true, 'block carries oversize flag');
-assert.equal(blockInTrailer(oversizeLayout.blocks[0], transport), false, 'footprint extends beyond trailer');
-assert.equal(blockCountsAsLoaded(oversizeLayout.blocks[0], transport), true, 'still counts as loaded');
+assert.equal(oversizeLayout.blocks[0].is_oversize, true, 'block marked as oversize');
+assert.equal(blockInTrailer(oversizeLayout.blocks[0], platformTransport), false, 'footprint extends beyond trailer');
+assert.equal(blockCountsAsLoaded(oversizeLayout.blocks[0], platformTransport), true, 'still counts as loaded');
 assert.ok(
     oversizeLayout.warnings.some((warning) => warning.includes('негабарит')),
     'informational oversize warning expected',

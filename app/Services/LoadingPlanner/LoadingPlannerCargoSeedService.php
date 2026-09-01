@@ -104,7 +104,6 @@ final class LoadingPlannerCargoSeedService
             'stackable' => false,
             'max_stack' => 5,
             'can_tilt' => false,
-            'allow_oversize' => (bool) ($metadata['is_oversized'] ?? $cargoItem->cargo_type === 'oversized'),
             'color' => '#8b5cf6',
             'sort_order' => $sortOrder,
         ];
@@ -128,7 +127,6 @@ final class LoadingPlannerCargoSeedService
             'stackable' => false,
             'max_stack' => 5,
             'can_tilt' => false,
-            'allow_oversize' => (bool) $cargoItem->is_oversized,
             'color' => '#8b5cf6',
             'sort_order' => $sortOrder,
         ];

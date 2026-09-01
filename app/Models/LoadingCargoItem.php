@@ -24,7 +24,6 @@ class LoadingCargoItem extends Model
         'stackable',
         'max_stack',
         'can_tilt',
-        'allow_oversize',
         'color',
         'sort_order',
     ];
@@ -39,7 +38,6 @@ class LoadingCargoItem extends Model
             'can_rotate' => 'boolean',
             'stackable' => 'boolean',
             'can_tilt' => 'boolean',
-            'allow_oversize' => 'boolean',
         ];
     }
 

@@ -115,10 +115,9 @@
                             </div>
                         </div>
                         <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3 md:px-6">
-                            <div v-if="activeCargoGroup" class="mb-3 grid gap-2 md:grid-cols-[1fr,1fr,4rem]">
+                            <div v-if="activeCargoGroup" class="mb-3 grid gap-2 md:grid-cols-2">
                                 <input v-model="activeCargoGroup.name" class="field" placeholder="Группа" />
                                 <input v-model="activeCargoGroup.recipient_name" class="field" placeholder="Получатель" />
-                                <input v-model="activeCargoGroup.color" type="color" class="h-10 w-full rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900" />
                             </div>
                             <div class="cargo-table-head hidden text-xs font-semibold uppercase tracking-wide text-zinc-500 md:grid">
                                 <span>Груз</span>
@@ -132,7 +131,7 @@
                                 class="cargo-row"
                                 @click="openCargoItemEditor(groupIndex, itemIndex)"
                             >
-                                <span class="cargo-swatch" :style="{ backgroundColor: item.color || activeCargoGroup?.color }" />
+                                <span class="cargo-swatch" :style="{ backgroundColor: cargoColorForItem(groupIndex, itemIndex) }" />
                                 <span class="min-w-0 flex-1 text-left">
                                     <span class="block truncate text-sm font-semibold">{{ item.name }}</span>
                                     <span class="mt-1 block text-xs text-zinc-500">
@@ -316,13 +315,13 @@
                                                     selectedBlockKey === block.key ? 'cargo-cube-selected' : '',
                                                     block.locked ? 'cargo-cube-locked' : '',
                                                     block.in_trailer ? '' : 'cargo-cube-staging',
-                                                    block.allow_oversize && block.in_trailer ? 'cargo-cube-oversize' : '',
+                                                    block.is_oversize && block.in_trailer ? 'cargo-cube-oversize' : '',
                                                     blockDrag?.key === block.key ? 'cargo-cube-dragging' : '',
                                                     blockDrag?.key === block.key && blockDrag?.overlapping ? 'cargo-cube-overlap' : '',
                                                     ...cubeAlignGuideClasses(block),
                                                 ]"
                                                 :style="cubePositionStyle(block)"
-                                                :title="`${block.name}${block.stack_count > 1 ? `, ярус ${block.stack_count}` : ''}${block.in_trailer ? (block.allow_oversize ? ' (негабарит)' : '') : ' (зона сборки)'}`"
+                                                :title="`${block.name}${block.stack_count > 1 ? `, ярус ${block.stack_count}` : ''}${block.in_trailer ? (block.is_oversize ? ' (негабарит)' : '') : ' (зона сборки)'}`"
                                                 @pointerdown.stop.prevent="startBlockDrag($event, block)"
                                                 @click.stop="selectBlock(block)"
                                             >
@@ -370,9 +369,12 @@
                                     <span>Статус</span><strong>{{ layoutStatusLabel }}</strong>
                                 </div>
                             </div>
-                            <div v-if="multiVehicleSummary && multiVehicleSummary.truckCount > 1" class="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
-                                <div class="font-semibold">Несколько машин</div>
+                            <div v-if="multiVehicleSummary && (multiVehicleSummary.truckCount > 1 || multiVehicleSummary.unplacedUnits > 0)" class="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+                                <div class="font-semibold">Парк машин</div>
                                 <div class="mt-1">Всего {{ multiVehicleSummary.truckCount }} маш · размещено {{ multiVehicleSummary.placedUnits }} / {{ multiVehicleSummary.totalUnits }} мест</div>
+                                <div v-if="multiVehicleSummary.truckCount > 1" class="mt-1 text-sky-800 dark:text-sky-100">
+                                    Переключайте вкладки «Машина N» над сценой — остаток не уходит на площадку сборки.
+                                </div>
                                 <div v-if="multiVehicleSummary.unplacedUnits > 0" class="mt-1 text-amber-800 dark:text-amber-200">
                                     Не размещено: {{ multiVehicleSummary.unplacedUnits }} мест
                                 </div>
@@ -396,10 +398,10 @@
                             </button>
                             <div v-if="showAxleLoad" class="mt-2 text-xs text-zinc-500 print:hidden">Автоматический расчёт осевой нагрузки появится в следующей версии.</div>
                             <div class="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto print:hidden">
-                                <div v-for="group in projectForm.cargo_groups" :key="group.local_id">
+                                <div v-for="(group, groupIndex) in projectForm.cargo_groups" :key="group.local_id">
                                     <div class="truncate text-[11px] font-semibold uppercase text-zinc-500">{{ group.recipient_name || group.name }}</div>
                                     <div v-for="(item, index) in group.items" :key="item.local_id" class="mt-2 flex items-start gap-2 text-xs">
-                                        <span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" :style="{ backgroundColor: item.color || group.color }" />
+                                        <span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" :style="{ backgroundColor: cargoColorForItem(groupIndex, index) }" />
                                         <span class="min-w-0 flex-1">
                                             <span class="font-semibold">{{ index + 1 }}. {{ item.name }}</span>
                                             <span class="mt-0.5 block text-zinc-500">{{ item.length_mm }} × {{ item.width_mm }} × {{ item.height_mm }} мм, {{ formatKg(item.weight_kg) }}, {{ item.quantity }} шт</span>
@@ -462,10 +464,6 @@
                         </select>
                     </div>
                     <div>
-                        <label class="label">Цвет в сцене</label>
-                        <input v-model="cargoItemDraft.color" type="color" class="h-10 w-full rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900" />
-                    </div>
-                    <div>
                         <label class="label inline-flex items-center gap-2"><Layers class="h-4 w-4" /> Ярусы</label>
                         <select v-model="cargoItemDraft.stackable" class="field">
                             <option :value="true">Да</option>
@@ -485,12 +483,6 @@
                             <option :value="true">Да</option>
                             <option :value="false">Нет</option>
                         </select>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="label inline-flex items-center gap-2">
-                            <input v-model="cargoItemDraft.allow_oversize" type="checkbox" class="rounded" />
-                            Негабарит — может выступать за кузов (не уходит на площадку сборки)
-                        </label>
                     </div>
                     <div v-if="cargoItemDraft.stackable">
                         <label class="label">Макс. ярусов</label>
@@ -521,6 +513,10 @@
                     <input v-model.number="templateDraft.width_mm" type="number" min="1" class="field" placeholder="Ширина, мм" />
                     <input v-model.number="templateDraft.height_mm" type="number" min="1" class="field" placeholder="Высота, мм" />
                     <input v-model.number="templateDraft.axles_count" type="number" min="1" class="field" placeholder="Оси" />
+                    <label class="inline-flex items-center gap-2 text-sm md:col-span-2">
+                        <input v-model="templateDraft.allows_oversize" type="checkbox" class="rounded" />
+                        Негабарит — груз может выступать за габарит кузова (платформа, трал)
+                    </label>
                     <label class="inline-flex items-center gap-2 text-sm"><input v-model="templateDraft.is_active" type="checkbox" class="rounded" /> Активен в справочнике</label>
                 </div>
                 <div class="mt-6 flex justify-between gap-3">
@@ -556,9 +552,11 @@ import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnDangerMuted, crmBtnPrimary, crmBtnSecondary, crmFieldFluid, crmGridSearchField, crmPanel } from '@/support/crmUi.js';
+import { cargoItemColorForIndex, flatCargoItemIndex } from '@/support/loadingPlannerColors.js';
 import {
     blockInTrailer,
     blocksOverlapTrailerXY,
+    transportAllowsOversize,
     blocksOverlap3D,
     blocksOverlapXY,
     buildSceneBounds,
@@ -720,13 +718,15 @@ const selectedTransport = computed(() => {
 });
 
 const cargoFlat = computed(() => {
-    return (projectForm.value?.cargo_groups ?? []).flatMap((group) => {
-        return (group.items ?? []).map((item) => ({
+    const groups = projectForm.value?.cargo_groups ?? [];
+
+    return groups.flatMap((group, groupIndex) => {
+        return (group.items ?? []).map((item, itemIndex) => ({
             ...item,
             source_key: cargoItemKey(item),
             group_name: group.name,
             recipient_name: group.recipient_name,
-            color: item.color || group.color || '#60a5fa',
+            color: cargoItemColorForIndex(flatCargoItemIndex(groups, groupIndex, itemIndex)),
         }));
     });
 });
@@ -988,6 +988,15 @@ watch(tightPacking, () => {
     }
 });
 
+watch(
+    () => templateDraft.value?.category,
+    (category) => {
+        if (category === 'platform' && templateDraft.value) {
+            templateDraft.value.allows_oversize = true;
+        }
+    },
+);
+
 const cargoLayoutSignature = computed(() => {
     return (projectForm.value?.cargo_groups ?? [])
         .flatMap((group) => (group.items ?? []).map((item) => [
@@ -998,7 +1007,6 @@ const cargoLayoutSignature = computed(() => {
             item.height_mm,
             item.stackable,
             item.max_stack,
-            item.allow_oversize,
         ].join(':')))
         .join('|');
 });
@@ -1063,6 +1071,7 @@ function blankTemplate() {
         id: null,
         name: '',
         category: 'truck',
+        allows_oversize: false,
         length_mm: 13600,
         width_mm: 2450,
         height_mm: 2700,
@@ -1074,7 +1083,7 @@ function blankTemplate() {
     };
 }
 
-function blankCargoItem(color = '#60a5fa') {
+function blankCargoItem() {
     return {
         local_id: makeLocalId(),
         client_key: makeLocalId(),
@@ -1089,9 +1098,13 @@ function blankCargoItem(color = '#60a5fa') {
         stackable: false,
         max_stack: DEFAULT_MAX_STACK,
         can_tilt: false,
-        allow_oversize: false,
-        color,
     };
+}
+
+function cargoColorForItem(groupIndex, itemIndex) {
+    const groups = projectForm.value?.cargo_groups ?? [];
+
+    return cargoItemColorForIndex(flatCargoItemIndex(groups, groupIndex, itemIndex));
 }
 
 function indexQuery(extra = {}) {
@@ -1359,11 +1372,11 @@ function projectPayload() {
                 pan_y: scenePanY.value,
             },
         },
-        cargo_groups: projectForm.value.cargo_groups.map((group) => ({
+        cargo_groups: projectForm.value.cargo_groups.map((group, groupIndex) => ({
             name: group.name,
             recipient_name: group.recipient_name,
-            color: group.color,
-            items: group.items.map((item) => ({
+            color: group.color ?? '#60a5fa',
+            items: group.items.map((item, itemIndex) => ({
                 name: item.name,
                 client_key: item.client_key,
                 package_type: item.package_type,
@@ -1376,21 +1389,18 @@ function projectPayload() {
                 stackable: Boolean(item.stackable),
                 max_stack: Number(item.stackable ? (item.max_stack || DEFAULT_MAX_STACK) : (item.max_stack || 1)),
                 can_tilt: Boolean(item.can_tilt),
-                allow_oversize: Boolean(item.allow_oversize),
-                color: item.color,
+                color: cargoItemColorForIndex(flatCargoItemIndex(projectForm.value.cargo_groups, groupIndex, itemIndex)),
             })),
         })),
     };
 }
 
 function addCargoGroup() {
-    const color = randomColor(projectForm.value.cargo_groups.length);
     projectForm.value.cargo_groups.push({
         local_id: makeLocalId(),
         name: `Грузовая группа #${projectForm.value.cargo_groups.length + 1}`,
         recipient_name: '',
-        color,
-        items: [blankCargoItem(color)],
+        items: [blankCargoItem()],
     });
 }
 
@@ -1400,7 +1410,7 @@ function removeCargoGroup(index) {
 
 function addCargoItem(groupIndex) {
     const group = projectForm.value.cargo_groups[groupIndex];
-    group.items.push(blankCargoItem(group.color));
+    group.items.push(blankCargoItem());
 }
 
 function removeCargoItem(groupIndex, itemIndex) {
@@ -1605,7 +1615,7 @@ function collectFreezeSettleKeys(key, x, y, length, width, blocks) {
 }
 
 function blockAllowsOversize(block) {
-    return Boolean(block?.allow_oversize) || selectedTransport.value?.category === 'platform';
+    return Boolean(block?.is_oversize) || transportAllowsOversize(selectedTransport.value);
 }
 
 function resolvePlacementZ(key, x, y, length, width, unitHeight, { preferTop = true, allowOversize = null } = {}) {
@@ -2015,10 +2025,6 @@ function makeLocalId() {
         return globalThis.crypto.randomUUID();
     }
     return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function randomColor(index) {
-    return ['#8b5cf6', '#22c55e', '#f97316', '#06b6d4', '#f43f5e', '#eab308'][index % 6];
 }
 
 function transportLabel(template) {
