@@ -6,6 +6,8 @@ import {
     calculateMultiVehicleLayout,
     isOversizeUnit,
     pickBlockAtScenePoint,
+    pickBlockNearScenePoint,
+    pickTopBlockFromCandidates,
     transportAllowsOversize,
     unitFitsTransportDimensions,
 } from '../../resources/js/support/loadingPlannerLayout.js';
@@ -202,6 +204,18 @@ const floorBlock = { key: 'a-0', x: 0, y: 0, length: 2000, width: 1000, z: 0, he
 const topBlock = { key: 'b-0', x: 500, y: 200, length: 1000, width: 800, z: 1000, height: 800, unit_height: 800 };
 assert.equal(pickBlockAtScenePoint(600, 400, [floorBlock, topBlock])?.key, 'b-0', 'pick top of stack');
 assert.equal(pickBlockAtScenePoint(100, 100, [floorBlock, topBlock])?.key, 'a-0', 'pick floor when not under stack');
+
+const nearBlock = { key: 'c-0', x: 5000, y: 500, length: 2000, width: 1000, z: 0, height: 1200, unit_height: 1200 };
+assert.equal(
+    pickBlockNearScenePoint(5200, 700, [nearBlock], 400)?.key,
+    'c-0',
+    'near pick should find nearby footprint',
+);
+assert.equal(
+    pickTopBlockFromCandidates([floorBlock, topBlock])?.key,
+    'b-0',
+    'top block from candidates',
+);
 
 const heightOversizeLayout = calculateLayout(platformTrailer, [{
     source_key: 'cabin',

@@ -444,19 +444,12 @@ export function scoreAutoPlacement(candidate, zone) {
 }
 
 /** Клик по сцене: верхнее место в столбике (Z), не «передний» куб в DOM. */
-export function pickBlockAtScenePoint(x, y, blocks) {
-    const hits = blocks.filter((block) => {
-        return x >= Number(block.x)
-            && x <= Number(block.x) + Number(block.length)
-            && y >= Number(block.y)
-            && y <= Number(block.y) + Number(block.width);
-    });
-
-    if (hits.length === 0) {
+export function pickTopBlockFromCandidates(blocks) {
+    if (blocks.length === 0) {
         return null;
     }
 
-    hits.sort((left, right) => {
+    return [...blocks].sort((left, right) => {
         const leftTop = Number(left.z || 0) + Number(left.unit_height || left.height || 0);
         const rightTop = Number(right.z || 0) + Number(right.unit_height || right.height || 0);
 
@@ -465,9 +458,55 @@ export function pickBlockAtScenePoint(x, y, blocks) {
         }
 
         return sceneBlockPaintOrder(right) - sceneBlockPaintOrder(left);
+    })[0];
+}
+
+export function pickBlockAtScenePoint(x, y, blocks) {
+    const hits = blocks.filter((block) => {
+        return x >= Number(block.x)
+            && x <= Number(block.x) + Number(block.length)
+            && y >= Number(block.y)
+            && y <= Number(block.y) + Number(block.width);
     });
 
-    return hits[0];
+    return pickTopBlockFromCandidates(hits);
+}
+
+/** Запасной pick при промахе проекции клика (изометрия, высокий груз). */
+export function pickBlockNearScenePoint(x, y, blocks, toleranceMm = 500) {
+    const pad = Math.max(0, Number(toleranceMm || 0));
+    const hits = blocks.filter((block) => {
+        return x >= Number(block.x) - pad
+            && x <= Number(block.x) + Number(block.length) + pad
+            && y >= Number(block.y) - pad
+            && y <= Number(block.y) + Number(block.width) + pad;
+    });
+
+    if (hits.length === 0) {
+        return null;
+    }
+
+    return [...hits].sort((left, right) => {
+        const leftTop = Number(left.z || 0) + Number(left.unit_height || left.height || 0);
+        const rightTop = Number(right.z || 0) + Number(right.unit_height || right.height || 0);
+
+        if (rightTop !== leftTop) {
+            return rightTop - leftTop;
+        }
+
+        const leftCenterX = Number(left.x) + Number(left.length) / 2;
+        const leftCenterY = Number(left.y) + Number(left.width) / 2;
+        const rightCenterX = Number(right.x) + Number(right.length) / 2;
+        const rightCenterY = Number(right.y) + Number(right.width) / 2;
+        const leftDistance = Math.hypot(x - leftCenterX, y - leftCenterY);
+        const rightDistance = Math.hypot(x - rightCenterX, y - rightCenterY);
+
+        if (leftDistance !== rightDistance) {
+            return leftDistance - rightDistance;
+        }
+
+        return sceneBlockPaintOrder(right) - sceneBlockPaintOrder(left);
+    })[0];
 }
 
 export function findBestAutoPlacement(bounds, placedBlocks, item, transport, options = {}) {

@@ -307,6 +307,7 @@
                                                 v-for="block in sceneBlocks"
                                                 :key="block.key"
                                                 class="cargo-cube"
+                                                :data-block-key="block.key"
                                                 :class="[
                                                     Number(block.z) > 0 ? 'cargo-cube-elevated' : '',
                                                     blockUnderStack(block) ? 'cargo-cube-under-stack' : '',
@@ -657,6 +658,8 @@ import {
     snapshotPlacementsFromBlocks,
     sortBlocksForScenePaint,
     pickBlockAtScenePoint,
+    pickBlockNearScenePoint,
+    pickTopBlockFromCandidates,
 } from '@/support/loadingPlannerLayout.js';
 
 defineOptions({
@@ -1798,7 +1801,8 @@ function cubeLiftStyle(block) {
 
     const zScale = sceneZScalePxPerMm(transport);
     const cubeHeightPx = Math.max(4, block.unit_height * zScale);
-    const zOffsetPx = Number(block.z || 0) * zScale;
+    const dragLiftPx = blockDrag.value?.key === block.key ? 12 : 0;
+    const zOffsetPx = Number(block.z || 0) * zScale + dragLiftPx;
 
     return {
         transform: `translateZ(${zOffsetPx}px)`,
@@ -2172,13 +2176,57 @@ function pointerSceneMmFromEvent(event) {
     return clientPointToSceneMm(event.clientX, event.clientY, deckRect, sceneBounds.value, sceneRotationZ.value);
 }
 
-function pickBlockFromPointerEvent(event) {
-    const pointer = pointerSceneMmFromEvent(event);
-    if (!pointer) {
-        return null;
+function pickBlockKeysFromPointerEvent(event) {
+    if (typeof document === 'undefined') {
+        return [];
     }
 
-    return pickBlockAtScenePoint(pointer.x, pointer.y, layoutResult.value.blocks);
+    const keys = [];
+
+    for (const element of document.elementsFromPoint(event.clientX, event.clientY)) {
+        if (!(element instanceof Element)) {
+            continue;
+        }
+
+        const cube = element.closest('[data-block-key]');
+        if (!cube) {
+            continue;
+        }
+
+        const key = cube.getAttribute('data-block-key');
+        if (key && !keys.includes(key)) {
+            keys.push(key);
+        }
+    }
+
+    return keys;
+}
+
+function pickBlockFromPointerEvent(event) {
+    const blocks = layoutResult.value.blocks;
+    const candidates = new Map();
+
+    for (const key of pickBlockKeysFromPointerEvent(event)) {
+        const block = blocks.find((item) => item.key === key);
+        if (block) {
+            candidates.set(block.key, block);
+        }
+    }
+
+    const pointer = pointerSceneMmFromEvent(event);
+    if (pointer) {
+        const direct = pickBlockAtScenePoint(pointer.x, pointer.y, blocks);
+        if (direct) {
+            candidates.set(direct.key, direct);
+        } else {
+            const near = pickBlockNearScenePoint(pointer.x, pointer.y, blocks, 500);
+            if (near) {
+                candidates.set(near.key, near);
+            }
+        }
+    }
+
+    return pickTopBlockFromCandidates([...candidates.values()]);
 }
 
 function handleCargoClick(event) {
@@ -2193,7 +2241,7 @@ function handleCargoClick(event) {
 }
 
 function handleCargoPointerDown(event) {
-    if (!manualMode.value || !selectedTransport.value || !deckEl.value) {
+    if (event.button !== 0 || !manualMode.value || !selectedTransport.value || !deckEl.value) {
         return;
     }
 
@@ -2244,8 +2292,8 @@ function startBlockDrag(event, block) {
             { draggedZ: Number(placement.z ?? block.z ?? 0) },
         ),
     };
-    const cubeElement = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
-    cubeElement?.setPointerCapture?.(event.pointerId);
+    const cubeElement = event.currentTarget instanceof HTMLElement ? event.currentTarget.closest('.cargo-cube') : null;
+    (cubeElement ?? sceneViewport.value)?.setPointerCapture?.(event.pointerId);
 }
 
 function startSceneRotate(event) {
@@ -2870,6 +2918,19 @@ function formatMm(value) {
 .cargo-cube-covered {
     cursor: grab;
     touch-action: none;
+    pointer-events: auto;
+}
+
+.cargo-cube-manual .cargo-cube-lift,
+.cargo-cube-manual .cargo-cube-body,
+.cargo-cube-covered .cargo-cube-lift,
+.cargo-cube-covered .cargo-cube-body {
+    pointer-events: auto;
+}
+
+.cargo-cube-manual .cargo-face,
+.cargo-cube-covered .cargo-face {
+    pointer-events: auto;
 }
 
 .cargo-cube-manual:active,
@@ -2887,14 +2948,6 @@ function formatMm(value) {
 .cargo-cube-under-stack .cargo-face-right {
     outline: 2px solid rgb(2 132 199 / 0.55);
     outline-offset: -1px;
-}
-
-.cargo-cube-selected {
-    z-index: 20;
-}
-
-.cargo-cube-dragging {
-    z-index: 30;
 }
 
 .cargo-cube-staging {
