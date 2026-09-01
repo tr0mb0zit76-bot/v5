@@ -440,8 +440,34 @@ export function scoreAutoPlacement(candidate, zone) {
         + Number(candidate.x) * 1_000
         + Number(candidate.y)
         + width * 40
-        + (width > length ? width * 120 : 0)
-        + (length < width ? length * 80 : 0);
+        + (width > length ? width * 2_500 : 0);
+}
+
+/** Клик по сцене: верхнее место в столбике (Z), не «передний» куб в DOM. */
+export function pickBlockAtScenePoint(x, y, blocks) {
+    const hits = blocks.filter((block) => {
+        return x >= Number(block.x)
+            && x <= Number(block.x) + Number(block.length)
+            && y >= Number(block.y)
+            && y <= Number(block.y) + Number(block.width);
+    });
+
+    if (hits.length === 0) {
+        return null;
+    }
+
+    hits.sort((left, right) => {
+        const leftTop = Number(left.z || 0) + Number(left.unit_height || left.height || 0);
+        const rightTop = Number(right.z || 0) + Number(right.unit_height || right.height || 0);
+
+        if (rightTop !== leftTop) {
+            return rightTop - leftTop;
+        }
+
+        return sceneBlockPaintOrder(right) - sceneBlockPaintOrder(left);
+    });
+
+    return hits[0];
 }
 
 export function findBestAutoPlacement(bounds, placedBlocks, item, transport, options = {}) {
@@ -493,8 +519,14 @@ export function findBestAutoPlacement(bounds, placedBlocks, item, transport, opt
                     }
 
                     const score = scoreAutoPlacement(candidate, zone);
+                    const lengthAligned = length >= width;
+                    const bestAligned = best ? Number(best.length) >= Number(best.width) : false;
+                    const scoreWins = score < bestScore - 0.5;
+                    const tiePrefersLength = Math.abs(score - bestScore) <= 0.5
+                        && lengthAligned
+                        && !bestAligned;
 
-                    if (score < bestScore) {
+                    if (scoreWins || tiePrefersLength || (best === null)) {
                         bestScore = score;
                         best = {
                             x,

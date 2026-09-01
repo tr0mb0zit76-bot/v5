@@ -322,8 +322,8 @@
                                                 ]"
                                                 :style="cubePositionStyle(block)"
                                                 :title="`${block.name}${block.stack_count > 1 ? `, ярус ${block.stack_count}` : ''}${block.in_trailer ? (block.is_oversize ? ' (негабарит)' : '') : ' (зона сборки)'}`"
-                                                @pointerdown.stop.prevent="startBlockDrag($event, block)"
-                                                @click.stop="selectBlock(block)"
+                                                @pointerdown.stop.prevent="handleCargoPointerDown($event)"
+                                                @click.stop="handleCargoClick($event)"
                                             >
                                                 <div class="cargo-cube-lift" :style="cubeLiftStyle(block)">
                                                     <div
@@ -409,8 +409,13 @@
                             <div v-if="manualMode && selectedBlock" class="border-t border-zinc-200 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:text-zinc-300 print:hidden">
                                 <span class="font-semibold">{{ selectedBlock.name }}</span>
                                 <span v-if="selectedBlock.locked" class="ml-2 text-emerald-600 dark:text-emerald-400">зафиксирован</span>
-                                <span v-else-if="!canLiftBlock(selectedBlock)" class="ml-2 text-amber-700 dark:text-amber-300">— сверху есть груз, снять нельзя</span>
-                                <span v-else class="ml-2">— отпустите для фиксации, Enter — вручную</span>
+                                <span v-else-if="!canLiftBlock(selectedBlock)" class="ml-2 text-amber-700 dark:text-amber-300">— сверху есть груз; можно повернуть кнопками или ← →</span>
+                                <span v-else class="ml-2">— перетащите, ← → поворот, Enter — зафиксировать</span>
+                                <div class="mt-2 flex flex-wrap items-center gap-1">
+                                    <button type="button" class="scene-tool" :disabled="!selectedBlockCanRotate" @click="rotateSelectedBlockZ(-1)">↺ 90°</button>
+                                    <button type="button" class="scene-tool" :disabled="!selectedBlockCanRotate" @click="rotateSelectedBlockZ(1)">↻ 90°</button>
+                                    <button type="button" class="scene-tool" :disabled="!canLiftBlock(selectedBlock)" @click="releaseSelectedBlock">Снять</button>
+                                </div>
                                 <div v-if="multiVehicleSummary && multiVehicleSummary.truckCount > 1" class="mt-2 flex flex-wrap items-center gap-1">
                                     <span class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">На машину:</span>
                                     <button
@@ -651,6 +656,7 @@ import {
     placementRotationZ,
     snapshotPlacementsFromBlocks,
     sortBlocksForScenePaint,
+    pickBlockAtScenePoint,
 } from '@/support/loadingPlannerLayout.js';
 
 defineOptions({
@@ -1066,6 +1072,16 @@ function emptySceneLayout(transport) {
     };
 }
 const selectedBlock = computed(() => layoutResult.value.blocks.find((block) => block.key === selectedBlockKey.value) ?? null);
+
+const selectedBlockCanRotate = computed(() => {
+    if (!selectedBlock.value) {
+        return false;
+    }
+
+    const item = cargoFlat.value.find((entry) => entry.source_key === selectedBlock.value.source_key);
+
+    return Boolean(item?.can_rotate);
+});
 
 const sceneBlocks = computed(() => {
     let blocks = sortBlocksForScenePaint(layoutResult.value.blocks);
@@ -2146,6 +2162,47 @@ function updateManualPlacement(key, placement) {
     };
 }
 
+function pointerSceneMmFromEvent(event) {
+    if (!deckEl.value || !sceneBounds.value) {
+        return null;
+    }
+
+    const deckRect = deckEl.value.getBoundingClientRect();
+
+    return clientPointToSceneMm(event.clientX, event.clientY, deckRect, sceneBounds.value, sceneRotationZ.value);
+}
+
+function pickBlockFromPointerEvent(event) {
+    const pointer = pointerSceneMmFromEvent(event);
+    if (!pointer) {
+        return null;
+    }
+
+    return pickBlockAtScenePoint(pointer.x, pointer.y, layoutResult.value.blocks);
+}
+
+function handleCargoClick(event) {
+    if (!manualMode.value) {
+        return;
+    }
+
+    const block = pickBlockFromPointerEvent(event);
+    if (block) {
+        selectBlock(block);
+    }
+}
+
+function handleCargoPointerDown(event) {
+    if (!manualMode.value || !selectedTransport.value || !deckEl.value) {
+        return;
+    }
+
+    const block = pickBlockFromPointerEvent(event);
+    if (block) {
+        startBlockDrag(event, block);
+    }
+}
+
 function startBlockDrag(event, block) {
     if (!manualMode.value || !selectedTransport.value || !deckEl.value) {
         return;
@@ -2798,18 +2855,16 @@ function formatMm(value) {
     display: none;
 }
 
-.cargo-cube-manual {
+.cargo-cube-manual,
+.cargo-cube-covered {
     cursor: grab;
     touch-action: none;
 }
 
 .cargo-cube-manual:active,
+.cargo-cube-covered:active,
 .cargo-cube-dragging {
     cursor: grabbing;
-}
-
-.cargo-cube-covered {
-    cursor: not-allowed;
 }
 
 .cargo-cube-covered .cargo-face-top {

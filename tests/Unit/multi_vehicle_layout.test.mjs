@@ -5,6 +5,7 @@ import {
     calculateLayout,
     calculateMultiVehicleLayout,
     isOversizeUnit,
+    pickBlockAtScenePoint,
     transportAllowsOversize,
     unitFitsTransportDimensions,
 } from '../../resources/js/support/loadingPlannerLayout.js';
@@ -178,5 +179,28 @@ const compactMulti = calculateMultiVehicleLayout(platformTrailer, [compactParts]
 assert.equal(compactMulti.fits, true, 'six compact parts should fit');
 assert.equal(compactMulti.truckCount, 1, 'consolidation should keep a single truck for compact parts');
 assert.equal(compactMulti.placedUnits, 6, 'all compact parts placed');
+
+const beamLayout = calculateLayout(platformTrailer, [{
+    source_key: 'long-beam',
+    name: 'Балка',
+    quantity: 1,
+    length_mm: 6000,
+    width_mm: 1400,
+    height_mm: 800,
+    weight_kg: 2500,
+    can_rotate: true,
+    stackable: false,
+    color: '#111827',
+}]);
+assert.equal(beamLayout.blocks.length, 1, 'beam should be placed');
+assert.ok(
+    beamLayout.blocks[0].length >= beamLayout.blocks[0].width,
+    'rotatable beam should prefer length along trailer',
+);
+
+const floorBlock = { key: 'a-0', x: 0, y: 0, length: 2000, width: 1000, z: 0, height: 1000, unit_height: 1000 };
+const topBlock = { key: 'b-0', x: 500, y: 200, length: 1000, width: 800, z: 1000, height: 800, unit_height: 800 };
+assert.equal(pickBlockAtScenePoint(600, 400, [floorBlock, topBlock])?.key, 'b-0', 'pick top of stack');
+assert.equal(pickBlockAtScenePoint(100, 100, [floorBlock, topBlock])?.key, 'a-0', 'pick floor when not under stack');
 
 console.log('multi_vehicle_layout.test.mjs: ok');
