@@ -129,11 +129,13 @@
                                 :key="item.local_id"
                                 type="button"
                                 class="cargo-row"
+                                :class="isCargoItemSelectedInScene(groupIndex, itemIndex) ? 'cargo-row-scene-selected' : ''"
                                 @click="openCargoItemEditor(groupIndex, itemIndex)"
                             >
                                 <span class="cargo-swatch" :style="{ backgroundColor: cargoColorForItem(groupIndex, itemIndex) }" />
                                 <span class="min-w-0 flex-1 text-left">
                                     <span class="block truncate text-sm font-semibold">{{ item.name }}</span>
+                                    <span v-if="isCargoItemSelectedInScene(groupIndex, itemIndex) && selectedBlockUnitLabel" class="text-xs font-semibold text-sky-700 dark:text-sky-300">{{ selectedBlockUnitLabel }} на сцене</span>
                                     <span class="mt-1 block text-xs text-zinc-500">
                                         {{ packageTypeLabel(item.package_type) }},
                                         {{ item.length_mm }} × {{ item.width_mm }} × {{ item.height_mm }} мм,
@@ -249,7 +251,13 @@
                                 @wheel.prevent="onSceneWheel"
                             >
                                 <div class="scene-hint print:hidden">
-                                    Колесо — зум. ЛКМ по фону — вращение. ПКМ — сдвиг. При перетаскивании совпадение с той же серией подсвечивает грани. Отпускание — фиксация.
+                                    Колесо — зум. ЛКМ по фону — вращение. ПКМ — сдвиг.
+                                    <span v-if="isMultiTruckManualMode()">
+                                        «На площадку» — снять с машины; переключите вкладку машины и перетащите груз с клетчатой площадки в кузов.
+                                    </span>
+                                    <span v-else>
+                                        При перетаскивании совпадение с той же серией подсвечивает грани. Отпускание — фиксация.
+                                    </span>
                                 </div>
                                 <div v-if="selectedTransport" class="scene-shell" :style="sceneShellStyle">
                                     <div class="scene" :style="sceneTransformStyle">
@@ -410,21 +418,29 @@
                             <div v-if="manualMode && selectedBlock" class="border-t border-zinc-200 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:text-zinc-300 print:hidden">
                                 <span class="font-semibold">{{ selectedBlock.name }}</span>
                                 <span v-if="selectedBlock.locked" class="ml-2 text-emerald-600 dark:text-emerald-400">зафиксирован</span>
+                                <span v-else-if="isBlockAssignedToStaging(selectedBlock.key)" class="ml-2 text-sky-700 dark:text-sky-300">— на площадке; переключите машину и поставьте в кузов</span>
                                 <span v-else-if="!canLiftBlock(selectedBlock)" class="ml-2 text-amber-700 dark:text-amber-300">— сверху есть груз; можно повернуть кнопками или ← →</span>
                                 <span v-else class="ml-2">— перетащите, ← → поворот, Enter — зафиксировать</span>
                                 <div class="mt-2 flex flex-wrap items-center gap-1">
                                     <button type="button" class="scene-tool" :disabled="!selectedBlockCanRotate" @click="rotateSelectedBlockZ(-1)">↺ 90°</button>
                                     <button type="button" class="scene-tool" :disabled="!selectedBlockCanRotate" @click="rotateSelectedBlockZ(1)">↻ 90°</button>
-                                    <button type="button" class="scene-tool" :disabled="!canLiftBlock(selectedBlock)" @click="releaseSelectedBlock">Снять</button>
+                                    <button
+                                        type="button"
+                                        class="scene-tool"
+                                        :disabled="!canLiftBlock(selectedBlock) && !isBlockAssignedToStaging(selectedBlock.key)"
+                                        @click="releaseSelectedBlock"
+                                    >
+                                        {{ isMultiTruckManualMode() ? 'На площадку' : 'Снять' }}
+                                    </button>
                                 </div>
                                 <div v-if="multiVehicleSummary && multiVehicleSummary.truckCount > 1" class="mt-2 flex flex-wrap items-center gap-1">
-                                    <span class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">На машину:</span>
+                                    <span class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">К машине:</span>
                                     <button
                                         v-for="(truck, truckIndex) in multiVehicleSummary.trucks"
                                         :key="`move-${truck.truckIndex}`"
                                         type="button"
                                         class="scene-tool"
-                                        :disabled="activeTruckIndex === truckIndex"
+                                        :class="activeTruckIndex === truckIndex ? 'scene-tool-active' : ''"
                                         @click="moveSelectedBlockToTruck(truckIndex)"
                                     >
                                         {{ truck.truckLabel }}
@@ -450,7 +466,8 @@
                                 <div class="font-semibold">Парк машин</div>
                                 <div class="mt-1">Всего {{ multiVehicleSummary.truckCount }} маш · размещено {{ multiVehicleSummary.placedUnits }} / {{ multiVehicleSummary.totalUnits }} мест</div>
                                 <div v-if="multiVehicleSummary.truckCount > 1" class="mt-1 text-sky-800 dark:text-sky-100">
-                                    Переключайте вкладки «Машина N» над сценой — остаток не уходит на площадку сборки.
+                                    Перенос между машинами: «На площадку» → вкладка «Машина N» → перетащите с клетчатой площадки в кузов.
+                                    <span v-if="layoutResult.stagingCount"> На площадке: {{ layoutResult.stagingCount }} шт.</span>
                                 </div>
                                 <div v-if="multiVehicleSummary.unplacedUnits > 0" class="mt-1 text-amber-800 dark:text-amber-200">
                                     Не размещено: {{ multiVehicleSummary.unplacedUnits }} мест
@@ -478,15 +495,29 @@
                             </button>
                             <div v-if="showAxleLoad" class="mt-2 text-xs text-zinc-500 print:hidden">Автоматический расчёт осевой нагрузки появится в следующей версии.</div>
                             <div class="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto print:hidden">
+                                <div v-if="manualMode && selectedBlock" class="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] leading-5 text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+                                    На сцене выбрано: <strong>{{ selectedBlock.name }}</strong><span v-if="selectedBlockUnitLabel"> · {{ selectedBlockUnitLabel }}</span>.
+                                    Параметры — в подсвеченной строке ниже или на вкладке «Груз».
+                                </div>
                                 <div v-for="(group, groupIndex) in projectForm.cargo_groups" :key="group.local_id">
                                     <div class="truncate text-[11px] font-semibold uppercase text-zinc-500">{{ group.recipient_name || group.name }}</div>
-                                    <div v-for="(item, index) in group.items" :key="item.local_id" class="mt-2 flex items-start gap-2 text-xs">
+                                    <button
+                                        v-for="(item, index) in group.items"
+                                        :key="item.local_id"
+                                        type="button"
+                                        class="cargo-sidebar-item mt-2 flex w-full items-start gap-2 text-left text-xs"
+                                        :class="isCargoItemSelectedInScene(groupIndex, index) ? 'cargo-sidebar-item-selected' : ''"
+                                        :ref="isCargoItemSelectedInScene(groupIndex, index) ? bindSelectedCargoListEl : undefined"
+                                        @click="openCargoItemEditor(groupIndex, index)"
+                                    >
                                         <span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" :style="{ backgroundColor: cargoColorForItem(groupIndex, index) }" />
                                         <span class="min-w-0 flex-1">
                                             <span class="font-semibold">{{ index + 1 }}. {{ item.name }}</span>
+                                            <span v-if="isCargoItemSelectedInScene(groupIndex, index) && selectedBlockUnitLabel" class="ml-1 font-semibold text-sky-700 dark:text-sky-300">({{ selectedBlockUnitLabel }})</span>
                                             <span class="mt-0.5 block text-zinc-500">{{ item.length_mm }} × {{ item.width_mm }} × {{ item.height_mm }} мм, {{ formatKg(item.weight_kg) }}, {{ item.quantity }} шт</span>
+                                            <span v-if="isCargoItemSelectedInScene(groupIndex, index)" class="mt-1 block text-[11px] font-semibold text-sky-700 dark:text-sky-300">Изменить параметры →</span>
                                         </span>
-                                    </div>
+                                    </button>
                                 </div>
                             </div>
                             <button type="button" class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white print:hidden" @click="exportCalculationPdf">
@@ -639,6 +670,8 @@ import {
     transportAllowsOversize,
     blocksOverlap3D,
     blocksOverlapXY,
+    blockCountsAsLoaded,
+    blockFitsInBounds,
     buildSceneBounds,
     SCENE_BASE_DECK_WIDTH_PX,
     sceneZScalePxPerMm,
@@ -660,6 +693,11 @@ import {
     pickBlockAtScenePoint,
     pickBlockNearScenePoint,
     pickTopBlockFromCandidates,
+    MANUAL_STAGING_TRUCK,
+    isManualStagingTruckIndex,
+    sourceKeyFromBlockKey,
+    buildManualStagingBlocks,
+    manualPlacementWarnings,
 } from '@/support/loadingPlannerLayout.js';
 
 defineOptions({
@@ -845,14 +883,32 @@ const autoMultiLayoutResult = computed(() => {
     return calculateMultiVehicleLayout(selectedTransport.value, cargoFlat.value, layoutOptions.value);
 });
 
-function sourceKeyFromBlockKey(key) {
-    const separator = key.lastIndexOf('-');
-
-    return separator > 0 ? key.slice(0, separator) : key;
-}
-
 function manualTruckAssignmentsMap() {
     return projectForm.value?.calculation?.manual_truck_assignments ?? {};
+}
+
+function isMultiTruckManualMode() {
+    return manualMode.value && (multiVehicleSummary.value?.truckCount ?? 0) > 1;
+}
+
+function stagingAssignmentKeys(assignments = manualTruckAssignmentsMap()) {
+    return Object.entries(assignments)
+        .filter(([, truckIndex]) => isManualStagingTruckIndex(truckIndex))
+        .map(([key]) => key);
+}
+
+function isBlockAssignedToStaging(blockKey) {
+    return isManualStagingTruckIndex(manualTruckAssignmentsMap()[blockKey]);
+}
+
+function ensureCalculationState() {
+    if (!projectForm.value) {
+        return;
+    }
+
+    if (!projectForm.value.calculation) {
+        projectForm.value.calculation = {};
+    }
 }
 
 function hasManualTruckAssignments() {
@@ -861,7 +917,9 @@ function hasManualTruckAssignments() {
 
 function manualTruckCountFromState() {
     const indexes = [
-        ...Object.values(manualTruckAssignmentsMap()).map((value) => Number(value)),
+        ...Object.values(manualTruckAssignmentsMap())
+            .filter((value) => !isManualStagingTruckIndex(value))
+            .map((value) => Number(value)),
         ...Object.keys(basePlacementsByTruck.value ?? {}).map((value) => Number(value)),
     ];
 
@@ -876,7 +934,7 @@ function cargoItemsForManualTruck(truckIndex, assignments, cargoItems) {
     const counts = new Map();
 
     for (const [key, assignedIndex] of Object.entries(assignments)) {
-        if (Number(assignedIndex) !== Number(truckIndex)) {
+        if (isManualStagingTruckIndex(assignedIndex) || Number(assignedIndex) !== Number(truckIndex)) {
             continue;
         }
 
@@ -995,12 +1053,27 @@ const layoutResult = computed(() => {
     const manualMulti = manualMultiLayoutResult.value;
     if (manualMulti && manualMulti.truckCount > 1) {
         const truck = manualMulti.trucks[activeTruckIndex.value] ?? manualMulti.trucks[0];
+        const stagingBlocks = buildManualStagingBlocks(
+            selectedTransport.value,
+            cargoFlat.value,
+            stagingAssignmentKeys(),
+            manualPlacements.value,
+        );
+        const blocks = sortBlocksForScenePaint([...truck.blocks, ...stagingBlocks]);
+        const bounds = truck.bounds ?? buildSceneBounds(selectedTransport.value);
+        const warnings = [...new Set([
+            ...manualMulti.warnings,
+            ...manualPlacementWarnings(selectedTransport.value, bounds, blocks),
+        ])];
 
         return {
             ...truck,
+            blocks,
+            bounds,
             fits: manualMulti.fits,
             multiSummary: manualMulti,
-            warnings: manualMulti.warnings,
+            warnings,
+            stagingCount: stagingBlocks.length,
         };
     }
 
@@ -1075,6 +1148,69 @@ function emptySceneLayout(transport) {
     };
 }
 const selectedBlock = computed(() => layoutResult.value.blocks.find((block) => block.key === selectedBlockKey.value) ?? null);
+
+const selectedBlockUnitLabel = computed(() => {
+    const block = selectedBlock.value;
+    if (!block) {
+        return null;
+    }
+
+    const prefix = `${block.source_key}-`;
+    if (!block.key.startsWith(prefix)) {
+        return null;
+    }
+
+    const unitIndex = Number(block.key.slice(prefix.length));
+    if (!Number.isFinite(unitIndex)) {
+        return null;
+    }
+
+    const item = cargoFlat.value.find((entry) => entry.source_key === block.source_key);
+    if (!item || Number(item.quantity || 0) <= 1) {
+        return null;
+    }
+
+    return `место ${unitIndex + 1} из ${item.quantity}`;
+});
+
+const selectedCargoListEl = ref(null);
+
+function bindSelectedCargoListEl(element) {
+    selectedCargoListEl.value = element;
+}
+
+function isCargoItemSelectedInScene(groupIndex, itemIndex) {
+    if (!selectedBlock.value) {
+        return false;
+    }
+
+    const item = projectForm.value?.cargo_groups?.[groupIndex]?.items?.[itemIndex];
+    if (!item) {
+        return false;
+    }
+
+    return cargoItemKey(item) === selectedBlock.value.source_key;
+}
+
+watch(selectedBlockKey, async () => {
+    if (!selectedBlockKey.value || !selectedBlock.value) {
+        return;
+    }
+
+    const groups = projectForm.value?.cargo_groups ?? [];
+    for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+        const items = groups[groupIndex].items ?? [];
+        for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+            if (cargoItemKey(items[itemIndex]) === selectedBlock.value.source_key) {
+                activeCargoGroupIndex.value = groupIndex;
+                break;
+            }
+        }
+    }
+
+    await nextTick();
+    selectedCargoListEl.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+});
 
 const selectedBlockCanRotate = computed(() => {
     if (!selectedBlock.value) {
@@ -2107,17 +2243,124 @@ function finalizeBlockDrag() {
             z: validZ,
             locked: false,
         });
+        syncTruckAssignmentAfterPlacement(block, blockDrag.value.lastValidX, blockDrag.value.lastValidY);
     } else {
         updateManualPlacement(block.key, { ...placement, x, y, z, locked: true });
+        syncTruckAssignmentAfterPlacement(block, x, y);
     }
 
     blockDrag.value = null;
 }
 
-function releaseSelectedBlock() {
-    if (!selectedBlock.value || !projectForm.value?.calculation?.manual_placements) {
+function blockLoadsInTrailerAt(x, y, block, transport) {
+    const probe = {
+        x,
+        y,
+        length: block.length,
+        width: block.width,
+        is_oversize: block.is_oversize,
+    };
+
+    return blockInTrailer(probe, transport)
+        || (Boolean(block.is_oversize) && blocksOverlapTrailerXY(probe, transport));
+}
+
+function syncTruckAssignmentAfterPlacement(block, x, y) {
+    if (!isMultiTruckManualMode() || !selectedTransport.value || !projectForm.value) {
         return;
     }
+
+    ensureCalculationState();
+    const transport = selectedTransport.value;
+    const assignments = { ...manualTruckAssignmentsMap() };
+
+    if (blockLoadsInTrailerAt(x, y, block, transport)) {
+        assignments[block.key] = activeTruckIndex.value;
+    } else {
+        assignments[block.key] = MANUAL_STAGING_TRUCK;
+    }
+
+    projectForm.value.calculation.manual_truck_assignments = assignments;
+}
+
+function placeBlockOnStagingPad(block) {
+    if (!selectedTransport.value || !projectForm.value) {
+        return;
+    }
+
+    ensureCalculationState();
+    const bounds = sceneBounds.value ?? buildSceneBounds(selectedTransport.value);
+    const others = layoutResult.value.blocks.filter((candidate) => candidate.key !== block.key);
+    const startX = bounds.min_x + 400;
+    const startY = bounds.min_y + 300;
+
+    for (let attempt = 0; attempt < 48; attempt += 1) {
+        const col = attempt % 4;
+        const row = Math.floor(attempt / 4);
+        const candidateX = startX + col * (Number(block.length) + 350);
+        const candidateY = startY + row * (Number(block.width) + 350);
+        const probe = {
+            x: candidateX,
+            y: candidateY,
+            length: block.length,
+            width: block.width,
+        };
+
+        if (!blockFitsInBounds(bounds, probe)) {
+            continue;
+        }
+
+        const clash = others.some((other) => blocksOverlapXY(probe, other));
+        if (clash) {
+            continue;
+        }
+
+        updateManualPlacement(block.key, {
+            ...ensureManualPlacement(block),
+            x: candidateX,
+            y: candidateY,
+            z: 0,
+            locked: false,
+        });
+        projectForm.value.calculation.manual_truck_assignments = {
+            ...manualTruckAssignmentsMap(),
+            [block.key]: MANUAL_STAGING_TRUCK,
+        };
+
+        return;
+    }
+
+    updateManualPlacement(block.key, {
+        ...ensureManualPlacement(block),
+        x: startX,
+        y: startY,
+        z: 0,
+        locked: false,
+    });
+    projectForm.value.calculation.manual_truck_assignments = {
+        ...manualTruckAssignmentsMap(),
+        [block.key]: MANUAL_STAGING_TRUCK,
+    };
+}
+
+function releaseSelectedBlock() {
+    if (!selectedBlock.value || !projectForm.value) {
+        return;
+    }
+
+    if (isMultiTruckManualMode()) {
+        placeBlockOnStagingPad(selectedBlock.value);
+        selectedBlockKey.value = selectedBlock.value.key;
+        projectForm.value.calculation.selected_manual_key = selectedBlock.value.key;
+
+        return;
+    }
+
+    ensureCalculationState();
+    if (!projectForm.value.calculation.manual_placements) {
+        return;
+    }
+
     const next = { ...projectForm.value.calculation.manual_placements };
     delete next[selectedBlock.value.key];
     projectForm.value.calculation.manual_placements = next;
@@ -2150,13 +2393,17 @@ function moveSelectedBlockToTruck(targetTruckIndex) {
         return;
     }
 
-    const key = selectedBlock.value.key;
-    projectForm.value.calculation.manual_truck_assignments = {
-        ...manualTruckAssignmentsMap(),
-        [key]: targetTruckIndex,
-    };
+    const block = selectedBlock.value;
+    const transport = selectedTransport.value;
+
+    if (transport && blockCountsAsLoaded(block, transport) && !isBlockAssignedToStaging(block.key)) {
+        placeBlockOnStagingPad(block);
+    }
+
     activeTruckIndex.value = targetTruckIndex;
-    selectedBlockKey.value = key;
+    selectedBlockKey.value = block.key;
+    projectForm.value.calculation.selected_manual_key = block.key;
+    focusSceneViewport();
 }
 
 function updateManualPlacement(key, placement) {
@@ -3205,6 +3452,36 @@ function formatMm(value) {
     background: rgb(var(--crm-surface-muted));
 }
 
+.cargo-row-scene-selected,
+.cargo-sidebar-item-selected {
+    background: rgb(224 242 254 / 0.95);
+    box-shadow: inset 0 0 0 2px rgb(14 165 233 / 0.55);
+}
+
+:global(.dark) .cargo-row-scene-selected,
+:global(.dark) .cargo-sidebar-item-selected {
+    background: rgb(12 74 110 / 0.35);
+    box-shadow: inset 0 0 0 2px rgb(56 189 248 / 0.45);
+}
+
+.cargo-sidebar-item {
+    border-radius: var(--crm-radius-lg);
+    padding: 0.5rem 0.625rem;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cargo-sidebar-item:hover {
+    background: rgb(var(--crm-surface-muted));
+}
+
+.cargo-sidebar-item-selected:hover {
+    background: rgb(224 242 254 / 0.95);
+}
+
+:global(.dark) .cargo-sidebar-item-selected:hover {
+    background: rgb(12 74 110 / 0.35);
+}
+
 .cargo-swatch {
     margin-top: 0.25rem;
     height: 1rem;
@@ -3256,6 +3533,17 @@ function formatMm(value) {
 
 .scene-tool:disabled {
     opacity: 0.45;
+}
+
+.scene-tool-active {
+    border-color: rgb(14 165 233 / 0.75);
+    background: rgb(224 242 254 / 0.95);
+    color: rgb(3 105 161);
+}
+
+:global(.dark) .scene-tool-active {
+    background: rgb(12 74 110 / 0.45);
+    color: rgb(186 230 253);
 }
 
 .qty-button {

@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import {
     blockCountsAsLoaded,
     blockInTrailer,
+    buildManualStagingBlocks,
     calculateLayout,
     calculateMultiVehicleLayout,
+    isManualStagingTruckIndex,
     isOversizeUnit,
+    MANUAL_STAGING_TRUCK,
     pickBlockAtScenePoint,
     pickBlockNearScenePoint,
     pickTopBlockFromCandidates,
@@ -216,6 +219,22 @@ assert.equal(
     'b-0',
     'top block from candidates',
 );
+
+const stagingKeys = ['pallet-a-0'];
+const stagingBlocks = buildManualStagingBlocks(transport, [{
+    source_key: 'pallet-a',
+    name: 'Паллета EUR',
+    length_mm: 1200,
+    width_mm: 800,
+    height_mm: 1200,
+    weight_kg: 350,
+    color: '#8b5cf6',
+}], stagingKeys, {
+    'pallet-a-0': { x: -3000, y: 500, z: 0, locked: false },
+});
+assert.equal(stagingBlocks.length, 1, 'staging block built');
+assert.equal(stagingBlocks[0].in_trailer, false, 'staging block stays off trailer');
+assert.equal(isManualStagingTruckIndex(MANUAL_STAGING_TRUCK), true, 'staging truck sentinel');
 
 const heightOversizeLayout = calculateLayout(platformTrailer, [{
     source_key: 'cabin',

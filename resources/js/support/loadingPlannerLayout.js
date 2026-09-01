@@ -920,6 +920,47 @@ export function clientPointToSceneMm(clientX, clientY, deckRect, bounds, sceneRo
     return { x: xMm, y: yMm };
 }
 
+/** Ключ «машины» для груза на общей площадке между вкладками парка. */
+export const MANUAL_STAGING_TRUCK = 'staging';
+
+export function isManualStagingTruckIndex(value) {
+    return value === MANUAL_STAGING_TRUCK;
+}
+
+export function sourceKeyFromBlockKey(key) {
+    const separator = String(key).lastIndexOf('-');
+
+    return separator > 0 ? key.slice(0, separator) : key;
+}
+
+export function buildManualStagingBlocks(transport, cargoItems, stagingKeys, manualOverrides) {
+    const itemsBySource = new Map(cargoItems.map((item) => [item.source_key, item]));
+    const bounds = buildSceneBounds(transport);
+    let slotY = bounds.min_y + 300;
+    const blocks = [];
+
+    for (const key of stagingKeys) {
+        const item = itemsBySource.get(sourceKeyFromBlockKey(key));
+        if (!item) {
+            continue;
+        }
+
+        const manual = manualOverrides[key] ?? null;
+        const placement = manual ?? {
+            x: bounds.min_x + 400,
+            y: slotY,
+            z: 0,
+            locked: false,
+            manual: true,
+        };
+
+        slotY += Number(item.width_mm || 800) + 400;
+        blocks.push(buildBlockFromPlacement(item, key, { ...placement, manual: true }, transport));
+    }
+
+    return blocks;
+}
+
 function buildBlockFromPlacement(item, blockKey, placement, transport) {
     const rotationZ = placementRotationZ(placement);
     const rotationY = placementRotationY(placement);
