@@ -211,7 +211,7 @@
                             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800 print:hidden">
                                 <div class="flex min-w-0 flex-col gap-2">
                                     <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Расчёт загрузки</div>
-                                    <div v-if="multiVehicleSummary && multiVehicleSummary.truckCount > 1" class="flex flex-wrap gap-1">
+                                    <div v-if="multiVehicleSummary && multiVehicleSummary.truckCount > 1" class="flex max-w-full flex-wrap gap-1">
                                         <button
                                             v-for="(truck, truckIndex) in multiVehicleSummary.trucks"
                                             :key="`truck-${truck.truckIndex}`"
@@ -369,7 +369,7 @@
                                     <span>Статус</span><strong>{{ layoutStatusLabel }}</strong>
                                 </div>
                             </div>
-                            <div v-if="multiVehicleSummary && (multiVehicleSummary.truckCount > 1 || multiVehicleSummary.unplacedUnits > 0)" class="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+                            <div v-if="showFleetSummary" class="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
                                 <div class="font-semibold">Парк машин</div>
                                 <div class="mt-1">Всего {{ multiVehicleSummary.truckCount }} маш · размещено {{ multiVehicleSummary.placedUnits }} / {{ multiVehicleSummary.totalUnits }} мест</div>
                                 <div v-if="multiVehicleSummary.truckCount > 1" class="mt-1 text-sky-800 dark:text-sky-100">
@@ -377,6 +377,9 @@
                                 </div>
                                 <div v-if="multiVehicleSummary.unplacedUnits > 0" class="mt-1 text-amber-800 dark:text-amber-200">
                                     Не размещено: {{ multiVehicleSummary.unplacedUnits }} мест
+                                    <span v-if="multiVehicleSummary.oversizedItems?.length">
+                                        (негабарит без разрешения прицепа: {{ multiVehicleSummary.oversizedItems.join(', ') }})
+                                    </span>
                                 </div>
                             </div>
                             <div v-if="layoutResult.warnings.length" class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
@@ -777,11 +780,17 @@ const layoutResult = computed(() => {
                 };
             }
 
+            // Ни одной машины: не подмешиваем auto-layout (иначе сцена «есть груз», а парк пишет 0/N).
             return {
-                ...autoLayoutResult.value,
+                ...emptySceneLayout(selectedTransport.value),
                 fits: false,
                 warnings: multi.warnings,
                 multiSummary: multi,
+                totalUnits: multi.totalUnits,
+                placedUnits: 0,
+                placedInTrailer: 0,
+                totalWeightKg: cargoFlat.value.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.weight_kg || 0), 0),
+                totalVolumeM3: cargoFlat.value.reduce((sum, item) => sum + Number(item.quantity || 0) * item.length_mm * item.width_mm * item.height_mm / 1_000_000_000, 0),
             };
         }
 
@@ -806,9 +815,22 @@ const layoutResult = computed(() => {
 
 const multiVehicleSummary = computed(() => layoutResult.value?.multiSummary ?? multiLayoutResult.value ?? null);
 
+const showFleetSummary = computed(() => {
+    const multi = multiVehicleSummary.value;
+    if (!multi || manualMode.value) {
+        return false;
+    }
+
+    return multi.truckCount > 1 || (multi.truckCount > 0 && multi.unplacedUnits > 0);
+});
+
 const layoutStatusLabel = computed(() => {
     const multi = multiVehicleSummary.value;
     if (!multi || multi.truckCount <= 1) {
+        if (multi?.oversizedItems?.length && multi.truckCount === 0) {
+            return 'Негабарит';
+        }
+
         return layoutResult.value?.fits ? 'Влезает' : 'Не влезает';
     }
 
@@ -818,6 +840,27 @@ const layoutStatusLabel = computed(() => {
 
     return `${multi.truckCount} маш · осталось ${multi.unplacedUnits} мест`;
 });
+
+function emptySceneLayout(transport) {
+    return {
+        blocks: [],
+        bounds: transport ? buildSceneBounds(transport) : null,
+        warnings: [],
+        fits: false,
+        totalUnits: 0,
+        placedUnits: 0,
+        placedInTrailer: 0,
+        totalWeightKg: 0,
+        totalVolumeM3: 0,
+        ldm: 0,
+        freeLengthMm: Number(transport?.length_mm || 0),
+        freeVolumeM3: transport
+            ? Number(transport.length_mm) * Number(transport.width_mm) * Number(transport.height_mm) / 1_000_000_000
+            : 0,
+        usedVolumePercent: 0,
+        usedPayloadPercent: 0,
+    };
+}
 const selectedBlock = computed(() => layoutResult.value.blocks.find((block) => block.key === selectedBlockKey.value) ?? null);
 
 const sceneBlocks = computed(() => {

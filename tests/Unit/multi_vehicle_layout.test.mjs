@@ -71,7 +71,31 @@ const oversized = calculateMultiVehicleLayout(transport, [{
 }]);
 
 assert.equal(oversized.fits, false, 'oversized cargo on strict trailer should not fit');
+assert.equal(oversized.truckCount, 0, 'no trucks when every unit is oversized');
 assert.ok(oversized.warnings.some((warning) => warning.includes('габарит')), 'oversized warning expected');
+assert.equal(oversized.unplacedUnits, 1);
+
+const mixed = calculateMultiVehicleLayout(transport, [
+    { ...palletItem, quantity: 10 },
+    {
+        source_key: 'cabin',
+        name: 'Кабина',
+        quantity: 1,
+        length_mm: 4940,
+        width_mm: 1700,
+        height_mm: 4000,
+        weight_kg: 4300,
+        can_rotate: true,
+        stackable: false,
+        color: '#0f0',
+    },
+]);
+assert.ok(mixed.truckCount >= 1, 'placeable cargo still forms trucks');
+assert.equal(mixed.placedUnits, 10, 'pallets placed despite cabin oversize');
+assert.equal(mixed.unplacedUnits, 1, 'cabin remains unplaced');
+assert.ok(mixed.oversizedItems.includes('Кабина'), 'cabin listed as oversized');
+assert.ok(mixed.warnings.some((warning) => warning.includes('Кабина')), 'cabin warning kept');
+
 assert.equal(isOversizeUnit({
     length_mm: 15000,
     width_mm: 3000,

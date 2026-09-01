@@ -1144,35 +1144,23 @@ export function calculateMultiVehicleLayout(transport, items, options = {}) {
     };
 
     const itemsBySource = new Map(items.map((item) => [item.source_key, item]));
-    let remainingItems = cloneItemsForLayout(items);
     const trucks = [];
     const warnings = [];
-    const oversizedItems = [];
+    const oversizedNames = [];
+    const placeableItems = [];
 
-    for (const item of remainingItems) {
+    for (const item of cloneItemsForLayout(items)) {
         if (!unitFitsTransportDimensions(item, transport)) {
-            oversizedItems.push(item.name || item.source_key);
+            oversizedNames.push(item.name || item.source_key);
+            warnings.push(`${item.name || item.source_key}: габарит больше кузова — выберите прицеп с негабаритом (платформа) или уменьшите место.`);
+            continue;
         }
+
+        placeableItems.push(item);
     }
 
-    if (oversizedItems.length > 0) {
-        const uniqueNames = [...new Set(oversizedItems)];
-
-        return {
-            fits: false,
-            truckCount: 0,
-            trucks: [],
-            totalUnits: sumItemUnits(items),
-            placedUnits: 0,
-            unplacedUnits: sumItemUnits(items),
-            warnings: [
-                ...uniqueNames.map((name) => `${name}: габарит больше кузова — выберите прицеп с негабаритом (платформа) или уменьшите место.`),
-            ],
-            oversizedItems: uniqueNames,
-            usedPayloadPercent: 0,
-            usedVolumePercent: 0,
-        };
-    }
+    const uniqueOversized = [...new Set(oversizedNames)];
+    let remainingItems = placeableItems;
 
     while (sumItemUnits(remainingItems) > 0 && trucks.length < maxVehicles) {
         const layout = calculateAutoLayout(transport, remainingItems, { ...layoutOptions, trailerOnly: true });
@@ -1223,9 +1211,10 @@ export function calculateMultiVehicleLayout(transport, items, options = {}) {
     const totalUnits = sumItemUnits(items);
     const placedUnits = trucks.reduce((sum, truck) => sum + truck.placedInTrailer, 0);
     const unplacedUnits = Math.max(0, totalUnits - placedUnits);
+    const leftoverPlaceable = sumItemUnits(remainingItems);
 
-    if (unplacedUnits > 0 && trucks.length >= maxVehicles) {
-        warnings.push(`Не хватило лимита в ${maxVehicles} машин — осталось ${unplacedUnits} мест.`);
+    if (leftoverPlaceable > 0 && trucks.length >= maxVehicles) {
+        warnings.push(`Не хватило лимита в ${maxVehicles} машин — осталось ${leftoverPlaceable} мест.`);
     }
 
     const aggregateWarnings = [...new Set([
@@ -1241,7 +1230,7 @@ export function calculateMultiVehicleLayout(transport, items, options = {}) {
         placedUnits,
         unplacedUnits,
         warnings: aggregateWarnings,
-        oversizedItems: [],
+        oversizedItems: uniqueOversized,
         usedPayloadPercent: averagePercent(trucks.map((truck) => truck.usedPayloadPercent)),
         usedVolumePercent: averagePercent(trucks.map((truck) => truck.usedVolumePercent)),
     };
