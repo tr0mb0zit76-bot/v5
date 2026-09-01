@@ -156,10 +156,15 @@ class LoadingPlannerController extends Controller
         $validated = $request->validate($this->projectRules());
 
         DB::transaction(function () use ($loadingPlannerProject, $validated): void {
+            $calculation = $this->normalizeProjectCalculation(
+                $validated['calculation'] ?? null,
+                isset($validated['selected_transport_template_id']) ? (int) $validated['selected_transport_template_id'] : null,
+            );
+
             $loadingPlannerProject->update([
                 'name' => $validated['name'],
                 'selected_transport_template_id' => $validated['selected_transport_template_id'] ?? null,
-                'calculation' => $validated['calculation'] ?? null,
+                'calculation' => $calculation,
                 'notes' => $validated['notes'] ?? null,
             ]);
 
@@ -221,13 +226,15 @@ class LoadingPlannerController extends Controller
     {
         $validated = $request->validate($this->transportTemplateRules());
 
-        TransportTemplate::query()->create([
+        $transportTemplate = TransportTemplate::query()->create([
             ...$validated,
             'created_by' => $request->user()?->id,
             'is_system' => false,
         ]);
 
-        return back();
+        return back()->with('flash', [
+            'transport_template_created' => $transportTemplate->id,
+        ]);
     }
 
     public function updateTransportTemplate(Request $request, TransportTemplate $transportTemplate): RedirectResponse
@@ -410,6 +417,8 @@ class LoadingPlannerController extends Controller
             'selected_transport_template_id' => ['nullable', 'integer', 'exists:transport_templates,id'],
             'notes' => ['nullable', 'string'],
             'calculation' => ['nullable', 'array'],
+            'calculation.transport_template_ids' => ['nullable', 'array', 'max:10'],
+            'calculation.transport_template_ids.*' => ['integer', 'exists:transport_templates,id'],
             'cargo_groups' => ['required', 'array', 'min:1'],
             'cargo_groups.*.name' => ['required', 'string', 'max:255'],
             'cargo_groups.*.recipient_name' => ['nullable', 'string', 'max:255'],
@@ -453,12 +462,64 @@ class LoadingPlannerController extends Controller
 
     private function ensureCanMutateTransportTemplate(Request $request, TransportTemplate $transportTemplate): void
     {
-        if (! $transportTemplate->is_system) {
+        if ($transportTemplate->is_system) {
+            $user = $request->user();
+            abort_unless($user !== null && $user->isAdmin(), 403);
+
             return;
         }
 
         $user = $request->user();
-        abort_unless($user !== null && $user->isAdmin(), 403);
+        if ($user === null) {
+            abort(403);
+        }
+
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            return;
+        }
+
+        abort_unless((int) $transportTemplate->created_by === (int) $user->id, 403);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $calculation
+     * @return array<string, mixed>|null
+     */
+    private function normalizeProjectCalculation(?array $calculation, ?int $selectedTransportTemplateId): ?array
+    {
+        if ($calculation === null) {
+            return null;
+        }
+
+        $requestedIds = collect($calculation['transport_template_ids'] ?? [])
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($selectedTransportTemplateId !== null && $selectedTransportTemplateId > 0) {
+            $requestedIds = $requestedIds->prepend($selectedTransportTemplateId)->unique()->values();
+        }
+
+        $requestedIds = $requestedIds->take(10);
+
+        if ($requestedIds->isEmpty()) {
+            $calculation['transport_template_ids'] = [];
+
+            return $calculation;
+        }
+
+        $validIds = TransportTemplate::query()
+            ->whereIn('id', $requestedIds->all())
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id);
+
+        $calculation['transport_template_ids'] = $requestedIds
+            ->filter(fn (int $id): bool => $validIds->contains($id))
+            ->values()
+            ->all();
+
+        return $calculation;
     }
 
     private function createStarterProject(Request $request): LoadingPlannerProject

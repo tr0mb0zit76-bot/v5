@@ -269,6 +269,130 @@ class LoadingPlannerTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_manager_can_store_user_transport_template(): void
+    {
+        if (! Schema::hasTable('transport_templates')) {
+            $this->markTestSkipped('transport_templates table is unavailable.');
+        }
+
+        $manager = $this->createPlannerUser('manager');
+
+        $this->actingAs($manager)
+            ->post(route('modules.how-much-fits.transport-templates.store'), [
+                'name' => 'Контейнер 40 HC (менеджер)',
+                'category' => 'container',
+                'length_mm' => 12030,
+                'width_mm' => 2350,
+                'height_mm' => 2690,
+                'max_payload_kg' => 26500,
+                'is_active' => true,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('transport_templates', [
+            'name' => 'Контейнер 40 HC (менеджер)',
+            'category' => 'container',
+            'created_by' => $manager->id,
+            'is_system' => false,
+        ]);
+    }
+
+    public function test_manager_can_save_project_with_multiple_transport_templates(): void
+    {
+        if (! Schema::hasTable('transport_templates')) {
+            $this->markTestSkipped('transport_templates table is unavailable.');
+        }
+
+        $manager = $this->createPlannerUser('manager');
+        $truck = TransportTemplate::query()->create([
+            'name' => 'Тент 13.6',
+            'category' => 'truck',
+            'length_mm' => 13600,
+            'width_mm' => 2450,
+            'height_mm' => 2700,
+            'max_payload_kg' => 22000,
+            'is_active' => true,
+            'is_system' => false,
+            'created_by' => $manager->id,
+        ]);
+        $container = TransportTemplate::query()->create([
+            'name' => 'Контейнер 20 ft',
+            'category' => 'container',
+            'length_mm' => 5890,
+            'width_mm' => 2350,
+            'height_mm' => 2390,
+            'max_payload_kg' => 21700,
+            'is_active' => true,
+            'is_system' => false,
+            'created_by' => $manager->id,
+        ]);
+
+        $project = LoadingPlannerProject::query()->create([
+            'user_id' => $manager->id,
+            'name' => 'Сравнение транспорта',
+            'status' => 'draft',
+            'selected_transport_template_id' => $truck->id,
+        ]);
+
+        $this->actingAs($manager)
+            ->patch(route('modules.how-much-fits.projects.update', $project), [
+                'name' => 'Сравнение транспорта',
+                'selected_transport_template_id' => $container->id,
+                'calculation' => [
+                    'transport_template_ids' => [$truck->id, $container->id],
+                ],
+                'cargo_groups' => [[
+                    'name' => 'Группа',
+                    'items' => [[
+                        'name' => 'Паллета',
+                        'quantity' => 10,
+                        'length_mm' => 1200,
+                        'width_mm' => 800,
+                        'height_mm' => 1200,
+                    ]],
+                ]],
+            ])
+            ->assertRedirect();
+
+        $project->refresh();
+
+        $this->assertSame($container->id, (int) $project->selected_transport_template_id);
+        $this->assertSame([$truck->id, $container->id], $project->calculation['transport_template_ids'] ?? []);
+    }
+
+    public function test_manager_cannot_update_foreign_user_transport_template(): void
+    {
+        if (! Schema::hasTable('transport_templates')) {
+            $this->markTestSkipped('transport_templates table is unavailable.');
+        }
+
+        $owner = $this->createPlannerUser('manager');
+        $intruder = $this->createPlannerUser('manager');
+
+        $template = TransportTemplate::query()->create([
+            'name' => 'Чужой шаблон',
+            'category' => 'truck',
+            'length_mm' => 13600,
+            'width_mm' => 2450,
+            'height_mm' => 2700,
+            'max_payload_kg' => 22000,
+            'is_active' => true,
+            'is_system' => false,
+            'created_by' => $owner->id,
+        ]);
+
+        $this->actingAs($intruder)
+            ->patch(route('modules.how-much-fits.transport-templates.update', $template), [
+                'name' => 'Взломанный шаблон',
+                'category' => 'truck',
+                'length_mm' => 13600,
+                'width_mm' => 2450,
+                'height_mm' => 2700,
+                'max_payload_kg' => 22000,
+            ])
+            ->assertForbidden();
+    }
+
     private function createPlannerUser(string $roleName): User
     {
         $role = Role::query()->firstOrCreate([

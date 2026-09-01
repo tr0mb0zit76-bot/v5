@@ -3,28 +3,29 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-08-31 19:45 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `4bed4b9c` · **тема:** WIP ЭДО заявок в git + сводка оплат уже на прод
+**Обновлено:** 2026-09-01 16:25 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** _(после push)_ · **тема:** «Сколько влезет?» — сравнение до 10 видов транспорта + доступ менеджерам
 
-### Итог сессии 2026-08-31 — ЭДО WIP в git (для ноутбука)
+### Итог сессии 2026-09-01 — Loading planner: multi-transport + менеджеры
 
 | Блок | Статус |
 | --- | --- |
-| ЭДО-ack для **заявок** (`request` / `contract_request`): fulfillment + API types | ✅ в git (не на прод) |
-| `ContractorExpectsEdo`, UI `OrderSignedDocumentsTable` / registry rows / Contractors Index | ✅ |
-| Тесты DocumentEdo + RequirementRules + RequestEdoFulfillment | ✅ 29 passed |
-| Сводка оплат: дата из журнала | ✅ `2d0f24a9` **на прод** |
+| Список до **10** видов транспорта в проекте (`calculation.transport_template_ids`) | ✅ |
+| Вкладки сравнения на «Транспорт» и «Расчёт»; фильтр **Платформа** | ✅ |
+| Менеджер: свой шаблон любой категории; системный → копия «… (копия)» | ✅ |
+| Права шаблонов: system — admin; user — автор / admin / supervisor | ✅ |
+| Ранее на прод: площадка между машинами, захват мышью, негабарит, «Своя компания» | ✅ `1c5d2d39`… |
 
-**Прод рантайм:** ещё `2d0f24a9` (сводка). ЭДО-коммит **не деплоили** — только git для ЗАБРАТЬ на ноутбуке.
+**Прод:** `git pull --ff-only` → `npm run build` → `php artisan optimize:clear` (миграций нет).
 
 ```text
 git pull
 pwsh -File scripts/sync-docs-to-yandex.ps1
-# фронт ЭДО: npm run build (если правите UI)
+# фронт: npm run build (если правите HowMuchFits.vue локально)
 ```
 
-**Следующий шаг (ноутбук):** ЗАБРАТЬ. Untracked локально: `u_tromb_test` (не в git).
+**Следующий шаг (другой ПК):** ЗАБРАТЬ.
 
-**Отложено:** деплой ЭДО на прод; фаза 3 уведомлений реестра; sync status 121/160.
+**Отложено:** деплой ЭДО WIP (`4bed4b9c`); фаза 3 уведомлений реестра.
 
 ---
 

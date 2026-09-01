@@ -165,20 +165,36 @@
                         </div>
                         <div class="mt-4 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800">
                             <div class="bg-sky-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white">
-                                Список транспорта {{ selectedTransport ? 1 : 0 }} / 10
+                                Список транспорта {{ projectTransports.length }} / {{ MAX_PROJECT_TRANSPORTS }}
                             </div>
-                            <div v-if="selectedTransport" class="flex items-start gap-3 bg-white px-4 py-4 dark:bg-zinc-900">
-                                <Truck class="mt-1 h-5 w-5 shrink-0 text-sky-600" />
-                                <div class="min-w-0 flex-1">
-                                    <div class="text-sm font-semibold">{{ selectedTransport.name }}</div>
-                                    <div class="mt-1 text-xs text-zinc-500">{{ transportLabel(selectedTransport) }}</div>
-                                </div>
-                                <div class="flex shrink-0 gap-2">
-                                    <button type="button" class="text-link" @click="openManualTransportModal">редактировать</button>
-                                    <button type="button" class="icon-button" @click="editTransportTemplate(selectedTransport)"><Pencil class="h-4 w-4" /></button>
+                            <div v-if="projectTransports.length === 0" class="px-4 py-6 text-sm text-zinc-500">Транспорт не выбран. Добавьте шаблон или создайте вручную.</div>
+                            <div v-else class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                                <div
+                                    v-for="template in projectTransports"
+                                    :key="`project-transport-${template.id}`"
+                                    class="flex items-start gap-3 px-4 py-4"
+                                    :class="Number(projectForm.selected_transport_template_id) === Number(template.id) ? 'bg-sky-50 dark:bg-sky-950/30' : 'bg-white dark:bg-zinc-900'"
+                                >
+                                    <Truck class="mt-1 h-5 w-5 shrink-0 text-sky-600" />
+                                    <div class="min-w-0 flex-1">
+                                        <div class="text-sm font-semibold">{{ template.name }}</div>
+                                        <div class="mt-1 text-xs text-zinc-500">{{ transportLabel(template) }}</div>
+                                    </div>
+                                    <div class="flex shrink-0 flex-wrap justify-end gap-2">
+                                        <button type="button" class="text-link" @click="selectTransport(template.id)">расчёт</button>
+                                        <button type="button" class="text-link" @click="openManualTransportModal(template)">редактировать</button>
+                                        <button
+                                            v-if="projectTransports.length > 1"
+                                            type="button"
+                                            class="icon-button text-rose-600"
+                                            title="Убрать из списка"
+                                            @click="removeProjectTransport(template.id)"
+                                        >
+                                            <Trash2 class="h-4 w-4" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                            <div v-else class="px-4 py-6 text-sm text-zinc-500">Транспорт не выбран.</div>
                         </div>
                         <div class="mt-4 flex justify-center">
                             <button type="button" :class="`${crmBtnPrimary} inline-flex items-center gap-2 px-6`" @click="openManualTransportModal"><Plus class="h-4 w-4" /> Добавить транспорт вручную</button>
@@ -194,6 +210,7 @@
                                 <button type="button" class="category-tab" :class="transportCategoryFilter === 'truck' ? 'category-tab-active' : ''" @click="transportCategoryFilter = 'truck'">Автотранспорт</button>
                                 <button type="button" class="category-tab" :class="transportCategoryFilter === 'container' ? 'category-tab-active' : ''" @click="transportCategoryFilter = 'container'">Контейнер</button>
                                 <button type="button" class="category-tab" :class="transportCategoryFilter === 'pallet' ? 'category-tab-active' : ''" @click="transportCategoryFilter = 'pallet'">Паллет</button>
+                                <button type="button" class="category-tab" :class="transportCategoryFilter === 'platform' ? 'category-tab-active' : ''" @click="transportCategoryFilter = 'platform'">Платформа</button>
                             </div>
                             <div class="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
                                 <div v-for="template in filteredTransportTemplates" :key="template.id" class="flex items-center gap-3 py-3">
@@ -202,7 +219,16 @@
                                         <div class="truncate text-sm font-semibold">{{ template.name }}</div>
                                         <div class="text-xs text-zinc-500">{{ transportLabel(template) }}</div>
                                     </div>
-                                    <button type="button" class="text-link" @click="addTransportFromTemplate(template)">добавить</button>
+                                    <button
+                                        v-if="!projectTransportIds.includes(Number(template.id))"
+                                        type="button"
+                                        class="text-link"
+                                        :disabled="projectTransports.length >= MAX_PROJECT_TRANSPORTS"
+                                        @click="addTransportFromTemplate(template)"
+                                    >
+                                        добавить
+                                    </button>
+                                    <span v-else class="text-xs font-semibold text-zinc-400">в списке</span>
                                 </div>
                             </div>
                         </div>
@@ -213,6 +239,18 @@
                             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800 print:hidden">
                                 <div class="flex min-w-0 flex-col gap-2">
                                     <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Расчёт загрузки</div>
+                                    <div v-if="projectTransports.length > 1" class="flex max-w-full flex-wrap gap-1">
+                                        <button
+                                            v-for="template in projectTransports"
+                                            :key="`variant-${template.id}`"
+                                            type="button"
+                                            class="group-tab"
+                                            :class="Number(projectForm.selected_transport_template_id) === Number(template.id) ? 'group-tab-active' : ''"
+                                            @click="selectTransport(template.id)"
+                                        >
+                                            {{ template.name }} · {{ layoutSummaryForTransport(template.id)?.placedInTrailer ?? '…' }} шт
+                                        </button>
+                                    </div>
                                     <div v-if="multiVehicleSummary && multiVehicleSummary.truckCount > 1" class="flex max-w-full flex-wrap gap-1">
                                         <button
                                             v-for="(truck, truckIndex) in multiVehicleSummary.trucks"
@@ -641,7 +679,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import {
     ArrowLeftRight,
     Boxes,
@@ -705,6 +743,9 @@ defineOptions({
 });
 
 const DEFAULT_MAX_STACK = 5;
+const MAX_PROJECT_TRANSPORTS = 10;
+
+const page = usePage();
 
 const props = defineProps({
     projects: { type: Array, default: () => [] },
@@ -774,6 +815,24 @@ watch(() => props.selectedProject, (project) => {
     }
 }, { deep: true });
 
+watch(() => projectForm.value?.selected_transport_template_id, (newId, oldId) => {
+    if (!projectForm.value?.calculation || !newId || newId === oldId) {
+        return;
+    }
+
+    const calc = projectForm.value.calculation;
+    if (!calc.manual_placements_by_transport) {
+        calc.manual_placements_by_transport = {};
+    }
+
+    if (oldId) {
+        calc.manual_placements_by_transport[oldId] = { ...(calc.manual_placements ?? {}) };
+    }
+
+    calc.manual_placements = { ...(calc.manual_placements_by_transport[newId] ?? {}) };
+    selectedBlockKey.value = null;
+});
+
 const filteredProjects = computed(() => {
     const query = projectSearch.value.trim().toLowerCase();
     if (!query) {
@@ -836,9 +895,33 @@ const filteredTransportTemplates = computed(() => {
     });
 });
 
+const canEditSystemTransport = computed(() => {
+    const role = page.props.auth?.user?.role;
+
+    return Boolean(role?.is_admin) || role?.name === 'admin';
+});
+
+const projectTransportIds = computed(() => {
+    const ids = projectForm.value?.calculation?.transport_template_ids;
+    if (Array.isArray(ids) && ids.length > 0) {
+        return ids.map((id) => Number(id)).filter((id) => id > 0);
+    }
+
+    const selected = Number(projectForm.value?.selected_transport_template_id);
+    return selected > 0 ? [selected] : [];
+});
+
+const projectTransports = computed(() => projectTransportIds.value
+    .map((id) => props.transportTemplates.find((template) => Number(template.id) === id))
+    .filter(Boolean));
+
 const selectedTransport = computed(() => {
     const id = Number(projectForm.value?.selected_transport_template_id);
-    return props.transportTemplates.find((template) => Number(template.id) === id) ?? props.transportTemplates[0] ?? null;
+    if (id > 0) {
+        return props.transportTemplates.find((template) => Number(template.id) === id) ?? null;
+    }
+
+    return projectTransports.value[0] ?? props.transportTemplates[0] ?? null;
 });
 
 const cargoFlat = computed(() => {
@@ -1504,7 +1587,17 @@ function cloneProject(project) {
         ...project,
         calculation: {
             ...(project.calculation ?? {}),
+            transport_template_ids: (() => {
+                const ids = project.calculation?.transport_template_ids;
+                if (Array.isArray(ids) && ids.length > 0) {
+                    return ids.map((id) => Number(id)).filter((id) => id > 0);
+                }
+
+                const selected = Number(project.selected_transport_template_id);
+                return selected > 0 ? [selected] : [];
+            })(),
             manual_placements: project.calculation?.manual_placements ?? {},
+            manual_placements_by_transport: project.calculation?.manual_placements_by_transport ?? {},
             base_placements: project.calculation?.base_placements ?? {},
             base_placements_by_truck: project.calculation?.base_placements_by_truck ?? {},
             manual_truck_assignments: project.calculation?.manual_truck_assignments ?? {},
@@ -1636,8 +1729,43 @@ function adjustCargoQuantity(delta) {
     cargoItemDraft.value.quantity = Math.max(1, Number(cargoItemDraft.value.quantity || 1) + delta);
 }
 
-function openManualTransportModal() {
-    templateDraft.value = selectedTransport.value ? { ...selectedTransport.value } : blankTemplate();
+function syncProjectTransportIds(ids) {
+    if (!projectForm.value) {
+        return;
+    }
+    if (!projectForm.value.calculation) {
+        projectForm.value.calculation = {};
+    }
+    projectForm.value.calculation.transport_template_ids = ids;
+}
+
+function transportTemplateForEdit(template) {
+    if (!template) {
+        return blankTemplate();
+    }
+    if (template.is_system && !canEditSystemTransport.value) {
+        return {
+            ...template,
+            id: null,
+            name: `${template.name} (копия)`,
+            is_system: false,
+        };
+    }
+
+    return { ...template };
+}
+
+function layoutSummaryForTransport(templateId) {
+    const transport = props.transportTemplates.find((entry) => Number(entry.id) === Number(templateId));
+    if (!transport) {
+        return null;
+    }
+
+    return calculateLayout(transport, cargoFlat.value, {}, layoutOptions.value);
+}
+
+function openManualTransportModal(template = null) {
+    templateDraft.value = transportTemplateForEdit(template ?? selectedTransport.value);
     transportModalOpen.value = true;
 }
 
@@ -1649,10 +1777,15 @@ function saveManualTransport() {
     const payload = { ...templateDraft.value };
     const options = {
         preserveScroll: true,
-        onSuccess: () => {
+        onSuccess: (visitPage) => {
             closeTransportModal();
+            const createdId = Number(visitPage.props?.flash?.transport_template_created || 0);
+            if (createdId > 0) {
+                addTransportFromTemplate({ id: createdId });
+                return;
+            }
             if (payload.id) {
-                selectTransport(payload.id);
+                addTransportFromTemplate({ id: payload.id });
             }
         },
     };
@@ -1664,7 +1797,32 @@ function saveManualTransport() {
 }
 
 function addTransportFromTemplate(template) {
-    selectTransport(template.id);
+    const id = Number(template?.id);
+    if (!id) {
+        return;
+    }
+
+    let ids = [...projectTransportIds.value];
+    if (!ids.includes(id)) {
+        if (ids.length >= MAX_PROJECT_TRANSPORTS) {
+            window.alert(`Можно добавить не более ${MAX_PROJECT_TRANSPORTS} видов транспорта.`);
+            return;
+        }
+        ids.push(id);
+        syncProjectTransportIds(ids);
+    }
+
+    selectTransport(id);
+}
+
+function removeProjectTransport(templateId) {
+    const id = Number(templateId);
+    const ids = projectTransportIds.value.filter((entry) => entry !== id);
+    syncProjectTransportIds(ids);
+
+    if (Number(projectForm.value.selected_transport_template_id) === id) {
+        selectTransport(ids[0] ?? null);
+    }
 }
 
 function packageTypeLabel(type) {
@@ -1826,6 +1984,8 @@ function projectPayload() {
                 : basePlacementsCache.value,
             base_placements_by_truck: basePlacementsByTruck.value,
             manual_truck_assignments: manualTruckAssignmentsMap(),
+            transport_template_ids: projectTransportIds.value,
+            manual_placements_by_transport: projectForm.value?.calculation?.manual_placements_by_transport ?? {},
             scene_view: {
                 rotation_x: sceneRotationX.value,
                 rotation_z: sceneRotationZ.value,
@@ -1880,7 +2040,12 @@ function removeCargoItem(groupIndex, itemIndex) {
 }
 
 function selectTransport(templateId) {
-    projectForm.value.selected_transport_template_id = templateId;
+    const id = templateId ? Number(templateId) : null;
+    projectForm.value.selected_transport_template_id = id;
+
+    if (id && !projectTransportIds.value.includes(id)) {
+        syncProjectTransportIds([...projectTransportIds.value, id].slice(0, MAX_PROJECT_TRANSPORTS));
+    }
 }
 
 function resetTemplateDraft() {
@@ -1888,7 +2053,7 @@ function resetTemplateDraft() {
 }
 
 function editTransportTemplate(template) {
-    templateDraft.value = { ...template };
+    templateDraft.value = transportTemplateForEdit(template);
     transportModalOpen.value = true;
 }
 
