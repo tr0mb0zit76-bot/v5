@@ -151,4 +151,32 @@ assert.equal(
     'oversize cargo must not fall back to staging',
 );
 
+const platformTrailer = {
+    length_mm: 15000,
+    width_mm: 3000,
+    height_mm: 3500,
+    max_payload_kg: 42000,
+    allows_oversize: true,
+    category: 'platform',
+};
+
+const compactParts = {
+    source_key: 'frame-part',
+    name: 'Рама',
+    package_type: 'other',
+    quantity: 6,
+    length_mm: 3000,
+    width_mm: 1400,
+    height_mm: 1200,
+    weight_kg: 2500,
+    can_rotate: true,
+    stackable: false,
+    color: '#2563eb',
+};
+
+const compactMulti = calculateMultiVehicleLayout(platformTrailer, [compactParts]);
+assert.equal(compactMulti.fits, true, 'six compact parts should fit');
+assert.equal(compactMulti.truckCount, 1, 'consolidation should keep a single truck for compact parts');
+assert.equal(compactMulti.placedUnits, 6, 'all compact parts placed');
+
 console.log('multi_vehicle_layout.test.mjs: ok');

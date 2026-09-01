@@ -348,11 +348,82 @@
                                 </div>
                                 <div v-else class="flex h-full items-center justify-center text-sm text-zinc-500">Выберите транспорт.</div>
                             </div>
+                            <div v-if="printAllTrucks && multiVehicleSummary" class="print-all-trucks">
+                                <div
+                                    v-for="truck in multiVehicleSummary.trucks"
+                                    :key="`print-truck-${truck.truckIndex}`"
+                                    class="print-truck-sheet"
+                                >
+                                    <div class="print-truck-sheet-heading">
+                                        {{ truck.truckLabel }} · {{ truck.placedInTrailer }} шт · {{ formatKg(truck.totalWeightKg) }} · {{ truck.ldm.toFixed(2) }} LDM
+                                    </div>
+                                    <div class="print-truck-sheet-scene scene-viewport relative overflow-hidden">
+                                        <div class="scene-shell" :style="printSceneShellStyle">
+                                            <div class="scene" :style="printSceneTransformStyle">
+                                                <div class="truck-shadow" :style="truckShadowStyle" />
+                                                <div class="scene-deck" :style="deckStyle">
+                                                    <div class="staging-pad" />
+                                                    <div class="trailer-zone" :style="trailerZoneStyle">
+                                                        <div class="trailer-cage" :style="trailerCageStyle">
+                                                            <span class="trailer-cage-face trailer-cage-face-bottom" />
+                                                            <span class="trailer-cage-face trailer-cage-face-top" />
+                                                            <span class="trailer-cage-face trailer-cage-face-front" />
+                                                            <span class="trailer-cage-face trailer-cage-face-back" />
+                                                            <span class="trailer-cage-face trailer-cage-face-left" />
+                                                            <span class="trailer-cage-face trailer-cage-face-right" />
+                                                        </div>
+                                                        <div class="trailer-floor" />
+                                                        <div class="trailer-grid" :style="trailerGridStyle" />
+                                                    </div>
+                                                    <div
+                                                        v-for="block in sortBlocksForScenePaint(truck.blocks)"
+                                                        :key="`print-block-${truck.truckIndex}-${block.key}`"
+                                                        class="cargo-cube"
+                                                        :class="[
+                                                            Number(block.z) > 0 ? 'cargo-cube-elevated' : '',
+                                                            block.in_trailer ? '' : 'cargo-cube-staging',
+                                                            block.is_oversize && block.in_trailer ? 'cargo-cube-oversize' : '',
+                                                        ]"
+                                                        :style="cubePositionStyle(block)"
+                                                    >
+                                                        <div class="cargo-cube-lift" :style="cubeLiftStyle(block)">
+                                                            <div class="cargo-cube-body" :style="cubeBodyStyle(block)">
+                                                                <span class="cargo-face cargo-face-bottom" />
+                                                                <span class="cargo-face cargo-face-top">
+                                                                    <span class="cargo-direction" :style="cubeDirectionStyle(block)">→</span>
+                                                                    <span v-if="block.stack_count > 1">{{ block.stack_count }}</span>
+                                                                </span>
+                                                                <span class="cargo-face cargo-face-front" />
+                                                                <span class="cargo-face cargo-face-back" />
+                                                                <span class="cargo-face cargo-face-left" />
+                                                                <span class="cargo-face cargo-face-right" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <div v-if="manualMode && selectedBlock" class="border-t border-zinc-200 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:text-zinc-300 print:hidden">
                                 <span class="font-semibold">{{ selectedBlock.name }}</span>
                                 <span v-if="selectedBlock.locked" class="ml-2 text-emerald-600 dark:text-emerald-400">зафиксирован</span>
                                 <span v-else-if="!canLiftBlock(selectedBlock)" class="ml-2 text-amber-700 dark:text-amber-300">— сверху есть груз, снять нельзя</span>
                                 <span v-else class="ml-2">— отпустите для фиксации, Enter — вручную</span>
+                                <div v-if="multiVehicleSummary && multiVehicleSummary.truckCount > 1" class="mt-2 flex flex-wrap items-center gap-1">
+                                    <span class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">На машину:</span>
+                                    <button
+                                        v-for="(truck, truckIndex) in multiVehicleSummary.trucks"
+                                        :key="`move-${truck.truckIndex}`"
+                                        type="button"
+                                        class="scene-tool"
+                                        :disabled="activeTruckIndex === truckIndex"
+                                        @click="moveSelectedBlockToTruck(truckIndex)"
+                                    >
+                                        {{ truck.truckLabel }}
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -632,6 +703,8 @@ const sceneZoom = ref(Number(props.selectedProject?.calculation?.scene_view?.zoo
 const scenePanX = ref(Number(props.selectedProject?.calculation?.scene_view?.pan_x ?? 0));
 const scenePanY = ref(Number(props.selectedProject?.calculation?.scene_view?.pan_y ?? 0));
 const basePlacementsCache = ref(props.selectedProject?.calculation?.base_placements ?? {});
+const basePlacementsByTruck = ref(props.selectedProject?.calculation?.base_placements_by_truck ?? {});
+const printAllTrucks = ref(false);
 const sceneDrag = ref(null);
 const blockDrag = ref(null);
 
@@ -646,6 +719,7 @@ watch(() => props.selectedProject, (project) => {
     scenePanX.value = Number(project?.calculation?.scene_view?.pan_x ?? 0);
     scenePanY.value = Number(project?.calculation?.scene_view?.pan_y ?? 0);
     basePlacementsCache.value = project?.calculation?.base_placements ?? {};
+    basePlacementsByTruck.value = project?.calculation?.base_placements_by_truck ?? {};
     activeCargoGroupIndex.value = 0;
 
     if (!project) {
@@ -754,12 +828,123 @@ const autoLayoutResult = computed(() => calculateLayout(
     layoutOptions.value,
 ));
 
-const multiLayoutResult = computed(() => {
-    if (!selectedTransport.value || manualMode.value) {
+const autoMultiLayoutResult = computed(() => {
+    if (!selectedTransport.value) {
         return null;
     }
 
     return calculateMultiVehicleLayout(selectedTransport.value, cargoFlat.value, layoutOptions.value);
+});
+
+function sourceKeyFromBlockKey(key) {
+    const separator = key.lastIndexOf('-');
+
+    return separator > 0 ? key.slice(0, separator) : key;
+}
+
+function manualTruckAssignmentsMap() {
+    return projectForm.value?.calculation?.manual_truck_assignments ?? {};
+}
+
+function hasManualTruckAssignments() {
+    return Object.keys(manualTruckAssignmentsMap()).length > 0;
+}
+
+function manualTruckCountFromState() {
+    const indexes = [
+        ...Object.values(manualTruckAssignmentsMap()).map((value) => Number(value)),
+        ...Object.keys(basePlacementsByTruck.value ?? {}).map((value) => Number(value)),
+    ];
+
+    if (indexes.length === 0) {
+        return 0;
+    }
+
+    return Math.max(...indexes) + 1;
+}
+
+function cargoItemsForManualTruck(truckIndex, assignments, cargoItems) {
+    const counts = new Map();
+
+    for (const [key, assignedIndex] of Object.entries(assignments)) {
+        if (Number(assignedIndex) !== Number(truckIndex)) {
+            continue;
+        }
+
+        const sourceKey = sourceKeyFromBlockKey(key);
+        counts.set(sourceKey, (counts.get(sourceKey) ?? 0) + 1);
+    }
+
+    return cargoItems
+        .map((item) => ({ ...item, quantity: counts.get(item.source_key) ?? 0 }))
+        .filter((item) => item.quantity > 0);
+}
+
+function filterManualPlacementsForTruck(placements, assignments, truckIndex) {
+    return Object.fromEntries(
+        Object.entries(placements).filter(([key]) => Number(assignments[key]) === Number(truckIndex)),
+    );
+}
+
+function buildManualMultiVehicleSummary(transport, cargoItems, assignments, manualOverrides, baseByTruck, options) {
+    const truckCount = manualTruckCountFromState();
+    const trucks = [];
+    const warnings = [];
+
+    for (let truckIndex = 0; truckIndex < truckCount; truckIndex += 1) {
+        const truckItems = cargoItemsForManualTruck(truckIndex, assignments, cargoItems);
+        const base = baseByTruck?.[truckIndex] ?? {};
+        const manuals = filterManualPlacementsForTruck(manualOverrides, assignments, truckIndex);
+        const layout = calculateLayout(transport, truckItems, manuals, {
+            basePlacements: base,
+            freezeBase: Object.keys(base).length > 0,
+            placementGapMm: options.placementGapMm,
+        });
+
+        trucks.push({
+            ...layout,
+            truckIndex: truckIndex + 1,
+            truckLabel: `Машина ${truckIndex + 1}`,
+            placedKeys: layout.blocks.map((block) => block.key),
+        });
+        warnings.push(...layout.warnings);
+    }
+
+    const totalUnits = cargoItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const placedUnits = trucks.reduce((sum, truck) => sum + truck.placedInTrailer, 0);
+    const unplacedUnits = Math.max(0, totalUnits - placedUnits);
+
+    return {
+        fits: unplacedUnits === 0 && warnings.every((warning) => !warning.includes('пересекается')),
+        truckCount: trucks.length,
+        trucks,
+        totalUnits,
+        placedUnits,
+        unplacedUnits,
+        warnings: [...new Set(warnings)],
+        oversizedItems: [],
+        usedPayloadPercent: trucks.length
+            ? trucks.reduce((sum, truck) => sum + Number(truck.usedPayloadPercent || 0), 0) / trucks.length
+            : 0,
+        usedVolumePercent: trucks.length
+            ? trucks.reduce((sum, truck) => sum + Number(truck.usedVolumePercent || 0), 0) / trucks.length
+            : 0,
+    };
+}
+
+const manualMultiLayoutResult = computed(() => {
+    if (!manualMode.value || !selectedTransport.value || !hasManualTruckAssignments() || manualTruckCountFromState() <= 1) {
+        return null;
+    }
+
+    return buildManualMultiVehicleSummary(
+        selectedTransport.value,
+        cargoFlat.value,
+        manualTruckAssignmentsMap(),
+        manualPlacements.value,
+        basePlacementsByTruck.value,
+        layoutOptions.value,
+    );
 });
 
 const layoutResult = computed(() => {
@@ -768,7 +953,7 @@ const layoutResult = computed(() => {
     }
 
     if (!manualMode.value) {
-        const multi = multiLayoutResult.value;
+        const multi = autoMultiLayoutResult.value;
         if (multi) {
             if (multi.truckCount > 0) {
                 const truck = multi.trucks[activeTruckIndex.value] ?? multi.trucks[0];
@@ -777,6 +962,7 @@ const layoutResult = computed(() => {
                     ...truck,
                     fits: multi.fits,
                     multiSummary: multi,
+                    warnings: multi.warnings,
                 };
             }
 
@@ -797,6 +983,18 @@ const layoutResult = computed(() => {
         return autoLayoutResult.value;
     }
 
+    const manualMulti = manualMultiLayoutResult.value;
+    if (manualMulti && manualMulti.truckCount > 1) {
+        const truck = manualMulti.trucks[activeTruckIndex.value] ?? manualMulti.trucks[0];
+
+        return {
+            ...truck,
+            fits: manualMulti.fits,
+            multiSummary: manualMulti,
+            warnings: manualMulti.warnings,
+        };
+    }
+
     const base = Object.keys(basePlacementsCache.value).length > 0
         ? basePlacementsCache.value
         : snapshotPlacementsFromBlocks(autoLayoutResult.value.blocks);
@@ -813,11 +1011,17 @@ const layoutResult = computed(() => {
     });
 });
 
-const multiVehicleSummary = computed(() => layoutResult.value?.multiSummary ?? multiLayoutResult.value ?? null);
+const multiVehicleSummary = computed(() => {
+    if (manualMultiLayoutResult.value) {
+        return manualMultiLayoutResult.value;
+    }
+
+    return layoutResult.value?.multiSummary ?? autoMultiLayoutResult.value ?? null;
+});
 
 const showFleetSummary = computed(() => {
     const multi = multiVehicleSummary.value;
-    if (!multi || manualMode.value) {
+    if (!multi) {
         return false;
     }
 
@@ -879,8 +1083,10 @@ watch(layoutResult, (result) => {
     }
 });
 
-watch([multiLayoutResult, selectedTransport, cargoFlat], () => {
-    activeTruckIndex.value = 0;
+watch([autoMultiLayoutResult, selectedTransport, cargoFlat], () => {
+    if (!manualMode.value || !hasManualTruckAssignments()) {
+        activeTruckIndex.value = 0;
+    }
 });
 
 const sceneBounds = computed(() => (selectedTransport.value ? buildSceneBounds(selectedTransport.value) : null));
@@ -989,6 +1195,14 @@ const sceneTransformStyle = computed(() => ({
     transform: `rotateX(${sceneRotationX.value}deg) rotateZ(${sceneRotationZ.value}deg)`,
 }));
 
+const printSceneShellStyle = {
+    transform: 'translate(0px, 0px) scale(1)',
+};
+
+const printSceneTransformStyle = {
+    transform: 'rotateX(58deg) rotateZ(-34deg)',
+};
+
 function focusSceneViewport() {
     sceneViewport.value?.focus({ preventScroll: true });
 }
@@ -1001,9 +1215,47 @@ function syncBasePlacementsFromAuto() {
     }
 }
 
+function syncManualTruckStateFromAuto() {
+    const multi = autoMultiLayoutResult.value;
+
+    if (!multi || multi.truckCount <= 1) {
+        syncBasePlacementsFromAuto();
+        basePlacementsByTruck.value = {};
+        if (projectForm.value?.calculation) {
+            projectForm.value.calculation.manual_truck_assignments = {};
+            projectForm.value.calculation.base_placements_by_truck = {};
+        }
+
+        return;
+    }
+
+    const assignments = {};
+    const baseByTruck = {};
+
+    multi.trucks.forEach((truck, truckIndex) => {
+        baseByTruck[truckIndex] = snapshotPlacementsFromBlocks(truck.blocks);
+        for (const block of truck.blocks) {
+            assignments[block.key] = truckIndex;
+        }
+    });
+
+    basePlacementsByTruck.value = baseByTruck;
+    if (projectForm.value?.calculation) {
+        projectForm.value.calculation.base_placements_by_truck = baseByTruck;
+        projectForm.value.calculation.manual_truck_assignments = assignments;
+        projectForm.value.calculation.manual_placements = {};
+        projectForm.value.calculation.base_placements = {};
+    }
+    basePlacementsCache.value = {};
+}
+
 watch(manualMode, (enabled) => {
     if (enabled) {
-        syncBasePlacementsFromAuto();
+        if (!hasManualTruckAssignments()) {
+            syncManualTruckStateFromAuto();
+        } else if (Object.keys(basePlacementsByTruck.value).length === 0) {
+            basePlacementsByTruck.value = projectForm.value?.calculation?.base_placements_by_truck ?? {};
+        }
         if (activeStep.value === 'calculation') {
             focusSceneViewport();
         }
@@ -1099,6 +1351,8 @@ function cloneProject(project) {
             ...(project.calculation ?? {}),
             manual_placements: project.calculation?.manual_placements ?? {},
             base_placements: project.calculation?.base_placements ?? {},
+            base_placements_by_truck: project.calculation?.base_placements_by_truck ?? {},
+            manual_truck_assignments: project.calculation?.manual_truck_assignments ?? {},
             scene_view: project.calculation?.scene_view ?? {},
         },
         cargo_groups: (project.cargo_groups ?? []).map((group) => ({
@@ -1326,19 +1580,27 @@ function exportCalculationPdf() {
     }
 
     const previousView = captureSceneView();
+    const previousTruck = activeTruckIndex.value;
+    const shouldPrintAllTrucks = (multiVehicleSummary.value?.truckCount ?? 0) > 1;
     resetSceneView();
+    printAllTrucks.value = shouldPrintAllTrucks;
 
     nextTick(() => {
         requestAnimationFrame(() => {
-            const printScale = resolvePrintSceneScale();
+            const printScale = shouldPrintAllTrucks ? 0.58 : resolvePrintSceneScale();
             const root = document.documentElement;
 
             root.classList.add('howmuchfits-printing');
+            if (shouldPrintAllTrucks) {
+                root.classList.add('howmuchfits-print-all');
+            }
             root.style.setProperty('--howmuchfits-print-scale', String(printScale));
 
             const cleanup = () => {
-                root.classList.remove('howmuchfits-printing');
+                root.classList.remove('howmuchfits-printing', 'howmuchfits-print-all');
                 root.style.removeProperty('--howmuchfits-print-scale');
+                printAllTrucks.value = false;
+                activeTruckIndex.value = previousTruck;
                 restoreSceneView(previousView);
             };
 
@@ -1404,9 +1666,11 @@ function projectPayload() {
             tight_packing: tightPacking.value,
             selected_manual_key: selectedBlockKey.value,
             manual_placements: manualPlacements.value,
-            base_placements: manualMode.value
+            base_placements: manualMode.value && !hasManualTruckAssignments()
                 ? snapshotPlacementsFromBlocks(layoutResult.value.blocks)
                 : basePlacementsCache.value,
+            base_placements_by_truck: basePlacementsByTruck.value,
+            manual_truck_assignments: manualTruckAssignmentsMap(),
             scene_view: {
                 rotation_x: sceneRotationX.value,
                 rotation_z: sceneRotationZ.value,
@@ -1846,16 +2110,33 @@ function resetManualPlacements() {
         return;
     }
     basePlacementsCache.value = {};
+    basePlacementsByTruck.value = {};
     projectForm.value.calculation = {
         ...(projectForm.value.calculation ?? {}),
         manual_placements: {},
         base_placements: {},
+        base_placements_by_truck: {},
+        manual_truck_assignments: {},
         selected_manual_key: null,
     };
     selectedBlockKey.value = null;
     if (manualMode.value) {
-        syncBasePlacementsFromAuto();
+        syncManualTruckStateFromAuto();
     }
+}
+
+function moveSelectedBlockToTruck(targetTruckIndex) {
+    if (!selectedBlock.value || !projectForm.value?.calculation) {
+        return;
+    }
+
+    const key = selectedBlock.value.key;
+    projectForm.value.calculation.manual_truck_assignments = {
+        ...manualTruckAssignmentsMap(),
+        [key]: targetTruckIndex,
+    };
+    activeTruckIndex.value = targetTruckIndex;
+    selectedBlockKey.value = key;
 }
 
 function updateManualPlacement(key, placement) {
@@ -2872,6 +3153,10 @@ function formatMm(value) {
     font-weight: 700;
 }
 
+.print-all-trucks {
+    display: none;
+}
+
 .calc-sidebar {
     max-height: 100%;
 }
@@ -2889,6 +3174,46 @@ function formatMm(value) {
     :global(.print-area),
     :global(.print-area *) {
         visibility: visible;
+    }
+
+    :global(html.howmuchfits-printing.howmuchfits-print-all .print-area-scene > .flex.flex-wrap:first-child),
+    :global(html.howmuchfits-printing.howmuchfits-print-all .print-area-scene > .scene-viewport:not(.print-truck-sheet-scene)),
+    :global(html.howmuchfits-printing.howmuchfits-print-all .print-area-scene > .border-t) {
+        display: none !important;
+    }
+
+    :global(html.howmuchfits-printing.howmuchfits-print-all .print-all-trucks) {
+        display: block !important;
+        width: 100%;
+    }
+
+    :global(html.howmuchfits-printing.howmuchfits-print-all .print-truck-sheet) {
+        page-break-after: always;
+        break-after: page;
+    }
+
+    :global(html.howmuchfits-printing.howmuchfits-print-all .print-truck-sheet:last-child) {
+        page-break-after: auto;
+        break-after: auto;
+    }
+
+    :global(html.howmuchfits-printing.howmuchfits-print-all .print-truck-sheet-heading) {
+        margin-bottom: 0.5rem;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #111827;
+    }
+
+    :global(html.howmuchfits-printing.howmuchfits-print-all .print-truck-sheet-scene) {
+        min-height: 58vh !important;
+        height: 58vh !important;
+        max-height: 640px;
+        overflow: visible !important;
+    }
+
+    :global(html.howmuchfits-printing.howmuchfits-print-all .print-truck-sheet-scene .scene-shell) {
+        transform: translate(0, 0) scale(var(--howmuchfits-print-scale, 0.58)) !important;
+        transform-origin: center center;
     }
 
     :global(html.howmuchfits-printing .print-area) {

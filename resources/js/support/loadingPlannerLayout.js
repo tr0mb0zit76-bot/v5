@@ -432,10 +432,16 @@ export function findTopSupportedZForBlock(footprint, others, transport, options 
 }
 
 export function scoreAutoPlacement(candidate, zone) {
+    const width = Number(candidate.width || 0);
+    const length = Number(candidate.length || 0);
+
     return (zone === 'trailer' ? 0 : 1_000_000_000)
         + Number(candidate.z) * 1_000_000
         + Number(candidate.x) * 1_000
-        + Number(candidate.y);
+        + Number(candidate.y)
+        + width * 40
+        + (width > length ? width * 120 : 0)
+        + (length < width ? length * 80 : 0);
 }
 
 export function findBestAutoPlacement(bounds, placedBlocks, item, transport, options = {}) {
@@ -1163,76 +1169,46 @@ export function calculateMultiVehicleLayout(transport, items, options = {}) {
     let remainingItems = placeableItems;
 
     while (sumItemUnits(remainingItems) > 0 && trucks.length < maxVehicles) {
-        const layout = calculateAutoLayout(transport, remainingItems, { ...layoutOptions, trailerOnly: true });
-        const inTrailerBlocks = layout.blocks.filter((block) => blockCountsAsLoaded(block, transport));
-        const trimmed = trimTrailerBlocksToPayload(inTrailerBlocks, transport, itemsBySource);
-        const placedKeys = new Set(trimmed.map((block) => block.key));
+        const packed = packOneTruckFromRemaining(transport, remainingItems, layoutOptions, itemsBySource);
 
-        if (placedKeys.size === 0) {
+        if (packed.placedKeys.size === 0) {
             warnings.push('Не удалось разместить оставшийся груз даже на дополнительной машине.');
             break;
         }
 
-        const truckLayout = finalizeLayoutMetrics({
-            blocks: trimmed,
-            bounds: layout.bounds,
-            warnings: [...layout.warnings],
-            fits: trimmed.length === layout.placedInTrailer,
-            totalUnits: layout.totalUnits,
-            placedUnits: trimmed.length,
-            placedInTrailer: trimmed.length,
-            totalWeightKg: trimmed.reduce((sum, block) => sum + blockWeightKg(block, itemsBySource), 0),
-            totalVolumeM3: trimmed.reduce((sum, block) => {
-                const item = itemsBySource.get(block.source_key);
+        trucks.push(buildTruckEntryFromPacked(packed, transport, itemsBySource, trucks.length + 1, sumItemUnits(remainingItems)));
 
-                return sum + (Number(item?.length_mm || 0) * Number(item?.width_mm || 0) * Number(item?.height_mm || 0) / 1_000_000_000);
-            }, 0),
-            usedLengthMm: trimmed.reduce((max, block) => Math.max(max, Number(block.x) + Number(block.length)), 0),
-            transport,
-            transportVolumeM3: layout.bounds
-                ? Number(transport.length_mm) * Number(transport.width_mm) * Number(transport.height_mm) / 1_000_000_000
-                : 0,
-        });
+        remainingItems = remainingItemsAfterPlacement(remainingItems, packed.placedKeys);
 
-        trucks.push({
-            ...truckLayout,
-            truckIndex: trucks.length + 1,
-            truckLabel: `Машина ${trucks.length + 1}`,
-            placedKeys: [...placedKeys],
-        });
-
-        remainingItems = remainingItemsAfterPlacement(remainingItems, placedKeys);
-
-        if (truckLayout.usedPayloadPercent > 100) {
-            warnings.push(`Машина ${trucks.length}: перевес ${formatKg(truckLayout.totalWeightKg)} при лимите ${formatKg(transport.max_payload_kg)}.`);
+        if (trucks[trucks.length - 1].usedPayloadPercent > 100) {
+            warnings.push(`Машина ${trucks.length}: перевес ${formatKg(trucks[trucks.length - 1].totalWeightKg)} при лимите ${formatKg(transport.max_payload_kg)}.`);
         }
     }
 
+    const consolidatedTrucks = consolidateTruckFleet(transport, trucks, placeableItems, layoutOptions, itemsBySource);
+
     const totalUnits = sumItemUnits(items);
-    const placedUnits = trucks.reduce((sum, truck) => sum + truck.placedInTrailer, 0);
+    const placedUnits = consolidatedTrucks.reduce((sum, truck) => sum + truck.placedInTrailer, 0);
     const unplacedUnits = Math.max(0, totalUnits - placedUnits);
     const leftoverPlaceable = sumItemUnits(remainingItems);
 
-    if (leftoverPlaceable > 0 && trucks.length >= maxVehicles) {
+    if (leftoverPlaceable > 0 && consolidatedTrucks.length >= maxVehicles) {
         warnings.push(`Не хватило лимита в ${maxVehicles} машин — осталось ${leftoverPlaceable} мест.`);
     }
 
-    const aggregateWarnings = [...new Set([
-        ...warnings,
-        ...trucks.flatMap((truck) => truck.warnings),
-    ])];
+    const aggregateWarnings = [...new Set(warnings)];
 
     return {
         fits: unplacedUnits === 0,
-        truckCount: trucks.length,
-        trucks,
+        truckCount: consolidatedTrucks.length,
+        trucks: consolidatedTrucks,
         totalUnits,
         placedUnits,
         unplacedUnits,
         warnings: aggregateWarnings,
         oversizedItems: uniqueOversized,
-        usedPayloadPercent: averagePercent(trucks.map((truck) => truck.usedPayloadPercent)),
-        usedVolumePercent: averagePercent(trucks.map((truck) => truck.usedVolumePercent)),
+        usedPayloadPercent: averagePercent(consolidatedTrucks.map((truck) => truck.usedPayloadPercent)),
+        usedVolumePercent: averagePercent(consolidatedTrucks.map((truck) => truck.usedVolumePercent)),
     };
 }
 
@@ -1284,21 +1260,316 @@ function remainingItemsAfterPlacement(items, placedKeys) {
         .filter((item) => item.quantity > 0);
 }
 
-function blockWeightKg(block, itemsBySource) {
-    return Number(itemsBySource.get(block.source_key)?.weight_kg ?? 0);
-}
+function expandItemsToUnits(items) {
+    const units = [];
 
-function trimTrailerBlocksToPayload(blocks, transport, itemsBySource) {
-    const kept = [...blocks];
-    let totalWeight = kept.reduce((sum, block) => sum + blockWeightKg(block, itemsBySource), 0);
-    const payloadLimit = Number(transport.max_payload_kg || 0);
+    for (const item of items) {
+        const quantity = Math.max(0, Number(item.quantity || 0));
 
-    while (payloadLimit > 0 && totalWeight > payloadLimit + 0.009 && kept.length > 0) {
-        const removed = kept.pop();
-        totalWeight -= blockWeightKg(removed, itemsBySource);
+        for (let unitIndex = 0; unitIndex < quantity; unitIndex += 1) {
+            units.push({
+                item,
+                key: `${item.source_key}-${unitIndex}`,
+            });
+        }
     }
 
-    return kept;
+    return units;
+}
+
+function unitWeightKgForPack(unit, itemsBySource) {
+    return Number(itemsBySource.get(unit.item.source_key)?.weight_kg ?? 0);
+}
+
+function unitVolumeMm3ForPack(unit) {
+    const item = unit.item;
+
+    return Number(item.length_mm) * Number(item.width_mm) * Number(item.height_mm);
+}
+
+function unitLongestSideMm(unit) {
+    const item = unit.item;
+
+    return Math.max(Number(item.length_mm || 0), Number(item.width_mm || 0));
+}
+
+function unitFootprintAreaMm2(unit) {
+    const item = unit.item;
+
+    return Number(item.length_mm || 0) * Number(item.width_mm || 0);
+}
+
+function itemsFromUnitKeys(placeableItems, unitKeys) {
+    const keySet = new Set(unitKeys);
+
+    return placeableItems
+        .map((item) => {
+            const prefix = `${item.source_key}-`;
+            let quantity = 0;
+
+            for (const key of keySet) {
+                if (key.startsWith(prefix)) {
+                    quantity += 1;
+                }
+            }
+
+            return {
+                ...item,
+                quantity,
+            };
+        })
+        .filter((item) => item.quantity > 0);
+}
+
+function scorePackedTruck(packed) {
+    const usedArea = packed.blocks.reduce((sum, block) => sum + Number(block.length) * Number(block.width), 0);
+
+    return (packed.placedKeys.size * 1_000_000_000)
+        + (packed.totalWeightKg * 1_000)
+        + (usedArea * 10)
+        - Number(packed.usedLengthMm || 0);
+}
+
+function buildTruckEntryFromPacked(packed, transport, itemsBySource, truckIndex, batchTotalUnits) {
+    const truckLayout = finalizeLayoutMetrics({
+        blocks: packed.blocks,
+        bounds: packed.bounds,
+        warnings: packed.warnings,
+        fits: true,
+        totalUnits: batchTotalUnits,
+        placedUnits: packed.blocks.length,
+        placedInTrailer: packed.placedInTrailer,
+        totalWeightKg: packed.totalWeightKg,
+        totalVolumeM3: packed.totalVolumeM3,
+        usedLengthMm: packed.usedLengthMm,
+        transport,
+        transportVolumeM3: packed.bounds
+            ? Number(transport.length_mm) * Number(transport.width_mm) * Number(transport.height_mm) / 1_000_000_000
+            : 0,
+    });
+
+    return {
+        ...truckLayout,
+        truckIndex,
+        truckLabel: `Машина ${truckIndex}`,
+        placedKeys: [...packed.placedKeys],
+    };
+}
+
+function renumberTruckFleet(trucks) {
+    return trucks.map((truck, index) => ({
+        ...truck,
+        truckIndex: index + 1,
+        truckLabel: `Машина ${index + 1}`,
+    }));
+}
+
+/**
+ * ponytail: O(n²) попыток слить пары машин; апгрейд — FFD по утилизации без полного перебора пар.
+ */
+function consolidateTruckFleet(transport, trucks, placeableItems, layoutOptions, itemsBySource) {
+    if (trucks.length <= 1) {
+        return trucks;
+    }
+
+    let fleet = [...trucks];
+    let changed = true;
+
+    while (changed && fleet.length > 1) {
+        changed = false;
+        let bestMerge = null;
+
+        for (let leftIndex = 0; leftIndex < fleet.length; leftIndex += 1) {
+            for (let rightIndex = leftIndex + 1; rightIndex < fleet.length; rightIndex += 1) {
+                const combinedKeys = [...fleet[leftIndex].placedKeys, ...fleet[rightIndex].placedKeys];
+                const combinedItems = itemsFromUnitKeys(placeableItems, combinedKeys);
+                const packed = packOneTruckFromRemaining(transport, combinedItems, layoutOptions, itemsBySource);
+
+                if (packed.placedKeys.size !== combinedKeys.length) {
+                    continue;
+                }
+
+                const mergeScore = scorePackedTruck(packed);
+                if (!bestMerge || mergeScore > bestMerge.mergeScore) {
+                    bestMerge = {
+                        leftIndex,
+                        rightIndex,
+                        packed,
+                        mergeScore,
+                    };
+                }
+            }
+        }
+
+        if (bestMerge) {
+            const mergedTruck = buildTruckEntryFromPacked(
+                bestMerge.packed,
+                transport,
+                itemsBySource,
+                bestMerge.leftIndex + 1,
+                bestMerge.packed.placedKeys.size,
+            );
+            const nextFleet = [];
+
+            for (let index = 0; index < fleet.length; index += 1) {
+                if (index === bestMerge.leftIndex || index === bestMerge.rightIndex) {
+                    if (index === Math.min(bestMerge.leftIndex, bestMerge.rightIndex)) {
+                        nextFleet.push(mergedTruck);
+                    }
+
+                    continue;
+                }
+
+                nextFleet.push(fleet[index]);
+            }
+
+            fleet = nextFleet;
+            changed = true;
+        }
+    }
+
+    return renumberTruckFleet(fleet);
+}
+
+function packOneTruckWithUnitOrder(transport, units, layoutOptions, itemsBySource) {
+    const bounds = buildSceneBounds(transport);
+    const blocks = [];
+    const placedKeys = new Set();
+    const warnings = [];
+    const payloadLimit = Number(transport.max_payload_kg || 0);
+    const maxBlocks = 320;
+    let totalWeightKg = 0;
+
+    const tryPlaceUnit = (unit) => {
+        if (placedKeys.has(unit.key) || blocks.length >= maxBlocks) {
+            return false;
+        }
+
+        const weight = unitWeightKgForPack(unit, itemsBySource);
+        if (payloadLimit > 0 && totalWeightKg + weight > payloadLimit + 0.009) {
+            return false;
+        }
+
+        const placement = findBestAutoPlacement(bounds, blocks, unit.item, transport, {
+            placementGapMm: layoutOptions.placementGapMm ?? null,
+            trailerOnly: true,
+        });
+
+        if (!placement) {
+            return false;
+        }
+
+        blocks.push(buildBlockFromPlacement(
+            unit.item,
+            unit.key,
+            {
+                x: placement.x,
+                y: placement.y,
+                z: placement.z,
+                rotation_z: placement.rotationZ,
+                rotation_y: 0,
+                manual: false,
+                locked: false,
+            },
+            transport,
+        ));
+        placedKeys.add(unit.key);
+        totalWeightKg += weight;
+
+        return true;
+    };
+
+    for (const unit of units) {
+        tryPlaceUnit(unit);
+    }
+
+    const gapFill = units
+        .filter((unit) => !placedKeys.has(unit.key))
+        .sort((left, right) => unitVolumeMm3ForPack(left) - unitVolumeMm3ForPack(right));
+
+    for (const unit of gapFill) {
+        tryPlaceUnit(unit);
+    }
+
+    settleTrailerBlocks(blocks, transport, {
+        excludeKeys: layoutOptions.excludeSettleKeys ?? new Set(),
+        freezeKeys: layoutOptions.freezeSettleKeys ?? new Set(),
+    });
+
+    if (payloadLimit > 0 && totalWeightKg > payloadLimit + 0.009) {
+        warnings.push(`Перевес: ${formatKg(totalWeightKg)} при лимите ${formatKg(payloadLimit)}.`);
+    }
+
+    warnings.push(...manualPlacementWarnings(transport, bounds, blocks));
+
+    const placedInTrailer = blocks.filter((block) => blockCountsAsLoaded(block, transport)).length;
+    const totalVolumeM3 = blocks.reduce((sum, block) => {
+        const item = itemsBySource.get(block.source_key);
+
+        return sum + (Number(item?.length_mm || 0) * Number(item?.width_mm || 0) * Number(item?.height_mm || 0) / 1_000_000_000);
+    }, 0);
+    const usedLengthMm = blocks.reduce((max, block) => Math.max(max, Number(block.x) + Number(block.length)), 0);
+
+    return {
+        blocks,
+        bounds,
+        placedKeys,
+        warnings,
+        totalWeightKg,
+        totalVolumeM3,
+        usedLengthMm,
+        placedInTrailer,
+    };
+}
+
+/**
+ * Заполняет одну машину: несколько стратегий сортировки + добивка мелкими местами; вес проверяется до постановки.
+ */
+function packOneTruckFromRemaining(transport, remainingItems, layoutOptions, itemsBySource) {
+    const units = expandItemsToUnits(remainingItems);
+
+    if (units.length === 0) {
+        const bounds = buildSceneBounds(transport);
+
+        return {
+            blocks: [],
+            bounds,
+            placedKeys: new Set(),
+            warnings: [],
+            totalWeightKg: 0,
+            totalVolumeM3: 0,
+            usedLengthMm: 0,
+            placedInTrailer: 0,
+        };
+    }
+
+    const sortStrategies = [
+        (left, right) => {
+            const weightDiff = unitWeightKgForPack(right, itemsBySource) - unitWeightKgForPack(left, itemsBySource);
+            if (weightDiff !== 0) {
+                return weightDiff;
+            }
+
+            return unitVolumeMm3ForPack(right) - unitVolumeMm3ForPack(left);
+        },
+        (left, right) => unitLongestSideMm(right) - unitLongestSideMm(left),
+        (left, right) => unitFootprintAreaMm2(right) - unitFootprintAreaMm2(left),
+        (left, right) => unitVolumeMm3ForPack(right) - unitVolumeMm3ForPack(left),
+    ];
+
+    let bestPacked = null;
+
+    for (const sortUnits of sortStrategies) {
+        const orderedUnits = [...units].sort(sortUnits);
+        const packed = packOneTruckWithUnitOrder(transport, orderedUnits, layoutOptions, itemsBySource);
+        const packedScore = scorePackedTruck(packed);
+
+        if (!bestPacked || packedScore > bestPacked.score) {
+            bestPacked = { packed, score: packedScore };
+        }
+    }
+
+    return bestPacked.packed;
 }
 
 function averagePercent(values) {
