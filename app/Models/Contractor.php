@@ -290,17 +290,20 @@ class Contractor extends Model
             return $query;
         }
 
+        if ($typeFilter !== null) {
+            $typeFilter = trim($typeFilter);
+            if ($typeFilter === '') {
+                $typeFilter = null;
+            }
+        }
+
         $alwaysIncludeIds = array_values(array_unique(array_filter(
             array_map(static fn (mixed $id): int => (int) $id, $alwaysIncludeIds),
             static fn (int $id): bool => $id > 0,
         )));
 
         if ($user->isAdmin() || RoleAccess::userHasPermission($user, 'view_all_contractors')) {
-            if ($typeFilter === 'carrier') {
-                $this->applyCarrierLikeFilter($query);
-            } elseif (in_array($typeFilter, ['customer', 'contractor', 'both'], true)) {
-                $query->where('type', $typeFilter);
-            }
+            $this->applyTypeFilterForUnrestrictedViewer($query, $typeFilter);
 
             return $query;
         }
@@ -308,11 +311,7 @@ class Contractor extends Model
         $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'contractors');
 
         if ($scope === 'all') {
-            if ($typeFilter === 'carrier') {
-                $this->applyCarrierLikeFilter($query);
-            } elseif (in_array($typeFilter, ['customer', 'contractor', 'both'], true)) {
-                $query->where('type', $typeFilter);
-            }
+            $this->applyTypeFilterForUnrestrictedViewer($query, $typeFilter);
 
             return $query;
         }
@@ -366,6 +365,32 @@ class Contractor extends Model
             });
 
             $outer->orWhere(fn ($ownCompanyQuery) => $ownCompanyQuery->ownCompanyProfiles());
+        });
+    }
+
+    /**
+     * Фильтр типа для admin / scope=all: при customer|both|contractor не прячем «свои компании».
+     *
+     * @param  Builder  $query
+     */
+    private function applyTypeFilterForUnrestrictedViewer($query, ?string $typeFilter): void
+    {
+        if ($typeFilter === 'carrier') {
+            $this->applyCarrierLikeFilter($query);
+
+            return;
+        }
+
+        if (! in_array($typeFilter, ['customer', 'contractor', 'both'], true)) {
+            return;
+        }
+
+        $query->where(function ($typeQuery) use ($typeFilter): void {
+            $typeQuery->where('type', $typeFilter);
+
+            if (Schema::hasColumn($this->getTable(), 'is_own_company')) {
+                $typeQuery->orWhere(fn ($ownCompanyQuery) => $ownCompanyQuery->ownCompanyProfiles());
+            }
         });
     }
 

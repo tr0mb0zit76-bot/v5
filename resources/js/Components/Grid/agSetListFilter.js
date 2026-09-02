@@ -58,7 +58,7 @@ export function setListFilterParams(values) {
 
 /**
  * @param {object} columnDefinition
- * @param {{ values: string[], filterValueGetter?: (params: import('ag-grid-community').IDoesFilterPassParams) => string, compact?: boolean, floatingFilterRow?: boolean, inlineSelectInFloatingRow?: boolean }} options
+ * @param {{ values: string[], filterValueGetter?: (params: import('ag-grid-community').IDoesFilterPassParams) => string, alwaysPassRow?: (params: import('ag-grid-community').IDoesFilterPassParams) => boolean, compact?: boolean, floatingFilterRow?: boolean, inlineSelectInFloatingRow?: boolean }} options
  */
 export function applyAgSetListColumn(columnDefinition, options) {
     const values = [...options.values];
@@ -67,6 +67,7 @@ export function applyAgSetListColumn(columnDefinition, options) {
     columnDefinition.filterParams = {
         ...setListFilterParams(values),
         compact: options.compact ?? values.length <= 3,
+        ...(typeof options.alwaysPassRow === 'function' ? { alwaysPassRow: options.alwaysPassRow } : {}),
     };
 
     if (options.floatingFilterRow) {
@@ -454,6 +455,10 @@ export class AgSetListFilter {
 
     doesFilterPass(params) {
         if (! this.isFilterActive()) {
+            return true;
+        }
+
+        if (typeof this.params.alwaysPassRow === 'function' && this.params.alwaysPassRow(params)) {
             return true;
         }
 

@@ -662,6 +662,8 @@ const dynamicColumnDefs = computed(() => {
       applyAgSetListColumn(columnDefinition, {
         values: collectContractorSetFilterValues(column.field),
         filterValueGetter: (params) => contractorSetFilterLabel(column.field, params.data),
+        // Свои компании видны всем с доступом к контрагентам — не прятать фильтром «Владелец»/«Тип».
+        alwaysPassRow: (params) => Boolean(params.data?.is_own_company),
         floatingFilterRow: true,
       });
     } else if (column.type === 'numeric' && column.field !== 'id') {

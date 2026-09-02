@@ -119,5 +119,13 @@ class ContractorVisibilityScopeTest extends TestCase
         $this->assertNotContains($foreignCustomer->id, $customerIds);
 
         $this->get(route('contractors.show', $ownCompany))->assertOk();
+
+        $indexResponse = $this->get(route('contractors.index'));
+        $indexResponse->assertOk();
+        $indexResponse->assertInertia(fn ($page) => $page
+            ->where(
+                'contractors',
+                fn ($contractors) => collect($contractors)->pluck('id')->contains($ownCompany->id),
+            ));
     }
 }
