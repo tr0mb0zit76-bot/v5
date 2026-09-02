@@ -1,3 +1,9 @@
+import {
+    findEdoAcknowledgement,
+    findIncomingSignedDocument,
+    isEdoAcknowledgementActive,
+} from '@/support/edoAckLookup.js';
+
 const EPD_SLOT_KINDS = new Set(['etrn', 'expedition_receipt']);
 
 const EPD_TYPE_LABELS = {
@@ -9,34 +15,9 @@ function isEpdSlotKind(slotKind) {
     return EPD_SLOT_KINDS.has(String(slotKind ?? ''));
 }
 
-function findEdoAcknowledgement(edoAcknowledgements, context) {
-    return (Array.isArray(edoAcknowledgements) ? edoAcknowledgements : []).find((row) => (
-        row?.party === context.party
-        && row?.document_type === context.document_type
-        && String(row?.slot_key ?? '') === String(context.slot_key ?? '')
-        && Number(row?.contractor_id ?? 0) === Number(context.contractor_id ?? 0)
-    )) ?? null;
-}
-
 function findSignedDocumentForEpdType(signedDocuments, context) {
-    return (Array.isArray(signedDocuments) ? signedDocuments : []).find((document) => {
-        if (!document || document.type !== context.document_type) {
-            return false;
-        }
-
-        const direction = String(document.direction ?? document.metadata?.direction ?? 'incoming');
-        if (direction === 'outgoing') {
-            return false;
-        }
-
-        const party = document.party ?? document.metadata?.party ?? 'internal';
-
-        if (party !== context.party) {
-            return false;
-        }
-
-        return ['sent', 'signed'].includes(String(document.status ?? ''));
-    }) ?? null;
+    // ЭПД historically match by party+type only (без contractor/slot).
+    return findIncomingSignedDocument(signedDocuments, context, { matchContractorAndSlot: false });
 }
 
 function buildEpdAckRow(baseRow, signedDocuments, edoAcknowledgements) {
@@ -50,7 +31,7 @@ function buildEpdAckRow(baseRow, signedDocuments, edoAcknowledgements) {
 
     const matchedDocument = findSignedDocumentForEpdType(signedDocuments, context);
     const edoAcknowledgement = findEdoAcknowledgement(edoAcknowledgements, context);
-    const edoActive = Boolean(edoAcknowledgement?.received_via_edo && edoAcknowledgement?.document_number);
+    const edoActive = isEdoAcknowledgementActive(edoAcknowledgement);
     const typeLabel = EPD_TYPE_LABELS[documentType] ?? documentType;
 
     if (matchedDocument) {

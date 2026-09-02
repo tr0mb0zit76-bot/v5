@@ -7,9 +7,11 @@ namespace App\Support;
  */
 final class OrderDocumentRequirementSlotBuilder
 {
-    private const REQUEST_TYPES = ['request', 'contract_request'];
+    /** @var list<string> */
+    private const REQUEST_TYPES = OrderDocumentRequestEdoFulfillment::REQUEST_TYPES;
 
-    private const CLOSING_TYPES = ['upd', 'invoice_factura', 'act'];
+    /** @var list<string> */
+    private const CLOSING_TYPES = OrderDocumentClosingFulfillment::CLOSING_TYPES;
 
     /** @var list<string> */
     private const WAYBILL_TYPES = OrderDocumentTransportTypes::PAPER_VALUES;

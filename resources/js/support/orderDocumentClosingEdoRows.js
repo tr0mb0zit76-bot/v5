@@ -1,3 +1,9 @@
+import {
+    findEdoAcknowledgement,
+    findIncomingSignedDocument,
+    isEdoAcknowledgementActive,
+} from '@/support/edoAckLookup.js';
+
 const CLOSING_SLOT_KINDS = new Set(['customer_closing', 'carrier_closing', 'contractor_closing']);
 
 const CLOSING_TYPE_ROWS = [
@@ -10,51 +16,8 @@ function isClosingSlotKind(slotKind) {
     return CLOSING_SLOT_KINDS.has(String(slotKind ?? ''));
 }
 
-function findEdoAcknowledgement(edoAcknowledgements, context) {
-    return (Array.isArray(edoAcknowledgements) ? edoAcknowledgements : []).find((row) => (
-        row?.party === context.party
-        && row?.document_type === context.document_type
-        && String(row?.slot_key ?? '') === String(context.slot_key ?? '')
-        && Number(row?.contractor_id ?? 0) === Number(context.contractor_id ?? 0)
-    )) ?? null;
-}
-
 function findSignedDocumentForClosingType(signedDocuments, context) {
-    return (Array.isArray(signedDocuments) ? signedDocuments : []).find((document) => {
-        if (!document || document.type !== context.document_type) {
-            return false;
-        }
-
-        const direction = String(document.direction ?? document.metadata?.direction ?? 'incoming');
-        if (direction === 'outgoing') {
-            return false;
-        }
-
-        const party = document.party ?? document.metadata?.party ?? 'internal';
-
-        if (party !== context.party) {
-            return false;
-        }
-
-        const contractorId = Number(
-            document.carrier_contractor_id
-            ?? document.metadata?.carrier_contractor_id
-            ?? document.metadata?.contractor_id
-            ?? document.contractor_id
-            ?? 0,
-        );
-        const slotKey = String(document.requirement_slot_key ?? document.metadata?.requirement_slot_key ?? '');
-
-        if (Number(context.contractor_id ?? 0) > 0 && contractorId !== Number(context.contractor_id ?? 0)) {
-            return false;
-        }
-
-        if (String(context.slot_key ?? '') !== '' && slotKey !== '' && slotKey !== String(context.slot_key ?? '')) {
-            return false;
-        }
-
-        return ['sent', 'signed'].includes(String(document.status ?? ''));
-    }) ?? null;
+    return findIncomingSignedDocument(signedDocuments, context, { matchContractorAndSlot: true });
 }
 
 function buildClosingContext(baseRow, documentType) {
@@ -73,9 +36,7 @@ function isClosingTypeFulfilled(context, signedDocuments, edoAcknowledgements) {
         return true;
     }
 
-    const edoAcknowledgement = findEdoAcknowledgement(edoAcknowledgements, context);
-
-    return Boolean(edoAcknowledgement?.received_via_edo && edoAcknowledgement?.document_number);
+    return isEdoAcknowledgementActive(findEdoAcknowledgement(edoAcknowledgements, context));
 }
 
 function resolveClosingTypesToShow(baseRow, signedDocuments, edoAcknowledgements) {
@@ -116,8 +77,7 @@ function buildClosingTypeRow(baseRow, closingType, signedDocuments, edoAcknowled
 
     const matchedDocument = findSignedDocumentForClosingType(signedDocuments, context);
     const edoAcknowledgement = findEdoAcknowledgement(edoAcknowledgements, context);
-    const edoActive = Boolean(edoAcknowledgement?.received_via_edo && edoAcknowledgement?.document_number);
-
+    const edoActive = isEdoAcknowledgementActive(edoAcknowledgement);
     const expectsEdo = Boolean(baseRow.expects_edo);
 
     if (matchedDocument) {
