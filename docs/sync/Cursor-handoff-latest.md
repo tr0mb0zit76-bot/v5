@@ -3,7 +3,33 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-01 16:30 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `b4a95e32` (feat `62728df3`) · **тема:** «Сколько влезет?» — сравнение до 10 видов транспорта + доступ менеджерам
+**Обновлено:** 2026-09-02 19:50 (ОТДАТЬ) · **Ветка:** `master` · **тема:** архитектура — ЭДО lookup + вынос `DB::` из грид-контроллеров
+
+### Итог сессии 2026-09-02 — архитектура / слои
+
+| Блок | Статус |
+| --- | --- |
+| Протокол Архитектура: оценка **B**, отчёт `docs/architecture-reports/2026-09-02-1340-architecture-report.md` | ✅ |
+| Baseline `5a8c0988`: shared `edoAckLookup.js`, константы слотов из Fulfillment, удалены мёртвые `Finance/Index_*` | ✅ на прод |
+| Вынос `DB::`: `OrderIndexGridQueryService`, `ContractorRelatedOrdersQuery`, `LeadSequenceNumberService` | ✅ (этот коммит) |
+| Фильтры грида **не** менялись — только место запросов | ✅ |
+| Прод remote → `git@github.com:...` (HTTPS pull без credentials ломался) | ✅ |
+
+**Прод:** `git pull --ff-only` → `php artisan optimize:clear` (фронт/миграции не нужны для DB-extract).
+
+```text
+git pull
+php artisan optimize:clear
+pwsh -File scripts/sync-docs-to-yandex.ps1
+```
+
+**Следующий шаг (другой ПК):** ЗАБРАТЬ.
+
+**Отложено:** дробление Wizard/Print; дальше `DB::` в Task/KPI/SalesAssistant; починить pre-existing `clerk_cannot_inline_update_carrier_rate`; фаза 3 уведомлений реестра.
+
+---
+
+**Обновлено (архив):** 2026-09-01 16:30 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `b4a95e32` (feat `62728df3`) · **тема:** «Сколько влезет?» — сравнение до 10 видов транспорта + доступ менеджерам
 
 ### Итог сессии 2026-09-01 — Loading planner: multi-transport + менеджеры
 

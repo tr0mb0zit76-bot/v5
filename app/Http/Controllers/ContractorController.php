@@ -16,6 +16,7 @@ use App\Services\Contractor\ContractorEnrichmentService;
 use App\Services\Contractor\ContractorInsightDraftService;
 use App\Services\Contractor\ContractorLimitApprovalService;
 use App\Services\Contractor\ContractorPortraitService;
+use App\Services\Contractor\ContractorRelatedOrdersQuery;
 use App\Services\ContractorCreditService;
 use App\Services\ContractorDocumentSyncService;
 use App\Services\ContractorOperationalStatusService;
@@ -58,6 +59,7 @@ class ContractorController extends Controller
     public function __construct(
         private readonly ContractorDocumentSyncService $contractorDocumentSync,
         private readonly DocumentStorageService $documentStorage,
+        private readonly ContractorRelatedOrdersQuery $relatedOrdersQuery,
     ) {}
 
     public function index(Request $request): Response
@@ -616,35 +618,10 @@ class ContractorController extends Controller
                 $selectedContractor->load($relations);
             }
 
-            $orderSelect = [
-                'id',
-                'order_number',
-                'status',
-                'order_date',
-                'customer_rate',
-                'customer_id',
-                'carrier_id',
-            ];
-            if (Schema::hasColumn('orders', 'carrier_rate')) {
-                $orderSelect[] = 'carrier_rate';
-            }
-
-            $orderRowsQuery = DB::table('orders')
-                ->select($orderSelect)
-                ->where(function ($query) use ($selectedContractor): void {
-                    $query->where('customer_id', $selectedContractor->id)
-                        ->orWhere('carrier_id', $selectedContractor->id);
-                });
-
-            OrderViewAuthorization::applyOrdersVisibilityScopeToQuery(
-                $orderRowsQuery,
+            $orderRows = $this->relatedOrdersQuery->recentOrdersForContractor(
+                $selectedContractor,
                 $request->user(),
             );
-
-            $orderRows = $orderRowsQuery
-                ->orderByDesc('order_date')
-                ->limit(20)
-                ->get();
 
             $carrierRateByOrderId = CarrierRateFromFinancialTerms::sumsByOrderId(
                 $orderRows->pluck('id')->map(fn ($id): int => (int) $id)->all(),
@@ -678,34 +655,7 @@ class ContractorController extends Controller
             if ($hasOrderDocumentsTable) {
                 $documentDateColumn = Schema::hasColumn('order_documents', 'document_date');
 
-                $relatedOrderDocumentsQuery = DB::table('order_documents')
-                    ->join('orders', 'orders.id', '=', 'order_documents.order_id')
-                    ->select(
-                        'order_documents.id',
-                        'order_documents.order_id',
-                        'order_documents.type',
-                        'order_documents.document_group',
-                        'order_documents.number',
-                        'order_documents.original_name',
-                        'order_documents.status',
-                        'order_documents.signature_status',
-                        'order_documents.file_path',
-                        'orders.order_number',
-                        'orders.customer_id',
-                        'orders.carrier_id',
-                    )
-                    ->when(
-                        $documentDateColumn,
-                        fn ($query) => $query->addSelect('order_documents.document_date')
-                    )
-                    ->where(function ($query) use ($selectedContractor): void {
-                        $query->where('orders.customer_id', $selectedContractor->id)
-                            ->orWhere('orders.carrier_id', $selectedContractor->id);
-                    })
-                    ->when(
-                        Schema::hasColumn('orders', 'deleted_at'),
-                        fn ($query) => $query->whereNull('orders.deleted_at')
-                    );
+                $relatedOrderDocumentsQuery = $this->relatedOrdersQuery->relatedOrderDocumentsQuery($selectedContractor);
 
                 OrderViewAuthorization::applyOrdersVisibilityScopeToQuery(
                     $relatedOrderDocumentsQuery,
@@ -1587,17 +1537,7 @@ class ContractorController extends Controller
 
     private function contractorHasOrders(Contractor $contractor): bool
     {
-        $ordersQuery = DB::table('orders')
-            ->where(function ($query) use ($contractor): void {
-                $query->where('customer_id', $contractor->id)
-                    ->orWhere('carrier_id', $contractor->id);
-            });
-
-        if (Schema::hasColumn('orders', 'deleted_at')) {
-            $ordersQuery->whereNull('deleted_at');
-        }
-
-        return $ordersQuery->exists();
+        return $this->relatedOrdersQuery->contractorHasOrders($contractor);
     }
 
     private function isMissingTableException(QueryException $exception, string $table): bool

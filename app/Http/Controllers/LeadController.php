@@ -27,6 +27,7 @@ use App\Models\LeadRateQuote;
 use App\Models\PrintFormTemplate;
 use App\Models\ProposalHtmlTemplate;
 use App\Models\Task;
+use App\Models\User;
 use App\Services\ActivityLedgerService;
 use App\Services\Commercial\LeadAttentionQueueService;
 use App\Services\Commercial\LeadCloseOutcomeService;
@@ -50,6 +51,7 @@ use App\Services\Leads\LeadGridMutationService;
 use App\Services\Leads\LeadOperationalBriefService;
 use App\Services\Leads\LeadRateQuoteService;
 use App\Services\Leads\LeadRoutePriceBenchmarkService;
+use App\Services\Leads\LeadSequenceNumberService;
 use App\Services\Leads\TaskLeadTemplateBuilder;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\ActivityEventType;
@@ -105,6 +107,7 @@ class LeadController extends Controller
         private readonly LeadPrecalculationService $leadPrecalculationService,
         private readonly ImportCostCalculatorService $importCostCalculatorService,
         private readonly LeadRateQuoteService $leadRateQuoteService,
+        private readonly LeadSequenceNumberService $leadSequenceNumbers,
     ) {}
 
     public function searchPrecalculationTnVed(SearchImportCostTnVedRequest $request): JsonResponse
@@ -1010,7 +1013,7 @@ class LeadController extends Controller
             ]]);
         }
 
-        $usersQuery = DB::table('users')
+        $usersQuery = User::query()
             ->join('roles', 'roles.id', '=', 'users.role_id')
             ->where('roles.name', 'manager')
             ->orderBy('users.name');
@@ -1172,12 +1175,7 @@ class LeadController extends Controller
 
     private function nextLeadNumber(): string
     {
-        $prefix = 'LD-'.now()->format('ymd');
-        $sequence = DB::table('leads')
-            ->where('number', 'like', $prefix.'-%')
-            ->count() + 1;
-
-        return sprintf('%s-%03d', $prefix, $sequence);
+        return $this->leadSequenceNumbers->nextLeadNumber();
     }
 
     private function hasLeadsFeatureTables(): bool
@@ -1238,17 +1236,7 @@ class LeadController extends Controller
 
     private function nextTaskNumber(): string
     {
-        $prefix = 'TSK-'.now()->format('ymd');
-
-        if (! Schema::hasTable('tasks')) {
-            return sprintf('%s-%03d', $prefix, 1);
-        }
-
-        $sequence = DB::table('tasks')
-            ->where('number', 'like', $prefix.'-%')
-            ->count() + 1;
-
-        return sprintf('%s-%03d', $prefix, $sequence);
+        return $this->leadSequenceNumbers->nextTaskNumber();
     }
 
     /**
