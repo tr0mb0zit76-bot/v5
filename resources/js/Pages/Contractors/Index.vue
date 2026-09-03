@@ -637,12 +637,26 @@ function contractorToForm(contractor) {
 
 const form = useForm(contractorToForm(props.selectedContractor));
 
+/**
+ * Пока true — игнорируем побочные watch'и при заливке формы из props.
+ * Иначе sync адресов / флаги own_company помечают form.isDirty без правок пользователя.
+ */
+const isHydratingContractorForm = ref(false);
+
 /** Синхронизация адресов на закладке «Реквизиты» (не уходят на сервер отдельно). */
 const actualMatchesLegal = ref(false);
 const postalMatchesLegal = ref(false);
 const postalMatchesActual = ref(false);
 
+function markContractorFormPristine() {
+    form.defaults();
+}
+
 function syncAddressLinkTargets() {
+    if (isHydratingContractorForm.value) {
+        return;
+    }
+
     if (actualMatchesLegal.value) {
         form.actual_address = form.legal_address ?? '';
     }
@@ -758,6 +772,8 @@ const activityTypeDropdownSummary = computed(() => {
 function applyFormState(contractor, options = {}) {
     const resetTab = options.resetTab ?? true;
     const payload = contractorToForm(contractor);
+    isHydratingContractorForm.value = true;
+
     form.defaults(payload);
     form.reset();
     const normalizedInn = normalizedContractorInn(payload.inn ?? '');
@@ -782,9 +798,15 @@ function applyFormState(contractor, options = {}) {
     expandedContactIndexes.value = new Set();
     expandedInteractionIndexes.value = new Set();
 
-    if (shouldLookupPartyByInn(normalizedInn)) {
-        void nextTick(() => fetchPartySuggestions());
-    }
+    void nextTick(() => {
+        isHydratingContractorForm.value = false;
+        // Снимок после flush watch'ей: иначе ложный isDirty при закрытии без правок.
+        markContractorFormPristine();
+
+        if (shouldLookupPartyByInn(normalizedInn)) {
+            void fetchPartySuggestions();
+        }
+    });
 }
 
 applyFormState(props.selectedContractor);
@@ -811,17 +833,19 @@ watch(() => props.selectedContractor, (contractor, previousContractor) => {
 });
 
 watch(() => form.is_non_resident, (isNonResident) => {
-    if (!isNonResident) {
-        form.non_resident_corr_bank_name = '';
-        form.non_resident_corr_bank_swift = '';
-        form.non_resident_corr_settlement_account = '';
-        form.non_resident_corr_bank_account = '';
-        form.cnaps_code = '';
+    if (isHydratingContractorForm.value || isNonResident) {
+        return;
     }
+
+    form.non_resident_corr_bank_name = '';
+    form.non_resident_corr_bank_swift = '';
+    form.non_resident_corr_settlement_account = '';
+    form.non_resident_corr_bank_account = '';
+    form.cnaps_code = '';
 });
 
 watch(() => form.is_own_company, (isOwnCompany) => {
-    if (!isOwnCompany) {
+    if (isHydratingContractorForm.value || !isOwnCompany) {
         return;
     }
 
@@ -840,8 +864,28 @@ watch(() => form.legal_address, () => {
 });
 
 watch(() => form.actual_address, () => {
+    if (isHydratingContractorForm.value) {
+        return;
+    }
+
     if (postalMatchesActual.value && !postalMatchesLegal.value) {
         form.postal_address = form.actual_address ?? '';
+    }
+});
+
+// PaymentTermsWizardBlock на вкладке «Сотрудничество» нормализует график/summary на mount —
+// без re-baseline это даёт ложный confirm при закрытии без правок.
+watch(activeTab, async (tab, previousTab) => {
+    if (tab !== 'cooperation' || previousTab === 'cooperation') {
+        return;
+    }
+
+    const wasDirty = form.isDirty;
+    await nextTick();
+    await nextTick();
+
+    if (!wasDirty && !isHydratingContractorForm.value) {
+        markContractorFormPristine();
     }
 });
 
