@@ -463,4 +463,97 @@ class SalaryPayrollManagementTest extends TestCase
         $this->assertSame('179900.00', number_format((float) $accrual->paid_amount_fact, 2, '.', ''));
         $this->assertSame('closed', DB::table('orders')->where('id', $orderId)->value('status'));
     }
+
+    public function test_salary_clean_start_closes_periods_and_unpaid_before_cutoff(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'visibility_areas' => json_encode(['dashboard', 'settings_motivation', 'finance_salary'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $oldOrderId = $this->insertOrderRow([
+            'manager_id' => $user->id,
+            'order_date' => '2026-08-05',
+            'delta' => 200000,
+            'salary_accrued' => 100000,
+            'customer_rate' => 400000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $newOrderId = $this->insertOrderRow([
+            'manager_id' => $user->id,
+            'order_date' => '2026-08-20',
+            'delta' => 100000,
+            'salary_accrued' => 50000,
+            'customer_rate' => 200000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user)->post(route('finance.salary.periods.store'), [
+            'period_month' => '2026-08',
+            'period_type' => 'h1',
+        ])->assertRedirect();
+
+        $this->actingAs($user)->post(route('finance.salary.periods.store'), [
+            'period_month' => '2026-08',
+            'period_type' => 'h2',
+        ])->assertRedirect();
+
+        $oldPeriodId = (int) DB::table('salary_periods')->where('period_type', 'h1')->value('id');
+        $newPeriodId = (int) DB::table('salary_periods')->where('period_type', 'h2')->value('id');
+
+        $oldAccrual = DB::table('salary_accruals')->where('order_id', $oldOrderId)->first();
+        $this->assertNotNull($oldAccrual);
+        $this->assertGreaterThan(0.009, (float) $oldAccrual->unpaid_amount);
+
+        DB::table('salary_payouts')->insert([
+            'period_id' => null,
+            'user_id' => $user->id,
+            'amount' => 25000,
+            'payout_date' => '2026-08-10',
+            'type' => 'advance',
+            'comment' => 'Аванс до cutoff',
+            'created_by' => $user->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->artisan('salary:clean-start', [
+            '--date' => '2026-08-16',
+            '--force' => true,
+        ])->assertSuccessful();
+
+        $this->assertSame('closed', DB::table('salary_periods')->where('id', $oldPeriodId)->value('status'));
+        $this->assertNotSame('closed', DB::table('salary_periods')->where('id', $newPeriodId)->value('status'));
+
+        $settled = DB::table('salary_accruals')->where('order_id', $oldOrderId)->first();
+        $this->assertSame('0.00', number_format((float) $settled->unpaid_amount, 2, '.', ''));
+        $this->assertSame(
+            number_format((float) $settled->salary_amount, 2, '.', ''),
+            number_format((float) $settled->paid_amount_fact, 2, '.', ''),
+        );
+
+        $writeOff = DB::table('salary_payouts')
+            ->where('period_id', $oldPeriodId)
+            ->where('type', 'salary')
+            ->whereDate('payout_date', '2026-08-16')
+            ->first();
+        $this->assertNotNull($writeOff);
+        $this->assertStringContainsString('Чистый старт', (string) $writeOff->comment);
+
+        $advance = DB::table('salary_payouts')->where('type', 'advance')->first();
+        $this->assertSame('0.00', number_format((float) $advance->amount, 2, '.', ''));
+
+        $newAccrual = DB::table('salary_accruals')->where('order_id', $newOrderId)->first();
+        $this->assertNotNull($newAccrual);
+        $this->assertGreaterThan(0.009, (float) $newAccrual->unpaid_amount);
+    }
 }

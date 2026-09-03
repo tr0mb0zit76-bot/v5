@@ -531,6 +531,224 @@ class SalaryPayrollService
     }
 
     /**
+     * Чистый старт ЗП: периоды с period_end &lt; $cleanStartDate закрываются,
+     * открытые начисления списываются служебной выплатой на дату старта,
+     * незакрытые авансы с датой до старта ужимаются до уже разнесённой суммы.
+     *
+     * @return array{
+     *     clean_start_date: string,
+     *     periods_closed: int,
+     *     periods_touched: list<array{id: int, period_start: string, period_end: string, status_before: string}>,
+     *     accruals_settled: int,
+     *     unpaid_closed_sum: float,
+     *     writeoff_payouts: int,
+     *     advances_clamped: int,
+     *     advance_clamped_sum: float,
+     *     order_ids: list<int>,
+     *     dry_run: bool
+     * }
+     */
+    public function applySalaryCleanStart(string $cleanStartDate, ?int $actorId = null, bool $dryRun = false): array
+    {
+        $cleanStart = Carbon::parse($cleanStartDate)->startOfDay();
+        $cleanStartIso = $cleanStart->toDateString();
+
+        $report = [
+            'clean_start_date' => $cleanStartIso,
+            'periods_closed' => 0,
+            'periods_touched' => [],
+            'accruals_settled' => 0,
+            'unpaid_closed_sum' => 0.0,
+            'writeoff_payouts' => 0,
+            'advances_clamped' => 0,
+            'advance_clamped_sum' => 0.0,
+            'order_ids' => [],
+            'dry_run' => $dryRun,
+        ];
+
+        if (! Schema::hasTable('salary_periods') || ! Schema::hasTable('salary_accruals')) {
+            return $report;
+        }
+
+        $apply = function () use ($cleanStartIso, $actorId, $dryRun, &$report): void {
+            $periodsQuery = SalaryPeriod::query()
+                ->whereDate('period_end', '<', $cleanStartIso)
+                ->orderBy('period_start')
+                ->orderBy('id');
+
+            if (! $dryRun) {
+                $periodsQuery->lockForUpdate();
+            }
+
+            $periods = $periodsQuery->get();
+
+            $orderIds = [];
+
+            foreach ($periods as $period) {
+                $statusBefore = (string) $period->status;
+                $report['periods_touched'][] = [
+                    'id' => (int) $period->id,
+                    'period_start' => $period->period_start->toDateString(),
+                    'period_end' => $period->period_end->toDateString(),
+                    'status_before' => $statusBefore,
+                ];
+
+                if ($statusBefore !== 'closed') {
+                    $report['periods_closed']++;
+                    if (! $dryRun) {
+                        $period->forceFill([
+                            'status' => 'closed',
+                            'closed_by' => $actorId,
+                        ])->save();
+                    }
+                }
+
+                $accrualsQuery = SalaryAccrual::query()
+                    ->where('period_id', $period->id)
+                    ->orderBy('user_id')
+                    ->orderBy('id');
+
+                if (! $dryRun) {
+                    $accrualsQuery->lockForUpdate();
+                }
+
+                $accruals = $accrualsQuery->get();
+
+                /** @var array<int, list<array{accrual: SalaryAccrual, amount: float}>> $writeOffByUser */
+                $writeOffByUser = [];
+
+                foreach ($accruals as $accrual) {
+                    $meta = is_array($accrual->meta) ? $accrual->meta : [];
+                    if (($meta['clean_start_cutoff'] ?? null) === $cleanStartIso) {
+                        continue;
+                    }
+
+                    $salaryAmount = round((float) $accrual->salary_amount, 2);
+                    $alreadyAllocated = round($this->allocatedAmountForAccrualTotal((int) $accrual->id), 2);
+                    $need = round(max(0.0, $salaryAmount - $alreadyAllocated), 2);
+
+                    if ($need <= 0.009 && (float) $accrual->unpaid_amount <= 0.009) {
+                        continue;
+                    }
+
+                    $report['accruals_settled']++;
+                    $report['unpaid_closed_sum'] = round($report['unpaid_closed_sum'] + $need, 2);
+                    $orderIds[(int) $accrual->order_id] = (int) $accrual->order_id;
+
+                    if ($need > 0.009) {
+                        $writeOffByUser[(int) $accrual->user_id][] = [
+                            'accrual' => $accrual,
+                            'amount' => $need,
+                        ];
+                    } elseif (! $dryRun) {
+                        $accrual->forceFill([
+                            'paid_amount_fact' => $salaryAmount,
+                            'unpaid_amount' => 0,
+                            'payable_amount_computed' => $salaryAmount,
+                            'meta' => array_merge($meta, [
+                                'clean_start_cutoff' => $cleanStartIso,
+                                'clean_start_settled_at' => now()->toIso8601String(),
+                            ]),
+                        ])->save();
+                    }
+                }
+
+                foreach ($writeOffByUser as $userId => $items) {
+                    $payoutAmount = round(array_sum(array_column($items, 'amount')), 2);
+                    if ($payoutAmount <= 0.009) {
+                        continue;
+                    }
+
+                    $report['writeoff_payouts']++;
+
+                    if ($dryRun) {
+                        continue;
+                    }
+
+                    $payout = SalaryPayout::query()->create([
+                        'period_id' => $period->id,
+                        'user_id' => $userId,
+                        'amount' => $payoutAmount,
+                        'payout_date' => $cleanStartIso,
+                        'type' => 'salary',
+                        'comment' => 'Чистый старт ЗП с '.$cleanStartIso.': закрытие хвоста начислений до cutoff',
+                        'created_by' => $actorId,
+                    ]);
+
+                    foreach ($items as $item) {
+                        /** @var SalaryAccrual $accrual */
+                        $accrual = $item['accrual'];
+                        $payout->allocations()->create([
+                            'accrual_id' => $accrual->id,
+                            'amount' => $item['amount'],
+                        ]);
+
+                        $meta = is_array($accrual->meta) ? $accrual->meta : [];
+                        $accrual->forceFill([
+                            'meta' => array_merge($meta, [
+                                'clean_start_cutoff' => $cleanStartIso,
+                                'clean_start_settled_at' => now()->toIso8601String(),
+                                'clean_start_writeoff_payout_id' => $payout->id,
+                            ]),
+                        ])->save();
+
+                        $this->refreshAccrualPaymentTotals($accrual->fresh());
+                    }
+                }
+            }
+
+            if (Schema::hasTable('salary_payouts')) {
+                $advancesQuery = SalaryPayout::query()
+                    ->where('type', 'advance')
+                    ->whereDate('payout_date', '<', $cleanStartIso)
+                    ->orderBy('id');
+
+                if (! $dryRun) {
+                    $advancesQuery->lockForUpdate();
+                }
+
+                $advances = $advancesQuery->get();
+
+                foreach ($advances as $advance) {
+                    $allocated = round((float) $advance->allocations()->sum('amount'), 2);
+                    $amount = round((float) $advance->amount, 2);
+                    $leftover = round(max(0.0, $amount - $allocated), 2);
+
+                    if ($leftover <= 0.009) {
+                        continue;
+                    }
+
+                    $report['advances_clamped']++;
+                    $report['advance_clamped_sum'] = round($report['advance_clamped_sum'] + $leftover, 2);
+
+                    if ($dryRun) {
+                        continue;
+                    }
+
+                    $note = trim((string) ($advance->comment ?? ''));
+                    $clampNote = 'Чистый старт ЗП с '.$cleanStartIso.': остаток аванса '.number_format($leftover, 2, '.', '').' ₽ обнулён';
+                    $advance->forceFill([
+                        'amount' => $allocated,
+                        'comment' => $note === '' ? $clampNote : $note.' | '.$clampNote,
+                    ])->save();
+                }
+            }
+
+            $report['order_ids'] = array_values($orderIds);
+            $report['unpaid_closed_sum'] = round($report['unpaid_closed_sum'], 2);
+            $report['advance_clamped_sum'] = round($report['advance_clamped_sum'], 2);
+        };
+
+        if ($dryRun) {
+            $apply();
+        } else {
+            DB::transaction($apply);
+        }
+
+        return $report;
+    }
+
+    /**
      * @return Collection<int, SalaryPeriod>
      */
     public function periods(): Collection
