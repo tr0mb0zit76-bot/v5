@@ -3,16 +3,16 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-04 14:17 (деплой) · **Ветка:** `master` · **HEAD:** `c7fc67f6` · **тема:** Traklo UI — recently/статусы/лиды
+**Обновлено:** 2026-09-04 14:35 (деплой) · **Ветка:** `master` · **HEAD:** `d6da1590` · **тема:** Traklo — in-app предпросмотр заявки
 
-### Итог сессии 2026-09-04 — Traklo mobile UI polish
+### Итог сессии 2026-09-04 — Traklo print preview без CrmLayout
 
 | Блок | Статус |
 | --- | --- |
-| «Недавно» свёрнуто под кнопку | ✅ `c7fc67f6` |
-| Статусы заказов → иконки в заголовке карточки | ✅ |
-| Лиды: intake Traklo + «Мои открытые лиды» | ✅ |
-| **Прод** pull + `npm run build` + optimize:clear | ✅ (в ходе деплоя) |
+| `preview_url` → `download-draft?preview=1&preview_mode=browser` | ✅ `d6da1590` |
+| Fullscreen PDF overlay в Messenger (+ Подписать/Отказать) | ✅ |
+| Не уходит в десктопный `preview-draft` / CrmLayout | ✅ |
+| **Прод** pull + `npm run build` + optimize:clear | ⏳ в ходе деплоя |
 | APK | ❌ не нужен |
 
 ```text
@@ -21,7 +21,21 @@ git pull
 pwsh -File scripts/sync-docs-to-yandex.ps1
 ```
 
-**Следующий шаг:** smoke в Traklo. Локально грязные: `OneCBpClient.php`, `docs/one-c-edo-status-sync-design.md`.
+**Следующий шаг:** smoke «Предпросмотр» в Traklo (телефон / WebView). Локально грязные: `OneCBpClient.php`, `docs/one-c-edo-status-sync-design.md`.
+
+---
+
+**Обновлено (архив):** 2026-09-04 14:17 (деплой) · **Ветка:** `master` · **HEAD:** `c7fc67f6` · **тема:** Traklo UI — recently/статусы/лиды
+
+### Итог сессии 2026-09-04 — Traklo mobile UI polish
+
+| Блок | Статус |
+| --- | --- |
+| «Недавно» свёрнуто под кнопку | ✅ `c7fc67f6` |
+| Статусы заказов → иконки в заголовке карточки | ✅ |
+| Лиды: intake Traklo + «Мои открытые лиды» | ✅ |
+| **Прод** pull + `npm run build` + optimize:clear | ✅ |
+| APK | ❌ не нужен |
 
 ---
 
