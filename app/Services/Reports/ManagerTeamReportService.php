@@ -259,7 +259,7 @@ class ManagerTeamReportService
             return [];
         }
 
-        $query = User::query()->orderBy('name');
+        $query = User::query()->orderBy('name')->visibleInLists();
 
         if (Schema::hasColumn('users', 'is_active')) {
             $query->where('is_active', true);

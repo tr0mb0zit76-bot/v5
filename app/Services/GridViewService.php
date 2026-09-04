@@ -182,6 +182,7 @@ class GridViewService
 
         $users = User::query()
             ->where('is_active', true)
+            ->visibleInLists()
             ->orderBy('name')
             ->orderBy('email')
             ->get(['id', 'name', 'email'])

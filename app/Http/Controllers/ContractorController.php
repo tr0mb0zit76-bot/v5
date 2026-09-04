@@ -1671,7 +1671,7 @@ class ContractorController extends Controller
      */
     private function ownerUserOptionsForContractorForm(?int $retainOwnerId): array
     {
-        $query = User::query()->select('id', 'name')->orderBy('name');
+        $query = User::query()->select('id', 'name')->orderBy('name')->visibleInLists();
 
         if (Schema::hasColumn('users', 'is_active')) {
             $query->where('is_active', true);
@@ -1684,7 +1684,7 @@ class ContractorController extends Controller
             ])
             ->all();
 
-        if ($retainOwnerId === null || ! Schema::hasColumn('users', 'is_active')) {
+        if ($retainOwnerId === null) {
             return $rows;
         }
 
@@ -1695,15 +1695,22 @@ class ContractorController extends Controller
             return $rows;
         }
 
-        $retained = User::query()->select('id', 'name', 'is_active')->find($retainId);
+        $retained = User::query()->select('id', 'name', 'is_active', 'hidden_from_lists')->find($retainId);
 
         if ($retained === null) {
             return $rows;
         }
 
         $name = (string) $retained->name;
-        if (! $retained->is_active) {
-            $name .= ' (не активен)';
+        $suffixes = [];
+        if (Schema::hasColumn('users', 'is_active') && ! $retained->is_active) {
+            $suffixes[] = 'не активен';
+        }
+        if (Schema::hasColumn('users', 'hidden_from_lists') && $retained->hidden_from_lists) {
+            $suffixes[] = 'скрыт из списков';
+        }
+        if ($suffixes !== []) {
+            $name .= ' ('.implode(', ', $suffixes).')';
         }
 
         array_unshift($rows, [

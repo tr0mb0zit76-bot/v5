@@ -87,6 +87,7 @@ class MessengerService
         $found = User::query()
             ->whereIn('id', $ids)
             ->where('is_active', true)
+            ->visibleInLists()
             ->count();
         if ($found !== count($ids)) {
             throw new \InvalidArgumentException('Некоторые пользователи недоступны.');

@@ -346,6 +346,7 @@ class CompanyPlanningController extends Controller
     {
         return User::query()
             ->where('is_active', true)
+            ->visibleInLists()
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (User $user): array => [

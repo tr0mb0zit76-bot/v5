@@ -844,6 +844,7 @@ class TaskController extends Controller
                 Schema::hasColumn('users', 'is_active'),
                 fn ($query) => $query->where('is_active', true)
             )
+            ->visibleInLists()
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (User $user): array => ['id' => $user->id, 'name' => $user->name])

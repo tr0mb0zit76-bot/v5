@@ -395,6 +395,7 @@ class SettingsKpiController extends Controller
             ->with(['departments:id,name'])
             ->leftJoin('roles', 'roles.id', '=', 'users.role_id')
             ->where('users.is_active', true)
+            ->visibleInLists()
             ->orderBy('users.name')
             ->get([
                 'users.id',

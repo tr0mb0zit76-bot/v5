@@ -1016,6 +1016,7 @@ class LeadController extends Controller
         $usersQuery = User::query()
             ->join('roles', 'roles.id', '=', 'users.role_id')
             ->where('roles.name', 'manager')
+            ->visibleInLists()
             ->orderBy('users.name');
 
         if (Schema::hasColumn('users', 'is_active')) {

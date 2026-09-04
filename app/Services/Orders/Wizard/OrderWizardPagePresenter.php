@@ -736,6 +736,10 @@ class OrderWizardPagePresenter
             $usersQuery->where('users.is_active', true);
         }
 
+        if (Schema::hasColumn('users', 'hidden_from_lists')) {
+            $usersQuery->where('users.hidden_from_lists', false);
+        }
+
         $users = $usersQuery
             ->get(['users.id', 'users.name'])
             ->map(fn ($userRow): array => ['id' => (int) $userRow->id, 'name' => (string) $userRow->name])

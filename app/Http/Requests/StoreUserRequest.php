@@ -30,6 +30,7 @@ class StoreUserRequest extends FormRequest
             'role_ids' => ['nullable', 'array', 'max:10'],
             'role_ids.*' => ['integer', Rule::exists('roles', 'id')],
             'is_active' => ['required', 'boolean'],
+            'hidden_from_lists' => ['nullable', 'boolean'],
             'has_signing_authority' => ['nullable', 'boolean'],
             'belongs_to_management' => ['nullable', 'boolean'],
             'can_management_accounting' => ['nullable', 'boolean'],

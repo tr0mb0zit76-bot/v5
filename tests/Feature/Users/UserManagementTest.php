@@ -145,6 +145,40 @@ class UserManagementTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_mark_user_hidden_from_lists(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $managerRoleId = $this->createRole('manager', 'Менеджер');
+
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+        $managedUser = User::factory()->create([
+            'role_id' => $managerRoleId,
+            'is_active' => true,
+            'hidden_from_lists' => false,
+        ]);
+
+        $response = $this->actingAs($admin)->patch(route('users.update', $managedUser), [
+            'name' => $managedUser->name,
+            'email' => $managedUser->email,
+            'password' => '',
+            'password_confirmation' => '',
+            'role_id' => $managerRoleId,
+            'is_active' => true,
+            'hidden_from_lists' => true,
+            'has_signing_authority' => false,
+        ]);
+
+        $response->assertRedirect(route('settings.users.index'));
+        $this->assertDatabaseHas('users', [
+            'id' => $managedUser->id,
+            'hidden_from_lists' => true,
+        ]);
+
+        $this->assertFalse(
+            User::query()->visibleInLists()->whereKey($managedUser->id)->exists()
+        );
+    }
+
     private function createRole(string $name, string $displayName): int
     {
         return (int) DB::table('roles')->insertGetId([

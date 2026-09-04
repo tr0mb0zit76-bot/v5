@@ -197,6 +197,7 @@ class UserManagementController extends Controller
                 : [],
             'roles_label' => $this->rolesLabel($user),
             'is_active' => $user->is_active,
+            'hidden_from_lists' => (bool) ($user->hidden_from_lists ?? false),
             'has_signing_authority' => (bool) $user->has_signing_authority,
             'belongs_to_management' => (bool) $user->belongs_to_management,
             'can_management_accounting' => (bool) $user->can_management_accounting,

@@ -801,6 +801,7 @@ class SalesAssistantController extends Controller
 
             $filterUsers = User::query()
                 ->whereIn('id', $participantIds)
+                ->visibleInLists()
                 ->orderBy('name')
                 ->get(['id', 'name'])
                 ->map(fn (User $u): array => ['id' => $u->id, 'name' => $u->name])

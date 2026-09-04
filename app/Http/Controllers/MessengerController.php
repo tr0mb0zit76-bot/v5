@@ -81,6 +81,7 @@ class MessengerController extends Controller
         $users = User::query()
             ->where('id', '!=', $user->id)
             ->when(Schema::hasColumn('users', 'is_active'), fn ($q) => $q->where('is_active', true))
+            ->visibleInLists()
             ->when(
                 Schema::hasColumn('users', 'is_external') && $user->isExternal(),
                 fn ($q) => $q->whereRaw('1 = 0'),

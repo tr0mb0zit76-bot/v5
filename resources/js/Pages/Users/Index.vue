@@ -81,14 +81,22 @@
                                 </span>
                             </td>
                             <td class="px-3 py-3">
-                                <span
-                                    class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
-                                    :class="user.is_active
-                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                                        : 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'"
-                                >
-                                    {{ user.is_active ? 'Активен' : 'Неактивен' }}
-                                </span>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <span
+                                        class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
+                                        :class="user.is_active
+                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                            : 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'"
+                                    >
+                                        {{ user.is_active ? 'Активен' : 'Неактивен' }}
+                                    </span>
+                                    <span
+                                        v-if="user.hidden_from_lists"
+                                        class="inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                                    >
+                                        Скрыт из списков
+                                    </span>
+                                </div>
                             </td>
                             <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ formatDate(user.created_at) }}</td>
                             <td class="px-3 py-3">
@@ -198,6 +206,20 @@
                                 :class="crmCheckbox"
                             />
                             Активный пользователь
+                        </label>
+
+                        <label class="flex items-start gap-3 rounded-xl border border-zinc-200 px-3 py-3 text-sm dark:border-zinc-800 md:col-span-2">
+                            <input
+                                v-model="form.hidden_from_lists"
+                                type="checkbox"
+                                class="mt-1 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-950"
+                            />
+                            <div>
+                                <div class="font-medium text-zinc-900 dark:text-zinc-50">Не отображать в списке</div>
+                                <div class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                                    Скрыть из выпадающих списков и фильтров (задачи, заказы, мессенджер и т.п.). Вход в CRM и карточка в настройках сохраняются.
+                                </div>
+                            </div>
                         </label>
                     </div>
 
@@ -599,6 +621,7 @@ const form = useForm({
     role_id: null,
     role_ids: [],
     is_active: true,
+    hidden_from_lists: false,
     has_signing_authority: false,
     belongs_to_management: false,
     can_management_accounting: false,
@@ -635,6 +658,7 @@ function resetForm() {
     form.role_id = null;
     form.role_ids = [];
     form.is_active = true;
+    form.hidden_from_lists = false;
     form.has_signing_authority = false;
     form.belongs_to_management = false;
     form.can_management_accounting = false;
@@ -667,6 +691,7 @@ function openEditModal(user) {
         ? user.role_ids.map((id) => Number(id))
         : (user.role_id ? [Number(user.role_id)] : []);
     form.is_active = user.is_active;
+    form.hidden_from_lists = Boolean(user.hidden_from_lists);
     form.has_signing_authority = Boolean(user.has_signing_authority);
     form.belongs_to_management = Boolean(user.belongs_to_management);
     form.can_management_accounting = Boolean(user.can_management_accounting);
@@ -782,6 +807,7 @@ function buildUpdatePayload(user, overrides = {}) {
             ? [...user.role_ids]
             : (user.role_id ? [user.role_id] : []),
         is_active: user.is_active,
+        hidden_from_lists: Boolean(user.hidden_from_lists),
         has_signing_authority: user.has_signing_authority,
         belongs_to_management: user.belongs_to_management,
         can_management_accounting: user.can_management_accounting,

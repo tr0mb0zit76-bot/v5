@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Support\ExternalParty;
 use App\Support\RoleAccess;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -33,6 +34,7 @@ class User extends Authenticatable
         'role_id',
         'theme',
         'is_active',
+        'hidden_from_lists',
         'has_signing_authority',
         'belongs_to_management',
         'can_management_accounting',
@@ -66,6 +68,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'hidden_from_lists' => 'boolean',
             'has_signing_authority' => 'boolean',
             'belongs_to_management' => 'boolean',
             'can_management_accounting' => 'boolean',
@@ -145,6 +148,22 @@ class User extends Authenticatable
     public function seesCompanyDashboard(): bool
     {
         return (bool) ($this->sees_company_dashboard ?? false);
+    }
+
+    /**
+     * Пользователи для выпадающих списков / фильтров CRM.
+     * Карточка «Настройки → Пользователи» этот scope не использует.
+     *
+     * @param  Builder<User>  $query
+     * @return Builder<User>
+     */
+    public function scopeVisibleInLists(Builder $query): Builder
+    {
+        if (! Schema::hasColumn('users', 'hidden_from_lists')) {
+            return $query;
+        }
+
+        return $query->where($query->getModel()->getTable().'.hidden_from_lists', false);
     }
 
     /**

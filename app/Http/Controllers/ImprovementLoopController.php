@@ -424,6 +424,7 @@ class ImprovementLoopController extends Controller
         }
 
         return User::query()
+            ->visibleInLists()
             ->orderBy('name')
             ->limit(200)
             ->get(['id', 'name'])
