@@ -26,6 +26,14 @@
 - `party`: `customer` | `carrier`
 - `pdf_verification_code`, `pdf_verification_url`, `pdf_certified_sha256`
 
+## Маршрут в печати (customer vs carrier)
+
+- Таблица точек: `PrintFormRoutePointTableCloner` / `buildRoutePointTableRowsForTemplate`.
+- При **`printParty=customer`** и ≥2 плечах без фильтра по плечу/перевозчику: `PrintFormCustomerRoutePointFilter` скрывает стыки плеч (выгрузка legᵢ + погрузка legᵢ₊₁) — транзитная перегрузка не для заказчика.
+- Сортировка строк: `(leg.sequence, point.sequence)`.
+- Печать перевозчику / одно плечо — все точки плеча как раньше.
+- Пример: заказ 208 АС-ГР-963 → заказчику только SHIJIAZHUANG + Ряжск.
+
 ## Конфиг (.env)
 
 ```
@@ -39,4 +47,4 @@ PRINT_VERIFICATION_QR_PNG_PIXEL=5
 
 После правок: `git pull`, `php artisan optimize:clear`. Старые DOCX/PDF не пересобираются сами — «Пересоздать черновик» или повторное согласование.
 
-*Обновлено: 2026-07-20.*
+*Обновлено: 2026-09-04 (customer multi-leg hubs).*

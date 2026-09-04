@@ -3,7 +3,33 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-03 15:57 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `2fc57973` · **тема:** ЗП clean-start 16.08 + фикс dirty модалки контрагента
+**Обновлено:** 2026-09-04 10:52 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `bc3ac933` · **тема:** печать заказчику — скрыть стыки плеч
+
+### Итог сессии 2026-09-04 — customer print: без транзитных точек
+
+| Блок | Статус |
+| --- | --- |
+| Кейс: заказ **208** АС-ГР-963 (SHIJIAZHUANG → Маньчжурия → Ряжск) | ✅ разобран на проде |
+| `PrintFormCustomerRoutePointFilter` — при `printParty=customer` скрывает стык legᵢ/legᵢ₊₁ | ✅ `bc3ac933` |
+| Сортировка точек `(leg.sequence, point.sequence)` | ✅ |
+| PHPUnit filter + draft service | ✅ |
+| **Прод** `git pull` + `optimize:clear` | ✅ `bc3ac933` |
+
+**Операционка:** пересоздать черновик/заявку заказчику по 208 — в таблице должны остаться Китай + Ряжск. Миграций/фронта нет.
+
+```text
+git pull
+php artisan optimize:clear
+pwsh -File scripts/sync-docs-to-yandex.ps1
+```
+
+**Следующий шаг (другой ПК):** ЗАБРАТЬ. Локально ещё грязные (не в коммите): `OneCBpClient.php`, `docs/one-c-edo-status-sync-design.md`.
+
+**Отложено:** флаг «всё же показать стык заказчику» в мастере (YAGNI); дробление Wizard/Print.
+
+---
+
+**Обновлено (архив):** 2026-09-03 15:57 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `2fc57973` · **тема:** ЗП clean-start 16.08 + фикс dirty модалки контрагента
 
 ### Итог сессии 2026-09-03 — ЗП чистый старт + контрагенты
 
