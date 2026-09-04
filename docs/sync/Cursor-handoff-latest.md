@@ -3,7 +3,29 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-04 14:00 (деплой) · **Ветка:** `master` · **HEAD:** `e55e728f` · **тема:** подпись заявок — персона + Traklo
+**Обновлено:** 2026-09-04 14:17 (деплой) · **Ветка:** `master` · **HEAD:** `c7fc67f6` · **тема:** Traklo UI — recently/статусы/лиды
+
+### Итог сессии 2026-09-04 — Traklo mobile UI polish
+
+| Блок | Статус |
+| --- | --- |
+| «Недавно» свёрнуто под кнопку | ✅ `c7fc67f6` |
+| Статусы заказов → иконки в заголовке карточки | ✅ |
+| Лиды: intake Traklo + «Мои открытые лиды» | ✅ |
+| **Прод** pull + `npm run build` + optimize:clear | ✅ (в ходе деплоя) |
+| APK | ❌ не нужен |
+
+```text
+git pull
+# фронт собирается на проде
+pwsh -File scripts/sync-docs-to-yandex.ps1
+```
+
+**Следующий шаг:** smoke в Traklo. Локально грязные: `OneCBpClient.php`, `docs/one-c-edo-status-sync-design.md`.
+
+---
+
+**Обновлено (архив):** 2026-09-04 14:00 (деплой) · **Ветка:** `master` · **HEAD:** `e55e728f` · **тема:** подпись заявок — персона + Traklo
 
 ### Итог сессии 2026-09-04 — signing authority → user + Traklo
 
