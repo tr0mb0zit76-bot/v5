@@ -475,11 +475,18 @@ class MobileShellFeedTest extends TestCase
             ->assertJsonPath('pending_approvals.0.document_id', $document->id)
             ->assertJsonPath('pending_approvals.0.can_approve', true);
 
-        $this->actingAs($signer)
+        $summary = $this->actingAs($signer)
             ->getJson(route('mobile.shell.orders.summary', $order))
             ->assertOk()
             ->assertJsonPath('print_approvals.0.document_id', $document->id)
             ->assertJsonPath('print_approvals.0.can_approve', true);
+
+        $previewUrl = (string) $summary->json('print_approvals.0.preview_url');
+
+        $this->assertStringContainsString('download-draft', $previewUrl);
+        $this->assertStringContainsString('preview=1', $previewUrl);
+        $this->assertStringContainsString('preview_mode=browser', $previewUrl);
+        $this->assertStringNotContainsString('preview-draft', $previewUrl);
 
         $this->actingAs($signer)
             ->postJson(route('orders.documents.reject', [$order, $document]), [

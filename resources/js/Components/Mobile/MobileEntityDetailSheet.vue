@@ -59,15 +59,14 @@
                             >
                                 <div class="text-sm font-medium text-zinc-50">{{ doc.title }}</div>
                                 <div class="flex flex-wrap gap-2">
-                                    <a
+                                    <button
                                         v-if="doc.preview_url"
-                                        :href="doc.preview_url"
-                                        target="_blank"
-                                        rel="noopener"
+                                        type="button"
                                         class="rounded-xl border border-white/15 px-3 py-2 text-xs font-medium text-zinc-100 active:bg-white/10"
+                                        @click="$emit('preview-print', doc)"
                                     >
                                         Предпросмотр
-                                    </a>
+                                    </button>
                                     <button
                                         v-if="doc.can_approve"
                                         type="button"
@@ -291,6 +290,7 @@ const emit = defineEmits([
     'save-lead-draft',
     'approve-print',
     'reject-print',
+    'preview-print',
 ]);
 
 const leadDraft = reactive({

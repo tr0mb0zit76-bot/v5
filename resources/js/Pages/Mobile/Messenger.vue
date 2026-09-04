@@ -955,7 +955,87 @@
             @save-lead-draft="handleSaveLeadDraft"
             @approve-print="handleApprovePrint"
             @reject-print="handleRejectPrint"
+            @preview-print="handlePreviewPrint"
         />
+
+        <div
+            v-if="printPreviewOpen"
+            class="fixed inset-0 z-[60] flex flex-col bg-zinc-950"
+        >
+            <header class="flex shrink-0 items-center gap-3 border-b border-white/10 px-3 py-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))]">
+                <button
+                    type="button"
+                    class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-zinc-100 active:bg-white/20"
+                    aria-label="Закрыть предпросмотр"
+                    @click="closePrintPreview"
+                >
+                    <ArrowLeft class="h-5 w-5" />
+                </button>
+                <div class="min-w-0 flex-1">
+                    <div class="text-[10px] font-semibold uppercase tracking-wide text-amber-200">Предпросмотр</div>
+                    <div class="truncate text-sm font-semibold text-zinc-50">
+                        {{ printPreviewDoc?.title || 'Заявка' }}
+                    </div>
+                    <div v-if="printPreviewDoc?.order_number" class="truncate text-xs text-zinc-400">
+                        {{ printPreviewDoc.order_number }}
+                    </div>
+                </div>
+            </header>
+
+            <div class="relative min-h-0 flex-1 bg-zinc-900">
+                <div
+                    v-if="printPreviewLoading"
+                    class="absolute inset-0 flex items-center justify-center text-sm text-zinc-400"
+                >
+                    Загрузка документа…
+                </div>
+                <div
+                    v-else-if="printPreviewError"
+                    class="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center"
+                >
+                    <p class="text-sm text-rose-200">{{ printPreviewError }}</p>
+                    <a
+                        v-if="printPreviewDoc?.preview_url"
+                        :href="printPreviewDoc.preview_url"
+                        target="_blank"
+                        rel="noopener"
+                        class="rounded-xl border border-white/15 px-4 py-2 text-xs font-medium text-zinc-100 active:bg-white/10"
+                    >
+                        Открыть файл
+                    </a>
+                </div>
+                <iframe
+                    v-else-if="printPreviewBlobUrl"
+                    :src="printPreviewBlobUrl"
+                    title="Предпросмотр заявки"
+                    class="h-full w-full border-0 bg-white"
+                />
+            </div>
+
+            <footer class="shrink-0 space-y-2 border-t border-white/10 px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+                <p v-if="signingError" class="text-xs text-rose-300">{{ signingError }}</p>
+                <div class="flex flex-wrap gap-2">
+                    <button
+                        v-if="printPreviewDoc?.can_approve"
+                        type="button"
+                        class="flex-1 rounded-xl bg-emerald-600 px-3 py-3 text-sm font-semibold text-white disabled:opacity-50 active:bg-emerald-500"
+                        :disabled="signingDocumentId === printPreviewDoc?.document_id"
+                        @click="handleApprovePrint(printPreviewDoc)"
+                    >
+                        {{ signingDocumentId === printPreviewDoc?.document_id ? 'Подписание…' : 'Подписать' }}
+                    </button>
+                    <button
+                        v-if="printPreviewDoc?.can_reject"
+                        type="button"
+                        class="flex-1 rounded-xl border border-rose-400/40 px-3 py-3 text-sm font-medium text-rose-200 disabled:opacity-50 active:bg-rose-950/40"
+                        :disabled="signingDocumentId === printPreviewDoc?.document_id"
+                        @click="handleRejectPrint(printPreviewDoc)"
+                    >
+                        Отказать
+                    </button>
+                </div>
+            </footer>
+        </div>
 
         <MobileEntityPicker
             v-if="screen !== 'thread'"
@@ -1187,6 +1267,11 @@ const {
 
 const signingDocumentId = ref(null);
 const signingError = ref('');
+const printPreviewOpen = ref(false);
+const printPreviewDoc = ref(null);
+const printPreviewBlobUrl = ref('');
+const printPreviewLoading = ref(false);
+const printPreviewError = ref('');
 
 const documentsDrillLevel = ref('contractors');
 const selectedDocumentContractor = ref(null);
@@ -1590,6 +1675,70 @@ async function refreshOrderDetailAfterSigning() {
     await loadOrders(search.value);
 }
 
+function revokePrintPreviewBlob() {
+    if (printPreviewBlobUrl.value) {
+        URL.revokeObjectURL(printPreviewBlobUrl.value);
+        printPreviewBlobUrl.value = '';
+    }
+}
+
+function closePrintPreview() {
+    printPreviewOpen.value = false;
+    printPreviewDoc.value = null;
+    printPreviewLoading.value = false;
+    printPreviewError.value = '';
+    revokePrintPreviewBlob();
+}
+
+async function handlePreviewPrint(doc) {
+    if (! doc?.preview_url) {
+        return;
+    }
+
+    printPreviewDoc.value = doc;
+    printPreviewOpen.value = true;
+    printPreviewLoading.value = true;
+    printPreviewError.value = '';
+    signingError.value = '';
+    revokePrintPreviewBlob();
+
+    try {
+        const response = await axios.get(doc.preview_url, {
+            responseType: 'blob',
+            headers: { Accept: 'application/pdf' },
+        });
+        const contentType = String(response.headers?.['content-type'] || response.data?.type || '');
+
+        if (! contentType.includes('pdf')) {
+            printPreviewError.value = 'PDF-предпросмотр недоступен. Можно открыть файл отдельно.';
+            return;
+        }
+
+        printPreviewBlobUrl.value = URL.createObjectURL(response.data);
+    } catch (exception) {
+        let message = 'Не удалось загрузить предпросмотр.';
+        const errorData = exception.response?.data;
+
+        if (errorData instanceof Blob) {
+            try {
+                const text = await errorData.text();
+                const parsed = JSON.parse(text);
+                if (parsed?.message) {
+                    message = parsed.message;
+                }
+            } catch {
+                // keep default
+            }
+        } else if (exception.response?.data?.message) {
+            message = exception.response.data.message;
+        }
+
+        printPreviewError.value = message;
+    } finally {
+        printPreviewLoading.value = false;
+    }
+}
+
 async function handleApprovePrint(doc) {
     if (! doc?.approve_url || signingDocumentId.value) {
         return;
@@ -1601,6 +1750,7 @@ async function handleApprovePrint(doc) {
     try {
         await approvePrintDocument(doc);
         await refreshOrderDetailAfterSigning();
+        closePrintPreview();
     } catch (exception) {
         signingError.value = exception.response?.data?.message
             ?? exception.response?.data?.errors?.rejection_reason?.[0]
@@ -1634,6 +1784,7 @@ async function handleRejectPrint(doc) {
     try {
         await rejectPrintDocument(doc, trimmed);
         await refreshOrderDetailAfterSigning();
+        closePrintPreview();
     } catch (exception) {
         signingError.value = exception.response?.data?.message
             ?? exception.response?.data?.errors?.rejection_reason?.[0]
@@ -2507,5 +2658,6 @@ onUnmounted(() => {
     window.removeEventListener('crm-mobile-navigate', handleMobileNavigate);
     window.removeEventListener('crm-mobile-push-received', handlePushReceived);
     clearTimeout(highlightTimer);
+    closePrintPreview();
 });
 </script>

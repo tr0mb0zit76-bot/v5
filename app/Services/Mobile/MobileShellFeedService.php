@@ -950,7 +950,9 @@ class MobileShellFeedService
             'workflow_status_label' => OrderDocumentWorkflowStatus::label(OrderDocumentWorkflowStatus::PENDING_APPROVAL),
             'can_approve' => true,
             'can_reject' => true,
-            'preview_url' => route('orders.documents.preview-draft', [$order, $document], absolute: true),
+            // Прямой PDF/inline draft — без Inertia CrmLayout (иначе Traklo уезжает в десктоп-мастер).
+            'preview_url' => route('orders.documents.download-draft', [$order, $document], absolute: false)
+                .'?preview=1&preview_mode=browser',
             'approve_url' => route('orders.documents.approve', [$order, $document], absolute: false),
             'reject_url' => route('orders.documents.reject', [$order, $document], absolute: false),
         ];
