@@ -3,7 +3,23 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-04 14:35 (деплой) · **Ветка:** `master` · **HEAD:** `d6da1590` · **тема:** Traklo — in-app предпросмотр заявки
+**Обновлено:** 2026-09-04 14:45 (деплой) · **Ветка:** `master` · **HEAD:** _(после push)_ · **тема:** Traklo PDF canvas preview (pdf.js)
+
+### Итог сессии 2026-09-04 — Traklo: белый лист в предпросмотре
+
+| Блок | Статус |
+| --- | --- |
+| Причина: mobile iframe не рисует PDF | ✅ |
+| `MobilePdfCanvasPreview` + `pdfjs-dist` (canvas) | ✅ |
+| Lazy-chunk pdf.js, не раздувает Messenger | ✅ |
+| **Прод** pull + `npm run build` + optimize:clear | ⏳ |
+| APK | ❌ не нужен |
+
+**Следующий шаг:** smoke «Предпросмотр» на телефоне. Грязные вне темы: `OneCBpClient.php`, `docs/one-c-edo-status-sync-design.md`.
+
+---
+
+**Обновлено (архив):** 2026-09-04 14:35 (деплой) · **Ветка:** `master` · **HEAD:** `d6da1590` · **тема:** Traklo — in-app предпросмотр заявки
 
 ### Итог сессии 2026-09-04 — Traklo print preview без CrmLayout
 
@@ -14,14 +30,6 @@
 | Не уходит в десктопный `preview-draft` / CrmLayout | ✅ |
 | **Прод** pull + `npm run build` + optimize:clear | ✅ `d6da159` |
 | APK | ❌ не нужен |
-
-```text
-git pull
-# фронт собирается на проде
-pwsh -File scripts/sync-docs-to-yandex.ps1
-```
-
-**Следующий шаг:** smoke «Предпросмотр» в Traklo (телефон / WebView). Локально грязные: `OneCBpClient.php`, `docs/one-c-edo-status-sync-design.md`.
 
 ---
 
