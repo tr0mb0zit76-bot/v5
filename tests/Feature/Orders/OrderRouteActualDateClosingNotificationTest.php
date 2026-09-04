@@ -125,6 +125,59 @@ class OrderRouteActualDateClosingNotificationTest extends TestCase
         );
     }
 
+    public function test_same_day_loading_and_unloading_actual_is_allowed(): void
+    {
+        $actor = User::factory()->create(['email_verified_at' => now()]);
+        $customer = Contractor::query()->create([
+            'name' => 'ООО Клиент',
+            'type' => 'customer',
+        ]);
+
+        $order = Order::factory()->create([
+            'customer_id' => $customer->id,
+            'company_code' => 'AA',
+            'order_number' => 'ORD-SAME-DAY',
+            'order_date' => '2026-05-20',
+        ]);
+
+        $leg = OrderLeg::query()->create([
+            'order_id' => $order->id,
+            'sequence' => 0,
+            'type' => 'transport',
+            'description' => 'leg_1',
+        ]);
+
+        RoutePoint::factory()->create([
+            'order_leg_id' => $leg->id,
+            'type' => 'loading',
+            'sequence' => 0,
+            'address' => 'Москва',
+            'actual_date' => '2026-05-21',
+        ]);
+
+        RoutePoint::factory()->create([
+            'order_leg_id' => $leg->id,
+            'type' => 'unloading',
+            'sequence' => 1,
+            'address' => 'Казань',
+        ]);
+
+        app(OrderRouteActualDateUpdateService::class)->apply(
+            $actor,
+            $order->fresh(['legs.routePoints']),
+            'unloading_actual',
+            '2026-05-21',
+        );
+
+        $unloadingPoint = $order->fresh(['legs.routePoints'])
+            ->legs
+            ->first()
+            ->routePoints
+            ->firstWhere('type', 'unloading');
+
+        $this->assertSame('2026-05-21', optional($unloadingPoint?->actual_date)?->toDateString());
+    }
+
     public function test_route_service_does_not_notify_without_waybill(): void
     {
         $clerk = $this->createClerkUser();

@@ -1,3 +1,5 @@
+import { toIsoDateDay } from '@/support/orderActualDates.js';
+
 export const CARRIER_MODE_SINGLE = 'single';
 export const CARRIER_MODE_SPLIT = 'split';
 export const EXECUTION_MODE_OWN_FLEET = 'own_fleet';
@@ -55,16 +57,16 @@ export function normalizePerformer(performer = {}) {
         fleet_driver_id: performer?.fleet_driver_id ?? null,
         execution_mode: isOwnFleetExecutionMode(performer?.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
         fleet_trip_id: performer?.fleet_trip_id ?? null,
-        loading_actual: performer?.loading_actual ?? '',
-        unloading_actual: performer?.unloading_actual ?? '',
+        loading_actual: toIsoDateDay(performer?.loading_actual ?? ''),
+        unloading_actual: toIsoDateDay(performer?.unloading_actual ?? ''),
         loading_special_conditions: String(performer?.loading_special_conditions ?? '').trim(),
         unloading_special_conditions: String(performer?.unloading_special_conditions ?? '').trim(),
         split_carriers: [],
     };
 
     if (mode === CARRIER_MODE_SPLIT) {
-        const legacyLoading = performer?.loading_actual ?? '';
-        const legacyUnloading = performer?.unloading_actual ?? '';
+        const legacyLoading = toIsoDateDay(performer?.loading_actual ?? '');
+        const legacyUnloading = toIsoDateDay(performer?.unloading_actual ?? '');
         const slots = Array.isArray(performer?.split_carriers) ? performer.split_carriers : [];
         normalized.loading_actual = '';
         normalized.unloading_actual = '';
@@ -77,8 +79,8 @@ export function normalizePerformer(performer = {}) {
                 fleet_driver_id: row?.fleet_driver_id ?? null,
                 execution_mode: isOwnFleetExecutionMode(row?.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
                 fleet_trip_id: row?.fleet_trip_id ?? null,
-                loading_actual: row?.loading_actual ?? legacyLoading ?? '',
-                unloading_actual: row?.unloading_actual ?? legacyUnloading ?? '',
+                loading_actual: toIsoDateDay(row?.loading_actual ?? legacyLoading ?? ''),
+                unloading_actual: toIsoDateDay(row?.unloading_actual ?? legacyUnloading ?? ''),
             }))
             : [blankSplitCarrier(1), blankSplitCarrier(2)];
     }

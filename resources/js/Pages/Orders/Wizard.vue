@@ -255,7 +255,7 @@ import {
     performerFleetCacheKey,
     splitCarrierSlotLabel,
 } from '@/support/orderPerformers.js';
-import { clampActualDateToToday, todayIsoDate } from '@/support/orderActualDates.js';
+import { clampActualDateToToday, isActualLoadingAfterUnloading, todayIsoDate, toIsoDateDay } from '@/support/orderActualDates.js';
 import { classifyDealType, paymentFormMetaFromOptions } from '@/support/paymentFormDealType.js';
 import { buildNormalizeCargoItem, useOrderWizardCargoTab } from '@/composables/useOrderWizardCargoTab.js';
 import { useOrderWizardCounterpartyModal } from '@/composables/useOrderWizardCounterpartyModal.js';
@@ -994,10 +994,10 @@ function onSplitActualDateInput(slot, field) {
 }
 
 function assertPerformerActualOrder(performer, field) {
-    const loading = String(performer.loading_actual || '').trim();
-    const unloading = String(performer.unloading_actual || '').trim();
+    performer.loading_actual = toIsoDateDay(performer.loading_actual);
+    performer.unloading_actual = toIsoDateDay(performer.unloading_actual);
 
-    if (!loading || !unloading || loading <= unloading) {
+    if (!isActualLoadingAfterUnloading(performer.loading_actual, performer.unloading_actual)) {
         return;
     }
 
@@ -1006,10 +1006,10 @@ function assertPerformerActualOrder(performer, field) {
 }
 
 function assertSlotActualOrder(slot, field) {
-    const loading = String(slot.loading_actual || '').trim();
-    const unloading = String(slot.unloading_actual || '').trim();
+    slot.loading_actual = toIsoDateDay(slot.loading_actual);
+    slot.unloading_actual = toIsoDateDay(slot.unloading_actual);
 
-    if (!loading || !unloading || loading <= unloading) {
+    if (!isActualLoadingAfterUnloading(slot.loading_actual, slot.unloading_actual)) {
         return;
     }
 
