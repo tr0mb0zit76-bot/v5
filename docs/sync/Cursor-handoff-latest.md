@@ -3,7 +3,32 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-04 10:52 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `bc3ac933` · **тема:** печать заказчику — скрыть стыки плеч
+**Обновлено:** 2026-09-04 14:00 (деплой) · **Ветка:** `master` · **HEAD:** `e55e728f` · **тема:** подпись заявок — персона + Traklo
+
+### Итог сессии 2026-09-04 — signing authority → user + Traklo
+
+| Блок | Статус |
+| --- | --- |
+| Право подписи убрано с ролей (`roles.has_signing_authority` drop) | ✅ `e55e728f` |
+| Только `users.has_signing_authority` (+ наши компании) | ✅ |
+| Traklo: «Ждут подписи», Подписать/Отказать в карточке заказа | ✅ |
+| **Прод** pull + migrate + `npm run build` + optimize:clear | ✅ `e55e728` |
+| APK Traklo | ❌ не нужен (WebView тянет серверный `/mobile/messenger`) |
+
+```text
+git pull
+php artisan migrate --force
+# фронт уже собран на проде в этом деплое
+pwsh -File scripts/sync-docs-to-yandex.ps1
+```
+
+**Следующий шаг:** smoke — юзер с правом подписи в Traklo видит заявки на согласовании. Локально грязные (не в коммите): `OneCBpClient.php`, `docs/one-c-edo-status-sync-design.md`.
+
+**Отложено:** флаг «всё же показать стык заказчику» в мастере; дробление Wizard/Print.
+
+---
+
+**Обновлено (архив):** 2026-09-04 10:52 (ОТДАТЬ + деплой) · **Ветка:** `master` · **HEAD:** `bc3ac933` · **тема:** печать заказчику — скрыть стыки плеч
 
 ### Итог сессии 2026-09-04 — customer print: без транзитных точек
 
