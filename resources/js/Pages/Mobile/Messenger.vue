@@ -656,6 +656,21 @@
                 <section v-else-if="activeTab === 'orders'" class="space-y-3 p-4">
                     <div v-if="ordersLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка заказов…</div>
                     <template v-else>
+                        <div v-if="pendingApprovals.length > 0" class="space-y-2">
+                            <div class="text-[11px] font-semibold uppercase tracking-wide text-amber-200">Ждут подписи</div>
+                            <button
+                                v-for="doc in pendingApprovals"
+                                :key="`pending-approval-${doc.document_id}`"
+                                type="button"
+                                class="w-full rounded-3xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-left active:bg-amber-500/20"
+                                @click="openOrderDetail({ id: doc.order_id, order_number: doc.order_number, customer_name: doc.customer_name })"
+                            >
+                                <div class="text-sm font-semibold text-zinc-50">{{ doc.order_number }}</div>
+                                <div class="mt-1 truncate text-xs text-amber-100">{{ doc.title }}</div>
+                                <div v-if="doc.customer_name" class="mt-1 text-xs text-zinc-400">{{ doc.customer_name }}</div>
+                            </button>
+                        </div>
+
                         <MobileShellEntityCard
                             v-for="order in filteredOrders"
                             :key="`order-${order.id}`"
@@ -872,11 +887,15 @@
             :loading="detailLoading"
             :current-user-id="currentUserId"
             :lead-saving="leadDraftSaving"
+            :signing-document-id="signingDocumentId"
+            :signing-error="signingError"
             @close="closeDetailSheet"
             @share="beginShareFromDetail"
             @message-responsible="openTaskResponsibleChat"
             @upload-document="openUploadWizardForOrder"
             @save-lead-draft="handleSaveLeadDraft"
+            @approve-print="handleApprovePrint"
+            @reject-print="handleRejectPrint"
         />
 
         <MobileEntityPicker
@@ -1071,6 +1090,7 @@ const {
 const {
     tasks,
     orders,
+    pendingApprovals,
     recentDocuments,
     attentionDocuments,
     documentContractors,
@@ -1098,7 +1118,12 @@ const {
     loadContractorSummary,
     saveLeadDraft,
     searchEntities,
+    approvePrintDocument,
+    rejectPrintDocument,
 } = useMobileShell();
+
+const signingDocumentId = ref(null);
+const signingError = ref('');
 
 const documentsDrillLevel = ref('contractors');
 const selectedDocumentContractor = ref(null);
@@ -1478,6 +1503,7 @@ async function openOrderDetail(order) {
         url: order.url,
     };
     detailOrderSummary.value = null;
+    signingError.value = '';
     showDetailSheet.value = true;
     detailLoading.value = true;
 
@@ -1489,6 +1515,68 @@ async function openOrderDetail(order) {
         }
     } finally {
         detailLoading.value = false;
+    }
+}
+
+async function refreshOrderDetailAfterSigning() {
+    if (! detailEntity.value?.id) {
+        return;
+    }
+
+    detailOrderSummary.value = await loadOrderSummary(detailEntity.value.id);
+    await loadOrders(search.value);
+}
+
+async function handleApprovePrint(doc) {
+    if (! doc?.approve_url || signingDocumentId.value) {
+        return;
+    }
+
+    signingDocumentId.value = doc.document_id;
+    signingError.value = '';
+
+    try {
+        await approvePrintDocument(doc);
+        await refreshOrderDetailAfterSigning();
+    } catch (exception) {
+        signingError.value = exception.response?.data?.message
+            ?? exception.response?.data?.errors?.rejection_reason?.[0]
+            ?? 'Не удалось подписать заявку.';
+    } finally {
+        signingDocumentId.value = null;
+    }
+}
+
+async function handleRejectPrint(doc) {
+    if (! doc?.reject_url || signingDocumentId.value) {
+        return;
+    }
+
+    const reason = window.prompt('Причина отказа в согласовании');
+
+    if (reason === null) {
+        return;
+    }
+
+    const trimmed = String(reason).trim();
+
+    if (trimmed === '') {
+        signingError.value = 'Укажите причину отказа.';
+        return;
+    }
+
+    signingDocumentId.value = doc.document_id;
+    signingError.value = '';
+
+    try {
+        await rejectPrintDocument(doc, trimmed);
+        await refreshOrderDetailAfterSigning();
+    } catch (exception) {
+        signingError.value = exception.response?.data?.message
+            ?? exception.response?.data?.errors?.rejection_reason?.[0]
+            ?? 'Не удалось отклонить заявку.';
+    } finally {
+        signingDocumentId.value = null;
     }
 }
 

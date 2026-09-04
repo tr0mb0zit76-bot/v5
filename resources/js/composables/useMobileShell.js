@@ -23,6 +23,7 @@ export function useMobileShell() {
     );
     const tasks = ref([]);
     const orders = ref([]);
+    const pendingApprovals = ref([]);
     const recentDocuments = ref([]);
     const attentionDocuments = ref([]);
     const documentContractors = ref([]);
@@ -67,11 +68,31 @@ export function useMobileShell() {
                 params: search.trim() !== '' ? { q: search.trim() } : {},
             });
             orders.value = data.orders ?? [];
+            pendingApprovals.value = data.pending_approvals ?? [];
         } catch (exception) {
             shellError.value = exception.response?.data?.message ?? 'Не удалось загрузить заказы.';
+            pendingApprovals.value = [];
         } finally {
             ordersLoading.value = false;
         }
+    }
+
+    async function approvePrintDocument(doc) {
+        const { data } = await axios.post(doc.approve_url, {}, {
+            headers: { Accept: 'application/json' },
+        });
+
+        return data;
+    }
+
+    async function rejectPrintDocument(doc, rejectionReason) {
+        const { data } = await axios.post(doc.reject_url, {
+            rejection_reason: rejectionReason,
+        }, {
+            headers: { Accept: 'application/json' },
+        });
+
+        return data;
     }
 
     async function loadDocuments(search = '') {
@@ -243,6 +264,7 @@ export function useMobileShell() {
     return {
         tasks,
         orders,
+        pendingApprovals,
         recentDocuments,
         attentionDocuments,
         documentContractors,
@@ -260,6 +282,8 @@ export function useMobileShell() {
         shellError,
         loadTasks,
         loadOrders,
+        approvePrintDocument,
+        rejectPrintDocument,
         loadDocuments,
         loadDocumentContractors,
         loadDocumentContractorOrders,

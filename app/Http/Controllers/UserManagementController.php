@@ -46,7 +46,6 @@ class UserManagementController extends Controller
                     'id' => $role->id,
                     'name' => $role->name,
                     'display_name' => $role->display_name,
-                    'default_has_signing_authority' => (bool) ($role->has_signing_authority ?? false),
                 ])
                 ->values(),
             'ownCompanies' => $ownCompanies,

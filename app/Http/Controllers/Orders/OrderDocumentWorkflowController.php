@@ -115,7 +115,7 @@ class OrderDocumentWorkflowController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Документ отправлен руководителю на согласование.']);
     }
 
-    public function approve(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse
+    public function approve(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse|JsonResponse
     {
         $this->ensureCanApproveDocuments($request, $order, $orderDocument);
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
@@ -129,15 +129,26 @@ class OrderDocumentWorkflowController extends Controller
         $orderDocument->refresh();
         $this->cabinetNotifier->notifyDocumentApproved($order->fresh(), $orderDocument, $request->user());
 
+        $message = 'Документ подписан: в файл добавлены печать и подпись, сформирован PDF для отправки контрагенту (если настроен конвертер DOCX→PDF).';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $message,
+                'document_id' => $orderDocument->id,
+                'workflow_status' => $orderDocument->workflow_status,
+            ]);
+        }
+
         return redirect()
             ->to(route('orders.edit', $order).'?tab=documents')
             ->with('flash', [
                 'type' => 'success',
-                'message' => 'Документ подписан: в файл добавлены печать и подпись, сформирован PDF для отправки контрагенту (если настроен конвертер DOCX→PDF).',
+                'message' => $message,
             ]);
     }
 
-    public function reject(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse
+    public function reject(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse|JsonResponse
     {
         $this->ensureCanApproveDocuments($request, $order, $orderDocument);
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
@@ -152,9 +163,20 @@ class OrderDocumentWorkflowController extends Controller
             abort(422, $e->getMessage());
         }
 
+        $message = 'Согласование отклонено, менеджер может исправить данные и отправить снова.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $message,
+                'document_id' => $orderDocument->id,
+                'workflow_status' => $orderDocument->fresh()->workflow_status,
+            ]);
+        }
+
         return redirect()
             ->route('orders.edit', $order)
-            ->with('flash', ['type' => 'success', 'message' => 'Согласование отклонено, менеджер может исправить данные и отправить снова.']);
+            ->with('flash', ['type' => 'success', 'message' => $message]);
     }
 
     public function finalize(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse

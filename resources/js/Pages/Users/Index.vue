@@ -254,7 +254,7 @@
                         <div>
                             <div class="font-medium text-zinc-900 dark:text-zinc-50">Имеет право подписи (согласование заявок)</div>
                             <div class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                                Не зависит от роли: при включении пользователь видит в заказе кнопки «Подписать» / «Отказать» для документов по шаблону, отправленных на согласование.
+                                Только у этого пользователя: в CRM и Traklo появятся кнопки «Подписать» / «Отказать» для заявок на согласовании.
                             </div>
                         </div>
                     </label>
@@ -751,15 +751,6 @@ function toggleRole(roleId) {
 
     form.role_id = form.role_ids[0] ?? null;
 }
-
-watch(() => [...form.role_ids], (roleIds) => {
-    if (editingUser.value !== null) {
-        return;
-    }
-
-    const selectedRoles = props.roles.filter((role) => roleIds.includes(Number(role.id)));
-    form.has_signing_authority = selectedRoles.some((role) => Boolean(role.default_has_signing_authority));
-}, { deep: true });
 
 function closeModal() {
     showModal.value = false;

@@ -35,20 +35,25 @@ return new class extends Migration
         ];
 
         foreach ($this->roles as $roleDefinition) {
+            $attributes = [
+                'display_name' => $roleDefinition['display_name'],
+                'description' => 'Внешний пользователь Traklo',
+                'permissions' => [],
+                'visibility_areas' => $counterpartyAreas,
+                'visibility_scopes' => [],
+                'columns_config' => [],
+                'default_mobile_nav_keys' => $roleDefinition['external_party'] === 'carrier'
+                    ? ['counterparty_orders', 'counterparty_documents', 'chats', 'counterparty_portal']
+                    : ['counterparty_orders', 'counterparty_documents', 'chats'],
+            ];
+
+            if (Schema::hasColumn('roles', 'has_signing_authority')) {
+                $attributes['has_signing_authority'] = false;
+            }
+
             Role::query()->updateOrCreate(
                 ['name' => $roleDefinition['name']],
-                [
-                    'display_name' => $roleDefinition['display_name'],
-                    'description' => 'Внешний пользователь Traklo',
-                    'permissions' => [],
-                    'visibility_areas' => $counterpartyAreas,
-                    'visibility_scopes' => [],
-                    'columns_config' => [],
-                    'has_signing_authority' => false,
-                    'default_mobile_nav_keys' => $roleDefinition['external_party'] === 'carrier'
-                        ? ['counterparty_orders', 'counterparty_documents', 'chats', 'counterparty_portal']
-                        : ['counterparty_orders', 'counterparty_documents', 'chats'],
-                ],
+                $attributes,
             );
         }
     }

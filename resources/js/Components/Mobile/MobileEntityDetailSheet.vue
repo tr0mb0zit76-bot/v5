@@ -46,6 +46,50 @@
                                 Все обязательные слоты закрыты
                             </div>
                         </div>
+
+                        <div
+                            v-if="orderSummary.print_approvals?.length"
+                            class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3"
+                        >
+                            <div class="text-xs font-semibold uppercase tracking-wide text-amber-200">На согласовании</div>
+                            <div
+                                v-for="doc in orderSummary.print_approvals"
+                                :key="`print-approval-${doc.document_id}`"
+                                class="mt-3 space-y-2 border-t border-amber-500/20 pt-3 first:mt-2 first:border-t-0 first:pt-0"
+                            >
+                                <div class="text-sm font-medium text-zinc-50">{{ doc.title }}</div>
+                                <div class="flex flex-wrap gap-2">
+                                    <a
+                                        v-if="doc.preview_url"
+                                        :href="doc.preview_url"
+                                        target="_blank"
+                                        rel="noopener"
+                                        class="rounded-xl border border-white/15 px-3 py-2 text-xs font-medium text-zinc-100 active:bg-white/10"
+                                    >
+                                        Предпросмотр
+                                    </a>
+                                    <button
+                                        v-if="doc.can_approve"
+                                        type="button"
+                                        class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 active:bg-emerald-500"
+                                        :disabled="signingDocumentId === doc.document_id"
+                                        @click="$emit('approve-print', doc)"
+                                    >
+                                        {{ signingDocumentId === doc.document_id ? 'Подписание…' : 'Подписать' }}
+                                    </button>
+                                    <button
+                                        v-if="doc.can_reject"
+                                        type="button"
+                                        class="rounded-xl border border-rose-400/40 px-3 py-2 text-xs font-medium text-rose-200 disabled:opacity-50 active:bg-rose-950/40"
+                                        :disabled="signingDocumentId === doc.document_id"
+                                        @click="$emit('reject-print', doc)"
+                                    >
+                                        Отказать
+                                    </button>
+                                </div>
+                            </div>
+                            <p v-if="signingError" class="mt-2 text-xs text-rose-300">{{ signingError }}</p>
+                        </div>
                     </div>
                 </template>
 
@@ -235,9 +279,19 @@ const props = defineProps({
     loading: { type: Boolean, default: false },
     currentUserId: { type: Number, default: null },
     leadSaving: { type: Boolean, default: false },
+    signingDocumentId: { type: [Number, null], default: null },
+    signingError: { type: String, default: '' },
 });
 
-const emit = defineEmits(['close', 'share', 'upload-document', 'message-responsible', 'save-lead-draft']);
+const emit = defineEmits([
+    'close',
+    'share',
+    'upload-document',
+    'message-responsible',
+    'save-lead-draft',
+    'approve-print',
+    'reject-print',
+]);
 
 const leadDraft = reactive({
     loading_location: '',

@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\Order;
+use App\Models\OrderDocument;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\OrderDocumentWorkflowStatus;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -418,5 +420,60 @@ class MobileShellFeedTest extends TestCase
             ->assertOk()
             ->assertJsonPath('preview.kind', 'order')
             ->assertJsonPath('preview.title', 'MOB-LINK-42');
+    }
+
+    public function test_mobile_shell_orders_lists_pending_approvals_only_for_signers(): void
+    {
+        $signer = $this->createUserWithAreas(['orders'], ['orders' => 'all']);
+        $signer->forceFill(['has_signing_authority' => true])->save();
+
+        $viewer = $this->createUserWithAreas(['orders'], ['orders' => 'all']);
+        $viewer->forceFill(['has_signing_authority' => false])->save();
+
+        $order = Order::factory()->create([
+            'manager_id' => $signer->id,
+            'order_number' => 'MOB-SIGN-1',
+            'is_active' => true,
+        ]);
+
+        $document = OrderDocument::query()->create([
+            'order_id' => $order->id,
+            'type' => 'request',
+            'source' => 'print_template',
+            'original_name' => 'Заявка на подпись.docx',
+            'file_path' => 'order_documents/'.$order->id.'/pending.docx',
+            'status' => 'pending',
+            'workflow_status' => OrderDocumentWorkflowStatus::PENDING_APPROVAL,
+            'metadata' => ['flow' => 'print_template_workflow', 'party' => 'customer'],
+        ]);
+
+        $this->actingAs($viewer)
+            ->getJson(route('mobile.shell.orders'))
+            ->assertOk()
+            ->assertJsonPath('pending_approvals', []);
+
+        $this->actingAs($signer)
+            ->getJson(route('mobile.shell.orders'))
+            ->assertOk()
+            ->assertJsonPath('pending_approvals.0.document_id', $document->id)
+            ->assertJsonPath('pending_approvals.0.can_approve', true);
+
+        $this->actingAs($signer)
+            ->getJson(route('mobile.shell.orders.summary', $order))
+            ->assertOk()
+            ->assertJsonPath('print_approvals.0.document_id', $document->id)
+            ->assertJsonPath('print_approvals.0.can_approve', true);
+
+        $this->actingAs($signer)
+            ->postJson(route('orders.documents.reject', [$order, $document]), [
+                'rejection_reason' => 'Нужны правки маршрута',
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->assertDatabaseHas('order_documents', [
+            'id' => $document->id,
+            'workflow_status' => OrderDocumentWorkflowStatus::REJECTED,
+        ]);
     }
 }

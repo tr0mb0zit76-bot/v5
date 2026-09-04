@@ -23,8 +23,10 @@ class UserManagementTest extends TestCase
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Users/Index')
             ->has('users', 2)
-            ->has('roles', 2)
-            ->where('roles.1.default_has_signing_authority', false)
+            ->has('roles')
+            ->where('roles', fn ($roles): bool => collect($roles)->every(
+                fn ($role): bool => ! array_key_exists('default_has_signing_authority', (array) $role)
+            ))
         );
     }
 

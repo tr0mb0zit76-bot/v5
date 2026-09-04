@@ -38,9 +38,6 @@ class RoleManagementController extends Controller
                     'visibility_scopes' => Schema::hasColumn('roles', 'visibility_scopes')
                         ? ($role->visibility_scopes ?? RoleAccess::defaultVisibilityScopes($role->name))
                         : RoleAccess::defaultVisibilityScopes($role->name),
-                    'default_has_signing_authority' => Schema::hasColumn('roles', 'has_signing_authority')
-                        ? (bool) $role->has_signing_authority
-                        : false,
                     'default_mobile_nav_keys' => Schema::hasColumn('roles', 'default_mobile_nav_keys')
                         ? ($role->default_mobile_nav_keys ?? null)
                         : null,
@@ -126,10 +123,6 @@ class RoleManagementController extends Controller
                 is_array($validated['visibility_scopes'] ?? null) ? $validated['visibility_scopes'] : [],
                 $visibilityAreas,
             );
-        }
-
-        if (Schema::hasColumn('roles', 'has_signing_authority')) {
-            $attributes['has_signing_authority'] = (bool) ($validated['has_signing_authority'] ?? false);
         }
 
         if (Schema::hasColumn('roles', 'default_mobile_nav_keys') && array_key_exists('default_mobile_nav_keys', $validated)) {

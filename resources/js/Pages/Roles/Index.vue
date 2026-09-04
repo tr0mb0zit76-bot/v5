@@ -60,15 +60,6 @@
                     <div v-if="createForm.errors.description" class="text-xs text-rose-600">{{ createForm.errors.description }}</div>
                 </div>
 
-                <label class="flex items-center gap-3 rounded-xl border border-zinc-200 px-3 py-1.5 text-sm dark:border-zinc-700">
-                    <input
-                        v-model="createForm.has_signing_authority"
-                        type="checkbox"
-                        class="rounded border-zinc-300"
-                    />
-                    <span>Право подписи</span>
-                </label>
-
                 <button
                     type="submit"
                     :class="crmBtnPrimary"
@@ -158,27 +149,6 @@
                                 class="border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-800"
                             >
                                 {{ role.users_count }}
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td class="sticky left-0 z-10 border-b border-r border-zinc-200 bg-white px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-900">
-                                <div class="font-medium">Право подписи</div>
-                                <div class="text-xs text-zinc-500">Подставляется новым пользователям этой роли</div>
-                            </td>
-                            <td
-                                v-for="role in roleColumns"
-                                :key="`sign-${role.id}`"
-                                class="border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-800"
-                            >
-                                <label class="inline-flex items-center gap-2">
-                                    <input
-                                        v-model="role.has_signing_authority"
-                                        type="checkbox"
-                                        class="rounded border-zinc-300"
-                                    />
-                                    <span>Разрешено</span>
-                                </label>
                             </td>
                         </tr>
 
@@ -547,7 +517,6 @@ const createForm = useForm({
     name: '',
     display_name: '',
     description: '',
-    has_signing_authority: false,
     permissions: [],
     visibility_areas: [],
     visibility_scopes: {},
@@ -706,7 +675,6 @@ function cloneRole(role) {
         permissions: Array.isArray(role.permissions) ? [...role.permissions] : [],
         visibility_areas: visibilityAreas,
         visibility_scopes: normalizeScopes(role.visibility_scopes || {}),
-        has_signing_authority: Boolean(role.default_has_signing_authority),
         default_mobile_nav_keys: Array.isArray(role.default_mobile_nav_keys) ? [...role.default_mobile_nav_keys] : null,
         module_modes: deriveModuleModes(visibilityAreas),
     };
@@ -779,7 +747,6 @@ function serializeRole(role) {
         permissions: Array.isArray(role.permissions) ? [...role.permissions] : [],
         visibility_areas: sanitizeVisibilityAreas(role.visibility_areas),
         visibility_scopes: scopes,
-        has_signing_authority: Boolean(role.has_signing_authority),
         default_mobile_nav_keys: Array.isArray(role.default_mobile_nav_keys)
             ? [...role.default_mobile_nav_keys]
             : role.default_mobile_nav_keys,

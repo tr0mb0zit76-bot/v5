@@ -15,6 +15,8 @@ use App\Support\ContractorViewAuthorization;
 use App\Support\LeadStatus;
 use App\Support\LeadViewAuthorization;
 use App\Support\OrderDocumentAccessAuthorization;
+use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\OrderOwnCompanySide;
 use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
@@ -110,12 +112,12 @@ class MobileShellFeedService
     }
 
     /**
-     * @return array{orders: list<array<string, mixed>>}
+     * @return array{orders: list<array<string, mixed>>, pending_approvals: list<array<string, mixed>>}
      */
     public function ordersForUser(User $user, ?string $search = null): array
     {
         if (! Schema::hasTable('orders') || ! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'orders')) {
-            return ['orders' => []];
+            return ['orders' => [], 'pending_approvals' => []];
         }
 
         $needle = trim((string) $search);
@@ -148,7 +150,10 @@ class MobileShellFeedService
             ->values()
             ->all();
 
-        return ['orders' => $items];
+        return [
+            'orders' => $items,
+            'pending_approvals' => $this->pendingApprovalsForUser($user, $needle !== '' ? $needle : null),
+        ];
     }
 
     /**
@@ -479,6 +484,7 @@ class MobileShellFeedService
                     'label' => (string) ($item['label'] ?? ''),
                 ])->values()->all(),
             ],
+            'print_approvals' => $this->printApprovalsForOrder($user, $order),
             'urls' => [
                 'order' => route('orders.edit', $order, absolute: true),
                 'documents' => route('orders.edit', $order, absolute: true).'?tab=documents',
@@ -754,6 +760,152 @@ class MobileShellFeedService
     private function userCanViewOrder(User $user, Order $order): bool
     {
         return OrderViewAuthorization::userCanViewOrder($user, $order);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function pendingApprovalsForUser(User $user, ?string $search = null): array
+    {
+        if (! $user->hasSigningAuthority()
+            || ! Schema::hasTable('order_documents')
+            || ! Schema::hasColumn('order_documents', 'workflow_status')) {
+            return [];
+        }
+
+        $query = OrderDocument::query()
+            ->where('workflow_status', OrderDocumentWorkflowStatus::PENDING_APPROVAL)
+            ->where(function (Builder $builder): void {
+                if (Schema::hasColumn('order_documents', 'source')) {
+                    $builder->where('source', 'print_template')
+                        ->orWhere('metadata->flow', 'print_template_workflow');
+                } else {
+                    $builder->where('metadata->flow', 'print_template_workflow');
+                }
+            })
+            ->with([
+                'order.client:id,name',
+                'template:id,name,code,party',
+            ]);
+
+        if (filled($search)) {
+            $like = '%'.$search.'%';
+            $query->whereHas('order', function (Builder $builder) use ($like, $search): void {
+                $builder->where('order_number', 'like', $like);
+
+                if (preg_match('/^\d+$/', $search) === 1) {
+                    $builder->orWhere('orders.id', (int) $search);
+                }
+            });
+        }
+
+        if (Schema::hasColumn('order_documents', 'approval_requested_at')) {
+            $query->orderByDesc('approval_requested_at');
+        }
+
+        $query->orderByDesc('id')->limit(40);
+
+        $items = [];
+
+        foreach ($query->get() as $document) {
+            $order = $document->order;
+
+            if ($order === null || ! $this->userCanViewOrder($user, $order)) {
+                continue;
+            }
+
+            $serialized = $this->serializePrintApproval($user, $order, $document);
+
+            if ($serialized === null) {
+                continue;
+            }
+
+            $items[] = $serialized;
+
+            if (count($items) >= 20) {
+                break;
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function printApprovalsForOrder(User $user, Order $order): array
+    {
+        if (! $user->hasSigningAuthority()
+            || ! Schema::hasTable('order_documents')
+            || ! Schema::hasColumn('order_documents', 'workflow_status')) {
+            return [];
+        }
+
+        $documentsQuery = OrderDocument::query()
+            ->where('order_id', $order->id)
+            ->where('workflow_status', OrderDocumentWorkflowStatus::PENDING_APPROVAL)
+            ->where(function (Builder $builder): void {
+                if (Schema::hasColumn('order_documents', 'source')) {
+                    $builder->where('source', 'print_template')
+                        ->orWhere('metadata->flow', 'print_template_workflow');
+                } else {
+                    $builder->where('metadata->flow', 'print_template_workflow');
+                }
+            })
+            ->with(['template:id,name,code,party']);
+
+        if (Schema::hasColumn('order_documents', 'approval_requested_at')) {
+            $documentsQuery->orderByDesc('approval_requested_at');
+        }
+
+        $documents = $documentsQuery
+            ->orderByDesc('id')
+            ->get();
+
+        $items = [];
+
+        foreach ($documents as $document) {
+            $serialized = $this->serializePrintApproval($user, $order, $document);
+
+            if ($serialized !== null) {
+                $items[] = $serialized;
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function serializePrintApproval(User $user, Order $order, OrderDocument $document): ?array
+    {
+        $party = OrderOwnCompanySide::partyFromDocument(
+            is_array($document->metadata) ? $document->metadata : null,
+            $document->template,
+        );
+
+        if (! OrderOwnCompanySide::userCanSignForParty($user, $order, $party)) {
+            return null;
+        }
+
+        $title = $document->original_name
+            ?: ($document->template?->name ?? 'Заявка');
+
+        return [
+            'document_id' => (int) $document->id,
+            'order_id' => (int) $order->id,
+            'order_number' => $order->order_number ?: '#'.$order->id,
+            'customer_name' => $order->client?->name,
+            'title' => (string) $title,
+            'workflow_status' => OrderDocumentWorkflowStatus::PENDING_APPROVAL,
+            'workflow_status_label' => OrderDocumentWorkflowStatus::label(OrderDocumentWorkflowStatus::PENDING_APPROVAL),
+            'can_approve' => true,
+            'can_reject' => true,
+            'preview_url' => route('orders.documents.preview-draft', [$order, $document], absolute: true),
+            'approve_url' => route('orders.documents.approve', [$order, $document], absolute: false),
+            'reject_url' => route('orders.documents.reject', [$order, $document], absolute: false),
+        ];
     }
 
     /**
