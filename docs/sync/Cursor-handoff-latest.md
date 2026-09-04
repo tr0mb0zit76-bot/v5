@@ -12,7 +12,7 @@
 | `preview_url` → `download-draft?preview=1&preview_mode=browser` | ✅ `d6da1590` |
 | Fullscreen PDF overlay в Messenger (+ Подписать/Отказать) | ✅ |
 | Не уходит в десктопный `preview-draft` / CrmLayout | ✅ |
-| **Прод** pull + `npm run build` + optimize:clear | ⏳ в ходе деплоя |
+| **Прод** pull + `npm run build` + optimize:clear | ✅ `d6da159` |
 | APK | ❌ не нужен |
 
 ```text

@@ -1004,12 +1004,23 @@
                         Открыть файл
                     </a>
                 </div>
-                <iframe
-                    v-else-if="printPreviewBlobUrl"
-                    :src="printPreviewBlobUrl"
-                    title="Предпросмотр заявки"
-                    class="h-full w-full border-0 bg-white"
-                />
+                <MobilePdfCanvasPreview
+                    v-else-if="printPreviewPdfBytes"
+                    :data="printPreviewPdfBytes"
+                    class="absolute inset-0"
+                >
+                    <template #fallback>
+                        <a
+                            v-if="printPreviewDoc?.preview_url"
+                            :href="printPreviewDoc.preview_url"
+                            target="_blank"
+                            rel="noopener"
+                            class="rounded-xl border border-white/15 px-4 py-2 text-xs font-medium text-zinc-100 active:bg-white/10"
+                        >
+                            Открыть файл
+                        </a>
+                    </template>
+                </MobilePdfCanvasPreview>
             </div>
 
             <footer class="shrink-0 space-y-2 border-t border-white/10 px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
@@ -1093,6 +1104,7 @@ import MobileCrmLinkPreview from '@/Components/Mobile/MobileCrmLinkPreview.vue';
 import MobileDocumentUploadWizard from '@/Components/Mobile/MobileDocumentUploadWizard.vue';
 import MobileEntityDetailSheet from '@/Components/Mobile/MobileEntityDetailSheet.vue';
 import MobileEntityPicker from '@/Components/Mobile/MobileEntityPicker.vue';
+import MobilePdfCanvasPreview from '@/Components/Mobile/MobilePdfCanvasPreview.vue';
 import MobileShareToChatPicker from '@/Components/Mobile/MobileShareToChatPicker.vue';
 import MobileShellEntityCard from '@/Components/Mobile/MobileShellEntityCard.vue';
 import OrderStatusIcon from '@/Components/Orders/OrderStatusIcon.vue';
@@ -1269,7 +1281,7 @@ const signingDocumentId = ref(null);
 const signingError = ref('');
 const printPreviewOpen = ref(false);
 const printPreviewDoc = ref(null);
-const printPreviewBlobUrl = ref('');
+const printPreviewPdfBytes = ref(null);
 const printPreviewLoading = ref(false);
 const printPreviewError = ref('');
 
@@ -1675,11 +1687,8 @@ async function refreshOrderDetailAfterSigning() {
     await loadOrders(search.value);
 }
 
-function revokePrintPreviewBlob() {
-    if (printPreviewBlobUrl.value) {
-        URL.revokeObjectURL(printPreviewBlobUrl.value);
-        printPreviewBlobUrl.value = '';
-    }
+function clearPrintPreviewPdf() {
+    printPreviewPdfBytes.value = null;
 }
 
 function closePrintPreview() {
@@ -1687,7 +1696,7 @@ function closePrintPreview() {
     printPreviewDoc.value = null;
     printPreviewLoading.value = false;
     printPreviewError.value = '';
-    revokePrintPreviewBlob();
+    clearPrintPreviewPdf();
 }
 
 async function handlePreviewPrint(doc) {
@@ -1700,28 +1709,33 @@ async function handlePreviewPrint(doc) {
     printPreviewLoading.value = true;
     printPreviewError.value = '';
     signingError.value = '';
-    revokePrintPreviewBlob();
+    clearPrintPreviewPdf();
 
     try {
         const response = await axios.get(doc.preview_url, {
-            responseType: 'blob',
+            responseType: 'arraybuffer',
             headers: { Accept: 'application/pdf' },
         });
-        const contentType = String(response.headers?.['content-type'] || response.data?.type || '');
+        const contentType = String(response.headers?.['content-type'] || '');
 
         if (! contentType.includes('pdf')) {
             printPreviewError.value = 'PDF-предпросмотр недоступен. Можно открыть файл отдельно.';
             return;
         }
 
-        printPreviewBlobUrl.value = URL.createObjectURL(response.data);
+        if (! response.data || response.data.byteLength === 0) {
+            printPreviewError.value = 'Пустой PDF. Можно открыть файл отдельно.';
+            return;
+        }
+
+        printPreviewPdfBytes.value = response.data;
     } catch (exception) {
         let message = 'Не удалось загрузить предпросмотр.';
         const errorData = exception.response?.data;
 
-        if (errorData instanceof Blob) {
+        if (errorData instanceof ArrayBuffer) {
             try {
-                const text = await errorData.text();
+                const text = new TextDecoder().decode(errorData);
                 const parsed = JSON.parse(text);
                 if (parsed?.message) {
                     message = parsed.message;
