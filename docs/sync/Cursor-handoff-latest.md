@@ -3,19 +3,31 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-04 14:45 (деплой) · **Ветка:** `master` · **HEAD:** _(после push)_ · **тема:** Traklo PDF canvas preview (pdf.js)
+**Обновлено:** 2026-09-04 15:00 (деплой) · **Ветка:** `master` · **HEAD:** `55571b5a` · **тема:** Traklo PDF zoom
+
+### Итог сессии 2026-09-04 — Traklo: зум предпросмотра
+
+| Блок | Статус |
+| --- | --- |
+| Кнопки − / % / + (0.5×…3×) | ✅ `55571b5a` |
+| Pinch двумя пальцами | ✅ |
+| **Прод** pull + build + optimize:clear | ⏳ |
+
+---
+
+**Обновлено (архив):** 2026-09-04 14:48 (деплой) · **Ветка:** `master` · **HEAD:** `28b99fbe` · **тема:** Traklo PDF canvas preview (pdf.js)
 
 ### Итог сессии 2026-09-04 — Traklo: белый лист в предпросмотре
 
 | Блок | Статус |
 | --- | --- |
 | Причина: mobile iframe не рисует PDF | ✅ |
-| `MobilePdfCanvasPreview` + `pdfjs-dist` (canvas) | ✅ |
+| `MobilePdfCanvasPreview` + `pdfjs-dist` (canvas) | ✅ `28b99fbe` |
 | Lazy-chunk pdf.js, не раздувает Messenger | ✅ |
-| **Прод** pull + `npm run build` + optimize:clear | ⏳ |
+| **Прод** pull + `npm install` + `npm run build` + optimize:clear | ✅ `28b99fb` |
 | APK | ❌ не нужен |
 
-**Следующий шаг:** smoke «Предпросмотр» на телефоне. Грязные вне темы: `OneCBpClient.php`, `docs/one-c-edo-status-sync-design.md`.
+**Следующий шаг:** smoke «Предпросмотр» на телефоне (hard refresh / переоткрыть Traklo). Грязные вне темы: `OneCBpClient.php`, `docs/one-c-edo-status-sync-design.md`.
 
 ---
 
