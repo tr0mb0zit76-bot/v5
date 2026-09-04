@@ -11,6 +11,7 @@ use App\Models\RoutePoint;
 use App\Models\User;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\PrintFormVariableCatalog;
+use App\Support\OrderPrintFormContext;
 use Illuminate\Support\Collection;
 use Tests\TestCase;
 
@@ -403,6 +404,65 @@ class OrderPrintFormDraftServiceTest extends TestCase
 
         $this->assertSame('Верхняя', $rows[0]['route_point_row_special_conditions']);
         $this->assertSame('Верхняя', $rows[1]['route_point_row_special_conditions']);
+    }
+
+    public function test_customer_print_hides_multi_leg_hub_points_and_sorts_by_leg(): void
+    {
+        $service = $this->makeService();
+        $order = new Order;
+
+        $order->setRelation('legs', new Collection([
+            tap(new OrderLeg(['sequence' => 1, 'description' => 'leg_1']), fn ($leg) => $leg->id = 1520),
+            tap(new OrderLeg(['sequence' => 2, 'description' => 'leg_2']), fn ($leg) => $leg->id = 1521),
+        ]));
+        $order->setRelation('routePoints', new Collection([
+            tap(new RoutePoint([
+                'order_leg_id' => 1520,
+                'type' => 'loading',
+                'sequence' => 1,
+                'address' => 'SHIJIAZHUANG, HEBEI, CHINA',
+                'normalized_data' => ['city' => 'SHIJIAZHUANG'],
+                'planned_date' => '2026-08-28',
+            ]), fn ($p) => $p->id = 3063),
+            tap(new RoutePoint([
+                'order_leg_id' => 1520,
+                'type' => 'unloading',
+                'sequence' => 2,
+                'address' => 'Маньчжурия',
+                'normalized_data' => ['city' => 'Маньчжурия'],
+                'planned_date' => '2026-09-03',
+            ]), fn ($p) => $p->id = 3065),
+            tap(new RoutePoint([
+                'order_leg_id' => 1521,
+                'type' => 'loading',
+                'sequence' => 1,
+                'address' => 'Маньчжурия',
+                'normalized_data' => ['city' => 'Маньчжурия'],
+                'planned_date' => '2026-09-07',
+            ]), fn ($p) => $p->id = 3064),
+            tap(new RoutePoint([
+                'order_leg_id' => 1521,
+                'type' => 'unloading',
+                'sequence' => 2,
+                'address' => 'Рязанская обл, г Ряжск, ул Вокзальная, д 43',
+                'recipient_name' => "ООО 'ZGK'",
+                'normalized_data' => ['city' => 'Ряжск'],
+                'planned_date' => '2026-09-16',
+            ]), fn ($p) => $p->id = 3066),
+        ]));
+        $order->setRelation('cargoItems', new Collection);
+
+        $method = new \ReflectionMethod($service, 'buildRoutePointTableRowsForTemplate');
+        $method->setAccessible(true);
+
+        /** @var list<array<string, string>> $rows */
+        $rows = $method->invoke($service, $order, new OrderPrintFormContext(printParty: 'customer'));
+
+        $this->assertCount(2, $rows);
+        $this->assertSame('SHIJIAZHUANG, HEBEI, CHINA', $rows[0]['route_point_row_address']);
+        $this->assertSame('Погрузка', $rows[0]['route_point_row_type_label']);
+        $this->assertSame('Рязанская обл, г Ряжск, ул Вокзальная, д 43', $rows[1]['route_point_row_address']);
+        $this->assertSame('Выгрузка', $rows[1]['route_point_row_type_label']);
     }
 
     public function test_uses_carrier_portal_submission_for_driver_and_vehicle_when_fleet_ids_missing(): void

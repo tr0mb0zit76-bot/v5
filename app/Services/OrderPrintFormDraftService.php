@@ -30,6 +30,7 @@ use App\Support\PhpWordTemplateOverlayImageInjector;
 use App\Support\PrintFormBasicTermsTableCloner;
 use App\Support\PrintFormCargoScopeResolver;
 use App\Support\PrintFormCargoTableCloner;
+use App\Support\PrintFormCustomerRoutePointFilter;
 use App\Support\PrintFormImageOverlayPlaceholders;
 use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
@@ -302,11 +303,12 @@ class OrderPrintFormDraftService
         /** @var Collection<int, mixed> $routePoints */
         $routePoints = $order->relationLoaded('routePoints') ? $order->routePoints : collect();
         $routePoints = $this->filterRoutePointsForPrintContext($order, $routePoints, $context);
+        $routePoints = $this->sortRoutePointsForPrint($order, $routePoints);
         /** @var Collection<int, mixed> $cargoItems */
         $cargoItems = $order->relationLoaded('cargoItems') ? $order->cargoItems : collect();
 
-        $loadingPoints = $routePoints->where('type', 'loading')->sortBy(fn ($p) => (int) ($p->sequence ?? 0))->values();
-        $unloadingPoints = $routePoints->where('type', 'unloading')->sortBy(fn ($p) => (int) ($p->sequence ?? 0))->values();
+        $loadingPoints = $routePoints->where('type', 'loading')->values();
+        $unloadingPoints = $routePoints->where('type', 'unloading')->values();
         $portalSubmission = $this->resolveCarrierPortalSubmission($order, $context);
         $fleetSelection = $this->resolvePrimaryFleetSelection($order, $context);
         $driver = $this->driverPayload((int) ($order->driver_id ?? 0), $fleetSelection['fleet_driver_id'], $portalSubmission);
@@ -1240,29 +1242,54 @@ class OrderPrintFormDraftService
      */
     private function filterRoutePointsForPrintContext(Order $order, Collection $routePoints, ?OrderPrintFormContext $context): Collection
     {
-        if ($context === null || $context->routeLegsAsTableRows) {
+        if ($context !== null && $context->routeLegsAsTableRows) {
             return $routePoints;
         }
 
-        if ($context->legStage !== null && $context->legStage !== '') {
+        if ($context !== null && $context->legStage !== null && $context->legStage !== '') {
             $legId = $this->resolveLegIdForStage($order, $context->legStage);
             if ($legId === null) {
                 return $routePoints;
             }
 
-            return $routePoints->where('order_leg_id', $legId)->values();
+            $routePoints = $routePoints->where('order_leg_id', $legId)->values();
+        } elseif ($context !== null && $context->carrierContractorId !== null) {
+            $legIds = $this->legIdsForCarrierContractor($order, $context->carrierContractorId);
+            if ($legIds !== []) {
+                $routePoints = $routePoints->whereIn('order_leg_id', $legIds)->values();
+            }
         }
 
-        if ($context->carrierContractorId !== null) {
-            $legIds = $this->legIdsForCarrierContractor($order, $context->carrierContractorId);
-            if ($legIds === []) {
-                return $routePoints;
-            }
-
-            return $routePoints->whereIn('order_leg_id', $legIds)->values();
+        if (PrintFormCustomerRoutePointFilter::shouldApply($context)) {
+            $routePoints = PrintFormCustomerRoutePointFilter::filter($order, $routePoints);
         }
 
         return $routePoints;
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $routePoints
+     * @return Collection<int, mixed>
+     */
+    private function sortRoutePointsForPrint(Order $order, Collection $routePoints): Collection
+    {
+        $legSequenceById = [];
+        if ($order->relationLoaded('legs')) {
+            foreach ($order->legs as $leg) {
+                $legSequenceById[(int) $leg->id] = (int) ($leg->sequence ?? 0);
+            }
+        }
+
+        return $routePoints
+            ->sortBy(function (mixed $point) use ($legSequenceById): string {
+                $legId = (int) data_get($point, 'order_leg_id');
+                $legSeq = $legSequenceById[$legId] ?? 0;
+                $pointSeq = (int) data_get($point, 'sequence');
+                $pointId = (int) data_get($point, 'id');
+
+                return sprintf('%06d-%06d-%06d', $legSeq, $pointSeq, $pointId);
+            })
+            ->values();
     }
 
     /**
@@ -1326,9 +1353,8 @@ class OrderPrintFormDraftService
     {
         /** @var Collection<int, mixed> $routePoints */
         $routePoints = $order->relationLoaded('routePoints') ? $order->routePoints : collect();
-        $routePoints = $this->filterRoutePointsForPrintContext($order, $routePoints, $context)
-            ->sortBy(fn ($point): int => (int) ($point->sequence ?? 0))
-            ->values();
+        $routePoints = $this->filterRoutePointsForPrintContext($order, $routePoints, $context);
+        $routePoints = $this->sortRoutePointsForPrint($order, $routePoints);
 
         if ($routePoints->isEmpty()) {
             return [];
