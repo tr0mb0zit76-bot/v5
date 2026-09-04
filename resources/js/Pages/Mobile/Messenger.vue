@@ -308,18 +308,32 @@
                     </div>
                 </section>
 
-                <section v-if="activeTab !== 'chats' && !search.trim() && mobileRecents.length" class="space-y-2 px-4 pt-2">
-                    <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Недавно открывали</div>
+                <section v-if="activeTab !== 'chats' && !search.trim() && mobileRecents.length" class="px-4 pt-2">
                     <button
-                        v-for="item in mobileRecents"
-                        :key="`recent-${item.kind}-${item.id}`"
                         type="button"
-                        class="flex w-full items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left active:bg-white/10"
-                        @click="openRecentDetail(item)"
+                        class="flex w-full items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left active:bg-white/10"
+                        @click="showRecents = !showRecents"
                     >
-                        <span class="text-[10px] uppercase tracking-wide text-sky-200">{{ entityKindLabel(item.kind) }}</span>
-                        <span class="min-w-0 flex-1 truncate text-sm font-medium text-zinc-50">{{ item.label }}</span>
+                        <span class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                            Недавно · {{ mobileRecents.length }}
+                        </span>
+                        <ChevronDown
+                            class="h-4 w-4 shrink-0 text-zinc-500 transition-transform"
+                            :class="showRecents ? 'rotate-180' : ''"
+                        />
                     </button>
+                    <div v-if="showRecents" class="mt-2 space-y-2">
+                        <button
+                            v-for="item in mobileRecents"
+                            :key="`recent-${item.kind}-${item.id}`"
+                            type="button"
+                            class="flex w-full items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left active:bg-white/10"
+                            @click="openRecentDetail(item)"
+                        >
+                            <span class="text-[10px] uppercase tracking-wide text-sky-200">{{ entityKindLabel(item.kind) }}</span>
+                            <span class="min-w-0 flex-1 truncate text-sm font-medium text-zinc-50">{{ item.label }}</span>
+                        </button>
+                    </div>
                 </section>
 
                 <section v-if="activeTab === 'chats'" class="min-h-full">
@@ -683,14 +697,22 @@
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-center gap-2">
                                         <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-200">Заказ</span>
+                                        <span
+                                            class="inline-flex items-center gap-1"
+                                            :title="orderStatusLabel(order)"
+                                        >
+                                            <OrderStatusIcon
+                                                v-if="orderStatusIconKey(order)"
+                                                :icon-key="orderStatusIconKey(order)"
+                                                :size="16"
+                                            />
+                                            <span class="sr-only">{{ orderStatusLabel(order) }}</span>
+                                        </span>
                                     </div>
                                     <div class="mt-1 text-sm font-semibold text-zinc-50">{{ order.order_number }}</div>
                                     <div class="mt-1 text-xs text-zinc-400">{{ order.customer_name || 'Заказчик не указан' }}</div>
                                     <div v-if="order.carrier_name" class="mt-1 text-xs text-zinc-500">Перевозчик: {{ order.carrier_name }}</div>
                                 </div>
-                                <span class="shrink-0 rounded-full bg-white/10 px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-300">
-                                    {{ order.status || '—' }}
-                                </span>
                             </div>
                             <div v-if="order.loading_date || order.unloading_date" class="mt-3 text-xs text-zinc-500">
                                 {{ formatOrderRoute(order) }}
@@ -727,17 +749,22 @@
                     <div v-if="trakloLeadsLoading" class="py-8 text-center text-sm text-zinc-500">Загрузка лидов…</div>
                     <template v-else>
                         <div class="space-y-2">
-                            <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Входящие заявки</div>
+                            <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                                Входящие из Traklo
+                            </div>
+                            <p class="text-[11px] leading-4 text-zinc-500">
+                                Заявки с публичной формы и из вставленного текста WhatsApp/Telegram/SMS — не вся воронка CRM.
+                            </p>
                             <div
-                                v-for="lead in filteredTrakloLeads"
-                                :key="`traklo-lead-${lead.id}`"
+                                v-for="lead in filteredIntakeLeads"
+                                :key="`traklo-intake-${lead.id}`"
                                 class="rounded-3xl border border-sky-400/20 bg-sky-400/10 p-3"
                             >
                                 <button type="button" class="block w-full text-left" @click="openTrakloLeadDetail(lead)">
                                     <div class="flex items-start gap-3">
                                         <div class="min-w-0 flex-1">
                                             <div class="flex items-center gap-2">
-                                                <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-100">Лид</span>
+                                                <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-100">Заявка</span>
                                                 <span class="truncate text-[10px] text-zinc-400">{{ lead.status_label }}</span>
                                             </div>
                                             <div class="mt-1 truncate text-sm font-semibold text-zinc-50">{{ lead.number }} · {{ lead.title || 'Заявка на перевозку' }}</div>
@@ -769,8 +796,40 @@
                                     </a>
                                 </div>
                             </div>
-                            <div v-if="filteredTrakloLeads.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
-                                {{ search.trim() ? 'Ничего не найдено.' : 'Входящих заявок пока нет.' }}
+                            <div v-if="filteredIntakeLeads.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-zinc-500">
+                                {{ search.trim() ? 'Ничего не найдено.' : 'Входящих заявок из Traklo пока нет.' }}
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 pt-2">
+                            <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Мои открытые лиды</div>
+                            <MobileShellEntityCard
+                                v-for="lead in filteredCrmLeads"
+                                :key="`crm-lead-${lead.id}`"
+                                :element-id="`mobile-lead-${lead.id}`"
+                                @open="openTrakloLeadDetail(lead)"
+                                @share="beginShareToChat({ url: lead.url, label: lead.number })"
+                            >
+                                <div class="flex items-start gap-3">
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-center gap-2">
+                                            <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-200">Лид</span>
+                                            <span class="truncate text-[10px] text-zinc-400">{{ lead.status_label }}</span>
+                                        </div>
+                                        <div class="mt-1 truncate text-sm font-semibold text-zinc-50">
+                                            {{ lead.number }} · {{ lead.title || 'Без названия' }}
+                                        </div>
+                                        <div class="mt-1 truncate text-xs text-zinc-400">
+                                            {{ lead.counterparty_name || lead.company_name || lead.contact_name || 'Контрагент не указан' }}
+                                        </div>
+                                        <div v-if="lead.loading_location || lead.unloading_location" class="mt-2 text-xs text-zinc-300">
+                                            {{ lead.loading_location || '—' }} → {{ lead.unloading_location || '—' }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </MobileShellEntityCard>
+                            <div v-if="filteredCrmLeads.length === 0" class="rounded-3xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-zinc-500">
+                                {{ search.trim() ? 'Ничего не найдено.' : 'Открытых лидов в CRM нет.' }}
                             </div>
                         </div>
                     </template>
@@ -944,7 +1003,7 @@
 import axios from 'axios';
 import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
-import { ArrowLeft, CheckSquare, FileText, Inbox, MessageCircle, Package, Paperclip, Phone, Plus, Reply, Search, Send, Upload, Users, X } from 'lucide-vue-next';
+import { ArrowLeft, CheckSquare, ChevronDown, FileText, Inbox, MessageCircle, Package, Paperclip, Phone, Plus, Reply, Search, Send, Upload, Users, X } from 'lucide-vue-next';
 import { useMessenger } from '@/composables/useMessenger.js';
 import { useMessengerPolling } from '@/composables/useMessengerPolling.js';
 import { useMobileShell } from '@/composables/useMobileShell.js';
@@ -956,11 +1015,13 @@ import MobileEntityDetailSheet from '@/Components/Mobile/MobileEntityDetailSheet
 import MobileEntityPicker from '@/Components/Mobile/MobileEntityPicker.vue';
 import MobileShareToChatPicker from '@/Components/Mobile/MobileShareToChatPicker.vue';
 import MobileShellEntityCard from '@/Components/Mobile/MobileShellEntityCard.vue';
+import OrderStatusIcon from '@/Components/Orders/OrderStatusIcon.vue';
 import { entityKindLabel, previewForCrmUrl, splitMessageSegments } from '@/support/mobileMessageLinks.js';
 import { buildDirectUnreadByUserId, formatConversationPreview } from '@/support/messengerConversationText.js';
 import { formatMessengerFileSize } from '@/support/messengerMessages.js';
 import { registerMobilePushIfAvailable } from '@/support/mobilePush.js';
 import { pushMobileRecent, readMobileRecents } from '@/support/mobileShellRecents.js';
+import { resolveOrderStatusIconKey, resolveOrderStatusLabel } from '@/support/orderStatusDisplay.js';
 
 const AvatarBubble = defineComponent({
     props: {
@@ -1019,6 +1080,7 @@ const uploadPresetOrderId = ref(null);
 const unifiedSearchResults = ref([]);
 const unifiedSearchLoading = ref(false);
 const mobileRecents = ref(readMobileRecents());
+const showRecents = ref(false);
 const messageLeadText = ref('');
 const messageLeadCreating = ref(false);
 const messageLeadError = ref('');
@@ -1097,6 +1159,7 @@ const {
     documentContractorOrders,
     orderDocumentChecklist,
     trakloLeads,
+    crmLeads,
     overdueTaskCount,
     tasksLoading,
     ordersLoading,
@@ -1832,7 +1895,7 @@ async function handleDocumentUploaded(document) {
 
 const activeTabLabel = computed(() => allTabs.find((tab) => tab.key === activeTab.value)?.label ?? 'Раздел');
 
-const trakloLeadsCount = computed(() => trakloLeads.value.length);
+const trakloLeadsCount = computed(() => trakloLeads.value.length + crmLeads.value.length);
 
 const directUnreadByUserId = computed(() => buildDirectUnreadByUserId(conversations.value));
 
@@ -1901,7 +1964,7 @@ function colleagueUnreadCount(user) {
 
 const groupCandidates = computed(() => colleagues.value.slice(0, 50));
 
-const filteredTrakloLeads = computed(() => {
+const filteredIntakeLeads = computed(() => {
     const needle = search.value.trim().toLowerCase();
     if (needle === '') {
         return trakloLeads.value;
@@ -1920,6 +1983,34 @@ const filteredTrakloLeads = computed(() => {
         ].join(' ').toLowerCase().includes(needle),
     );
 });
+
+const filteredCrmLeads = computed(() => {
+    const needle = search.value.trim().toLowerCase();
+    if (needle === '') {
+        return crmLeads.value;
+    }
+
+    return crmLeads.value.filter((lead) =>
+        [
+            lead.number,
+            lead.title,
+            lead.counterparty_name,
+            lead.company_name,
+            lead.contact_name,
+            lead.phone,
+            lead.loading_location,
+            lead.unloading_location,
+        ].join(' ').toLowerCase().includes(needle),
+    );
+});
+
+function orderStatusIconKey(order) {
+    return resolveOrderStatusIconKey(order, order?.status) || '';
+}
+
+function orderStatusLabel(order) {
+    return resolveOrderStatusLabel(order?.status, order);
+}
 
 const filteredTasks = computed(() => {
     const needle = search.value.trim().toLowerCase();

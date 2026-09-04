@@ -30,6 +30,7 @@ export function useMobileShell() {
     const documentContractorOrders = ref([]);
     const orderDocumentChecklist = ref(null);
     const trakloLeads = ref([]);
+    const crmLeads = ref([]);
     const overdueTaskCount = ref(0);
     const tasksLoading = ref(false);
     const ordersLoading = ref(false);
@@ -182,9 +183,12 @@ export function useMobileShell() {
                 headers: { Accept: 'application/json' },
                 params: search.trim() !== '' ? { q: search.trim() } : {},
             });
-            trakloLeads.value = data.leads ?? [];
+            trakloLeads.value = data.intake ?? data.leads ?? [];
+            crmLeads.value = data.crm_leads ?? [];
         } catch (exception) {
             shellError.value = exception.response?.data?.message ?? 'Не удалось загрузить заявки Traklo.';
+            trakloLeads.value = [];
+            crmLeads.value = [];
         } finally {
             trakloLeadsLoading.value = false;
         }
@@ -271,6 +275,7 @@ export function useMobileShell() {
         documentContractorOrders,
         orderDocumentChecklist,
         trakloLeads,
+        crmLeads,
         overdueTaskCount,
         tasksLoading,
         ordersLoading,

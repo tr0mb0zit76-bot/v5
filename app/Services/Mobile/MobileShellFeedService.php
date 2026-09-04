@@ -344,69 +344,117 @@ class MobileShellFeedService
     }
 
     /**
-     * @return array{leads: list<array<string, mixed>>}
+     * @return array{intake: list<array<string, mixed>>, crm_leads: list<array<string, mixed>>, leads: list<array<string, mixed>>}
      */
     public function trakloLeadsForUser(User $user, ?string $search = null): array
     {
         if (! Schema::hasTable('leads') || ! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'leads')) {
-            return ['leads' => []];
+            return ['intake' => [], 'crm_leads' => [], 'leads' => []];
         }
 
         $needle = trim((string) $search);
+        $intakeSources = ['traklo_public_request', 'traklo_message_intake'];
 
-        $query = Lead::query()
+        $intakeQuery = Lead::query()
             ->with(['counterparty:id,name', 'responsible:id,name'])
-            ->whereIn('source', ['traklo_public_request', 'traklo_message_intake'])
+            ->whereIn('source', $intakeSources)
             ->whereNotIn('status', ['won', 'lost'])
             ->tap(fn ($builder) => LeadViewAuthorization::applyLeadsVisibilityScope($builder, $user, includeUnassigned: true));
 
-        if ($needle !== '') {
-            $like = '%'.$needle.'%';
-            $query->where(function ($builder) use ($like, $needle): void {
-                $builder->where('number', 'like', $like)
-                    ->orWhere('title', 'like', $like)
-                    ->orWhere('description', 'like', $like)
-                    ->orWhere('loading_location', 'like', $like)
-                    ->orWhere('unloading_location', 'like', $like);
+        $this->applyLeadSearch($intakeQuery, $needle);
 
-                if (preg_match('/^\d+$/', $needle) === 1) {
-                    $builder->orWhere('id', (int) $needle);
-                }
-            });
-        }
-
-        $leads = $query
+        $intake = $intakeQuery
             ->orderByDesc('created_at')
             ->limit(20)
-            ->get();
+            ->get()
+            ->map(fn (Lead $lead): array => $this->serializeLeadForMobileShell($lead, intake: true))
+            ->values()
+            ->all();
 
-        $items = $leads->map(function (Lead $lead): array {
-            $request = is_array($lead->metadata)
-                ? ($lead->metadata['public_transport_request'] ?? $lead->metadata['traklo_message_intake'] ?? [])
-                : [];
+        $crmQuery = Lead::query()
+            ->with(['counterparty:id,name', 'responsible:id,name'])
+            ->where(function (Builder $builder) use ($intakeSources): void {
+                $builder->whereNull('source')
+                    ->orWhereNotIn('source', $intakeSources);
+            })
+            ->whereNotIn('status', ['won', 'lost'])
+            ->tap(fn ($builder) => LeadViewAuthorization::applyLeadsVisibilityScope($builder, $user, includeUnassigned: false));
 
-            return [
-                'id' => (int) $lead->id,
-                'number' => filled($lead->number) ? (string) $lead->number : '#'.$lead->id,
-                'source' => $lead->source,
-                'title' => $lead->title,
-                'status' => $lead->status,
-                'status_label' => LeadStatus::label((string) $lead->status),
-                'counterparty_name' => $lead->counterparty?->name,
-                'responsible_name' => $lead->responsible?->name,
-                'contact_name' => is_array($request) ? ($request['contact_name'] ?? null) : null,
-                'company_name' => is_array($request) ? ($request['company_name'] ?? null) : null,
-                'phone' => is_array($request) ? ($request['phone'] ?? $request['contact_phone'] ?? null) : null,
-                'cargo' => is_array($request) ? ($request['cargo'] ?? null) : null,
-                'loading_location' => $lead->loading_location,
-                'unloading_location' => $lead->unloading_location,
-                'planned_shipping_date' => optional($lead->planned_shipping_date)?->toDateString(),
-                'created_at' => optional($lead->created_at)?->toIso8601String(),
-                'url' => route('leads.show', $lead, absolute: true),
-            ];
-        })->values()->all();
+        $this->applyLeadSearch($crmQuery, $needle);
 
-        return ['leads' => $items];
+        $crmLeads = $crmQuery
+            ->orderByDesc('updated_at')
+            ->limit(30)
+            ->get()
+            ->map(fn (Lead $lead): array => $this->serializeLeadForMobileShell($lead, intake: false))
+            ->values()
+            ->all();
+
+        return [
+            'intake' => $intake,
+            'crm_leads' => $crmLeads,
+            // ponytail: legacy key for older clients — same as intake
+            'leads' => $intake,
+        ];
+    }
+
+    private function applyLeadSearch(Builder $query, string $needle): void
+    {
+        if ($needle === '') {
+            return;
+        }
+
+        $like = '%'.$needle.'%';
+        $query->where(function (Builder $builder) use ($like, $needle): void {
+            $builder->where('number', 'like', $like)
+                ->orWhere('title', 'like', $like)
+                ->orWhere('description', 'like', $like)
+                ->orWhere('loading_location', 'like', $like)
+                ->orWhere('unloading_location', 'like', $like);
+
+            if (preg_match('/^\d+$/', $needle) === 1) {
+                $builder->orWhere('id', (int) $needle);
+            }
+        });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeLeadForMobileShell(Lead $lead, bool $intake): array
+    {
+        $request = [];
+
+        if ($intake && is_array($lead->metadata)) {
+            $request = $lead->metadata['public_transport_request']
+                ?? $lead->metadata['traklo_message_intake']
+                ?? [];
+        }
+
+        if (! is_array($request)) {
+            $request = [];
+        }
+
+        return [
+            'id' => (int) $lead->id,
+            'number' => filled($lead->number) ? (string) $lead->number : '#'.$lead->id,
+            'source' => $lead->source,
+            'title' => $lead->title,
+            'status' => $lead->status,
+            'status_label' => LeadStatus::label((string) $lead->status),
+            'counterparty_name' => $lead->counterparty?->name,
+            'responsible_name' => $lead->responsible?->name,
+            'contact_name' => $request['contact_name'] ?? null,
+            'company_name' => $request['company_name'] ?? null,
+            'phone' => $request['phone'] ?? $request['contact_phone'] ?? null,
+            'cargo' => $request['cargo'] ?? null,
+            'loading_location' => $lead->loading_location,
+            'unloading_location' => $lead->unloading_location,
+            'planned_shipping_date' => optional($lead->planned_shipping_date)?->toDateString(),
+            'created_at' => optional($lead->created_at)?->toIso8601String(),
+            'url' => route('leads.show', $lead, absolute: true),
+            'is_intake' => $intake,
+        ];
     }
 
     /**

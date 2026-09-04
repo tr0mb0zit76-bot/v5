@@ -181,10 +181,27 @@ class MobileShellFeedTest extends TestCase
             ->getJson(route('mobile.shell.traklo-leads'))
             ->assertOk()
             ->assertJsonCount(1, 'leads')
+            ->assertJsonCount(1, 'intake')
             ->assertJsonPath('leads.0.id', $visibleLead->id)
+            ->assertJsonPath('intake.0.id', $visibleLead->id)
             ->assertJsonPath('leads.0.number', 'TRK-MOB-1')
             ->assertJsonPath('leads.0.contact_name', 'Иван')
-            ->assertJsonPath('leads.0.cargo', 'Станок');
+            ->assertJsonPath('leads.0.cargo', 'Станок')
+            ->assertJsonStructure(['intake', 'crm_leads', 'leads']);
+
+        $crmLead = Lead::factory()->create([
+            'number' => 'CRM-MOB-1',
+            'source' => 'phone',
+            'responsible_id' => $user->id,
+            'title' => 'Обычный лид CRM',
+            'status' => 'new',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('mobile.shell.traklo-leads'))
+            ->assertOk()
+            ->assertJsonPath('crm_leads.0.id', $crmLead->id)
+            ->assertJsonPath('crm_leads.0.number', 'CRM-MOB-1');
     }
 
     public function test_mobile_shell_lead_summary_allows_unassigned_public_traklo_request(): void
