@@ -2,9 +2,9 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import CrmPageHeader from '@/Components/CrmPageHeader.vue';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import Modal from '@/Components/Modal.vue';
-import CrmModalHeader from '@/Components/CrmModalHeader.vue';
+import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import {
     crmBtnCreate,
     crmBtnNeutral,
