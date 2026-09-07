@@ -4,6 +4,7 @@ namespace App\Services\Orders\Wizard;
 
 use App\Models\Cargo;
 use App\Models\Contractor;
+use App\Models\OneCEpdRegistryEntry;
 use App\Models\Order;
 use App\Models\PrintFormTemplate;
 use App\Services\Commercial\OrderMailContextService;
@@ -128,7 +129,27 @@ class OrderWizardPagePresenter
             'oneCIntegration' => $this->oneCRealizationSync->wizardState($order, $user),
             'epdIntegration' => $this->oneCEpdStubSync->wizardStates($order, $user),
             'epdPreview' => $this->epdPreviewPresenter->forOrder($order),
+            'epdRegistryLinks' => $this->epdRegistryLinksForOrder($order),
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function epdRegistryLinksForOrder(?Order $order): array
+    {
+        if ($order === null || ! Schema::hasTable('one_c_epd_registry_entries')) {
+            return [];
+        }
+
+        return OneCEpdRegistryEntry::query()
+            ->where('order_id', $order->id)
+            ->orderByDesc('epd_date')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (OneCEpdRegistryEntry $entry): array => $entry->toGridRow())
+            ->values()
+            ->all();
     }
 
     public function isTemplateAvailableForOrder(

@@ -16,6 +16,7 @@ use App\Http\Controllers\DispositionController;
 use App\Http\Controllers\DocumentOptimizeController;
 use App\Http\Controllers\DocumentRegistryController;
 use App\Http\Controllers\DocumentUploadBudgetEstimateController;
+use App\Http\Controllers\EpdRegistryController;
 use App\Http\Controllers\External\ExternalInviteController;
 use App\Http\Controllers\FinanceDocumentController;
 use App\Http\Controllers\FinanceIndexController;
@@ -772,6 +773,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/budgeting/opex-articles/{opexArticle}', [BudgetingController::class, 'updateOpexArticle'])->name('budgeting.opex-articles.update');
     Route::delete('/budgeting/opex-articles/{opexArticle}', [BudgetingController::class, 'destroyOpexArticle'])->name('budgeting.opex-articles.destroy');
     Route::post('/budgeting/plan-snapshots', [BudgetingController::class, 'freezePlan'])->name('budgeting.plan-snapshots.store');
+    Route::middleware('visibility.area.any:documents|orders')->prefix('epd')->name('epd.')->group(function () {
+        Route::get('/', [EpdRegistryController::class, 'index'])->name('index');
+        Route::post('/sync', [EpdRegistryController::class, 'syncNow'])->name('sync');
+        Route::get('/orders/search', [EpdRegistryController::class, 'searchOrders'])->name('orders.search');
+        Route::post('/{entry}/link', [EpdRegistryController::class, 'link'])->name('link');
+        Route::post('/{entry}/unlink', [EpdRegistryController::class, 'unlink'])->name('unlink');
+    });
+
     Route::get('/documents', [DocumentRegistryController::class, 'index'])->middleware('visibility.area.any:documents|orders')->name('documents.index');
     Route::post('/documents', [DocumentRegistryController::class, 'store'])->middleware('visibility.area.any:documents|orders')->name('documents.store');
     Route::post('/documents/optimize-pdf', DocumentOptimizeController::class)->middleware('visibility.area.any:documents|orders')->name('documents.optimize-pdf');

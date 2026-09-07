@@ -9,6 +9,7 @@ const props = defineProps({
     isOrderFormEditable: { type: Boolean, default: true },
     epdIntegration: { type: Object, default: null },
     epdPreview: { type: Object, default: null },
+    epdRegistryLinks: { type: Array, default: () => [] },
     documentEdoAcknowledgements: { type: Array, default: () => [] },
     canEditDocumentEdoAcknowledgements: { type: Boolean, default: false },
 });
@@ -45,6 +46,12 @@ const errorByKey = reactive({ etrn: '', expedition_receipt: '' });
 const ackBusy = reactive({});
 const ackError = reactive({});
 const ackDraft = reactive({});
+const unlinkBusyId = ref(null);
+const registryError = ref('');
+
+const registryLinks = computed(() => (
+    Array.isArray(props.epdRegistryLinks) ? props.epdRegistryLinks : []
+));
 
 watch(
     () => props.epdIntegration,
@@ -214,6 +221,28 @@ function onAckToggle(doc, event) {
         saveAck(doc);
     }
 }
+
+async function unlinkRegistryEntry(entry) {
+    if (!entry?.id || unlinkBusyId.value) {
+        return;
+    }
+    if (!window.confirm(`Отвязать «${entry.document_type_label}» №${entry.epd_number || entry.ib_number || '—'} от заказа?`)) {
+        return;
+    }
+    unlinkBusyId.value = entry.id;
+    registryError.value = '';
+    try {
+        await window.axios.post(route('epd.unlink', entry.id));
+        router.reload({
+            only: ['epdRegistryLinks', 'epdIntegration', 'requiredDocumentChecklist'],
+            preserveScroll: true,
+        });
+    } catch (error) {
+        registryError.value = error?.response?.data?.message || 'Не удалось отвязать документ.';
+    } finally {
+        unlinkBusyId.value = null;
+    }
+}
 </script>
 
 <template>
@@ -221,9 +250,53 @@ function onAckToggle(doc, event) {
         <div>
             <h2 class="text-base font-semibold text-slate-900 dark:text-slate-100">ЭПД</h2>
             <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Предпросмотр титулов и создание болванок в 1С. Отправка оператору ЭПД — из 1С (кнопка там).
+                Предпросмотр титулов и создание болванок в 1С. Входящие из реестра 1С — в блоке ниже и в меню «ЭПД».
+                Отправка оператору ЭПД — из 1С.
             </p>
+            <a
+                :href="route('epd.index')"
+                class="mt-2 inline-block text-sm font-medium text-sky-700 hover:underline dark:text-sky-300"
+            >
+                Открыть грид ЭПД →
+            </a>
         </div>
+
+        <section
+            v-if="registryLinks.length > 0 || registryError"
+            class="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20"
+        >
+            <h3 class="text-sm font-semibold text-emerald-950 dark:text-emerald-100">
+                Связанные из реестра 1С
+            </h3>
+            <p v-if="registryError" class="mt-1 text-xs text-rose-600">{{ registryError }}</p>
+            <ul class="mt-3 space-y-2">
+                <li
+                    v-for="entry in registryLinks"
+                    :key="entry.id"
+                    class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200/80 bg-white px-3 py-2 text-sm dark:border-emerald-900/50 dark:bg-slate-900/40"
+                >
+                    <div>
+                        <div class="font-medium text-slate-900 dark:text-slate-100">
+                            {{ entry.document_type_label }}
+                            · № {{ entry.epd_number || entry.ib_number || '—' }}
+                        </div>
+                        <div class="text-xs text-slate-500">
+                            шаг: {{ entry.current_step || '—' }}
+                            <span v-if="entry.shipper_name"> · ГО: {{ entry.shipper_name }}</span>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        :class="crmBtnSecondary"
+                        class="!px-2 !py-1 text-xs"
+                        :disabled="unlinkBusyId === entry.id"
+                        @click="unlinkRegistryEntry(entry)"
+                    >
+                        {{ unlinkBusyId === entry.id ? '…' : 'Отвязать' }}
+                    </button>
+                </li>
+            </ul>
+        </section>
 
         <section
             v-for="panel in panels"

@@ -125,6 +125,7 @@
                 :is-order-form-editable="documentsTabEditable"
                 :epd-integration="epdIntegration"
                 :epd-preview="epdPreview"
+                :epd-registry-links="epdRegistryLinks"
                 :document-edo-acknowledgements="documentEdoAcknowledgements"
                 :can-edit-document-edo-acknowledgements="canEditDocumentEdoAcknowledgements"
             />
@@ -337,6 +338,7 @@ const props = defineProps({
     oneCIntegration: { type: Object, default: null },
     epdIntegration: { type: Object, default: null },
     epdPreview: { type: Object, default: null },
+    epdRegistryLinks: { type: Array, default: () => [] },
 });
 
 const leadPrecalculationSnapshot = computed(() => props.order?.lead_precalculation_snapshot ?? null);

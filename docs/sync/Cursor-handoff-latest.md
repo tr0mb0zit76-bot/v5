@@ -3,7 +3,26 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-04 15:00 (деплой) · **Ветка:** `master` · **HEAD:** `55571b5a` · **тема:** Traklo PDF zoom
+**Обновлено:** 2026-09-07 19:30 · **Ветка:** `master` · **тема:** модуль ЭПД (реестр + связать)
+
+### Итог сессии 2026-09-07 — модуль ЭПД
+
+| Блок | Статус |
+| --- | --- |
+| Таблица `one_c_epd_registry_entries` + sync из `РеестрЭПД` | ✅ |
+| Cron `one-c:sync-epd-registry` hourly | ✅ |
+| Грид `/epd` + связать/отвязать заказ | ✅ |
+| Вкладка мастера «ЭПД»: связанные + ссылка на грид | ✅ |
+| PHPUnit `EpdRegistryTest` + type resolver | ✅ |
+| **Commit / деплой** | ❌ локально, не закоммичено |
+
+**Следующий шаг:** commit → migrate на проде → `npm run build` → `php artisan one-c:sync-epd-registry`. Далее: публикация ЭПЭ/ЭЭР в OData / HTTP fill для груза.
+
+**Живые данные 1С:** НОВАФАРМ = ЭПЭ+ЭЭР; АГРО-ПОВОЛЖЬЕ = ошибочный ЭЗЗ.
+
+---
+
+**Обновлено (архив):** 2026-09-04 15:00 (деплой) · **Ветка:** `master` · **HEAD:** `55571b5a` · **тема:** Traklo PDF zoom
 
 ### Итог сессии 2026-09-04 — Traklo: зум предпросмотра
 
@@ -11,7 +30,7 @@
 | --- | --- |
 | Кнопки − / % / + (0.5×…3×) | ✅ `55571b5a` |
 | Pinch двумя пальцами | ✅ |
-| **Прод** pull + build + optimize:clear | ⏳ |
+| **Прод** pull + build + optimize:clear | ✅ `55571b5` |
 
 ---
 

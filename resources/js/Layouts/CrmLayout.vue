@@ -980,6 +980,7 @@ const MENU_ROUTES = {
     'fleet-containers': '/fleet/containers',
     'fleet-drivers': '/drivers',
     documents: '/documents',
+    epd: '/epd',
     claims: '/claims',
     mail: '/mail',
     finance: '/finance',
@@ -1358,6 +1359,7 @@ const menuItems = computed(() => {
                 .map(({ key, label }) => ({ key, label })),
         },
         { key: 'documents', label: 'Документы', icon: FileText, visibilityArea: 'documents' },
+        { key: 'epd', label: 'ЭПД', icon: FileText },
         ...(page.props.crm_features?.order_claims?.enabled
             ? [{ key: 'claims', label: 'Претензии', icon: Scale, visibilityArea: 'claims' }]
             : []),
@@ -1543,6 +1545,12 @@ const menuItems = computed(() => {
 
         if (item.key === 'modules') {
             return (item.children?.length ?? 0) > 0;
+        }
+
+        if (item.key === 'epd') {
+            return isAdminUser.value
+                || visibleAreas.value.includes('documents')
+                || visibleAreas.value.includes('orders');
         }
 
         if (!item.visibilityArea) {

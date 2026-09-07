@@ -2,12 +2,26 @@
 
 MVP: push «болванки» в 1С по образцу реализации, HTML-превью титулов, слоты чек-листа, отметка «отправлено» в стиле ЭДО. Без отправки оператору Астрал.
 
+## Реестр ЭПД (грид CRM) — 2026-09-07
+
+| | |
+| --- | --- |
+| UI | `/epd` · `Epd/Index.vue` · меню «ЭПД» |
+| Таблица | `one_c_epd_registry_entries` |
+| Sync | `one-c:sync-epd-registry` hourly · `OneCEpdRegistrySyncService` ← `InformationRegister_РеестрЭПД` |
+| Связь | `POST /epd/{entry}/link` / `unlink` · зеркало в `order_one_c_documents` для `etrn` / `expedition_receipt` |
+| Мастер | вкладка ЭПД → блок «Связанные из реестра 1С» (`epdRegistryLinks`) |
+| Типы | ЭПЭ / ЭЭР / ЭТрН / ЭЗЗ / … (`OneCEpdDocumentTypeResolver`) |
+
+ЭПЭ/ЭЭР Document_* в OData по-прежнему **UnavailableEntities** — грид читает реестр и версии титулов, не тело документа.
+
 ## Фазы
 
 | Фаза | Содержание | Статус |
 | --- | --- | --- |
 | 1 | Каркас: config OData paths, mapper/sync/client, кнопки wizard props, слоты чек-листа, EDO-ack | MVP (этот контур) |
-| 2 | Spike живой OData: точные имена сущностей/реквизитов ЭТрН и ЭЭР в публикации БП | ЭТрН + реестр/токены ✅; ЭР EntitySet ❌ |
+| 1b | Грид РеестрЭПД + связать с заказом | ✅ |
+| 2 | Spike живой OData: точные имена сущностей/реквизитов ЭТрН и ЭЭР в публикации БП | ЭТрН + реестр/токены ✅; ЭР/ЭПЭ EntitySet ❌ |
 | 3 | Оператор ЭДО (Астрал): отправка титулов, статусы обмена | out of scope MVP |
 | 4 | Полноценное заполнение титулов / подписи сторон | после spike 1С |
 

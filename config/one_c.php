@@ -109,6 +109,15 @@ return [
             'ONE_C_ODATA_EXPEDITION_RECEIPT_PATH',
             '/odata/standard.odata/Document_ЭлектроннаяЭкспедиторскаяРасписка'
         ),
+        'epd_registry_path' => (string) env(
+            'ONE_C_ODATA_EPD_REGISTRY_PATH',
+            '/odata/standard.odata/InformationRegister_РеестрЭПД'
+        ),
+    ],
+
+    /** Локальный грид ЭПД (зеркало РеестрЭПД). */
+    'epd_registry' => [
+        'sync_top' => (int) env('ONE_C_EPD_REGISTRY_SYNC_TOP', 200),
     ],
 
     /**
