@@ -61,9 +61,9 @@
 
 **Счета / матчинг:** реализация → `СчетНаОплатуПокупателю` → sync `one-c:sync-invoice-numbers` (12ч) → `orders`/`payment_schedules.invoice_number`. Дизайн: `docs/payment-invoice-sync-design.md`. Исходящие — токен `CRM:…` (`docs/payment-match-token-design.md`).
 
-**ЭДО (фаза A, исходящие заказчику):** `one-c:sync-edo-status` (hourly) → `ОбъектыУчетаДокументовЭДО` → исходящий ЭДО → upsert `order_document_edo_acknowledgements` (не затирает ручные). Дизайн: `docs/one-c-edo-status-sync-design.md`. Входящие от перевозчиков — позже.
+**ЭДО (фаза A, исходящие заказчику):** `one-c:sync-edo-status` (hourly) → lookup исходящего ЭДО → upsert `order_document_edo_acknowledgements` (не затирает ручные). На Автоальянс фильтр `ОбъектыУчетаДокументовЭДО.ОбъектУчета` **пустой** → fallback `Document_ЭлектронныйДокументИсходящийЭДО` по `ИдентификаторСвязи` (`OneCBpClient`). Дизайн: `docs/one-c-edo-status-sync-design.md`. Входящие от перевозчиков — позже.
 
-**ЭПД stubs (MVP):** болванки ЭТрН + экспедиторская расписка → `order_one_c_documents` (`etrn` / `expedition_receipt`); `OneCEpdStubSyncService`; вкладка мастера «ЭПД» (аккордеон + HTML титулы); чек-лист: ЭТрН обязателен, ЭР нет. OData paths — placeholders до spike 1С. Дизайн: `docs/one-c-epd-stub-design.md`.
+**ЭПД stubs + реестр:** болванки ЭТрН/ЭР → `order_one_c_documents`; вкладка мастера «ЭПД». **Грид** `/epd` (`one_c_epd_registry_entries`) — hourly `one-c:sync-epd-registry` из `РеестрЭПД`, связать/отвязать заказ (зеркало ЭТрН/ЭР в `order_one_c_documents`). Типы: ЭПЭ / ЭЭР / ЭТрН / ЭЗЗ (`OneCEpdDocumentTypeResolver`). Document ЭПЭ/ЭЭР в OData пока `UnavailableEntities`. Дизайн: `docs/one-c-epd-stub-design.md`.
 
 **Агент-контролёр моста** (код): `OneCPublicationCatalog`, `OneCBridgeHealthService`, `OneCBridgeCheckService`, `OneCBridgeEscalationService`; команды `one-c:bridge-check`, `pull-one-c-bank --company=`; виджет `OneCBridgeStatusWidget`; remember в Reconcile; автосоздание контрагента в `OneCBpClient::createRealization`. Дизайн: `docs/one-c-bridge-control-agent-design.md`. Env: `ONE_C_BRIDGE_ESCALATION_USER_ID`.
 
@@ -74,4 +74,6 @@
 `tests/Feature/Orders/OrderOneCRealizationTest.php`  
 `tests/Feature/Orders/OrderDeletionOneCCleanupTest.php`  
 `tests/Feature/OneC/OneCEdoStatusSyncServiceTest.php`  
-`tests/Unit/Services/OneC/OneCInvoiceNumberSyncServiceTest.php`
+`tests/Unit/Services/OneC/OneCInvoiceNumberSyncServiceTest.php`  
+`tests/Feature/Epd/EpdRegistryTest.php`  
+`tests/Unit/Services/OneC/OneCEpdDocumentTypeResolverTest.php`

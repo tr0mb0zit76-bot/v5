@@ -40,7 +40,7 @@ class OrderTableColumns
             ['field' => 'delta', 'label' => 'Маржа', 'width' => 120, 'minWidth' => 100, 'type' => 'numeric'],
             ['field' => 'kpi_percent', 'label' => 'Вычет %', 'width' => 100, 'minWidth' => 80, 'type' => 'numeric'],
             ['field' => 'salary_accrued', 'label' => 'ЗП начисл.', 'width' => 130, 'minWidth' => 110, 'type' => 'numeric'],
-            ['field' => 'salary_paid', 'label' => 'ЗП выпл.', 'width' => 120, 'minWidth' => 100, 'type' => 'numeric'],
+            ['field' => 'salary_paid', 'label' => 'Выплачено (зарплата)', 'width' => 170, 'minWidth' => 140, 'type' => 'numeric'],
             ['field' => 'status', 'label' => 'Статус системы', 'width' => 140, 'minWidth' => 120, 'type' => null],
             ['field' => 'manual_status', 'label' => 'Статус вручную', 'width' => 150, 'minWidth' => 130, 'type' => null],
             ['field' => 'status_updated_by', 'label' => 'Статус обновил', 'width' => 140, 'minWidth' => 120, 'type' => 'numeric'],
@@ -127,7 +127,7 @@ class OrderTableColumns
         ];
 
         return match ($roleName) {
-            'manager' => array_values(array_filter($defaultFields, fn (string $field): bool => $field !== 'salary_paid')),
+            'clerk' => array_values(array_filter($defaultFields, fn (string $field): bool => $field !== 'salary_paid')),
             default => $defaultFields,
         };
     }

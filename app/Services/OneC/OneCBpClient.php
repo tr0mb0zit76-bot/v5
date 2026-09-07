@@ -1739,6 +1739,62 @@ final class OneCBpClient
             ];
         }
 
+        if ($rows !== []) {
+            return $rows;
+        }
+
+        // На БП Автоальянс фильтр ОбъектУчета eq 'guid' всегда пустой (поле неограниченной длины).
+        // Рабочий обход: исходящий ЭДО по ИдентификаторСвязи = Ref реализации / СФ.
+        return $this->findOutgoingEdoLinksByLinkIdentifierHttp($objectRef, $baseUrl);
+    }
+
+    /**
+     * @return list<array{edo_ref: string, edo_type: string, object_ref: string, object_type: string, actual: bool}>
+     */
+    private function findOutgoingEdoLinksByLinkIdentifierHttp(string $objectRef, ?string $baseUrl = null): array
+    {
+        $base = $this->resolveBaseUrl(null, $baseUrl);
+        $path = (string) config('one_c.odata.edo_outgoing_document_path');
+        if ($path === '') {
+            return [];
+        }
+
+        $escaped = str_replace("'", "''", $objectRef);
+        $response = $this->http()->get($base.$path, [
+            '$format' => 'json',
+            '$filter' => "ИдентификаторСвязи eq '{$escaped}'",
+            '$select' => 'Ref_Key,DeletionMark',
+            '$top' => 20,
+        ]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                '1С: не удалось найти исходящий ЭДО по ИдентификаторСвязи: HTTP '
+                .$response->status().' '.$response->body()
+            );
+        }
+
+        $rows = [];
+        foreach ($response->json('value') ?? [] as $raw) {
+            if (! is_array($raw)) {
+                continue;
+            }
+            $edoRef = trim((string) ($raw['Ref_Key'] ?? ''));
+            if ($edoRef === '') {
+                continue;
+            }
+            if ((bool) ($raw['DeletionMark'] ?? false)) {
+                continue;
+            }
+            $rows[] = [
+                'edo_ref' => $edoRef,
+                'edo_type' => 'StandardODATA.Document_ЭлектронныйДокументИсходящийЭДО',
+                'object_ref' => $objectRef,
+                'object_type' => '',
+                'actual' => true,
+            ];
+        }
+
         return $rows;
     }
 

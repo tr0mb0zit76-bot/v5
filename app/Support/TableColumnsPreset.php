@@ -11,27 +11,41 @@ final class TableColumnsPreset
      */
     public static function mergeWithCatalog(array $preset, array $options): array
     {
+        $catalogFields = [];
+
+        foreach ($options as $option) {
+            $field = $option['field'] ?? null;
+            if (is_string($field) && $field !== '') {
+                $catalogFields[$field] = $option;
+            }
+        }
+
         $byColId = [];
+        $merged = [];
 
         foreach ($preset as $column) {
             if (! is_array($column) || ! isset($column['colId'])) {
                 continue;
             }
 
-            $byColId[(string) $column['colId']] = $column;
+            $colId = (string) $column['colId'];
+            if (! isset($catalogFields[$colId])) {
+                // ponytail: drop removed catalog fields (e.g. site_id) so Settings save does not 422
+                continue;
+            }
+
+            $byColId[$colId] = $column;
+            $merged[] = $column;
         }
 
-        $merged = array_values(array_filter($preset, fn ($column): bool => is_array($column) && isset($column['colId'])));
         $nextOrder = 0;
 
         foreach ($merged as $column) {
             $nextOrder = max($nextOrder, (int) ($column['order'] ?? 0) + 1);
         }
 
-        foreach ($options as $option) {
-            $field = $option['field'] ?? null;
-
-            if (! is_string($field) || $field === '' || isset($byColId[$field])) {
+        foreach ($catalogFields as $field => $option) {
+            if (isset($byColId[$field])) {
                 continue;
             }
 

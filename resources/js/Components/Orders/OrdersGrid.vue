@@ -384,7 +384,7 @@ const fallbackColumns = [
   { field: 'bonus', label: 'Бонус', width: 120, minWidth: 100, type: 'numeric' },
   { field: 'delta', label: 'Маржа', width: 120, minWidth: 100, type: 'numeric' },
   { field: 'kpi_percent', label: 'Вычет %', width: 100, minWidth: 80, type: 'numeric' },
-  { field: 'salary_paid', label: 'ЗП выпл.', width: 120, minWidth: 100, type: 'numeric' },
+  { field: 'salary_paid', label: 'Выплачено (зарплата)', width: 170, minWidth: 140, type: 'numeric' },
   { field: 'invoice_number', label: 'Счёт', width: 130, minWidth: 100, type: null },
   { field: 'upd_number', label: 'УПД', width: 120, minWidth: 90, type: null },
   { field: 'waybill_number', label: 'ТТН', width: 120, minWidth: 90, type: null },
@@ -846,7 +846,7 @@ const roleDefaults = {
     ],
   },
   manager: {
-    visible: baseVisibleFields.filter((field) => field !== 'salary_paid'),
+    visible: baseVisibleFields,
     editable: [
       'customer_rate',
       'carrier_rate',

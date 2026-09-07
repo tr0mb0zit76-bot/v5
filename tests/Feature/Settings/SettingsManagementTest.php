@@ -209,6 +209,32 @@ class SettingsManagementTest extends TestCase
         ], $columnsConfig['orders']);
     }
 
+    public function test_admin_update_order_table_preset_strips_unknown_columns_like_site_id(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $managerRoleId = $this->createRole('manager', 'Менеджер');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $response = $this->actingAs($admin)->patch(route('settings.tables.update', $managerRoleId), [
+            'table' => 'orders',
+            'columns' => [
+                ['colId' => 'order_number', 'hide' => false, 'width' => 100, 'order' => 0],
+                ['colId' => 'site_id', 'hide' => true, 'width' => 110, 'order' => 1],
+                ['colId' => 'salary_paid', 'hide' => false, 'width' => 170, 'order' => 2],
+            ],
+        ]);
+
+        $response->assertRedirect(route('settings.tables.index'));
+
+        $role = DB::table('roles')->where('id', $managerRoleId)->first();
+        $columnsConfig = json_decode($role->columns_config, true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame([
+            ['hide' => false, 'colId' => 'order_number', 'order' => 0, 'width' => 100],
+            ['hide' => false, 'colId' => 'salary_paid', 'order' => 2, 'width' => 170],
+        ], $columnsConfig['orders']);
+    }
+
     public function test_admin_can_update_role_lead_table_preset(): void
     {
         $adminRoleId = $this->createRole('admin', 'Администратор');

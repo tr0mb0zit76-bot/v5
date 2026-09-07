@@ -18,6 +18,25 @@ class UpdateRoleTablePresetRequest extends FormRequest
         return RoleAccess::canAccessSettingsSystem($this->user());
     }
 
+    protected function prepareForValidation(): void
+    {
+        $table = $this->string('table')->toString();
+        $allowedFields = $this->allowedFieldsForTable($table);
+
+        if ($allowedFields === []) {
+            return;
+        }
+
+        $columns = collect($this->input('columns', []))
+            ->filter(static fn ($column): bool => is_array($column) && in_array($column['colId'] ?? null, $allowedFields, true))
+            ->values()
+            ->all();
+
+        $this->merge([
+            'columns' => $columns,
+        ]);
+    }
+
     /**
      * @return array<string, ValidationRule|array<int, ValidationRule|string>|string>
      */
@@ -38,13 +57,7 @@ class UpdateRoleTablePresetRequest extends FormRequest
     {
         $validator->after(function (Validator $validator): void {
             $table = $this->string('table')->toString();
-            $allowedFields = match ($table) {
-                'orders' => OrderTableColumns::fields(),
-                'leads' => LeadTableColumns::fields(),
-                'contractors' => ContractorTableColumns::fields(),
-                'payment_schedule' => PaymentScheduleTableColumns::fields(),
-                default => [],
-            };
+            $allowedFields = $this->allowedFieldsForTable($table);
 
             foreach ((array) $this->input('columns', []) as $index => $column) {
                 if (! in_array($column['colId'] ?? null, $allowedFields, true)) {
@@ -52,5 +65,19 @@ class UpdateRoleTablePresetRequest extends FormRequest
                 }
             }
         });
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function allowedFieldsForTable(string $table): array
+    {
+        return match ($table) {
+            'orders' => OrderTableColumns::fields(),
+            'leads' => LeadTableColumns::fields(),
+            'contractors' => ContractorTableColumns::fields(),
+            'payment_schedule' => PaymentScheduleTableColumns::fields(),
+            default => [],
+        };
     }
 }

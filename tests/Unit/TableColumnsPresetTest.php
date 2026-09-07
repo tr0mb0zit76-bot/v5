@@ -8,6 +8,28 @@ use PHPUnit\Framework\TestCase;
 
 class TableColumnsPresetTest extends TestCase
 {
+    public function test_merge_with_catalog_drops_unknown_columns(): void
+    {
+        $merged = TableColumnsPreset::mergeWithCatalog(
+            [
+                ['colId' => 'id', 'hide' => false, 'width' => 56, 'order' => 0],
+                ['colId' => 'site_id', 'hide' => true, 'width' => 110, 'order' => 5],
+                ['colId' => 'salary_paid', 'hide' => false, 'width' => 170, 'order' => 29],
+            ],
+            [
+                ['field' => 'id', 'width' => 56],
+                ['field' => 'salary_paid', 'width' => 170],
+                ['field' => 'order_number', 'width' => 110],
+            ],
+        );
+
+        $colIds = array_column($merged, 'colId');
+
+        $this->assertSame(['id', 'salary_paid', 'order_number'], $colIds);
+        $this->assertFalse(collect($merged)->firstWhere('colId', 'salary_paid')['hide']);
+        $this->assertTrue(collect($merged)->firstWhere('colId', 'order_number')['hide']);
+    }
+
     public function test_union_presets_by_col_id_allows_column_when_any_role_allows_it(): void
     {
         $merged = TableColumnsPreset::unionPresetsByColId([
