@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-07 19:30 · **Ветка:** `master` · **тема:** модуль ЭПД (реестр + связать)
+**Обновлено:** 2026-09-07 19:35 (деплой) · **Ветка:** `master` · **HEAD:** `bc2fe063` · **тема:** модуль ЭПД (реестр + связать)
 
 ### Итог сессии 2026-09-07 — модуль ЭПД
 
@@ -14,9 +14,9 @@
 | Грид `/epd` + связать/отвязать заказ | ✅ |
 | Вкладка мастера «ЭПД»: связанные + ссылка на грид | ✅ |
 | PHPUnit `EpdRegistryTest` + type resolver | ✅ |
-| **Commit / деплой** | ❌ локально, не закоммичено |
+| **Прод** pull + migrate + sync (12 строк) + `npm run build` | ✅ `bc2fe06` |
 
-**Следующий шаг:** commit → migrate на проде → `npm run build` → `php artisan one-c:sync-epd-registry`. Далее: публикация ЭПЭ/ЭЭР в OData / HTTP fill для груза.
+**Следующий шаг:** smoke `/epd` в CRM. Далее: публикация ЭПЭ/ЭЭР в OData / HTTP fill для груза.
 
 **Живые данные 1С:** НОВАФАРМ = ЭПЭ+ЭЭР; АГРО-ПОВОЛЖЬЕ = ошибочный ЭЗЗ.
 
