@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-07 19:40 (ОТДАТЬ) · **Ветка:** `master` · **тема:** ЭПД + хвосты (ЭДО lookup, table presets)
+**Обновлено:** 2026-09-07 19:45 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `c590c147` · **тема:** ЭПД + хвосты (ЭДО lookup, table presets)
 
 ### Итог сессии 2026-09-07 — модуль ЭПД + ОТДАТЬ
 
