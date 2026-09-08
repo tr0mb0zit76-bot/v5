@@ -10,6 +10,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\MessengerService;
 use App\Services\OrderDocumentRequirementService;
+use App\Services\OrderPrintDocumentWorkflowService;
 use App\Services\TaskSlaService;
 use App\Support\ContractorViewAuthorization;
 use App\Support\LeadStatus;
@@ -31,6 +32,7 @@ class MobileShellFeedService
         private MessengerService $messengerService,
         private OrderDocumentRequirementService $documentRequirementService,
         private TaskSlaService $taskSlaService,
+        private OrderPrintDocumentWorkflowService $printWorkflowService,
     ) {}
 
     /**
@@ -862,6 +864,10 @@ class MobileShellFeedService
                 continue;
             }
 
+            if (! $this->printWorkflowService->isActivePendingApproval($document)) {
+                continue;
+            }
+
             $serialized = $this->serializePrintApproval($user, $order, $document);
 
             if ($serialized === null) {
@@ -913,6 +919,10 @@ class MobileShellFeedService
         $items = [];
 
         foreach ($documents as $document) {
+            if (! $this->printWorkflowService->isActivePendingApproval($document)) {
+                continue;
+            }
+
             $serialized = $this->serializePrintApproval($user, $order, $document);
 
             if ($serialized !== null) {

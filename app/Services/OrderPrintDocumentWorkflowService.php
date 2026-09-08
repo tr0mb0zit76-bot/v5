@@ -12,6 +12,7 @@ use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderOwnCompanySide;
 use App\Support\OrderPrintFormContext;
 use App\Support\PrintFormVerificationCode;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -167,6 +168,9 @@ class OrderPrintDocumentWorkflowService
             'approved_by' => null,
             'status' => 'pending',
         ]);
+
+        $document->refresh();
+        $this->supersedeSiblingPendingApprovals($document);
     }
 
     public function approve(OrderDocument $document, User $user): void
@@ -185,6 +189,7 @@ class OrderPrintDocumentWorkflowService
         ]);
 
         $document->refresh();
+        $this->supersedeSiblingPendingApprovals($document);
         $this->materializeSignedPrintArtifacts($document);
     }
 
@@ -625,6 +630,143 @@ class OrderPrintDocumentWorkflowService
         }
 
         throw new \InvalidArgumentException('Операция доступна только для документов из печатного шаблона.');
+    }
+
+    /**
+     * Старые «на согласовании» той же заявки (тот же шаблон/сторона) снимаем с очереди —
+     * иначе Traklo копит призраки после пересоздания и подписи новой версии.
+     */
+    public function supersedeSiblingPendingApprovals(OrderDocument $current): int
+    {
+        $this->assertWorkflowDocument($current);
+
+        $query = OrderDocument::query()
+            ->where('order_id', $current->order_id)
+            ->where('id', '!=', $current->id)
+            ->where('workflow_status', OrderDocumentWorkflowStatus::PENDING_APPROVAL)
+            ->where(function ($builder): void {
+                $builder->where('source', 'print_template')
+                    ->orWhere('metadata->flow', 'print_template_workflow');
+            });
+
+        $this->constrainToSamePrintSlot($query, $current);
+
+        $count = 0;
+
+        foreach ($query->get() as $stale) {
+            $metadata = is_array($stale->metadata) ? $stale->metadata : [];
+            $metadata['superseded_by'] = (int) $current->id;
+            $metadata['superseded_at'] = now()->toIso8601String();
+
+            $stale->update([
+                'workflow_status' => OrderDocumentWorkflowStatus::DRAFT,
+                'status' => 'draft',
+                'approval_requested_at' => null,
+                'approval_requested_by' => null,
+                'metadata' => $metadata,
+            ]);
+            $count++;
+        }
+
+        return $count;
+    }
+
+    /**
+     * Разово: pending, у которых уже есть более новая согласованная/финальная версия того же слота.
+     */
+    public function cleanupStalePendingApprovals(): int
+    {
+        $pending = OrderDocument::query()
+            ->where('workflow_status', OrderDocumentWorkflowStatus::PENDING_APPROVAL)
+            ->where(function ($builder): void {
+                $builder->where('source', 'print_template')
+                    ->orWhere('metadata->flow', 'print_template_workflow');
+            })
+            ->orderBy('id')
+            ->get();
+
+        $count = 0;
+
+        foreach ($pending as $document) {
+            if (! $this->hasNewerCompletedSibling($document)) {
+                continue;
+            }
+
+            $metadata = is_array($document->metadata) ? $document->metadata : [];
+            $metadata['superseded_by'] = 'cleanup_stale_pending';
+            $metadata['superseded_at'] = now()->toIso8601String();
+
+            $document->update([
+                'workflow_status' => OrderDocumentWorkflowStatus::DRAFT,
+                'status' => 'draft',
+                'approval_requested_at' => null,
+                'approval_requested_by' => null,
+                'metadata' => $metadata,
+            ]);
+            $count++;
+        }
+
+        return $count;
+    }
+
+    /**
+     * Актуальная ли заявка для очереди подписи (нет более новой версии того же слота).
+     */
+    public function isActivePendingApproval(OrderDocument $document): bool
+    {
+        if ($document->workflow_status !== OrderDocumentWorkflowStatus::PENDING_APPROVAL) {
+            return false;
+        }
+
+        return ! $this->hasNewerSiblingInStatuses($document, [
+            OrderDocumentWorkflowStatus::PENDING_APPROVAL,
+            OrderDocumentWorkflowStatus::APPROVED,
+            OrderDocumentWorkflowStatus::FINALIZED,
+        ]);
+    }
+
+    /**
+     * @param  Builder<OrderDocument>  $query
+     */
+    private function constrainToSamePrintSlot($query, OrderDocument $current): void
+    {
+        if ($current->template_id !== null) {
+            $query->where('template_id', $current->template_id);
+
+            return;
+        }
+
+        $party = (string) data_get($current->metadata, 'party', '');
+        if ($party !== '') {
+            $query->where('metadata->party', $party);
+        }
+    }
+
+    private function hasNewerCompletedSibling(OrderDocument $document): bool
+    {
+        return $this->hasNewerSiblingInStatuses($document, [
+            OrderDocumentWorkflowStatus::APPROVED,
+            OrderDocumentWorkflowStatus::FINALIZED,
+        ]);
+    }
+
+    /**
+     * @param  list<string>  $statuses
+     */
+    private function hasNewerSiblingInStatuses(OrderDocument $document, array $statuses): bool
+    {
+        $query = OrderDocument::query()
+            ->where('order_id', $document->order_id)
+            ->where('id', '>', $document->id)
+            ->whereIn('workflow_status', $statuses)
+            ->where(function ($builder): void {
+                $builder->where('source', 'print_template')
+                    ->orWhere('metadata->flow', 'print_template_workflow');
+            });
+
+        $this->constrainToSamePrintSlot($query, $document);
+
+        return $query->exists();
     }
 
     private function signedDocxFilename(string $downloadName): string

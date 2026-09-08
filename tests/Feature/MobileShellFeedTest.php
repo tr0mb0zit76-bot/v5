@@ -500,4 +500,50 @@ class MobileShellFeedTest extends TestCase
             'workflow_status' => OrderDocumentWorkflowStatus::REJECTED,
         ]);
     }
+
+    public function test_mobile_shell_hides_stale_pending_when_newer_version_approved(): void
+    {
+        $signer = $this->createUserWithAreas(['orders'], ['orders' => 'all']);
+        $signer->forceFill(['has_signing_authority' => true])->save();
+
+        $order = Order::factory()->create([
+            'manager_id' => $signer->id,
+            'order_number' => 'MOB-SIGN-STALE',
+            'is_active' => true,
+        ]);
+
+        $stale = OrderDocument::query()->create([
+            'order_id' => $order->id,
+            'type' => 'request',
+            'source' => 'print_template',
+            'original_name' => 'old-pending.docx',
+            'file_path' => 'order_documents/'.$order->id.'/old.docx',
+            'status' => 'pending',
+            'workflow_status' => OrderDocumentWorkflowStatus::PENDING_APPROVAL,
+            'metadata' => ['flow' => 'print_template_workflow', 'party' => 'customer'],
+        ]);
+
+        OrderDocument::query()->create([
+            'order_id' => $order->id,
+            'type' => 'request',
+            'source' => 'print_template',
+            'original_name' => 'new-approved.docx',
+            'file_path' => 'order_documents/'.$order->id.'/new.docx',
+            'status' => 'pending',
+            'workflow_status' => OrderDocumentWorkflowStatus::APPROVED,
+            'approved_at' => now(),
+            'metadata' => ['flow' => 'print_template_workflow', 'party' => 'customer'],
+        ]);
+
+        $this->actingAs($signer)
+            ->getJson(route('mobile.shell.orders'))
+            ->assertOk()
+            ->assertJsonMissing(['document_id' => $stale->id])
+            ->assertJsonPath('pending_approvals', []);
+
+        $this->actingAs($signer)
+            ->getJson(route('mobile.shell.orders.summary', $order))
+            ->assertOk()
+            ->assertJsonPath('print_approvals', []);
+    }
 }
