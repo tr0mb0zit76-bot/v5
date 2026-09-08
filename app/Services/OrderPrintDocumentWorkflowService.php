@@ -688,7 +688,7 @@ class OrderPrintDocumentWorkflowService
         $count = 0;
 
         foreach ($pending as $document) {
-            if (! $this->hasNewerCompletedSibling($document)) {
+            if ($this->isActivePendingApproval($document)) {
                 continue;
             }
 
