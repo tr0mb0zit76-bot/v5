@@ -3,7 +3,25 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-07 19:45 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `c590c147` · **тема:** ЭПД + хвосты (ЭДО lookup, table presets)
+**Обновлено:** 2026-09-08 15:20 · **Ветка:** `master` · **тема:** ЭТрН → авто-ЭДО на карточке заказа
+
+### Итог сессии 2026-09-08 — авто-отметка ЭТрН (заказ 214 / Титул2)
+
+| Блок | Статус |
+| --- | --- |
+| Enrich ЭТрН из OData → `document_meta` | ✅ `OneCEpdEtrnStatusSyncService` |
+| Org resolve: Catalog_Организации fallback | ✅ registry sync |
+| Сигнал: `ТекущийПолученныйТитул` ≥ Титул2 → EDO ack `carrier/etrn` | ✅ |
+| Авто-link заказа по ИНН заказчик+перевозчик (unique) | ✅ |
+| `one-c:sync-epd-registry` тянет etrn enrich | ✅ |
+| Matching УУ ОСАГО (хвост) | ✅ в том же коммите |
+| **Прод** | migrate + sync + optimize |
+
+**Следующий шаг:** smoke заказ 214 — слот ЭТрН/ТН закрыт ЭДО; `/epd` показывает связь.
+
+---
+
+**Обновлено (архив):** 2026-09-07 19:45 (ОТДАТЬ) · **Ветка:** `master` · **HEAD:** `c590c147` · **тема:** ЭПД + хвосты (ЭДО lookup, table presets)
 
 ### Итог сессии 2026-09-07 — модуль ЭПД + ОТДАТЬ
 
@@ -2762,3 +2780,4 @@ b1ab68b Документация QR-проверки печати
 2. `OrderDocumentsModal` — опционально те же поля track received
 3. Ссылка «Открыть карточку ТС» из мастера заказа; merge дубля #50 → #49 на проде
 4. Fleet: автоудаление `fleet_trips` при смене перевозчика на внешнего
+

@@ -54,6 +54,7 @@ class OneCEpdRegistryEntry extends Model
         'linked_by',
         'linked_at',
         'raw_payload',
+        'document_meta',
         'last_synced_at',
     ];
 
@@ -71,6 +72,7 @@ class OneCEpdRegistryEntry extends Model
             'linked_at' => 'datetime',
             'last_synced_at' => 'datetime',
             'raw_payload' => 'array',
+            'document_meta' => 'array',
         ];
     }
 
@@ -115,6 +117,11 @@ class OneCEpdRegistryEntry extends Model
             'carrier_inn' => $this->carrier_inn,
             'posted' => (bool) $this->posted,
             'deletion_mark' => (bool) $this->deletion_mark,
+            'exchange_with_carrier' => (bool) data_get($this->document_meta, 'exchange_with_carrier', false),
+            'received_title' => data_get($this->document_meta, 'received_title'),
+            'waybill_number' => data_get($this->document_meta, 'waybill_number'),
+            'customer_name' => data_get($this->document_meta, 'customer_name'),
+            'customer_inn' => data_get($this->document_meta, 'customer_inn'),
             'order_id' => $this->order_id !== null ? (int) $this->order_id : null,
             'order_number' => $this->order?->order_number,
             'linked_at' => $this->linked_at?->toIso8601String(),

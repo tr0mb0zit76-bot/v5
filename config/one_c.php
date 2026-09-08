@@ -66,6 +66,10 @@ return [
             'ONE_C_ODATA_COUNTERPARTY_PATH',
             '/odata/standard.odata/Catalog_Контрагенты'
         ),
+        'organization_path' => (string) env(
+            'ONE_C_ODATA_ORGANIZATION_PATH',
+            '/odata/standard.odata/Catalog_Организации'
+        ),
         'contact_info_kinds_path' => (string) env(
             'ONE_C_ODATA_CONTACT_INFO_KINDS_PATH',
             '/odata/standard.odata/Catalog_ВидыКонтактнойИнформации'
@@ -118,6 +122,8 @@ return [
     /** Локальный грид ЭПД (зеркало РеестрЭПД). */
     'epd_registry' => [
         'sync_top' => (int) env('ONE_C_EPD_REGISTRY_SYNC_TOP', 200),
+        /** Сколько ЭТрН обогащать деталями / авто-ЭДО за один прогон. */
+        'etrn_enrich_top' => (int) env('ONE_C_EPD_ETRN_ENRICH_TOP', 50),
     ],
 
     /**

@@ -338,6 +338,78 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $this->assertStringContainsString('СЧ-99001', (string) $suggestion['match_notes']);
     }
 
+    public function test_does_not_match_osago_invoice_suffix_to_padded_customer_invoice_on_carrier(): void
+    {
+        $carrier = Contractor::query()->create([
+            'name' => 'ООО ТРИО-ТРАНС',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-ТД-948',
+            'carrier_id' => $carrier->id,
+            'invoice_number' => '0000-000103',
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 145000,
+            'remaining_amount' => 145000,
+            'invoice_number' => null,
+            'status' => 'pending',
+            'counterparty_id' => $carrier->id,
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-08-27',
+            'direction' => 'out',
+            'amount' => 24316.57,
+            'description' => 'СТРАХОВОЕ ОБЩЕСТВО ГАЗОВОЙ ПРОМЫШЛЕННОСТИ АО / Оплата взноса за страхование ОСАГО, счет 03-26-00-FR002473 от 27.08.2026 НДС не облагается.',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertStringNotContainsString('0000-000103', (string) ($suggestion['match_notes'] ?? ''));
+        $this->assertStringNotContainsString('Счёт 0000-000103', (string) ($suggestion['match_notes'] ?? ''));
+        // Авторазнос не должен цеплять ОСАГО к перевозчику по суффиксу «03»↔«…103».
+        $this->assertLessThan(80, (int) ($suggestion['match_confidence'] ?? 0));
+    }
+
+    public function test_matches_padded_invoice_by_significant_number_without_short_suffix_false_positive(): void
+    {
+        $customer = Contractor::query()->create([
+            'name' => 'ООО НОВАФАРМ',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-ТД-948b',
+            'customer_id' => $customer->id,
+            'invoice_number' => '0000-000103',
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 160000,
+            'remaining_amount' => 160000,
+            'invoice_number' => '0000-000103',
+            'status' => 'pending',
+        ]);
+
+        $hit = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-08-31',
+            'direction' => 'in',
+            'amount' => 160000,
+            'description' => 'НОВАФАРМ ООО / оплата по счету №103 от 26.08.26 г за транспортно-экспед услуги',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($hit);
+
+        $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
+    }
+
     public function test_multiple_contractor_matches_return_candidates_without_auto_selection(): void
     {
         $customer = Contractor::query()->create([

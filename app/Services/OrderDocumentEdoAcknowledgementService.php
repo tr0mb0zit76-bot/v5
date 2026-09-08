@@ -139,8 +139,12 @@ final class OrderDocumentEdoAcknowledgementService
             return ['changed' => false, 'acknowledgement' => null, 'skipped_manual' => false];
         }
 
-        if (! in_array($payload['document_type'], OrderDocumentClosingFulfillment::CLOSING_TYPES, true)) {
-            throw new \InvalidArgumentException('ЭДО доступно только для закрывающих документов.');
+        $allowedFromOneC = [
+            ...OrderDocumentClosingFulfillment::CLOSING_TYPES,
+            ...OrderDocumentEpdFulfillment::EPD_TYPES,
+        ];
+        if (! in_array($payload['document_type'], $allowedFromOneC, true)) {
+            throw new \InvalidArgumentException('ЭДО из 1С доступно для закрывающих документов и ЭПД.');
         }
 
         $slotKey = trim((string) ($payload['slot_key'] ?? ''));

@@ -242,25 +242,35 @@ final class OneCEpdRegistrySyncService
             return $cache[$ref];
         }
 
-        $cpPath = (string) config('one_c.odata.counterparty_path');
-        try {
-            $response = $this->http()->get($baseUrl.$cpPath."(guid'{$ref}')", [
-                '$format' => 'json',
-                '$select' => 'Description,ИНН',
-            ]);
-            if ($response->successful()) {
-                $json = $response->json() ?? [];
-                $out = [
-                    'ref' => $ref,
-                    'name' => $this->nullableString($json['Description'] ?? null),
-                    'inn' => $this->nullableString($json['ИНН'] ?? null),
-                ];
-                $cache[$ref] = $out;
-
-                return $out;
+        foreach ([
+            (string) config('one_c.odata.counterparty_path'),
+            (string) config(
+                'one_c.odata.organization_path',
+                '/odata/standard.odata/Catalog_Организации'
+            ),
+        ] as $path) {
+            if ($path === '') {
+                continue;
             }
-        } catch (Throwable) {
-            // organization refs may 404 on counterparty catalog
+            try {
+                $response = $this->http()->get($baseUrl.$path."(guid'{$ref}')", [
+                    '$format' => 'json',
+                    '$select' => 'Description,ИНН',
+                ]);
+                if ($response->successful()) {
+                    $json = $response->json() ?? [];
+                    $out = [
+                        'ref' => $ref,
+                        'name' => $this->nullableString($json['Description'] ?? null),
+                        'inn' => $this->nullableString($json['ИНН'] ?? null),
+                    ];
+                    $cache[$ref] = $out;
+
+                    return $out;
+                }
+            } catch (Throwable) {
+                // try Catalog_Организации after Catalog_Контрагенты
+            }
         }
 
         $out = ['ref' => $ref, 'name' => null, 'inn' => null];

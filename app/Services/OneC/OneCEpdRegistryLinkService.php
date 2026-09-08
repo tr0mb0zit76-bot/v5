@@ -36,10 +36,27 @@ final class OneCEpdRegistryLinkService
             ]);
         }
 
+        return $this->persistLink($entry, $order, $user);
+    }
+
+    /**
+     * Авто-связь из sync ЭТрН (без RBAC). Не перезаписывает чужую связь.
+     */
+    public function linkAutomatically(OneCEpdRegistryEntry $entry, Order $order, ?User $actor = null): OneCEpdRegistryEntry
+    {
+        if ($entry->order_id !== null) {
+            return $entry->fresh(['order:id,order_number']) ?? $entry;
+        }
+
+        return $this->persistLink($entry, $order, $actor);
+    }
+
+    private function persistLink(OneCEpdRegistryEntry $entry, Order $order, ?User $user): OneCEpdRegistryEntry
+    {
         return DB::transaction(function () use ($entry, $order, $user): OneCEpdRegistryEntry {
             $entry->forceFill([
                 'order_id' => $order->id,
-                'linked_by' => $user->id,
+                'linked_by' => $user?->id,
                 'linked_at' => now(),
             ])->save();
 
@@ -79,7 +96,7 @@ final class OneCEpdRegistryLinkService
         });
     }
 
-    private function mirrorToOrderOneCDocument(OneCEpdRegistryEntry $entry, Order $order, User $user): void
+    private function mirrorToOrderOneCDocument(OneCEpdRegistryEntry $entry, Order $order, ?User $user): void
     {
         if (! Schema::hasTable('order_one_c_documents')) {
             return;
@@ -152,7 +169,7 @@ final class OneCEpdRegistryLinkService
                 'registry_link' => true,
                 'Posted' => (bool) $entry->posted,
             ],
-            'created_by' => $user->id,
+            'created_by' => $user?->id,
         ]);
     }
 

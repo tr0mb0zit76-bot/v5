@@ -742,6 +742,11 @@ class ManagementAccountingMatchingService
             return $fromSchedule;
         }
 
+        // Счёт покупателя живёт на заказе — не подставляем его в график перевозчика/подрядчика.
+        if ((string) $schedule->party !== 'customer') {
+            return null;
+        }
+
         $fromOrder = trim((string) ($schedule->order?->invoice_number ?? ''));
 
         return $fromOrder !== '' ? $fromOrder : null;
@@ -1289,7 +1294,7 @@ class ManagementAccountingMatchingService
             return false;
         }
 
-        if ($reference === $invoice || str_contains($invoice, $reference)) {
+        if ($reference === $invoice) {
             return true;
         }
 
@@ -1300,8 +1305,25 @@ class ManagementAccountingMatchingService
             return false;
         }
 
-        return $referenceDigits === $invoiceDigits
-            || str_ends_with($invoiceDigits, $referenceDigits);
+        // Полное совпадение цифр (в т.ч. короткие счета «1», «12»).
+        if ($referenceDigits === $invoiceDigits) {
+            return true;
+        }
+
+        $referenceNorm = ltrim($referenceDigits, '0');
+        $invoiceNorm = ltrim($invoiceDigits, '0');
+        if ($referenceNorm !== '' && $referenceNorm === $invoiceNorm) {
+            return true;
+        }
+
+        // Хвост/вхождение только для осмысленных номеров: «03» не должен матчить «…103».
+        if (strlen($referenceNorm) < 3) {
+            return false;
+        }
+
+        return str_ends_with($invoiceDigits, $referenceDigits)
+            || str_ends_with($invoiceNorm, $referenceNorm)
+            || str_contains($invoice, $reference);
     }
 
     private function stripLegalFormPrefix(string $label): string
