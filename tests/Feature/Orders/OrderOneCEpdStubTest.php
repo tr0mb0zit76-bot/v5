@@ -115,6 +115,44 @@ class OrderOneCEpdStubTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_user_epd_publication_override_writes_sandbox_into_request_payload(): void
+    {
+        if (! Schema::hasTable('order_one_c_documents')) {
+            $this->markTestSkipped('order_one_c_documents missing — run migrate');
+        }
+        if (! Schema::hasColumn('users', 'one_c_epd_publication_override')) {
+            $this->markTestSkipped('users.one_c_epd_publication_override missing — run migrate');
+        }
+
+        config([
+            'one_c.enabled' => true,
+            'one_c.driver' => 'fake',
+            'one_c.publications.sandbox.base_url' => 'https://avtoalyns.case-it.ru/AvtoAl_test2_34QG7659eH',
+            'one_c.publications.sandbox.enabled' => true,
+            'one_c.publications.sandbox.include_in_sync' => false,
+            'one_c.publications.sandbox.organization_ref' => 'sandbox-org',
+        ]);
+
+        $clerk = $this->makeUserWithRole('clerk', 'Делопроизводитель', 'all');
+        $clerk->forceFill(['one_c_epd_publication_override' => 'sandbox'])->save();
+        [$order] = $this->makeFarmserviceOrder($clerk, 'EPD-SANDBOX-1');
+
+        $this->actingAs($clerk)
+            ->postJson(route('orders.one-c.etrn.store', $order))
+            ->assertOk()
+            ->assertJsonPath('created', true)
+            ->assertJsonPath('epd.etrn.publication_override_code', 'sandbox');
+
+        $doc = OrderOneCDocument::query()
+            ->where('order_id', $order->id)
+            ->where('document_type', OrderOneCDocument::TYPE_ETRN)
+            ->first();
+
+        $this->assertNotNull($doc);
+        $this->assertSame('sandbox', data_get($doc->request_payload, 'publication_code'));
+        $this->assertStringContainsString('AvtoAl_test2', (string) data_get($doc->request_payload, 'base_url'));
+    }
+
     /**
      * @return array{0: Order, 1: Contractor}
      */

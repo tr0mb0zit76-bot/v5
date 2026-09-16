@@ -48,6 +48,7 @@ class User extends Authenticatable
         'contractor_id',
         'contractor_contact_id',
         'external_party',
+        'one_c_epd_publication_override',
     ];
 
     /**

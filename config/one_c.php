@@ -212,6 +212,7 @@ return [
             ),
             'date_filter_mode' => 'odata',
             'enabled' => filter_var(env('ONE_C_AUTALLIANCE_ENABLED', true), FILTER_VALIDATE_BOOL),
+            'include_in_sync' => true,
         ],
         'gross' => [
             'label' => 'Гросс',
@@ -232,6 +233,7 @@ return [
             'service_nomenclature_code' => (string) env('ONE_C_GROSS_SERVICE_NOMENCLATURE_CODE', ''),
             'date_filter_mode' => 'client',
             'enabled' => filter_var(env('ONE_C_GROSS_ENABLED', true), FILTER_VALIDATE_BOOL),
+            'include_in_sync' => true,
         ],
         'profsfera' => [
             'label' => 'Профсфера',
@@ -259,6 +261,45 @@ return [
             ),
             'date_filter_mode' => 'client',
             'enabled' => filter_var(env('ONE_C_PROFSFERA_ENABLED', true), FILTER_VALIDATE_BOOL),
+            'include_in_sync' => true,
+        ],
+        /**
+         * Тестовая ИБ Автоальянс. Не участвует в hourly sync (банк/реестр ЭПД).
+         * Push ЭПД только если у пользователя one_c_epd_publication_override=sandbox.
+         * organization_inn пустой — чтобы не перехватывать forOrder по ИНН АА.
+         */
+        'sandbox' => [
+            'label' => 'Автоальянс (тест)',
+            'base_url' => rtrim((string) env(
+                'ONE_C_SANDBOX_BASE_URL',
+                'https://avtoalyns.case-it.ru/AvtoAl_test2_34QG7659eH'
+            ), '/'),
+            'organization_ref' => (string) env(
+                'ONE_C_SANDBOX_ORG_REF',
+                (string) env(
+                    'ONE_C_AUTALLIANCE_ORG_REF',
+                    (string) env('ONE_C_ORGANIZATION_REF', '19b37fca-5d84-11f1-8bf4-fa163ea037a3')
+                )
+            ),
+            'organization_inn' => '',
+            'bank_account_number' => '',
+            'service_nomenclature_ref' => (string) env(
+                'ONE_C_SANDBOX_SERVICE_NOMENCLATURE_REF',
+                (string) env(
+                    'ONE_C_AUTALLIANCE_SERVICE_NOMENCLATURE_REF',
+                    (string) env('ONE_C_SERVICE_NOMENCLATURE_REF', '9ec829b8-632e-11f1-8745-fa163ea037a3')
+                )
+            ),
+            'service_nomenclature_code' => (string) env(
+                'ONE_C_SANDBOX_SERVICE_NOMENCLATURE_CODE',
+                (string) env(
+                    'ONE_C_AUTALLIANCE_SERVICE_NOMENCLATURE_CODE',
+                    (string) env('ONE_C_SERVICE_NOMENCLATURE_CODE', '00-00000001')
+                )
+            ),
+            'date_filter_mode' => 'odata',
+            'enabled' => filter_var(env('ONE_C_SANDBOX_ENABLED', true), FILTER_VALIDATE_BOOL),
+            'include_in_sync' => false,
         ],
     ],
 ];

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\OneC;
 
 use App\Models\Order;
+use App\Models\User;
 use InvalidArgumentException;
 
 /**
@@ -20,7 +21,8 @@ use InvalidArgumentException;
  *     service_nomenclature_ref: string,
  *     service_nomenclature_code: string,
  *     date_filter_mode: 'odata'|'client',
- *     enabled: bool
+ *     enabled: bool,
+ *     include_in_sync: bool
  * }
  */
 final class OneCPublicationCatalog
@@ -31,36 +33,32 @@ final class OneCPublicationCatalog
 
     public const CODE_PROFSFERA = 'profsfera';
 
+    /** Тестовая ИБ Автоальянс (только push ЭПД по user override). */
+    public const CODE_SANDBOX = 'sandbox';
+
     /**
+     * Публикации для hourly sync (банк, реестр ЭПД и т.п.) — без sandbox.
+     *
      * @return list<Publication>
      */
     public function all(): array
     {
-        $configured = config('one_c.publications', []);
-        if (! is_array($configured) || $configured === []) {
-            return [$this->legacyDefault()];
-        }
-
-        $rows = [];
-        foreach ($configured as $code => $row) {
-            if (! is_array($row)) {
-                continue;
-            }
-            $pub = $this->normalize((string) $code, $row);
-            if ($pub['enabled'] && $pub['base_url'] !== '') {
-                $rows[] = $pub;
-            }
-        }
+        $rows = array_values(array_filter(
+            $this->configuredEnabled(),
+            static fn (array $pub): bool => $pub['include_in_sync'],
+        ));
 
         return $rows !== [] ? $rows : [$this->legacyDefault()];
     }
 
     /**
+     * Любая включённая публикация по коду (включая sandbox).
+     *
      * @return Publication
      */
     public function get(string $code): array
     {
-        foreach ($this->all() as $pub) {
+        foreach ($this->configuredEnabled() as $pub) {
             if ($pub['code'] === $code) {
                 return $pub;
             }
@@ -125,6 +123,45 @@ final class OneCPublicationCatalog
     }
 
     /**
+     * ИБ для push ЭПД (ЭТрН / ЭР): override пользователя → иначе forOrder.
+     *
+     * @return Publication
+     */
+    public function forEpdOrder(Order $order, ?User $actor = null): array
+    {
+        $override = trim((string) ($actor?->one_c_epd_publication_override ?? ''));
+        if ($override !== '') {
+            return $this->get($override);
+        }
+
+        return $this->forOrder($order);
+    }
+
+    /**
+     * @return list<Publication>
+     */
+    private function configuredEnabled(): array
+    {
+        $configured = config('one_c.publications', []);
+        if (! is_array($configured) || $configured === []) {
+            return [$this->legacyDefault()];
+        }
+
+        $rows = [];
+        foreach ($configured as $code => $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $pub = $this->normalize((string) $code, $row);
+            if ($pub['enabled'] && $pub['base_url'] !== '') {
+                $rows[] = $pub;
+            }
+        }
+
+        return $rows !== [] ? $rows : [$this->legacyDefault()];
+    }
+
+    /**
      * @param  array<string, mixed>  $row
      * @return Publication
      */
@@ -148,6 +185,7 @@ final class OneCPublicationCatalog
             'service_nomenclature_code' => (string) ($row['service_nomenclature_code'] ?? ''),
             'date_filter_mode' => $mode,
             'enabled' => (bool) ($row['enabled'] ?? true),
+            'include_in_sync' => (bool) ($row['include_in_sync'] ?? true),
         ];
     }
 
@@ -167,6 +205,7 @@ final class OneCPublicationCatalog
             'service_nomenclature_code' => (string) config('one_c.service_nomenclature.code', ''),
             'date_filter_mode' => 'odata',
             'enabled' => true,
+            'include_in_sync' => true,
         ];
     }
 }

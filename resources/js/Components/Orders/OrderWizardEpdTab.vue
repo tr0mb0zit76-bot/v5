@@ -1,8 +1,10 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import { ChevronDown, ChevronRight } from 'lucide-vue-next';
 import { crmBtnSecondary } from '@/support/crmUi.js';
+
+const page = usePage();
 
 const props = defineProps({
     order: { type: Object, default: null },
@@ -52,6 +54,18 @@ const registryError = ref('');
 const registryLinks = computed(() => (
     Array.isArray(props.epdRegistryLinks) ? props.epdRegistryLinks : []
 ));
+
+const sandboxPublicationBanner = computed(() => {
+    const fromIntegration = integration.value?.etrn?.publication_override_label
+        || integration.value?.etrn?.publication_override_code
+        || integration.value?.expedition_receipt?.publication_override_label
+        || integration.value?.expedition_receipt?.publication_override_code;
+    if (fromIntegration) {
+        return String(fromIntegration);
+    }
+    const code = page.props?.auth?.user?.one_c_epd_publication_override;
+    return code ? String(code) : '';
+});
 
 watch(
     () => props.epdIntegration,
@@ -259,6 +273,15 @@ async function unlinkRegistryEntry(entry) {
             >
                 Открыть грид ЭПД →
             </a>
+        </div>
+
+        <div
+            v-if="sandboxPublicationBanner"
+            class="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+        >
+            ЭПД из CRM уходит в тестовую ИБ:
+            <span class="font-semibold">{{ sandboxPublicationBanner }}</span>
+            (не боевой Автоальянс).
         </div>
 
         <section

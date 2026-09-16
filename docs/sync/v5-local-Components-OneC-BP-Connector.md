@@ -56,8 +56,9 @@
 | Автоальянс | `Avtoalians_4nYnMmRSab` | `19b37fca-5d84-11f1-8bf4-fa163ea037a3` |
 | Гросс | `Gross_44N8sTPEXf` | `13d87b6e-bae2-11ef-89a3-dc68443ee9e4` (ИНН 6345031755) |
 | Профсфера | `ProSfera_gRLXXFMK8M` | `68778110-58ca-11f1-8af0-fa163eafb81d` (ИНН 6321213940) |
+| **Тест АА** | `AvtoAl_test2_34QG7659eH` на `avtoalyns.case-it.ru` | тот же org ref; код `sandbox` |
 
-На `avtoalyns.case-it.ru` с прода — 401 openresty. У Гросс/Профсфера фильтр `Date` в OData может падать с AUTOORDER — обход в клиенте.
+**User override ЭПД:** колонка `users.one_c_epd_publication_override` (например `sandbox`). `OneCPublicationCatalog::forEpdOrder` → stub mapper. Sandbox с `include_in_sync=false` (не тянет банк/реестр). Юзер `test_2@avtoaliyans.ru` проставляется миграцией. Баннер на вкладке ЭПД.
 
 **Счета / матчинг:** реализация → `СчетНаОплатуПокупателю` → sync `one-c:sync-invoice-numbers` (12ч) → `orders`/`payment_schedules.invoice_number`. Дизайн: `docs/payment-invoice-sync-design.md`. Исходящие — токен `CRM:…` (`docs/payment-match-token-design.md`).
 

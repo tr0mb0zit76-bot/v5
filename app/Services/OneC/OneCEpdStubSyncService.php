@@ -72,7 +72,7 @@ final class OneCEpdStubSyncService
         $this->assertReady();
         $this->assertDocumentType($documentType);
 
-        $payload = $this->mapper->map($order, $documentType);
+        $payload = $this->mapper->map($order, $documentType, $user);
         $fingerprint = $this->payloadFingerprint($payload);
 
         $existing = OrderOneCDocument::query()
@@ -134,7 +134,21 @@ final class OneCEpdStubSyncService
             ->where('document_type', $documentType)
             ->first();
 
-        $ui = $this->resolveWizardAction($order, $document, $canManage, $documentType);
+        $ui = $this->resolveWizardAction($order, $document, $canManage, $documentType, $user);
+
+        $publicationOverride = trim((string) ($user?->one_c_epd_publication_override ?? ''));
+        $publicationLabel = null;
+        $publicationCode = null;
+        if ($publicationOverride !== '') {
+            try {
+                $pub = app(OneCPublicationCatalog::class)->get($publicationOverride);
+                $publicationCode = $pub['code'];
+                $publicationLabel = $pub['label'];
+            } catch (Throwable) {
+                $publicationCode = $publicationOverride;
+                $publicationLabel = $publicationOverride;
+            }
+        }
 
         return [
             'enabled' => $enabled,
@@ -147,6 +161,8 @@ final class OneCEpdStubSyncService
             'hint' => $ui['hint'],
             'posted' => $ui['posted'],
             'stale' => $ui['stale'],
+            'publication_override_code' => $publicationCode,
+            'publication_override_label' => $publicationLabel,
             'document' => $document?->toWizardSummary([
                 'posted' => $ui['posted'],
                 'stale' => $ui['stale'],
@@ -330,6 +346,7 @@ final class OneCEpdStubSyncService
         ?OrderOneCDocument $document,
         bool $canManage,
         string $documentType,
+        ?User $actor = null,
     ): array {
         $labels = $this->labelsFor($documentType);
 
@@ -365,7 +382,7 @@ final class OneCEpdStubSyncService
         $stale = false;
 
         try {
-            $payload = $this->mapper->map($order, $documentType);
+            $payload = $this->mapper->map($order, $documentType, $actor);
             $stale = ! hash_equals(
                 $this->storedFingerprint($document) ?? '',
                 $this->payloadFingerprint($payload),

@@ -6,6 +6,7 @@ namespace App\Services\OneC;
 
 use App\Models\Order;
 use App\Models\OrderOneCDocument;
+use App\Models\User;
 use App\Support\OrderFleetTransportDetailsResolver;
 use Illuminate\Validation\ValidationException;
 
@@ -23,7 +24,7 @@ final class OneCEpdStubMapper
     /**
      * @return array<string, mixed>
      */
-    public function map(Order $order, string $documentType): array
+    public function map(Order $order, string $documentType, ?User $actor = null): array
     {
         if (! in_array($documentType, OrderOneCDocument::EPD_TYPES, true)) {
             throw ValidationException::withMessages([
@@ -70,7 +71,7 @@ final class OneCEpdStubMapper
 
         $carrier = $this->resolveCarrier($order);
         $transport = $this->transportDetails->resolveForOrder($order);
-        $publication = $this->publications->forOrder($order);
+        $publication = $this->publications->forEpdOrder($order, $actor);
         $organizationRef = $publication['organization_ref'] !== ''
             ? $publication['organization_ref']
             : $this->nullableConfigString('one_c.organization_ref');
