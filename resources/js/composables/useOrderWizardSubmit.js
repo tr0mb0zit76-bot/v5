@@ -9,6 +9,7 @@ import {
     isOwnFleetExecutionMode,
 } from '@/support/orderPerformers.js';
 import { validateCargoPerformerAllocations } from '@/support/orderCargoPerformerAllocations.js';
+import { cargoItemRequiresName, cargoItemsMissingNameMessages } from '@/support/orderWizardCargoName.js';
 
 export function useOrderWizardSubmit(deps) {
     const {
@@ -342,6 +343,23 @@ export function useOrderWizardSubmit(deps) {
             if (allocationErrors.length > 0) {
                 activeTab.value = 'cargo';
                 window.alert(allocationErrors.join('\n'));
+
+                return;
+            }
+        }
+
+        if (!skipCoreValidation) {
+            const cargoNameErrors = cargoItemsMissingNameMessages(form.cargo_items);
+            if (cargoNameErrors.length > 0) {
+                activeTab.value = 'cargo';
+                const fieldErrors = {};
+                (Array.isArray(form.cargo_items) ? form.cargo_items : []).forEach((item, index) => {
+                    if (cargoItemRequiresName(item)) {
+                        fieldErrors[`cargo_items.${index}.name`] = 'Укажите наименование груза.';
+                    }
+                });
+                form.clearErrors().setError(fieldErrors);
+                window.alert(`${cargoNameErrors.join('\n')}\nБез названия позиция груза не сохранится.`);
 
                 return;
             }

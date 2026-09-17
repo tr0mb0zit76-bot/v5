@@ -84,6 +84,52 @@ class OrderDocumentRequirementRulesTest extends TestCase
     }
 
     #[Test]
+    public function ip_carrier_with_no_vat_requires_only_act_for_closing(): void
+    {
+        $performers = [[
+            'stage' => 'leg_1',
+            'contractor_id' => 42,
+            'contractor_name' => 'ИП Иванов',
+        ]];
+
+        $rules = OrderDocumentRequirementSlotBuilder::buildRules($performers, 'single_request', [], [
+            'customer' => 'vat_20',
+            'carriers' => [42 => 'no_vat'],
+            'carrier_is_ip' => [42 => true],
+        ]);
+
+        $carrierClosing = collect($rules)->firstWhere('key', 'carrier_closing:carrier-42');
+
+        $this->assertNotNull($carrierClosing);
+        $this->assertSame(['act'], $carrierClosing['accepted_types']);
+        $this->assertStringContainsString('Акт', (string) $carrierClosing['description']);
+
+        $customerClosing = collect($rules)->firstWhere('key', 'customer_closing:customer-all');
+        $this->assertSame(['upd', 'invoice_factura', 'act'], $customerClosing['accepted_types']);
+    }
+
+    #[Test]
+    public function ooo_carrier_with_no_vat_still_requires_full_closing_set(): void
+    {
+        $performers = [[
+            'stage' => 'leg_1',
+            'contractor_id' => 42,
+            'contractor_name' => 'ООО Перевозчик',
+        ]];
+
+        $rules = OrderDocumentRequirementSlotBuilder::buildRules($performers, 'single_request', [], [
+            'customer' => 'vat_20',
+            'carriers' => [42 => 'no_vat'],
+            'carrier_is_ip' => [42 => false],
+        ]);
+
+        $carrierClosing = collect($rules)->firstWhere('key', 'carrier_closing:carrier-42');
+
+        $this->assertNotNull($carrierClosing);
+        $this->assertSame(['upd', 'invoice_factura', 'act'], $carrierClosing['accepted_types']);
+    }
+
+    #[Test]
     public function mixed_cash_and_non_cash_counterparties_require_closing_only_for_non_cash(): void
     {
         $performers = [[

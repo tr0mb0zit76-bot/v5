@@ -24,4 +24,13 @@ class ContractorIdentityTest extends TestCase
         $this->assertSame('ООО Ромашка', ContractorIdentity::normalizeName('  ООО Ромашка  '));
         $this->assertSame('', ContractorIdentity::normalizeName('   '));
     }
+
+    #[Test]
+    public function it_detects_individual_entrepreneur_by_legal_form_or_inn(): void
+    {
+        $this->assertTrue(ContractorIdentity::isIndividualEntrepreneur('ip', '7707083893'));
+        $this->assertTrue(ContractorIdentity::isIndividualEntrepreneur(null, '500100732259'));
+        $this->assertFalse(ContractorIdentity::isIndividualEntrepreneur('ooo', '7707083893'));
+        $this->assertFalse(ContractorIdentity::isIndividualEntrepreneur(null, '7707083893'));
+    }
 }

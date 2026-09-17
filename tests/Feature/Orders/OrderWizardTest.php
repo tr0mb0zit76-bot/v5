@@ -3143,6 +3143,83 @@ class OrderWizardTest extends TestCase
         $this->assertDatabaseCount('orders', 0);
     }
 
+    public function test_order_rejects_cargo_item_with_weight_but_empty_name(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $ownCompanyId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Своя компания cargo name',
+            'inn' => '1010101010',
+            'is_own_company' => true,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент cargo name',
+            'inn' => '2020202020',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик cargo name',
+            'inn' => '3030303030',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->from(route('orders.create'))
+            ->post(route('orders.store'), [
+                'status' => 'new',
+                'own_company_id' => $ownCompanyId,
+                'client_id' => $clientId,
+                'order_date' => '2026-04-10',
+                'performers' => [
+                    ['stage' => 'leg_1', 'contractor_id' => $carrierId],
+                ],
+                'route_points' => [
+                    ['type' => 'loading', 'sequence' => 1, 'address' => 'A', 'normalized_data' => [], 'planned_date' => '2026-04-11'],
+                    ['type' => 'unloading', 'sequence' => 2, 'address' => 'B', 'normalized_data' => [], 'planned_date' => '2026-04-12'],
+                ],
+                'cargo_items' => [
+                    [
+                        'name' => '',
+                        'weight_value' => 658,
+                        'weight_unit' => 'kg',
+                        'package_count' => 12,
+                        'cargo_type' => 'general',
+                        'cargo_type_id' => 1,
+                    ],
+                ],
+                'financial_term' => [
+                    'client_price' => 100000,
+                    'client_currency' => 'RUB',
+                    'client_payment_form' => 'vat_22',
+                    'contractors_costs' => [
+                        [
+                            'stage' => 'leg_1',
+                            'contractor_id' => $carrierId,
+                            'amount' => 70000,
+                            'currency' => 'RUB',
+                            'payment_form' => 'vat_22',
+                        ],
+                    ],
+                ],
+            ]);
+
+        $response->assertRedirect(route('orders.create'));
+        $response->assertSessionHasErrors(['cargo_items.0.name']);
+        $this->assertDatabaseCount('orders', 0);
+    }
+
     public function test_manager_cannot_update_order_when_all_print_workflow_documents_are_finalized(): void
     {
         $managerRoleId = DB::table('roles')->insertGetId([

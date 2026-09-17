@@ -259,7 +259,7 @@ class ManagementAccountingAllocationService
             ]);
 
             $suggestion = $this->matching->suggestForLine($line);
-            unset($suggestion['suggested_candidates']);
+            unset($suggestion['suggested_candidates'], $suggestion['suggested_allocations']);
             $line->fill($suggestion)->save();
 
             $this->refreshImportCounters($importId);
@@ -326,7 +326,7 @@ class ManagementAccountingAllocationService
         ]);
 
         $suggestion = $this->matching->suggestForLine($line);
-        unset($suggestion['suggested_candidates']);
+        unset($suggestion['suggested_candidates'], $suggestion['suggested_allocations']);
         $line->fill($suggestion)->save();
 
         return $line->fresh();

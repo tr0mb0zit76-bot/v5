@@ -753,6 +753,8 @@ const dynamicColumnDefs = computed(() => {
 });
 
 const gridOptions = computed(() => ({
+    // CSS-темы (ag-grid.css + ag-theme-alpine); без legacy v35 включает Theming API → error #239.
+    theme: 'legacy',
     localeText: agGridLocaleRu,
     rowHeight: 44,
     headerHeight: 42,

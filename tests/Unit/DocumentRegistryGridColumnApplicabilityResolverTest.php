@@ -28,7 +28,7 @@ class DocumentRegistryGridColumnApplicabilityResolverTest extends TestCase
         $this->assertFalse($map['customer_upd']);
         $this->assertFalse($map['customer_act']);
         $this->assertFalse($map['carrier_upd']);
-        $this->assertTrue($map['customer_request']);
+        $this->assertFalse($map['customer_request']);
         $this->assertFalse($map['carrier_request']);
     }
 
@@ -53,7 +53,7 @@ class DocumentRegistryGridColumnApplicabilityResolverTest extends TestCase
         $this->assertFalse($map['carrier_upd']);
         $this->assertFalse($map['carrier_request']);
         $this->assertFalse($map['carrier_contract_request']);
-        $this->assertTrue($map['customer_request']);
+        $this->assertFalse($map['customer_request']);
     }
 
     #[Test]
@@ -74,5 +74,29 @@ class DocumentRegistryGridColumnApplicabilityResolverTest extends TestCase
 
         $this->assertTrue($map['customer_upd']);
         $this->assertTrue($map['carrier_upd']);
+    }
+
+    #[Test]
+    public function ip_carrier_no_vat_marks_invoice_factura_and_upd_not_applicable(): void
+    {
+        $performers = [[
+            'stage' => 'leg_1',
+            'contractor_id' => 42,
+            'contractor_name' => 'ИП Иванов',
+        ]];
+
+        $rules = OrderDocumentRequirementSlotBuilder::buildRules($performers, 'single_request', [], [
+            'customer' => 'vat_20',
+            'carriers' => [42 => 'no_vat'],
+            'carrier_is_ip' => [42 => true],
+        ]);
+
+        $map = DocumentRegistryGridColumnApplicabilityResolver::mapFromRules($rules);
+
+        $this->assertTrue($map['carrier_act']);
+        $this->assertFalse($map['carrier_upd']);
+        $this->assertFalse($map['carrier_invoice_factura']);
+        $this->assertTrue($map['customer_upd']);
+        $this->assertTrue($map['customer_invoice_factura']);
     }
 }

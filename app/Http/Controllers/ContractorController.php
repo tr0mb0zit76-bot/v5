@@ -408,6 +408,7 @@ class ContractorController extends Controller
                 'full_name' => Schema::hasColumn('contractors', 'full_name') ? $contractor->full_name : null,
                 'type' => $contractor->type,
                 'inn' => $contractor->inn,
+                'legal_form' => Schema::hasColumn('contractors', 'legal_form') ? $contractor->legal_form : null,
                 'phone' => $contractor->phone,
                 'email' => $contractor->email,
                 'is_active' => $contractor->is_active,

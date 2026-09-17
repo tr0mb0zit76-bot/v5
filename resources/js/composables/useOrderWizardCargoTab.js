@@ -28,7 +28,7 @@ export function buildNormalizeCargoItem(props, normalizeNullableNumber) {
             return null;
         }
 
-        return options.find((option) => Number(option.value) === normalized) ?? null;
+        return (Array.isArray(options) ? options : []).find((option) => Number(option.value) === normalized) ?? null;
     }
 
     function dictionaryOptionByCode(options, code) {
@@ -37,11 +37,13 @@ export function buildNormalizeCargoItem(props, normalizeNullableNumber) {
             return null;
         }
 
-        return options.find((option) => option.code === normalized) ?? null;
+        return (Array.isArray(options) ? options : []).find((option) => option.code === normalized) ?? null;
     }
 
     function defaultCargoTypeOption() {
-        return props.cargoTypeOptions[0] ?? { value: 1, code: 'general', label: 'Общий груз' };
+        const options = Array.isArray(props.cargoTypeOptions) ? props.cargoTypeOptions : [];
+
+        return options[0] ?? { value: 1, code: 'general', label: 'Общий груз' };
     }
 
     function normalizeDictionaryItems(rawItems, options, fallbackOption) {
@@ -177,11 +179,13 @@ export function useOrderWizardCargoTab(deps) {
             return null;
         }
 
-        return options.find((option) => Number(option.value) === normalized) ?? null;
+        return (Array.isArray(options) ? options : []).find((option) => Number(option.value) === normalized) ?? null;
     }
 
     function defaultCargoTypeOption() {
-        return props.cargoTypeOptions[0] ?? { value: 1, code: 'general', label: 'Общий груз' };
+        const options = Array.isArray(props.cargoTypeOptions) ? props.cargoTypeOptions : [];
+
+        return options[0] ?? { value: 1, code: 'general', label: 'Общий груз' };
     }
 
     function applyCargoTypeOption(item) {
@@ -490,6 +494,10 @@ export function useOrderWizardCargoTab(deps) {
     }
 
     function addCargoItem() {
+        if (!Array.isArray(form.cargo_items)) {
+            form.cargo_items = [];
+        }
+
         form.cargo_items.push(normalizeCargoItem({}));
     }
 

@@ -699,8 +699,13 @@ class OrderWizardService
         }
 
         foreach ($validated['cargo_items'] ?? [] as $cargoItem) {
+            if (! is_array($cargoItem)) {
+                continue;
+            }
+
             $cargoTitle = trim((string) ($cargoItem['name'] ?? ''));
             $cargoType = $cargoItem['cargo_type'] ?? null;
+            // Пустые строки формы пропускаем; позиции с данными без имени отсекает StoreOrderRequest.
             if ($cargoTitle === '' || $cargoType === null || $cargoType === '') {
                 continue;
             }

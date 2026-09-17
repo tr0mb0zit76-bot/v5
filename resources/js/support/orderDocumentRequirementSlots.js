@@ -5,6 +5,8 @@ import { TRANSPORT_DOCUMENT_LABEL, PAPER_TRANSPORT_DOCUMENT_TYPES, ETRN_DOCUMENT
 const REQUEST_TYPES = ['request', 'contract_request'];
 const CLOSING_TYPES = ['upd', 'invoice_factura', 'act'];
 const WAYBILL_TYPES = PAPER_TRANSPORT_DOCUMENT_TYPES;
+const CLOSING_DESCRIPTION = 'УПД, счёт-фактура или акт: статус «Отправлен» или «Подписан».';
+const ACT_ONLY_CLOSING_DESCRIPTION = 'Акт выполненных работ: статус «Отправлен» или «Подписан».';
 
 function isCashPaymentForm(paymentForm) {
     return String(paymentForm ?? '').trim().toLowerCase() === 'cash';
@@ -12,6 +14,59 @@ function isCashPaymentForm(paymentForm) {
 
 function closingRequiredForPaymentForm(paymentForm) {
     return !isCashPaymentForm(paymentForm);
+}
+
+/**
+ * @param {string|null|undefined} paymentForm
+ * @param {boolean} isIp
+ * @returns {string[]}
+ */
+function carrierClosingAcceptedTypes(paymentForm, isIp = false) {
+    const normalized = String(paymentForm ?? '').trim().toLowerCase();
+
+    if (isIp && normalized === 'no_vat') {
+        return ['act'];
+    }
+
+    return [...CLOSING_TYPES];
+}
+
+/**
+ * @param {unknown} legalForm
+ * @param {unknown} inn
+ */
+export function isIndividualEntrepreneurContractor(legalForm = null, inn = null) {
+    const form = String(legalForm ?? '').trim().toLowerCase();
+
+    if (form === 'ip') {
+        return true;
+    }
+
+    const digits = String(inn ?? '').replace(/\D/g, '');
+
+    return digits.length === 12;
+}
+
+/**
+ * @param {number|null|undefined} contractorId
+ * @param {{carrier_is_ip?: Record<number, boolean>}|null|undefined} paymentContext
+ */
+function carrierIsIp(contractorId, paymentContext = {}) {
+    if (contractorId == null || Number(contractorId) <= 0) {
+        return false;
+    }
+
+    const flags = paymentContext?.carrier_is_ip ?? {};
+
+    return Boolean(flags[Number(contractorId)]);
+}
+
+function closingDescriptionForAcceptedTypes(acceptedTypes) {
+    if (Array.isArray(acceptedTypes) && acceptedTypes.length === 1 && acceptedTypes[0] === 'act') {
+        return ACT_ONLY_CLOSING_DESCRIPTION;
+    }
+
+    return CLOSING_DESCRIPTION;
 }
 
 /**
@@ -56,8 +111,6 @@ function customerRequestRequired(customerPaymentForm, cashToCashDeal) {
 
     return !cashToCashDeal;
 }
-
-const CLOSING_DESCRIPTION = 'УПД, счёт-фактура или акт: статус «Отправлен» или «Подписан».';
 
 function primaryCarrierTransportLabel(performers, clientRequestMode) {
     const slots = carrierRequestSlots(performers, clientRequestMode);
@@ -175,11 +228,29 @@ function buildOwnFleetCarrierOnlyRules(
 /**
  * @param {string|null|undefined} customerPaymentForm
  * @param {Array<Record<string, unknown>>} contractorsCosts
- * @returns {{customer: string|null, carriers: Record<number, string|null>}}
+ * @param {Array<{id?: number|string, inn?: string|null, legal_form?: string|null}>} contractorProfiles
+ * @returns {{customer: string|null, carriers: Record<number, string|null>, carrier_is_ip: Record<number, boolean>}}
  */
-export function buildDocumentPaymentContext(customerPaymentForm, contractorsCosts = []) {
+export function buildDocumentPaymentContext(customerPaymentForm, contractorsCosts = [], contractorProfiles = []) {
     /** @type {Record<number, string|null>} */
     const carriers = {};
+    /** @type {Record<number, boolean>} */
+    const carrierIsIpFlags = {};
+
+    (Array.isArray(contractorProfiles) ? contractorProfiles : []).forEach((profile) => {
+        const contractorId = profile?.id != null && profile?.id !== ''
+            ? Number(profile.id)
+            : null;
+
+        if (!contractorId) {
+            return;
+        }
+
+        carrierIsIpFlags[contractorId] = isIndividualEntrepreneurContractor(
+            profile?.legal_form,
+            profile?.inn,
+        );
+    });
 
     (Array.isArray(contractorsCosts) ? contractorsCosts : []).forEach((row) => {
         const contractorId = row?.contractor_id != null && row?.contractor_id !== ''
@@ -188,6 +259,13 @@ export function buildDocumentPaymentContext(customerPaymentForm, contractorsCost
 
         if (contractorId) {
             carriers[contractorId] = row?.payment_form != null ? String(row.payment_form) : null;
+
+            if (carrierIsIpFlags[contractorId] === undefined) {
+                carrierIsIpFlags[contractorId] = isIndividualEntrepreneurContractor(
+                    row?.legal_form ?? row?.contractor_legal_form,
+                    row?.inn ?? row?.contractor_inn,
+                );
+            }
         }
     });
 
@@ -196,6 +274,7 @@ export function buildDocumentPaymentContext(customerPaymentForm, contractorsCost
             ? String(customerPaymentForm)
             : null,
         carriers,
+        carrier_is_ip: carrierIsIpFlags,
     };
 }
 
@@ -408,6 +487,11 @@ export function buildDocumentRequirementRules(
             return;
         }
 
+        const closingAcceptedTypes = carrierClosingAcceptedTypes(
+            carrierPaymentForm,
+            carrierIsIp(slot.contractorId, paymentContext),
+        );
+
         rules.push({
             key: `carrier_request:${slot.slotKey}`,
             label: `Заявка перевозчику${slot.labelSuffix}`,
@@ -424,9 +508,9 @@ export function buildDocumentRequirementRules(
         rules.push({
             key: `carrier_closing:${slot.slotKey}`,
             label: `Закрывающий документ перевозчика${slot.labelSuffix}`,
-            description: CLOSING_DESCRIPTION,
+            description: closingDescriptionForAcceptedTypes(closingAcceptedTypes),
             party: 'carrier',
-            accepted_types: [...CLOSING_TYPES],
+            accepted_types: closingAcceptedTypes,
             slot_kind: 'carrier_closing',
             slot_key: slot.slotKey,
             contractor_id: slot.contractorId,

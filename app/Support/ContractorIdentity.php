@@ -19,4 +19,20 @@ final class ContractorIdentity
 
         return $digits === '' ? null : $digits;
     }
+
+    /**
+     * ИП: legal_form=ip или 12-значный ИНН физлица.
+     */
+    public static function isIndividualEntrepreneur(mixed $legalForm = null, mixed $inn = null): bool
+    {
+        $form = strtolower(trim((string) ($legalForm ?? '')));
+
+        if ($form === 'ip') {
+            return true;
+        }
+
+        $normalizedInn = self::normalizeInn($inn);
+
+        return $normalizedInn !== null && strlen($normalizedInn) === 12;
+    }
 }

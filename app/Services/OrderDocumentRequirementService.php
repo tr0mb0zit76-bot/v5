@@ -9,6 +9,7 @@ use App\Models\OrderDocument;
 use App\Models\OrderDocumentEdoAcknowledgement;
 use App\Models\PrintFormTemplate;
 use App\Support\ContractorExpectsEdo;
+use App\Support\ContractorIdentity;
 use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderDocumentClosingFulfillment;
 use App\Support\OrderDocumentDirection;
@@ -929,9 +930,36 @@ class OrderDocumentRequirementService
             }
         }
 
+        /** @var array<int, bool> $carrierIsIp */
+        $carrierIsIp = [];
+        $carrierIds = array_keys($carriers);
+
+        if ($carrierIds !== [] && Schema::hasTable('contractors')) {
+            $columns = ['id'];
+
+            if (Schema::hasColumn('contractors', 'legal_form')) {
+                $columns[] = 'legal_form';
+            }
+
+            if (Schema::hasColumn('contractors', 'inn')) {
+                $columns[] = 'inn';
+            }
+
+            Contractor::query()
+                ->whereIn('id', $carrierIds)
+                ->get($columns)
+                ->each(function (Contractor $contractor) use (&$carrierIsIp): void {
+                    $carrierIsIp[(int) $contractor->id] = ContractorIdentity::isIndividualEntrepreneur(
+                        $contractor->legal_form ?? null,
+                        $contractor->inn ?? null,
+                    );
+                });
+        }
+
         return [
             'customer' => $customer,
             'carriers' => $carriers,
+            'carrier_is_ip' => $carrierIsIp,
         ];
     }
 
@@ -1026,6 +1054,14 @@ class OrderDocumentRequirementService
      */
     private function closingPackageDateForRule(array $rule, Collection $documents, Collection $edoAcknowledgements): ?CarbonInterface
     {
+        if (OrderDocumentClosingFulfillment::isActOnly($rule)) {
+            if (! OrderDocumentClosingFulfillment::hasTypeFulfilled('act', $rule, $documents, $edoAcknowledgements)) {
+                return null;
+            }
+
+            return $this->bestClosingTypeDate('act', $rule, $documents, $edoAcknowledgements);
+        }
+
         if (OrderDocumentClosingFulfillment::hasTypeFulfilled('upd', $rule, $documents, $edoAcknowledgements)) {
             return $this->bestClosingTypeDate('upd', $rule, $documents, $edoAcknowledgements);
         }

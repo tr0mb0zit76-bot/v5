@@ -40,17 +40,26 @@ function isClosingTypeFulfilled(context, signedDocuments, edoAcknowledgements) {
 }
 
 function resolveClosingTypesToShow(baseRow, signedDocuments, edoAcknowledgements) {
-    const updFulfilled = isClosingTypeFulfilled(
+    const acceptedTypes = Array.isArray(baseRow.accepted_types) && baseRow.accepted_types.length > 0
+        ? baseRow.accepted_types.map((type) => String(type))
+        : CLOSING_TYPE_ROWS.map((row) => row.type);
+    const availableTypeRows = CLOSING_TYPE_ROWS.filter((row) => acceptedTypes.includes(row.type));
+
+    if (acceptedTypes.length === 1 && acceptedTypes[0] === 'act') {
+        return availableTypeRows;
+    }
+
+    const updFulfilled = acceptedTypes.includes('upd') && isClosingTypeFulfilled(
         buildClosingContext(baseRow, 'upd'),
         signedDocuments,
         edoAcknowledgements,
     );
-    const invoiceFulfilled = isClosingTypeFulfilled(
+    const invoiceFulfilled = acceptedTypes.includes('invoice_factura') && isClosingTypeFulfilled(
         buildClosingContext(baseRow, 'invoice_factura'),
         signedDocuments,
         edoAcknowledgements,
     );
-    const actFulfilled = isClosingTypeFulfilled(
+    const actFulfilled = acceptedTypes.includes('act') && isClosingTypeFulfilled(
         buildClosingContext(baseRow, 'act'),
         signedDocuments,
         edoAcknowledgements,
@@ -58,18 +67,18 @@ function resolveClosingTypesToShow(baseRow, signedDocuments, edoAcknowledgements
     const pairFulfilled = invoiceFulfilled && actFulfilled;
 
     if (updFulfilled) {
-        return CLOSING_TYPE_ROWS.filter((row) => row.type === 'upd');
+        return availableTypeRows.filter((row) => row.type === 'upd');
     }
 
     if (pairFulfilled) {
-        return CLOSING_TYPE_ROWS.filter((row) => row.type !== 'upd');
+        return availableTypeRows.filter((row) => row.type !== 'upd');
     }
 
     if (invoiceFulfilled || actFulfilled) {
-        return CLOSING_TYPE_ROWS.filter((row) => row.type !== 'upd');
+        return availableTypeRows.filter((row) => row.type !== 'upd');
     }
 
-    return CLOSING_TYPE_ROWS;
+    return availableTypeRows;
 }
 
 function buildClosingTypeRow(baseRow, closingType, signedDocuments, edoAcknowledgements) {

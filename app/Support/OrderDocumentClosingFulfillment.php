@@ -9,6 +9,7 @@ use App\Models\OrderDocumentEdoAcknowledgement;
 
 /**
  * Закрывающие: либо УПД, либо связка счёт-фактура + акт (файл или ЭДО).
+ * Для ИП-перевозчика с «без НДС» слот может принимать только акт (`accepted_types: ['act']`).
  */
 final class OrderDocumentClosingFulfillment
 {
@@ -25,6 +26,39 @@ final class OrderDocumentClosingFulfillment
 
     /**
      * @param  array<string, mixed>  $rule
+     * @return list<string>
+     */
+    public static function acceptedTypes(array $rule): array
+    {
+        $raw = $rule['accepted_types'] ?? null;
+
+        if (! is_array($raw) || $raw === []) {
+            return self::CLOSING_TYPES;
+        }
+
+        $accepted = [];
+
+        foreach ($raw as $type) {
+            $normalized = trim((string) $type);
+
+            if ($normalized !== '' && in_array($normalized, self::CLOSING_TYPES, true)) {
+                $accepted[] = $normalized;
+            }
+        }
+
+        return $accepted !== [] ? array_values(array_unique($accepted)) : self::CLOSING_TYPES;
+    }
+
+    /**
+     * @param  array<string, mixed>  $rule
+     */
+    public static function isActOnly(array $rule): bool
+    {
+        return self::acceptedTypes($rule) === ['act'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $rule
      * @param  iterable<OrderDocument|array<string, mixed>>  $documents
      * @param  iterable<OrderDocumentEdoAcknowledgement|array<string, mixed>>  $edoAcknowledgements
      */
@@ -32,6 +66,10 @@ final class OrderDocumentClosingFulfillment
     {
         if (! self::isClosingSlotKind((string) ($rule['slot_kind'] ?? ''))) {
             return false;
+        }
+
+        if (self::isActOnly($rule)) {
+            return self::hasTypeFulfilled('act', $rule, $documents, $edoAcknowledgements);
         }
 
         $hasUpd = self::hasTypeFulfilled('upd', $rule, $documents, $edoAcknowledgements);

@@ -7,6 +7,57 @@ use Illuminate\Http\Request;
 final class OrderCargoItemsPayloadNormalizer
 {
     /**
+     * Позиция с заполненными данными, но без наименования — раньше молча отбрасывалась при sync.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    public static function cargoItemHasSubstance(array $item): bool
+    {
+        $name = trim((string) ($item['name'] ?? ''));
+        if ($name !== '') {
+            return true;
+        }
+
+        foreach (['description', 'dangerous_class', 'hs_code', 'pack_type_label', 'loading_type_label', 'truck_body_type_label', 'trailer_type_label'] as $textKey) {
+            if (trim((string) ($item[$textKey] ?? '')) !== '') {
+                return true;
+            }
+        }
+
+        foreach ([
+            'weight_value', 'weight_kg', 'volume_m3', 'package_count',
+            'length_value', 'width_value', 'height_value',
+            'length_m', 'width_m', 'height_m', 'diameter_m',
+            'pack_type_id', 'loading_type_id', 'truck_body_type_id', 'trailer_type_id',
+        ] as $numericKey) {
+            $raw = $item[$numericKey] ?? null;
+            if ($raw === null || $raw === '') {
+                continue;
+            }
+
+            if (is_numeric($raw) && (float) $raw > 0) {
+                return true;
+            }
+        }
+
+        foreach (['loading_type_items', 'truck_body_type_items', 'trailer_type_items', 'performer_allocations'] as $listKey) {
+            if (is_array($item[$listKey] ?? null) && $item[$listKey] !== []) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    public static function cargoItemRequiresName(array $item): bool
+    {
+        return self::cargoItemHasSubstance($item) && trim((string) ($item['name'] ?? '')) === '';
+    }
+
+    /**
      * @param  list<array<string, mixed>>  $performers
      * @return list<array<string, mixed>>
      */

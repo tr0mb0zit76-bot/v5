@@ -61,6 +61,41 @@ class OrderDocumentClosingFulfillmentTest extends TestCase
         $this->assertFalse(OrderDocumentClosingFulfillment::isRuleFulfilled($rule, $documents, []));
     }
 
+    public function test_act_only_closing_rule_is_fulfilled_by_act_alone(): void
+    {
+        $rule = [
+            'party' => 'carrier',
+            'slot_kind' => 'carrier_closing',
+            'slot_key' => 'carrier-15',
+            'contractor_id' => 15,
+            'accepted_types' => ['act'],
+        ];
+
+        $documents = [
+            ['type' => 'act', 'party' => 'carrier', 'status' => 'signed', 'contractor_id' => 15],
+        ];
+
+        $this->assertTrue(OrderDocumentClosingFulfillment::isRuleFulfilled($rule, $documents, []));
+        $this->assertTrue(OrderDocumentClosingFulfillment::isActOnly($rule));
+    }
+
+    public function test_act_only_closing_rule_is_not_fulfilled_by_upd(): void
+    {
+        $rule = [
+            'party' => 'carrier',
+            'slot_kind' => 'carrier_closing',
+            'slot_key' => 'carrier-15',
+            'contractor_id' => 15,
+            'accepted_types' => ['act'],
+        ];
+
+        $documents = [
+            ['type' => 'upd', 'party' => 'carrier', 'status' => 'signed', 'contractor_id' => 15],
+        ];
+
+        $this->assertFalse(OrderDocumentClosingFulfillment::isRuleFulfilled($rule, $documents, []));
+    }
+
     public function test_closing_rule_is_fulfilled_by_edo_acknowledgement(): void
     {
         $rule = [

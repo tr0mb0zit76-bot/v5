@@ -811,6 +811,63 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
     }
 
+    public function test_matches_padded_invoice_from_schetu_word_form_in_description(): void
+    {
+        $customer = Contractor::query()->create([
+            'name' => 'ООО "АВИАТОР"',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-СЭ-964',
+            'customer_id' => $customer->id,
+            'invoice_number' => '0000-000122',
+        ]);
+
+        $other = Order::query()->create([
+            'order_number' => 'ПС-СЭ-47',
+            'customer_id' => $customer->id,
+            'invoice_number' => '0000-000199',
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 65000,
+            'remaining_amount' => 65000,
+            'paid_amount' => 0,
+            'invoice_number' => '0000-000122',
+            'status' => 'pending',
+            'planned_date' => '2026-09-09',
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $other->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 65000,
+            'remaining_amount' => 65000,
+            'paid_amount' => 0,
+            'invoice_number' => '0000-000199',
+            'status' => 'pending',
+            'planned_date' => '2026-09-10',
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-09-08',
+            'direction' => 'in',
+            'amount' => 65000,
+            'description' => 'АВИАТОР ООО / Оплата транспортных услуг по счету №122 от 04.09.2026 по маршруту г.Новочебоксарск-г.Истра Сумма 65000-00',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertSame($order->id, $suggestion['suggested_order_id']);
+        $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
+        $this->assertGreaterThanOrEqual(80, $suggestion['match_confidence']);
+    }
+
     public function test_operational_candidates_when_remaining_amount_is_zero_but_schedule_open(): void
     {
         $customer = Contractor::query()->create([
@@ -1301,6 +1358,80 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $category = ManagementExpenseCategory::query()->find($suggestion['suggested_category_id']);
         $this->assertSame('Лизинг', $category?->name);
         $this->assertNull($suggestion['suggested_payment_schedule_id']);
+    }
+
+    public function test_suggests_split_when_payment_closes_entire_contractor_open_debt(): void
+    {
+        $customer = Contractor::query()->create([
+            'name' => 'ООО "ММК"',
+        ]);
+
+        $orderA = Order::query()->create([
+            'order_number' => 'ПС-СЭ-43',
+            'customer_id' => $customer->id,
+        ]);
+        $orderB = Order::query()->create([
+            'order_number' => 'ПС-СЭ-45',
+            'customer_id' => $customer->id,
+        ]);
+        $orderC = Order::query()->create([
+            'order_number' => 'ПС-СЭ-46',
+            'customer_id' => $customer->id,
+        ]);
+
+        $scheduleA = PaymentSchedule::query()->create([
+            'order_id' => $orderA->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 65000,
+            'remaining_amount' => 0,
+            'paid_amount' => 0,
+            'status' => 'overdue',
+            'planned_date' => '2026-08-31',
+        ]);
+        $scheduleB = PaymentSchedule::query()->create([
+            'order_id' => $orderB->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 65000,
+            'remaining_amount' => 0,
+            'paid_amount' => 0,
+            'status' => 'overdue',
+            'planned_date' => '2026-09-07',
+        ]);
+        $scheduleC = PaymentSchedule::query()->create([
+            'order_id' => $orderC->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 35000,
+            'remaining_amount' => 0,
+            'paid_amount' => 0,
+            'status' => 'overdue',
+            'planned_date' => '2026-09-06',
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-09-10',
+            'direction' => 'in',
+            'amount' => 165000,
+            'description' => 'ММК ООО / Оплата по сч.№8,9,10 за транспортно-экспедиционные услуги Сумма 165000-00 Без налога (НДС)',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertNull($suggestion['suggested_payment_schedule_id']);
+        $this->assertGreaterThanOrEqual(80, $suggestion['match_confidence']);
+        $this->assertStringContainsString('Закрытие всего долга', (string) $suggestion['match_notes']);
+        $this->assertStringContainsString('split', (string) $suggestion['match_notes']);
+
+        $allocations = $suggestion['suggested_allocations'] ?? [];
+        $this->assertCount(3, $allocations);
+
+        $bySchedule = collect($allocations)->keyBy('payment_schedule_id');
+        $this->assertEqualsWithDelta(65000.0, (float) $bySchedule[$scheduleA->id]['amount'], 0.01);
+        $this->assertEqualsWithDelta(65000.0, (float) $bySchedule[$scheduleB->id]['amount'], 0.01);
+        $this->assertEqualsWithDelta(35000.0, (float) $bySchedule[$scheduleC->id]['amount'], 0.01);
     }
 
     private function matchingService(): ManagementAccountingMatchingService

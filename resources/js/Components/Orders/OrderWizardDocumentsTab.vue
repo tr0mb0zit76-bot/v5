@@ -69,6 +69,7 @@ const props = defineProps({
     customerPaymentForm: { type: String, default: '' },
     clientPaymentSchedule: { type: Object, default: () => ({}) },
     contractorsCosts: { type: Array, default: () => [] },
+    contractors: { type: Array, default: () => [] },
     requiredDocumentRules: { type: Array, default: () => [] },
     requiredDocumentChecklist: { type: Array, default: () => [] },
     documentEdoAcknowledgements: { type: Array, default: () => [] },
@@ -159,6 +160,7 @@ const printFormTemplateOptionsCarrier = computed(() => {
 const documentPaymentContext = computed(() => buildDocumentPaymentContext(
     props.customerPaymentForm,
     props.contractorsCosts,
+    props.contractors,
 ));
 
 const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRules(

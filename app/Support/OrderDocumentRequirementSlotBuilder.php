@@ -18,7 +18,7 @@ final class OrderDocumentRequirementSlotBuilder
 
     /**
      * @param  list<array{stage?: string|null, contractor_id?: int|null, contractor_name?: string|null}>  $performers
-     * @param  array{customer?: string|null, carriers?: array<int, string|null>}  $paymentContext
+     * @param  array{customer?: string|null, carriers?: array<int, string|null>, carrier_is_ip?: array<int, bool>}  $paymentContext
      * @return list<array{
      *     key: string,
      *     label: string,
@@ -92,7 +92,7 @@ final class OrderDocumentRequirementSlotBuilder
                     $slot,
                     'carrier_closing',
                     'Закрывающий документ перевозчика',
-                    self::CLOSING_TYPES,
+                    self::carrierClosingAcceptedTypes($carrierPaymentForm, self::carrierIsIp($contractorId, $paymentContext)),
                     true,
                 );
             }
@@ -428,6 +428,36 @@ final class OrderDocumentRequirementSlotBuilder
     }
 
     /**
+     * ИП-перевозчик с формой «без НДС»: достаточно акта (счёт-фактура не нужна).
+     *
+     * @return list<string>
+     */
+    private static function carrierClosingAcceptedTypes(?string $paymentForm, bool $isIp): array
+    {
+        $normalized = PaymentFormDictionary::normalizeForStorage($paymentForm);
+
+        if ($isIp && $normalized === 'no_vat') {
+            return ['act'];
+        }
+
+        return self::CLOSING_TYPES;
+    }
+
+    /**
+     * @param  array{customer?: string|null, carriers?: array<int, string|null>, carrier_is_ip?: array<int, bool>}  $paymentContext
+     */
+    private static function carrierIsIp(?int $contractorId, array $paymentContext): bool
+    {
+        if ($contractorId === null || $contractorId <= 0) {
+            return false;
+        }
+
+        $flags = is_array($paymentContext['carrier_is_ip'] ?? null) ? $paymentContext['carrier_is_ip'] : [];
+
+        return (bool) ($flags[$contractorId] ?? false);
+    }
+
+    /**
      * Заявка заказчика: всегда при безнале; при наличке — только если сделка не «нал ↔ нал».
      */
     private static function customerRequestRequired(?string $customerPaymentForm, bool $cashToCashDeal): bool
@@ -486,9 +516,13 @@ final class OrderDocumentRequirementSlotBuilder
         array $acceptedTypes,
         bool $isClosing = false,
     ): array {
-        $description = $isClosing
-            ? 'УПД, счёт-фактура или акт: статус «Отправлен» или «Подписан».'
-            : 'Загружаемый файл: статус «Отправлен» или «Подписан». Печатная форма: финальный PDF и подписи по шаблону.';
+        $description = 'Загружаемый файл: статус «Отправлен» или «Подписан». Печатная форма: финальный PDF и подписи по шаблону.';
+
+        if ($isClosing) {
+            $description = $acceptedTypes === ['act']
+                ? 'Акт выполненных работ: статус «Отправлен» или «Подписан».'
+                : 'УПД, счёт-фактура или акт: статус «Отправлен» или «Подписан».';
+        }
 
         return [
             'key' => "{$slotKind}:{$slot['slotKey']}",

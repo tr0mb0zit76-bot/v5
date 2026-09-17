@@ -114,7 +114,7 @@ final class ManagementAccountingStatementRewalkService
 
         foreach ($lines as $line) {
             $suggestion = $this->matching->suggestForLine($line);
-            unset($suggestion['suggested_candidates']);
+            unset($suggestion['suggested_candidates'], $suggestion['suggested_allocations']);
             $line->fill($suggestion)->save();
             $count++;
         }

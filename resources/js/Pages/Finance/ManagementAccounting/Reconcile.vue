@@ -435,11 +435,26 @@ for (const line of props.lines) {
     searchQueries[line.id] = line.contractor_search_hint ?? '';
     searchResults[line.id] = candidates;
     searchLoading[line.id] = false;
-    splitModes[line.id] = false;
-    splitAllocations[line.id] = [
-        { payment_schedule_id: defaultScheduleId || null, amount: null },
-        { payment_schedule_id: null, amount: null },
-    ];
+
+    const debtBundle = candidates.filter((candidate) => candidate.match_reason === 'debt_bundle');
+    const debtTotal = debtBundle.reduce((sum, candidate) => sum + (Number(candidate.amount_due) || 0), 0);
+    const isDebtBundle = debtBundle.length >= 2
+        && Math.abs(debtTotal - Number(line.amount)) < 0.02;
+
+    splitModes[line.id] = isDebtBundle;
+    splitAllocations[line.id] = isDebtBundle
+        ? debtBundle.map((candidate) => ({
+            payment_schedule_id: candidate.payment_schedule_id,
+            amount: Number(candidate.amount_due),
+        }))
+        : [
+            { payment_schedule_id: defaultScheduleId || null, amount: null },
+            { payment_schedule_id: null, amount: null },
+        ];
+
+    if (isDebtBundle) {
+        dirtyFlags[line.id] = true;
+    }
 }
 
 onMounted(() => {

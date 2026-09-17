@@ -143,6 +143,24 @@ class StoreOrderRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
+                $cargoItems = $this->input('cargo_items');
+                if (is_array($cargoItems)) {
+                    foreach ($cargoItems as $index => $item) {
+                        if (! is_array($item)) {
+                            continue;
+                        }
+
+                        if (! OrderCargoItemsPayloadNormalizer::cargoItemRequiresName($item)) {
+                            continue;
+                        }
+
+                        $validator->errors()->add(
+                            "cargo_items.{$index}.name",
+                            'Укажите наименование груза (позиция '.((int) $index + 1).'). Без названия груз не сохранится.',
+                        );
+                    }
+                }
+
                 if ($this->input('status') !== 'disruption') {
                     return;
                 }

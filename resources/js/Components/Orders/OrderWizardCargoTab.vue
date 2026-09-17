@@ -73,8 +73,15 @@ const {
 
                 <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-12 lg:gap-x-2 lg:gap-y-2">
                     <div class="space-y-1 lg:col-span-4">
-                        <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Наименование</label>
-                        <input v-model="item.name" list="cargo-title-suggestions" type="text" :class="['w-full rounded-lg border px-2 py-1.5 text-sm dark:bg-zinc-950', highlightRequiredField('cargo_name_' + index, item.name)]" />
+                        <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Наименование <span class="text-rose-500">*</span></label>
+                        <input
+                            v-model="item.name"
+                            list="cargo-title-suggestions"
+                            type="text"
+                            :class="['w-full rounded-lg border px-2 py-1.5 text-sm dark:bg-zinc-950', highlightRequiredField('cargo_name_' + index, item.name)]"
+                            placeholder="Обязательно для сохранения"
+                        />
+                        <p v-if="form.errors[`cargo_items.${index}.name`]" class="text-xs text-rose-500">{{ form.errors[`cargo_items.${index}.name`] }}</p>
                     </div>
                     <div class="space-y-1 lg:col-span-2">
                         <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Тип груза</label>

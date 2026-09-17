@@ -30,7 +30,31 @@ final class ManagementAccountingAutoAllocateService
         }
 
         $notes = (string) ($line->match_notes ?? '');
-        if (str_contains($notes, 'Несколько заявок') || str_contains($notes, 'выберите строку графика')) {
+        $ambiguousManual = str_contains($notes, 'Несколько заявок')
+            || str_contains($notes, 'выберите строку графика')
+            || str_contains($notes, 'выберите split вручную');
+
+        $suggestion = $this->matching->suggestForLine($line);
+        $allocations = $suggestion['suggested_allocations'] ?? null;
+        $suggestionConfidence = (int) ($suggestion['match_confidence'] ?? 0);
+        $suggestionNotes = (string) ($suggestion['match_notes'] ?? '');
+
+        if (
+            is_array($allocations)
+            && count($allocations) >= 2
+            && $suggestionConfidence >= $minConfidence
+            && ! str_contains($suggestionNotes, 'выберите split вручную')
+        ) {
+            $this->allocationService->allocateLine($line, [
+                'allocation_type' => 'operational',
+                'allocations' => $allocations,
+            ], $actor);
+            $this->matching->flushScheduleCache();
+
+            return true;
+        }
+
+        if ($ambiguousManual) {
             return false;
         }
 

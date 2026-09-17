@@ -14,21 +14,6 @@ use Illuminate\Support\Collection;
 final class DocumentRegistryGridColumnApplicabilityResolver
 {
     /** @var list<string> */
-    private const CLOSING_CUSTOMER_COLUMNS = [
-        'customer_upd',
-        'customer_act',
-        'customer_invoice_factura',
-    ];
-
-    /** @var list<string> */
-    private const CLOSING_CARRIER_COLUMNS = [
-        'carrier_invoice',
-        'carrier_upd',
-        'carrier_act',
-        'carrier_invoice_factura',
-    ];
-
-    /** @var list<string> */
     private const REQUEST_CUSTOMER_COLUMNS = [
         'customer_request',
         'customer_contract_request',
@@ -97,6 +82,10 @@ final class DocumentRegistryGridColumnApplicabilityResolver
     public static function mapFromRules(array $rules): array
     {
         $slotKinds = [];
+        /** @var array<string, true> $customerClosingTypes */
+        $customerClosingTypes = [];
+        /** @var array<string, true> $carrierClosingTypes */
+        $carrierClosingTypes = [];
 
         foreach ($rules as $rule) {
             if (! is_array($rule)) {
@@ -108,19 +97,32 @@ final class DocumentRegistryGridColumnApplicabilityResolver
             if ($kind !== '') {
                 $slotKinds[$kind] = true;
             }
+
+            if ($kind === 'customer_closing') {
+                foreach (OrderDocumentClosingFulfillment::acceptedTypes($rule) as $type) {
+                    $customerClosingTypes[$type] = true;
+                }
+            }
+
+            if ($kind === 'carrier_closing') {
+                foreach (OrderDocumentClosingFulfillment::acceptedTypes($rule) as $type) {
+                    $carrierClosingTypes[$type] = true;
+                }
+            }
         }
 
         $has = static fn (string $kind): bool => isset($slotKinds[$kind]);
 
         $map = [];
 
-        foreach (self::CLOSING_CUSTOMER_COLUMNS as $column) {
-            $map[$column] = $has('customer_closing');
-        }
+        $map['customer_upd'] = $has('customer_closing') && isset($customerClosingTypes['upd']);
+        $map['customer_act'] = $has('customer_closing') && isset($customerClosingTypes['act']);
+        $map['customer_invoice_factura'] = $has('customer_closing') && isset($customerClosingTypes['invoice_factura']);
 
-        foreach (self::CLOSING_CARRIER_COLUMNS as $column) {
-            $map[$column] = $has('carrier_closing');
-        }
+        $map['carrier_invoice'] = $has('carrier_closing');
+        $map['carrier_upd'] = $has('carrier_closing') && isset($carrierClosingTypes['upd']);
+        $map['carrier_act'] = $has('carrier_closing') && isset($carrierClosingTypes['act']);
+        $map['carrier_invoice_factura'] = $has('carrier_closing') && isset($carrierClosingTypes['invoice_factura']);
 
         foreach (self::REQUEST_CUSTOMER_COLUMNS as $column) {
             $map[$column] = $has('customer_request');

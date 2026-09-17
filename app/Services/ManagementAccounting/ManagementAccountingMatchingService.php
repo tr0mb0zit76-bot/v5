@@ -93,6 +93,12 @@ class ManagementAccountingMatchingService
             return $operationalByContractor;
         }
 
+        // Один платёж закрывает весь открытый долг контрагента по нескольким заявкам.
+        $debtBundle = $this->matchOperationalByContractorDebtBundle($description, $direction, $amount, $operationDate);
+        if ($debtBundle !== null) {
+            return $debtBundle;
+        }
+
         $payroll = $this->matchPayroll($description, $direction, $amount);
         if ($payroll !== null) {
             return $payroll;
@@ -167,6 +173,19 @@ class ManagementAccountingMatchingService
                 $operationDate,
             ),
         )->unique(fn (array $candidate): int => (int) $candidate['schedule']->id)->values();
+
+        if ($candidates->isEmpty()) {
+            $debtBundle = $this->operationalCandidatesByContractorDebtBundle(
+                $description,
+                $line->direction,
+                (float) $line->amount,
+                $operationDate,
+            );
+
+            if ($debtBundle->count() === 1) {
+                return $this->serializeOperationalCandidates($debtBundle->first()['candidates']);
+            }
+        }
 
         if ($candidates->isEmpty()) {
             $candidates = $this->operationalCandidatesByContractorInDescription(
@@ -499,6 +518,180 @@ class ManagementAccountingMatchingService
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * @return ?array{
+     *     match_type: string,
+     *     match_confidence: int,
+     *     match_notes: ?string,
+     *     suggested_order_id: null,
+     *     suggested_payment_schedule_id: null,
+     *     suggested_category_id: int|null,
+     *     suggested_user_id: null,
+     *     suggested_candidates: list<array<string, mixed>>,
+     *     suggested_allocations: list<array{payment_schedule_id: int, amount: float}>|null
+     * }
+     */
+    private function matchOperationalByContractorDebtBundle(
+        string $description,
+        string $direction,
+        float $amount,
+        ?string $operationDate,
+    ): ?array {
+        if ($amount <= 0) {
+            return null;
+        }
+
+        $bundles = $this->operationalCandidatesByContractorDebtBundle(
+            $description,
+            $direction,
+            $amount,
+            $operationDate,
+        );
+
+        if ($bundles->isEmpty()) {
+            return null;
+        }
+
+        if ($bundles->count() > 1) {
+            $labels = $bundles
+                ->pluck('contractor_label')
+                ->filter()
+                ->unique()
+                ->take(5)
+                ->implode(', ');
+
+            $candidates = $bundles
+                ->flatMap(fn (array $bundle) => $bundle['candidates'])
+                ->unique(fn (array $candidate): int => (int) $candidate['schedule']->id)
+                ->values();
+
+            return [
+                'match_type' => 'operational',
+                'match_confidence' => 62,
+                'match_notes' => 'Несколько контрагентов с долгом на сумму платежа ('.$labels.'): выберите split вручную',
+                'suggested_order_id' => null,
+                'suggested_payment_schedule_id' => null,
+                'suggested_category_id' => $direction === 'in'
+                    ? $this->defaultCategoryId('operational_customer_in')
+                    : $this->suggestedCarrierCategoryId(null, null),
+                'suggested_user_id' => null,
+                'suggested_candidates' => $this->serializeOperationalCandidates($candidates),
+                'suggested_allocations' => null,
+            ];
+        }
+
+        /** @var array{contractor_label: string, candidates: Collection<int, array{schedule: PaymentSchedule, contractor_label: string, order_number: ?string, date_distance: int, amount_distance: float, match_reason: string}>} $bundle */
+        $bundle = $bundles->first();
+        $serialized = $this->serializeOperationalCandidates($bundle['candidates']);
+        $allocations = [];
+
+        foreach ($serialized as $candidate) {
+            $allocations[] = [
+                'payment_schedule_id' => (int) $candidate['payment_schedule_id'],
+                'amount' => round((float) $candidate['amount_due'], 2),
+            ];
+        }
+
+        $orderNumbers = $bundle['candidates']
+            ->pluck('order_number')
+            ->filter()
+            ->unique()
+            ->take(5)
+            ->implode(', ');
+
+        return [
+            'match_type' => 'operational',
+            'match_confidence' => 86,
+            'match_notes' => 'Закрытие всего долга контрагента '.$bundle['contractor_label']
+                .' по '.count($allocations).' заявкам'
+                .($orderNumbers !== '' ? ' ('.$orderNumbers.')' : '')
+                .' — split',
+            'suggested_order_id' => null,
+            'suggested_payment_schedule_id' => null,
+            'suggested_category_id' => $direction === 'in'
+                ? $this->defaultCategoryId('operational_customer_in')
+                : $this->suggestedCarrierCategoryId(null, null),
+            'suggested_user_id' => null,
+            'suggested_candidates' => $serialized,
+            'suggested_allocations' => $allocations,
+        ];
+    }
+
+    /**
+     * Пакеты «весь открытый долг контрагента из назначения = сумма платежа» (≥2 строк графика).
+     *
+     * @return Collection<int, array{contractor_label: string, candidates: Collection<int, array{schedule: PaymentSchedule, contractor_label: string, order_number: ?string, date_distance: int, amount_distance: float, match_reason: string}>}>
+     */
+    private function operationalCandidatesByContractorDebtBundle(
+        string $description,
+        string $direction,
+        float $amount,
+        ?string $operationDate,
+    ): Collection {
+        $parties = $direction === 'in' ? ['customer'] : ['carrier', 'contractor'];
+        /** @var array<int, array{contractor: Contractor, candidates: array<int, array{schedule: PaymentSchedule, contractor_label: string, order_number: ?string, date_distance: int, amount_distance: float, match_reason: string}>}> $grouped */
+        $grouped = [];
+
+        foreach ($this->loadedOpenSchedulesForParties($parties) as $schedule) {
+            $openAmount = $this->effectiveScheduleAmount($schedule);
+            if ($openAmount <= 0.009) {
+                continue;
+            }
+
+            foreach ($this->contractorsForSchedule($schedule, $direction) as $contractor) {
+                if (! $this->contractorLabelInDescription($description, $contractor)) {
+                    continue;
+                }
+
+                $contractorId = (int) $contractor->id;
+                $grouped[$contractorId] ??= [
+                    'contractor' => $contractor,
+                    'candidates' => [],
+                ];
+
+                $scheduleId = (int) $schedule->id;
+                if (isset($grouped[$contractorId]['candidates'][$scheduleId])) {
+                    continue;
+                }
+
+                $grouped[$contractorId]['candidates'][$scheduleId] = [
+                    'schedule' => $schedule,
+                    'contractor_label' => $this->contractorDisplayLabel($contractor),
+                    'order_number' => $schedule->order?->order_number,
+                    'date_distance' => $this->plannedDateDistanceDays($schedule, $operationDate),
+                    'amount_distance' => abs($openAmount - $amount),
+                    'match_reason' => 'debt_bundle',
+                ];
+            }
+        }
+
+        return collect($grouped)
+            ->map(function (array $group) use ($amount): ?array {
+                $candidates = collect(array_values($group['candidates']))
+                    ->sortBy(fn (array $candidate): int => (int) $candidate['schedule']->id)
+                    ->values();
+
+                if ($candidates->count() < 2) {
+                    return null;
+                }
+
+                $openSum = round($candidates->sum(
+                    fn (array $candidate): float => $this->effectiveScheduleAmount($candidate['schedule']),
+                ), 2);
+
+                if (abs($openSum - $amount) >= 0.01) {
+                    return null;
+                }
+
+                return [
+                    'contractor_label' => $this->contractorDisplayLabel($group['contractor']),
+                    'candidates' => $candidates,
+                ];
+            })
+            ->filter()
+            ->values();
     }
 
     /**
@@ -1089,6 +1282,7 @@ class ManagementAccountingMatchingService
             'invoice' => 'номер счёта',
             'amount_only' => 'только сумма',
             'search' => 'поиск по названию',
+            'debt_bundle' => 'весь долг контрагента',
             default => null,
         };
     }
@@ -1273,8 +1467,18 @@ class ManagementAccountingMatchingService
     {
         $references = [];
 
-        if (preg_match_all('/(?:сч(?:ет|\.)|\bсч\b)\s*\.?\s*(?:№|#|n|no\.?)?\s*(\d+)/ui', $description, $matches) > 0) {
+        if (preg_match_all('/(?:сч[её]т(?:а|у|е|ом)?|сч\.)\s*\.?\s*(?:№|#|n|no\.?)?\s*(\d+)/ui', $description, $matches) > 0) {
             foreach ($matches[1] as $digits) {
+                $digits = trim((string) $digits);
+                if ($digits !== '') {
+                    $references[] = $digits;
+                }
+            }
+        }
+
+        // Короткое «сч 122» / «сч№122» без точки и без «ет».
+        if (preg_match_all('/(?<![а-яёa-z])сч\s*\.?\s*(?:№|#|n|no\.?)?\s*(\d+)/ui', $description, $shortMatches) > 0) {
+            foreach ($shortMatches[1] as $digits) {
                 $digits = trim((string) $digits);
                 if ($digits !== '') {
                     $references[] = $digits;
