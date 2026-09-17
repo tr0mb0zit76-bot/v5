@@ -11,6 +11,7 @@ use App\Services\Commercial\HeadOfSalesInsightsService;
 use App\Services\Commercial\MailThreadAnalysisService;
 use App\Services\Commercial\ManagerSalesCoachingInsightsService;
 use App\Services\Leads\LeadOperationalBriefService;
+use App\Services\ManagementAccounting\CashFlowExecutiveBriefService;
 use App\Services\ManagementAccounting\ManagementAccountingInsightsService;
 use App\Services\Mcp\AiToolAuditLogger;
 use App\Services\Mcp\ContractorMcpService;
@@ -72,6 +73,7 @@ class AgentToolRegistry
         private readonly ContractorPrintFormChangeRequestService $printFormChanges,
         private readonly ManagementAccountingMcpService $managementAccounting,
         private readonly ManagementAccountingInsightsService $managementAccountingInsights,
+        private readonly CashFlowExecutiveBriefService $cashFlowExecutiveBrief,
         private readonly LeadOperationalBriefService $leadOperationalBrief,
     ) {}
 
@@ -1209,6 +1211,24 @@ class AgentToolRegistry
 
                     return ['change_request' => $this->printFormChanges->serializeRequest($changeRequest)];
                 },
+            ),
+            new AgentToolDefinition(
+                name: 'get_cash_flow_executive_brief',
+                description: 'Комплексный CFO-бриф по кассе с даты: чистый ДДС, помесячно, топ контрагентов, структура расходов, ДЗ/КЗ, платежи без заказа CRM, pending, диагноз. Для «свободные деньги / куда ушли / дебиторка».',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'from_date' => ['type' => 'string', 'description' => 'YYYY-MM-DD, по умолчанию старт CRM/конфиг'],
+                        'to_date' => ['type' => 'string', 'description' => 'YYYY-MM-DD, по умолчанию последняя дата выписки'],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canManagementAccounting($user),
+                invoke: fn (User $user, array $args): array => $this->cashFlowExecutiveBrief->brief(
+                    $user,
+                    isset($args['from_date']) ? (string) $args['from_date'] : null,
+                    isset($args['to_date']) ? (string) $args['to_date'] : null,
+                ),
             ),
             new AgentToolDefinition(
                 name: 'get_management_accounting_insights',

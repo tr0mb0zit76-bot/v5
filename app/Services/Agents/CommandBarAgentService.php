@@ -555,7 +555,7 @@ class CommandBarAgentService
             ? "\n\n[Режим Почты] На резюме переписки — summarize_mail_thread; на черновик ответа — draft_mail_reply (без автосend); на следующий шаг по лиду — suggest_lead_next_step_from_mail. Сначала get_mail_thread, если нужен контекст."
             : '';
         $managementAccountingHint = RoleAccess::canAccessManagementAccounting($user)
-            ? "\n- Управленческий учёт: get_management_accounting_insights (executive summary, риски) и get_management_accounting_analytics (детализация). Выписка: list_management_statement_imports → list_management_statement_lines (pending). Разнос и правила — только по явной просьбе. Маржинальность бизнеса ≠ маржа рейса."
+            ? "\n- Управленческий учёт: на вопросы «свободные деньги / куда ушли / дебиторка / касса» сначала get_cash_flow_executive_brief (накопленный ДДС + ДЗ/КЗ + платежи без заказа). Затем get_management_accounting_insights (месяц/квартал) и get_management_accounting_analytics. Выписка: list_management_statement_imports → list_management_statement_lines (pending). Разнос и правила — только по явной просьбе. Маржинальность бизнеса ≠ маржа рейса."
             : '';
 
         $knowledgeModeHint = $knowledgeQuestionActive

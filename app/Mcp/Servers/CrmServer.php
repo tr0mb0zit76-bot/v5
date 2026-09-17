@@ -14,6 +14,7 @@ use App\Mcp\Tools\CreateProposalHtmlTemplateTool;
 use App\Mcp\Tools\CreateTaskTool;
 use App\Mcp\Tools\ExtractOrderDraftFromDocumentTool;
 use App\Mcp\Tools\GetAiUsageInsightsTool;
+use App\Mcp\Tools\GetCashFlowExecutiveBriefTool;
 use App\Mcp\Tools\GetContractorTool;
 use App\Mcp\Tools\GetHeadOfSalesInsightsTool;
 use App\Mcp\Tools\GetImprovementLoopInsightsTool;
@@ -108,6 +109,7 @@ use Laravel\Mcp\Server\Tool;
         - list_proposal_html_templates / get_proposal_html_template / create_proposal_html_template / update_proposal_html_template — HTML-шаблоны КП (settings_system): cold или clone parallel-import + тексты/картинки
         - search_mail_threads / get_mail_thread / get_mail_sync_status / send_mail / reply_mail_thread — переписка, IMAP sync и отправка из CRM
         - Управленческий учёт (can_management_accounting / admin):
+          get_cash_flow_executive_brief — комплексный CFO-бриф (ДДС, ДЗ/КЗ, платежи без заказа),
           list_management_statement_imports, list_management_statement_lines, suggest_management_statement_line,
           allocate_management_statement_line (remember_keyword — обучение правила), get_management_accounting_analytics,
           get_management_accounting_insights,
@@ -183,6 +185,7 @@ class CrmServer extends Server
         AllocateManagementStatementLineTool::class,
         GetManagementAccountingAnalyticsTool::class,
         GetManagementAccountingInsightsTool::class,
+        GetCashFlowExecutiveBriefTool::class,
         ListManagementExpenseCategoriesTool::class,
         RememberManagementReconcileRuleTool::class,
         ListManagementReconcileRulesTool::class,

@@ -40,7 +40,7 @@ final class ManagementAccountingInsightsService
 
         $expenseMix = $this->buildExpenseMix($current['rows'], $revenue, $watchlistLimit);
         $planFactWatchlist = $this->buildPlanFactWatchlist($current['rows'], $watchlistLimit);
-        $reconciliation = $this->buildReconciliationHealth($user);
+        $reconciliation = $this->buildReconciliationHealth();
         $periodComparison = $this->buildPeriodComparison($totals, $priorTotals);
         $grossMargin = $this->resolveGrossMarginAmount($current['pivot']['rows'] ?? []);
 
@@ -253,7 +253,7 @@ final class ManagementAccountingInsightsService
     /**
      * @return array<string, mixed>
      */
-    private function buildReconciliationHealth(User $user): array
+    private function buildReconciliationHealth(): array
     {
         if (! Schema::hasTable('management_statement_lines') || ! Schema::hasTable('management_statement_imports')) {
             return [
@@ -264,46 +264,26 @@ final class ManagementAccountingInsightsService
             ];
         }
 
-        $importQuery = ManagementStatementImport::query();
-
-        if (! $user->isAdmin()) {
-            $importQuery->where('imported_by', $user->id);
-        }
-
-        $importIds = $importQuery->pluck('id');
-
+        // У пользователей с доступом к УУ — картина по всей компании (не только свои импорты),
+        // иначе руководитель (boss) не видит выписки бухгалтера.
         $pendingQuery = ManagementStatementLine::query()
             ->where('status', 'pending');
-
-        if ($importIds->isNotEmpty()) {
-            $pendingQuery->whereIn('import_id', $importIds);
-        } elseif (! $user->isAdmin()) {
-            $pendingQuery->whereRaw('1 = 0');
-        }
 
         $pendingLines = (clone $pendingQuery)->count();
         $pendingAmount = (float) (clone $pendingQuery)->sum('amount');
 
         $incompleteImports = ManagementStatementImport::query()
-            ->when(! $user->isAdmin(), fn ($query) => $query->where('imported_by', $user->id))
             ->whereColumn('lines_allocated', '<', 'lines_count')
             ->count();
 
         $lowConfidence = 0;
 
         if (Schema::hasColumn('management_statement_lines', 'match_confidence')) {
-            $lowConfidenceQuery = ManagementStatementLine::query()
+            $lowConfidence = ManagementStatementLine::query()
                 ->where('status', 'pending')
                 ->whereNotNull('match_confidence')
-                ->where('match_confidence', '<', 0.6);
-
-            if ($importIds->isNotEmpty()) {
-                $lowConfidenceQuery->whereIn('import_id', $importIds);
-            } elseif (! $user->isAdmin()) {
-                $lowConfidenceQuery->whereRaw('1 = 0');
-            }
-
-            $lowConfidence = $lowConfidenceQuery->count();
+                ->where('match_confidence', '<', 0.6)
+                ->count();
         }
 
         return [

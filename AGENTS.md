@@ -133,7 +133,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Split: `management_statement_line_splits`, `allocations[]` при разнесении.
 - Справочник статей: `ManagementExpenseCategoryCatalog`, `ManagementExpenseCategorySyncService` (системные + `budget_opex_*`).
 - Правила разнесения: `management_reconcile_rules`, `ManagementReconcileRuleService` — приоритет в матчинге до эвристик.
-- MCP (`/mcp/crm`, домен `finance`): `ManagementAccountingMcpService`, tools `list_management_statement_*`, `suggest_*`, `allocate_*`, `get_management_accounting_analytics`, `*_management_reconcile_rule*`, `list_management_expense_categories`; gate `McpAccessGate::requireManagementAccounting()`.
+- MCP (`/mcp/crm`, домен `finance`): `ManagementAccountingMcpService`, tools `list_management_statement_*`, `suggest_*`, `allocate_*`, `get_management_accounting_analytics`, `get_management_accounting_insights`, `get_cash_flow_executive_brief` (накопленный ДДС + ДЗ/КЗ + платежи без заказа; персона «Финансист»), `*_management_reconcile_rule*`, `list_management_expense_categories`; gate `McpAccessGate::requireManagementAccounting()`.
 - Факт вкладки «Учёт»: разнесённые `management_statement_lines` **+** `payment_schedule_payment_events` (без дублей `mgmt:*`); backfill: `payment-schedules:backfill-payment-events`.
 
 ### Лиды

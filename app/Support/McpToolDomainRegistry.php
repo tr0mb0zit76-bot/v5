@@ -65,6 +65,8 @@ final class McpToolDomainRegistry
         'suggest_management_statement_line' => ['domain' => 'finance', 'cross' => ['orders']],
         'allocate_management_statement_line' => ['domain' => 'finance', 'cross' => ['orders']],
         'get_management_accounting_analytics' => ['domain' => 'finance', 'cross' => ['analytics']],
+        'get_management_accounting_insights' => ['domain' => 'finance', 'cross' => ['analytics']],
+        'get_cash_flow_executive_brief' => ['domain' => 'finance', 'cross' => ['analytics', 'orders']],
         'list_management_expense_categories' => ['domain' => 'finance', 'cross' => []],
         'remember_management_reconcile_rule' => ['domain' => 'finance', 'cross' => ['orders']],
         'list_management_reconcile_rules' => ['domain' => 'finance', 'cross' => []],

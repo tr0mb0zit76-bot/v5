@@ -3,7 +3,28 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-17 14:00 · **Ветка:** `master` · **тема:** закрывающие ИП без НДС + УУ split-матч
+**Обновлено:** 2026-09-17 19:00 · **Ветка:** `master` · **тема:** CFO-бриф кассы для Финансиста (boss)
+
+### Итог сессии 2026-09-17 (вечер) — get_cash_flow_executive_brief
+
+| Блок | Статус |
+| --- | --- |
+| `CashFlowExecutiveBriefService` — ДДС/месяцы/топ/структура/ДЗ/КЗ/без order/pending | ✅ |
+| MCP + command bar tool `get_cash_flow_executive_brief` | ✅ |
+| Персона «Финансист» + system hint: сначала этот tool | ✅ |
+| Pending УУ: MA-пользователи видят все импорты (не только свои) | ✅ |
+| PHPUnit `CashFlowExecutiveBriefServiceTest` | ✅ 3 теста |
+| DOCX анализ: `docs/DDS-CFO-analiz-2026-09-17.docx` | ✅ (локально) |
+| **Прод / commit** | ❌ не деплоили, не коммитили |
+
+**Как пользоваться (boss):** command bar → агент **Финансист** → «сколько свободных денег / куда ушли / дебиторка».  
+Конфиг даты старта: `config/management_accounting.php` → `executive_brief_default_from` (2026-05-22).
+
+**Следующий шаг:** commit + deploy на прод; smoke под boss.
+
+---
+
+**Обновлено (архив):** 2026-09-17 14:00 · **Ветка:** `master` · **тема:** закрывающие ИП без НДС + УУ split-матч
 
 ### Итог сессии 2026-09-17 — commit + deploy
 
