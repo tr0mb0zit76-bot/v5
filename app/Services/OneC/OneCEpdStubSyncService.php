@@ -482,6 +482,7 @@ final class OneCEpdStubSyncService
             'parties' => $payload['parties'] ?? null,
             'counterparty' => $payload['counterparty'] ?? null,
             'route_points' => $payload['route_points'] ?? null,
+            'route' => $payload['route'] ?? null,
             'cargo' => $payload['cargo'] ?? null,
             'driver' => $payload['driver'] ?? null,
             'vehicle' => $payload['vehicle'] ?? null,

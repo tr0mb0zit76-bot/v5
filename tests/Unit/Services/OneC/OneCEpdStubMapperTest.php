@@ -44,14 +44,30 @@ class OneCEpdStubMapperTest extends TestCase
         $order->setRelation('routePoints', collect([
             (object) [
                 'type' => 'loading',
-                'address' => 'Саратов',
+                'address' => 'Саратовская обл, г Красноармейск',
+                'normalized_data' => [
+                    'region' => 'Саратовская обл',
+                    'city' => 'Красноармейск',
+                    'street' => null,
+                    'house' => null,
+                    'flat' => null,
+                    'postal_code' => '412800',
+                ],
                 'planned_date' => Carbon::parse('2026-08-11'),
                 'planned_time_from' => null,
                 'planned_time_to' => null,
             ],
             (object) [
                 'type' => 'unloading',
-                'address' => 'Волгоград',
+                'address' => 'Волгоградская обл, г Котельниково, ул Мира, д 5',
+                'normalized_data' => [
+                    'region' => 'Волгоградская обл',
+                    'city' => 'Котельниково',
+                    'street' => 'ул Мира',
+                    'house' => '5',
+                    'flat' => 'офис 2',
+                    'postal_code' => '404354',
+                ],
                 'planned_date' => Carbon::parse('2026-08-12'),
                 'planned_time_from' => null,
                 'planned_time_to' => null,
@@ -75,9 +91,18 @@ class OneCEpdStubMapperTest extends TestCase
         $this->assertSame('+79001112233', $payload['counterparty']['phone']);
         $this->assertSame('+79004445566', $payload['parties']['carrier']['phone']);
         $this->assertSame('ООО Перевоз', $payload['parties']['carrier']['name']);
+        $this->assertSame('Саратовская обл', $payload['route']['loading']['region']);
+        $this->assertSame('Красноармейск', $payload['route']['loading']['city']);
+        $this->assertSame('412800', $payload['route']['loading']['postal_code']);
+        $this->assertSame('Волгоградская обл', $payload['route']['unloading']['region']);
+        $this->assertSame('Котельниково', $payload['route']['unloading']['city']);
+        $this->assertSame('ул Мира', $payload['route']['unloading']['street']);
+        $this->assertSame('5', $payload['route']['unloading']['house']);
+        $this->assertSame('офис 2', $payload['route']['unloading']['flat']);
+        $this->assertSame('404354', $payload['route']['unloading']['postal_code']);
         $this->assertStringContainsString('CRM EPD-1 (id 501)', $payload['odata_stub']['Комментарий']);
-        $this->assertStringContainsString('погр: Саратов 2026-08-11', $payload['odata_stub']['Комментарий']);
-        $this->assertStringContainsString('выгр: Волгоград 2026-08-12', $payload['odata_stub']['Комментарий']);
+        $this->assertStringContainsString('погр: Саратовская обл, г Красноармейск 2026-08-11', $payload['odata_stub']['Комментарий']);
+        $this->assertStringContainsString('выгр: Волгоградская обл, г Котельниково, ул Мира, д 5 2026-08-12', $payload['odata_stub']['Комментарий']);
         $this->assertStringContainsString('груз: каток 14000кг', $payload['odata_stub']['Комментарий']);
         $this->assertLessThanOrEqual(250, mb_strlen((string) $payload['odata_stub']['Комментарий']));
         $this->assertSame('EPD-1', $payload['odata_stub']['ТитулГрузоотправителяТранспортнаяНакладнаяНомер']);

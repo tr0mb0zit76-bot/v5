@@ -7,6 +7,7 @@ namespace App\Services\OneC;
 use App\Models\Order;
 use App\Models\OrderOneCDocument;
 use App\Models\User;
+use App\Support\OneCRoutePointAddressFields;
 use App\Support\OrderFleetTransportDetailsResolver;
 use Illuminate\Validation\ValidationException;
 
@@ -90,6 +91,13 @@ final class OneCEpdStubMapper
             ? $order->routePoints
             : $order->legs->flatMap(fn ($leg) => $leg->routePoints)->values();
 
+        $loadingPoint = $routePoints->first(
+            static fn ($point): bool => (string) ($point->type ?? '') === 'loading',
+        );
+        $unloadingPoint = $routePoints->filter(
+            static fn ($point): bool => (string) ($point->type ?? '') === 'unloading',
+        )->last();
+
         $customerPhone = $this->firstPhone(
             $client->phone ?? null,
             $client->contact_person_phone ?? null,
@@ -116,13 +124,13 @@ final class OneCEpdStubMapper
                 'name' => $client->name !== null ? (string) $client->name : null,
                 'phone' => $customerPhone,
             ],
-            'route_points' => $routePoints->map(static fn ($point): array => [
-                'type' => $point->type,
-                'address' => $point->address,
-                'planned_date' => optional($point->planned_date)?->toDateString(),
-                'planned_time_from' => $point->planned_time_from,
-                'planned_time_to' => $point->planned_time_to,
-            ])->values()->all(),
+            'route_points' => $routePoints->map(
+                fn ($point): array => $this->mapRoutePoint($point),
+            )->values()->all(),
+            'route' => [
+                'loading' => $loadingPoint !== null ? $this->mapRoutePoint($loadingPoint) : null,
+                'unloading' => $unloadingPoint !== null ? $this->mapRoutePoint($unloadingPoint) : null,
+            ],
             'cargo' => $order->relationLoaded('cargoItems')
                 ? $order->cargoItems->map(static fn ($cargo): array => [
                     'title' => $cargo->title,
@@ -170,6 +178,43 @@ final class OneCEpdStubMapper
         $payload['odata_stub'] = $odataStub;
 
         return $payload;
+    }
+
+    /**
+     * @param  object|array<string, mixed>  $point
+     * @return array{
+     *     type: mixed,
+     *     address: ?string,
+     *     region: ?string,
+     *     city: ?string,
+     *     street: ?string,
+     *     house: ?string,
+     *     flat: ?string,
+     *     postal_code: ?string,
+     *     planned_date: ?string,
+     *     planned_time_from: mixed,
+     *     planned_time_to: mixed
+     * }
+     */
+    private function mapRoutePoint(object|array $point): array
+    {
+        $type = is_array($point) ? ($point['type'] ?? null) : ($point->type ?? null);
+        $plannedDate = is_array($point) ? ($point['planned_date'] ?? null) : ($point->planned_date ?? null);
+        $plannedTimeFrom = is_array($point) ? ($point['planned_time_from'] ?? null) : ($point->planned_time_from ?? null);
+        $plannedTimeTo = is_array($point) ? ($point['planned_time_to'] ?? null) : ($point->planned_time_to ?? null);
+
+        if ($plannedDate instanceof \DateTimeInterface) {
+            $plannedDate = $plannedDate->format('Y-m-d');
+        } elseif ($plannedDate !== null) {
+            $plannedDate = (string) $plannedDate;
+        }
+
+        return array_merge(OneCRoutePointAddressFields::fromRoutePoint($point), [
+            'type' => $type,
+            'planned_date' => $plannedDate,
+            'planned_time_from' => $plannedTimeFrom,
+            'planned_time_to' => $plannedTimeTo,
+        ]);
     }
 
     /**

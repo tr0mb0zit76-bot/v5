@@ -3749,6 +3749,8 @@ function selectAddress(index, suggestion) {
         region: suggestion.data?.region_with_type ?? suggestion.data?.region ?? existing.region ?? null,
         street: suggestion.data?.street_with_type ?? suggestion.data?.street ?? existing.street ?? null,
         house: suggestion.data?.house ?? existing.house ?? null,
+        flat: suggestion.data?.flat ?? existing.flat ?? null,
+        postal_code: suggestion.data?.postal_code ?? existing.postal_code ?? null,
         coordinates: {
             lat: suggestion.data?.geo_lat ?? existing.coordinates?.lat ?? null,
             lng: suggestion.data?.geo_lon ?? existing.coordinates?.lng ?? null,
