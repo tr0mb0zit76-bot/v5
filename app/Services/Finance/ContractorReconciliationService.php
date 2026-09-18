@@ -78,7 +78,7 @@ class ContractorReconciliationService
 
         $orderIds = $orders->pluck('id')->map(fn ($id): int => (int) $id)->all();
         $paidByOrder = $this->paidAmountsByOrder($orderIds, 'customer', $contractorId, $from, $to);
-        $tranchesByOrder = $this->tranchesByOrder($orderIds, 'customer', $contractorId, $from, $to);
+        $tranchesByOrder = $this->tranchesByOrder($orderIds, 'customer', $contractorId, $from, $to, $user);
 
         $rows = $orders->map(function (Order $order) use ($paidByOrder, $tranchesByOrder): array {
             $orderRate = $this->resolveCustomerAccrued($order);
@@ -137,7 +137,7 @@ class ContractorReconciliationService
             }
 
             $paid = $this->paidAmountForOrder((int) $order->id, $counterpartyParty, $contractorId, $from, $to);
-            $tranches = $this->tranchesForOrder((int) $order->id, $counterpartyParty, $contractorId, $from, $to);
+            $tranches = $this->tranchesForOrder((int) $order->id, $counterpartyParty, $contractorId, $from, $to, $user);
 
             $rows[] = $this->enrichReconciliationRow([
                 'order_id' => $order->id,
@@ -225,11 +225,12 @@ class ContractorReconciliationService
         int $contractorId,
         ?Carbon $from,
         ?Carbon $to,
+        ?User $user = null,
     ): array {
         $result = [];
 
         foreach ($orderIds as $orderId) {
-            $tranches = $this->tranchesForOrder((int) $orderId, $party, $contractorId, $from, $to);
+            $tranches = $this->tranchesForOrder((int) $orderId, $party, $contractorId, $from, $to, $user);
 
             if ($tranches !== []) {
                 $result[(int) $orderId] = $tranches;
@@ -248,6 +249,7 @@ class ContractorReconciliationService
         int $contractorId,
         ?Carbon $from,
         ?Carbon $to,
+        ?User $user = null,
     ): array {
         if (! Schema::hasTable('payment_schedules')) {
             return [];
@@ -287,7 +289,7 @@ class ContractorReconciliationService
         }
 
         $scheduleIds = $schedules->pluck('id')->map(fn ($id): int => (int) $id)->all();
-        $paymentsBySchedule = $this->paymentsByScheduleIds($scheduleIds, $contractorId, $from, $to);
+        $paymentsBySchedule = $this->paymentsByScheduleIds($scheduleIds, $contractorId, $from, $to, $user);
 
         return $schedules
             ->map(function ($schedule) use ($paymentsBySchedule): array {
@@ -323,6 +325,7 @@ class ContractorReconciliationService
         int $contractorId,
         ?Carbon $from,
         ?Carbon $to,
+        ?User $user = null,
     ): array {
         if ($scheduleIds === [] || ! $this->ledgerService->ledgerTableExists()) {
             return [];
@@ -341,6 +344,7 @@ class ContractorReconciliationService
             $query->whereDate('payment_date', '<=', $to->toDateString());
         }
 
+        $includeStatementLine = RoleAccess::canManageStatementImport($user);
         $grouped = [];
 
         foreach ($query->orderBy('payment_date')->orderBy('id')->get() as $event) {
@@ -351,9 +355,11 @@ class ContractorReconciliationService
                 'amount' => round((float) $event->amount, 2),
                 'reference' => $event->transaction_reference,
                 'method' => $event->payment_method,
-                'statement_line' => $this->statementLineLinkFromReference(
-                    is_string($event->transaction_reference) ? $event->transaction_reference : null,
-                ),
+                'statement_line' => $includeStatementLine
+                    ? $this->statementLineLinkFromReference(
+                        is_string($event->transaction_reference) ? $event->transaction_reference : null,
+                    )
+                    : null,
             ];
         }
 

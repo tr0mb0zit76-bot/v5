@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\Contractor;
 use App\Models\ManagementStatementImport;
+use App\Models\Role;
 use App\Models\User;
 use App\Services\Finance\ContractorReconciliationService;
 use App\Services\Finance\PaymentSchedulePaymentLedgerService;
@@ -347,8 +348,23 @@ class ContractorReconciliationServiceTest extends TestCase
             'updated_at' => now(),
         ]);
 
+        $financeRole = Role::query()->create([
+            'name' => 'admin',
+            'display_name' => 'Admin',
+            'visibility_areas' => ['documents', 'payment_schedules', 'finance_payment_reconcile'],
+        ]);
+
+        $financeUser = User::query()->create([
+            'role_id' => $financeRole->id,
+            'name' => 'Finance Link',
+            'email' => 'finance-link-'.uniqid('', true).'@example.com',
+            'email_verified_at' => now(),
+            'password' => bcrypt('password'),
+            'can_management_accounting' => true,
+        ]);
+
         $report = (new ContractorReconciliationService(new PaymentSchedulePaymentLedgerService))
-            ->build($contractor->id, null, null, null);
+            ->build($contractor->id, null, null, $financeUser);
 
         $payment = $report['as_customer']['rows'][0]['tranches'][0]['payments'][0];
         $this->assertIsArray($payment['statement_line']);
@@ -357,5 +373,93 @@ class ContractorReconciliationServiceTest extends TestCase
         $this->assertNotEmpty($payment['statement_line']['url']);
         $this->assertStringContainsString('focus_line='.$line->id, $payment['statement_line']['url']);
         $this->assertStringContainsString('ООО Со ссылкой', (string) $payment['statement_line']['label']);
+    }
+
+    public function test_mgmt_statement_line_link_hidden_without_reconcile_access(): void
+    {
+        if (! Schema::hasTable('management_statement_lines') || ! Schema::hasTable('management_statement_imports')) {
+            $this->markTestSkipped('management statement tables missing');
+        }
+
+        $contractor = Contractor::query()->create([
+            'name' => 'ООО Без ссылки',
+            'type' => 'customer',
+        ]);
+
+        $orderId = $this->insertOrderRow([
+            'customer_id' => $contractor->id,
+            'order_number' => 'АС-2609-NOLINK',
+            'order_date' => '2026-09-01',
+            'customer_rate' => 50000,
+        ]);
+
+        $scheduleId = (int) DB::table('payment_schedules')->insertGetId([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 50000,
+            'paid_amount' => 50000,
+            'remaining_amount' => 0,
+            'planned_date' => '2026-09-10',
+            'status' => 'paid',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $bank = $this->createManagementBankAccount();
+        $importer = User::factory()->create();
+        $import = ManagementStatementImport::query()->create([
+            'bank_account_id' => $bank->id,
+            'file_name' => 'nolink.xlsx',
+            'imported_by' => $importer->id,
+            'lines_count' => 1,
+            'lines_allocated' => 1,
+        ]);
+        $line = $this->createManagementStatementLine([
+            'import_id' => $import->id,
+            'bank_account_id' => $bank->id,
+            'direction' => 'in',
+            'amount' => 50000,
+            'description' => 'ООО Без ссылки / Секретная выписка',
+            'status' => 'allocated',
+        ]);
+
+        DB::table('payment_schedule_payment_events')->insert([
+            'payment_schedule_id' => $scheduleId,
+            'order_id' => $orderId,
+            'contractor_id' => $contractor->id,
+            'party' => 'customer',
+            'amount' => 50000,
+            'payment_date' => '2026-09-11',
+            'transaction_reference' => 'mgmt:'.$line->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $managerRole = Role::query()->create([
+            'name' => 'manager',
+            'display_name' => 'Manager',
+            'visibility_areas' => ['documents', 'payment_schedules', 'contractors'],
+            'visibility_scopes' => [
+                'contractors' => 'all',
+                'payment_schedules' => 'all',
+            ],
+        ]);
+
+        $manager = User::query()->create([
+            'role_id' => $managerRole->id,
+            'name' => 'Manager No Link',
+            'email' => 'manager-nolink-'.uniqid('', true).'@example.com',
+            'email_verified_at' => now(),
+            'password' => bcrypt('password'),
+            'can_management_accounting' => false,
+        ]);
+
+        $report = (new ContractorReconciliationService(new PaymentSchedulePaymentLedgerService))
+            ->build($contractor->id, null, null, $manager);
+
+        $payment = $report['as_customer']['rows'][0]['tranches'][0]['payments'][0];
+        $this->assertNull($payment['statement_line']);
+        $this->assertSame('mgmt:'.$line->id, $payment['reference']);
     }
 }
