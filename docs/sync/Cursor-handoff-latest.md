@@ -3,7 +3,24 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-17 19:05 · **Ветка:** `master` · **HEAD:** `82c702dd` · **тема:** CFO-бриф кассы для Финансиста (boss)
+**Обновлено:** 2026-09-18 10:25 · **Ветка:** `master` · **HEAD:** `f21bf326` · **тема:** harden УУ matching + ссылка из акта на строку выписки
+
+### Итог сессии 2026-09-18 — разноска / Генке / ссылки
+
+| Блок | Статус |
+| --- | --- |
+| Прод: снять ошибочную разноску ГРОСС→заказ 217 (#780) | ✅ затем категория «своя компания» (cat 23) |
+| Почему Генке не авто-разносился: токен «Александр» матчил всех ИП | ✅ уже на заказе **173** (PS 35128) |
+| Matcher: weak first names; own-company → category; amount-only без auto PS | ✅ |
+| Акт сверки: клик `mgmt:N` → `/imports/{id}?focus_line=N&filter=all` | ✅ |
+| PHPUnit matching + reconciliation link | ✅ |
+| **Commit + push** `f21bf326` · **прод** pull + `npm run build` | ✅ |
+
+**Следующий шаг:** smoke акт сверки — клик по `mgmt:…` открывает строку УУ с подсветкой.
+
+---
+
+**Обновлено (архив):** 2026-09-17 19:05 · **Ветка:** `master` · **HEAD:** `82c702dd` · **тема:** CFO-бриф кассы для Финансиста (boss)
 
 ### Итог сессии 2026-09-17 (вечер) — get_cash_flow_executive_brief
 
