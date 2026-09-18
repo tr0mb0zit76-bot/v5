@@ -1360,6 +1360,182 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $this->assertNull($suggestion['suggested_payment_schedule_id']);
     }
 
+    public function test_first_name_token_does_not_scatter_match_across_same_named_individuals(): void
+    {
+        $genke = Contractor::query()->create([
+            'name' => 'ИП Генке Александр Юрьевич',
+            'full_name' => 'Индивидуальный предприниматель Генке Александр Юрьевич',
+        ]);
+        $smirnov = Contractor::query()->create([
+            'name' => 'ИП Смирнов Александр Васильевич',
+        ]);
+        $petrov = Contractor::query()->create([
+            'name' => 'ИП Петров Александр Иванович',
+        ]);
+
+        $genkeOrder = Order::query()->create([
+            'order_number' => 'АС-2608-0173',
+            'carrier_id' => $genke->id,
+        ]);
+        $smirnovOrder = Order::query()->create([
+            'order_number' => 'АС-2608-0217',
+            'carrier_id' => $smirnov->id,
+        ]);
+        $petrovOrder = Order::query()->create([
+            'order_number' => 'АС-2608-0223',
+            'carrier_id' => $petrov->id,
+        ]);
+
+        $genkeSchedule = PaymentSchedule::query()->create([
+            'order_id' => $genkeOrder->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 85000,
+            'remaining_amount' => 85000,
+            'status' => 'pending',
+            'counterparty_id' => $genke->id,
+            'invoice_number' => '121',
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $smirnovOrder->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 85000,
+            'remaining_amount' => 85000,
+            'status' => 'pending',
+            'counterparty_id' => $smirnov->id,
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $petrovOrder->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 85000,
+            'remaining_amount' => 85000,
+            'status' => 'pending',
+            'counterparty_id' => $petrov->id,
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-09-01',
+            'direction' => 'out',
+            'amount' => 85000,
+            'description' => 'ГЕНКЕ АЛЕКСАНДР ЮРЬЕВИЧ ИП / оплата по счету 121 от 31.08.2026 за транспортные услуги. НДС не облагается.',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertSame($genkeOrder->id, $suggestion['suggested_order_id']);
+        $this->assertSame($genkeSchedule->id, $suggestion['suggested_payment_schedule_id']);
+        $this->assertGreaterThanOrEqual(80, (int) $suggestion['match_confidence']);
+
+        $candidateOrderIds = array_column($suggestion['suggested_candidates'], 'order_id');
+        $this->assertContains($genkeOrder->id, $candidateOrderIds);
+        $this->assertNotContains($smirnovOrder->id, $candidateOrderIds);
+        $this->assertNotContains($petrovOrder->id, $candidateOrderIds);
+    }
+
+    public function test_own_company_counterparty_is_category_not_carrier_by_amount(): void
+    {
+        ManagementExpenseCategory::query()->firstOrCreate(
+            ['code' => 'budget_opex_6'],
+            [
+                'name' => 'Внутригрупповые переводы',
+                'kind' => 'expense',
+                'flow' => 'out',
+                'is_active' => true,
+                'is_system' => true,
+                'sort_order' => 60,
+            ],
+        );
+
+        $own = Contractor::query()->create([
+            'name' => 'ООО ГРОСС',
+            'full_name' => 'Общество с ограниченной ответственностью ГРОСС',
+            'is_own_company' => true,
+        ]);
+
+        $carrier = Contractor::query()->create([
+            'name' => 'ИП Смирнов Алексей',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-2608-0217',
+            'carrier_id' => $carrier->id,
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 35230,
+            'remaining_amount' => 35230,
+            'status' => 'pending',
+            'counterparty_id' => $carrier->id,
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-09-02',
+            'direction' => 'out',
+            'amount' => 35230,
+            'description' => 'ГРОСС ООО / Перевод собственных средств. НДС не облагается.',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('category', $suggestion['match_type']);
+        $this->assertNull($suggestion['suggested_payment_schedule_id']);
+        $this->assertNull($suggestion['suggested_order_id']);
+        $this->assertStringContainsString('своя компания', (string) $suggestion['match_notes']);
+        $this->assertSame(
+            ManagementExpenseCategory::query()->where('code', 'budget_opex_6')->value('id'),
+            $suggestion['suggested_category_id'],
+        );
+        // own company fixture must exist for matcher
+        $this->assertTrue((bool) $own->is_own_company);
+    }
+
+    public function test_amount_only_unique_match_does_not_auto_suggest_schedule(): void
+    {
+        $customer = Contractor::query()->create([
+            'name' => 'ООО БезымянныйПлательщик',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-2609-0001',
+            'customer_id' => $customer->id,
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 777777,
+            'remaining_amount' => 777777,
+            'paid_amount' => 0,
+            'status' => 'pending',
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-09-03',
+            'direction' => 'in',
+            'amount' => 777777,
+            'description' => 'Поступление по договору транспортных услуг без указания плательщика',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertNull($suggestion['suggested_payment_schedule_id']);
+        $this->assertNull($suggestion['suggested_order_id']);
+        $this->assertSame(45, (int) $suggestion['match_confidence']);
+        $this->assertStringContainsString('только по сумме', (string) $suggestion['match_notes']);
+        $this->assertNotEmpty($suggestion['suggested_candidates']);
+        $this->assertSame($schedule->id, $suggestion['suggested_candidates'][0]['payment_schedule_id']);
+    }
+
     public function test_suggests_split_when_payment_closes_entire_contractor_open_debt(): void
     {
         $customer = Contractor::query()->create([

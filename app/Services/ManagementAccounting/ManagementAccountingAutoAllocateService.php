@@ -32,7 +32,10 @@ final class ManagementAccountingAutoAllocateService
         $notes = (string) ($line->match_notes ?? '');
         $ambiguousManual = str_contains($notes, 'Несколько заявок')
             || str_contains($notes, 'выберите строку графика')
-            || str_contains($notes, 'выберите split вручную');
+            || str_contains($notes, 'выберите split вручную')
+            || str_contains($notes, 'только по сумме')
+            || str_contains($notes, 'своей компании')
+            || str_contains($notes, 'своя компания');
 
         $suggestion = $this->matching->suggestForLine($line);
         $allocations = $suggestion['suggested_allocations'] ?? null;

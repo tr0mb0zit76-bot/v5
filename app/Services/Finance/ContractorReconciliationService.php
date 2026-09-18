@@ -3,6 +3,7 @@
 namespace App\Services\Finance;
 
 use App\Models\Contractor;
+use App\Models\ManagementStatementLine;
 use App\Models\Order;
 use App\Models\PaymentSchedulePaymentEvent;
 use App\Models\User;
@@ -350,6 +351,9 @@ class ContractorReconciliationService
                 'amount' => round((float) $event->amount, 2),
                 'reference' => $event->transaction_reference,
                 'method' => $event->payment_method,
+                'statement_line' => $this->statementLineLinkFromReference(
+                    is_string($event->transaction_reference) ? $event->transaction_reference : null,
+                ),
             ];
         }
 
@@ -626,6 +630,54 @@ class ContractorReconciliationService
         }
 
         return trim((string) ($contractor->full_name ?? '')) ?: 'Контрагент #'.$contractor->id;
+    }
+
+    private function statementLineLinkFromReference(?string $reference): ?array
+    {
+        if ($reference === null || $reference === '') {
+            return null;
+        }
+
+        if (preg_match('/^mgmt:(\d+)/', $reference, $matches) !== 1) {
+            return null;
+        }
+
+        $lineId = (int) $matches[1];
+        if ($lineId <= 0 || ! Schema::hasTable('management_statement_lines')) {
+            return null;
+        }
+
+        $line = ManagementStatementLine::query()
+            ->select(['id', 'import_id', 'description'])
+            ->find($lineId);
+
+        if ($line === null) {
+            return [
+                'id' => $lineId,
+                'import_id' => null,
+                'url' => null,
+                'bank_counterparty' => null,
+                'label' => 'mgmt:'.$lineId,
+            ];
+        }
+
+        $head = trim((string) preg_split('/\s*\/\s*/u', (string) $line->description, 2)[0]);
+        $importId = $line->import_id !== null ? (int) $line->import_id : null;
+        $url = $importId !== null
+            ? route('finance.management-accounting.imports.show', [
+                'import' => $importId,
+                'focus_line' => $lineId,
+                'filter' => 'all',
+            ])
+            : null;
+
+        return [
+            'id' => $lineId,
+            'import_id' => $importId,
+            'url' => $url,
+            'bank_counterparty' => $head !== '' ? $head : null,
+            'label' => 'mgmt:'.$lineId.($head !== '' ? ' · '.$head : ''),
+        ];
     }
 
     /**

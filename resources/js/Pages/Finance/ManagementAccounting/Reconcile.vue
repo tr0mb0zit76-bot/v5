@@ -65,8 +65,14 @@
                     <tbody>
                         <template v-for="line in filteredLines" :key="line.id">
                             <tr
+                                :id="`ma-line-${line.id}`"
                                 class="border-b border-zinc-100 dark:border-zinc-800"
-                                :class="line.status === 'allocated' ? 'bg-emerald-50/40 dark:bg-emerald-950/15' : ''"
+                                :class="[
+                                    line.status === 'allocated' ? 'bg-emerald-50/40 dark:bg-emerald-950/15' : '',
+                                    Number(props.filters?.focus_line) === Number(line.id)
+                                        ? 'ring-2 ring-inset ring-sky-400 dark:ring-sky-500'
+                                        : '',
+                                ]"
                             >
                                 <td class="whitespace-nowrap px-4 py-2.5 tabular-nums text-zinc-500">
                                     {{ formatDate(line.operation_date) }}
@@ -471,6 +477,13 @@ onMounted(() => {
         if (line.needs_manual_selection && (line.contractor_search_hint || line.direction === 'in')) {
             searchCandidates(line);
         }
+    }
+
+    const focusId = Number(props.filters?.focus_line || 0);
+    if (focusId > 0) {
+        requestAnimationFrame(() => {
+            document.getElementById(`ma-line-${focusId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
     }
 });
 

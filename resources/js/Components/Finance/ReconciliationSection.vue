@@ -118,7 +118,17 @@
                                                     class="text-zinc-600 dark:text-zinc-300"
                                                 >
                                                     {{ formatDate(payment.date) }} — {{ formatMoney(payment.amount) }}
-                                                    <span v-if="payment.reference" class="text-zinc-500 dark:text-zinc-400">
+                                                    <template v-if="payment.statement_line?.url">
+                                                        ·
+                                                        <a
+                                                            :href="payment.statement_line.url"
+                                                            class="font-medium text-sky-700 underline decoration-sky-300 underline-offset-2 hover:decoration-sky-700 dark:text-sky-300 dark:decoration-sky-700"
+                                                            :title="payment.statement_line.bank_counterparty || payment.statement_line.label"
+                                                        >
+                                                            {{ payment.statement_line.label || payment.reference }}
+                                                        </a>
+                                                    </template>
+                                                    <span v-else-if="payment.reference" class="text-zinc-500 dark:text-zinc-400">
                                                         ({{ payment.reference }})
                                                     </span>
                                                 </li>

@@ -3,6 +3,8 @@
 namespace Tests\Unit;
 
 use App\Models\Contractor;
+use App\Models\ManagementStatementImport;
+use App\Models\User;
 use App\Services\Finance\ContractorReconciliationService;
 use App\Services\Finance\PaymentSchedulePaymentLedgerService;
 use Illuminate\Support\Facades\DB;
@@ -282,5 +284,78 @@ class ContractorReconciliationServiceTest extends TestCase
         $this->assertSame(50000.0, $row['balance']);
         $this->assertSame('receivable', $row['balance_status']);
         $this->assertSame('Долг', $row['balance_label']);
+    }
+
+    public function test_mgmt_payment_exposes_statement_line_link(): void
+    {
+        if (! Schema::hasTable('management_statement_lines') || ! Schema::hasTable('management_statement_imports')) {
+            $this->markTestSkipped('management statement tables missing');
+        }
+
+        $contractor = Contractor::query()->create([
+            'name' => 'ООО Со ссылкой',
+            'type' => 'customer',
+        ]);
+
+        $orderId = $this->insertOrderRow([
+            'customer_id' => $contractor->id,
+            'order_number' => 'АС-2609-LINK',
+            'order_date' => '2026-09-01',
+            'customer_rate' => 100000,
+        ]);
+
+        $scheduleId = (int) DB::table('payment_schedules')->insertGetId([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 100000,
+            'paid_amount' => 100000,
+            'remaining_amount' => 0,
+            'planned_date' => '2026-09-10',
+            'status' => 'paid',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $bank = $this->createManagementBankAccount();
+        $importer = User::factory()->create();
+        $import = ManagementStatementImport::query()->create([
+            'bank_account_id' => $bank->id,
+            'file_name' => 'link.xlsx',
+            'imported_by' => $importer->id,
+            'lines_count' => 1,
+            'lines_allocated' => 1,
+        ]);
+        $line = $this->createManagementStatementLine([
+            'import_id' => $import->id,
+            'bank_account_id' => $bank->id,
+            'direction' => 'in',
+            'amount' => 100000,
+            'description' => 'ООО Со ссылкой / Оплата по счёту 1',
+            'status' => 'allocated',
+        ]);
+
+        DB::table('payment_schedule_payment_events')->insert([
+            'payment_schedule_id' => $scheduleId,
+            'order_id' => $orderId,
+            'contractor_id' => $contractor->id,
+            'party' => 'customer',
+            'amount' => 100000,
+            'payment_date' => '2026-09-11',
+            'transaction_reference' => 'mgmt:'.$line->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $report = (new ContractorReconciliationService(new PaymentSchedulePaymentLedgerService))
+            ->build($contractor->id, null, null, null);
+
+        $payment = $report['as_customer']['rows'][0]['tranches'][0]['payments'][0];
+        $this->assertIsArray($payment['statement_line']);
+        $this->assertSame($line->id, $payment['statement_line']['id']);
+        $this->assertSame($import->id, $payment['statement_line']['import_id']);
+        $this->assertNotEmpty($payment['statement_line']['url']);
+        $this->assertStringContainsString('focus_line='.$line->id, $payment['statement_line']['url']);
+        $this->assertStringContainsString('ООО Со ссылкой', (string) $payment['statement_line']['label']);
     }
 }

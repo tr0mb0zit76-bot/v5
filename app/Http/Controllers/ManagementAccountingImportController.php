@@ -198,6 +198,9 @@ class ManagementAccountingImportController extends Controller
                 'line_filter' => in_array($request->query('filter'), ['pending', 'allocated', 'all'], true)
                     ? $request->string('filter')->toString()
                     : null,
+                'focus_line' => $request->integer('focus_line') > 0
+                    ? $request->integer('focus_line')
+                    : null,
             ],
         ]);
     }

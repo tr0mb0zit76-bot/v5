@@ -71,6 +71,11 @@ class ManagementAccountingMatchingService
             // Операционное правило без строки графика — не блокируем эвристики контрагента/суммы.
         }
 
+        $ownCompanyTransfer = $this->matchOwnCompanyTransfer($description, $direction);
+        if ($ownCompanyTransfer !== null) {
+            return $ownCompanyTransfer;
+        }
+
         $operationalByOrder = $this->matchOperationalByOrderNumber($description, $direction, $amount, $operationDate);
         if ($operationalByOrder !== null) {
             return $operationalByOrder;
@@ -109,12 +114,31 @@ class ManagementAccountingMatchingService
 
             if ($manualCandidates !== []) {
                 $picked = $this->pickUniqueOperationalCandidate($manualCandidates, $amount) ?? [];
+                $strongMatch = $this->isStrongOperationalMatchReason($picked['match_reason'] ?? null);
+                $amountOnlyWeak = (($picked['match_reason'] ?? null) === 'amount_only')
+                    || (($picked['pick_reason'] ?? null) === 'exact_amount' && ! $strongMatch);
+
+                // Совпадение только по сумме (без контрагента/счёта) — только подсказка, без авторазноса.
+                if ($amountOnlyWeak) {
+                    return [
+                        'match_type' => 'operational',
+                        'match_confidence' => 45,
+                        'match_notes' => 'Совпадение только по сумме — подтвердите контрагента вручную',
+                        'suggested_order_id' => null,
+                        'suggested_payment_schedule_id' => null,
+                        'suggested_category_id' => $direction === 'in'
+                            ? $this->defaultCategoryId('operational_customer_in')
+                            : $this->defaultCategoryId('operational_carrier_out'),
+                        'suggested_user_id' => null,
+                        'suggested_candidates' => $manualCandidates,
+                    ];
+                }
 
                 return [
                     'match_type' => 'operational',
                     'match_confidence' => match ($picked['pick_reason'] ?? null) {
-                        'single' => 55,
-                        'exact_amount', 'same_order' => 70,
+                        'single' => $strongMatch ? 82 : 55,
+                        'exact_amount', 'same_order' => $strongMatch ? 78 : 55,
                         default => 45,
                     },
                     'match_notes' => match ($picked['pick_reason'] ?? null) {
@@ -1545,7 +1569,111 @@ class ManagementAccountingMatchingService
     {
         $token = mb_strtolower(trim($token));
 
-        return preg_match('/(?:ович|евич|овна|евна|ична|инична)$/u', $token) === 1;
+        if ($token === '') {
+            return true;
+        }
+
+        // Отчества.
+        if (preg_match('/(?:ович|евич|овна|евна|ична|инична)$/u', $token) === 1) {
+            return true;
+        }
+
+        // Частые имена: иначе «Александр» матчит всех ИП Александров* и ломает авторазнос.
+        static $firstNames = [
+            'александр', 'алексей', 'дмитрий', 'сергей', 'андрей', 'михаил', 'николай', 'владимир',
+            'евгений', 'игорь', 'павел', 'роман', 'иван', 'максим', 'артём', 'артем', 'кирилл',
+            'денис', 'олег', 'юрий', 'виктор', 'василий', 'константин', 'анатолий', 'геннадий',
+            'вячеслав', 'валерий', 'борис', 'глеб', 'тимур', 'руслан', 'эдуард', 'леонид',
+            'степан', 'федор', 'фёдор', 'ярослав', 'даниил', 'данил', 'матвей', 'егор', 'никита',
+            'алина', 'елена', 'ольга', 'наталья', 'татьяна', 'мария', 'анна', 'ирина', 'екатерина',
+            'светлана', 'юлия', 'галина', 'людмила', 'вера', 'надежда', 'любовь', 'дарья',
+            'полина', 'виктория', 'ксения', 'александра', 'марина', 'валентина', 'тамара',
+            'зоя', 'нина', 'петр', 'пётр', 'григорий', 'филипп', 'семен', 'семён', 'аркадий',
+        ];
+
+        return in_array($token, $firstNames, true);
+    }
+
+    private function isStrongOperationalMatchReason(?string $reason): bool
+    {
+        return in_array($reason, ['contractor', 'contractor_relaxed', 'invoice', 'debt_bundle'], true);
+    }
+
+    /**
+     * Исходящий платёж контрагенту — своей компании: не матчить на перевозчика по сумме.
+     *
+     * @return ?array{
+     *     match_type: string,
+     *     match_confidence: int,
+     *     match_notes: string,
+     *     suggested_order_id: null,
+     *     suggested_payment_schedule_id: null,
+     *     suggested_category_id: ?int,
+     *     suggested_user_id: null,
+     *     suggested_candidates: list<array<string, mixed>>
+     * }
+     */
+    private function matchOwnCompanyTransfer(string $description, string $direction): ?array
+    {
+        if ($direction !== 'out') {
+            return null;
+        }
+
+        $ownLabel = $this->ownCompanyLabelInDescription($description);
+        if ($ownLabel === null) {
+            return null;
+        }
+
+        return [
+            'match_type' => 'category',
+            'match_confidence' => 92,
+            'match_notes' => 'Контрагент выписки — своя компания ('.$ownLabel.'): перевод / внутригрупп, не оплата перевозчику',
+            'suggested_order_id' => null,
+            'suggested_payment_schedule_id' => null,
+            'suggested_category_id' => $this->defaultCategoryId('budget_opex_6')
+                ?? $this->defaultCategoryId('unclassified'),
+            'suggested_user_id' => null,
+            'suggested_candidates' => [],
+        ];
+    }
+
+    private function ownCompanyLabelInDescription(string $description): ?string
+    {
+        if (! Schema::hasTable('contractors') || ! Schema::hasColumn('contractors', 'is_own_company')) {
+            return null;
+        }
+
+        $head = $this->counterpartyHeadFromDescription($description);
+        if ($head === '') {
+            return null;
+        }
+
+        $ownCompanies = Contractor::query()
+            ->where('is_own_company', true)
+            ->get(['id', 'name', 'full_name']);
+
+        foreach ($ownCompanies as $company) {
+            if ($this->contractorLabelInDescription($description, $company)
+                || $this->contractorLabelInDescription($head, $company)) {
+                $label = $this->contractorDisplayLabel($company);
+
+                return $label !== '' ? $label : 'своя компания';
+            }
+        }
+
+        return null;
+    }
+
+    private function counterpartyHeadFromDescription(string $description): string
+    {
+        $description = trim($description);
+        if ($description === '') {
+            return '';
+        }
+
+        $parts = preg_split('/\s*\/\s*/u', $description, 2);
+
+        return mb_strtolower(trim((string) ($parts[0] ?? '')));
     }
 
     private function plannedDateDistanceDays(PaymentSchedule $schedule, ?string $operationDate): int
