@@ -208,6 +208,115 @@ class OrderRouteActualDateClosingNotificationTest extends TestCase
         $this->assertSame(0, $clerk->fresh()->unreadNotifications()->count());
     }
 
+    public function test_route_service_can_clear_erroneous_actual_dates(): void
+    {
+        $actor = User::factory()->create(['email_verified_at' => now()]);
+        $this->assignRole($actor, 'admin');
+
+        $order = Order::factory()->create();
+
+        $leg = OrderLeg::query()->create([
+            'order_id' => $order->id,
+            'sequence' => 0,
+            'type' => 'transport',
+            'description' => 'leg_1',
+        ]);
+
+        $loading = RoutePoint::factory()->create([
+            'order_leg_id' => $leg->id,
+            'type' => 'loading',
+            'sequence' => 0,
+            'actual_date' => '2026-06-01',
+        ]);
+
+        $unloading = RoutePoint::factory()->create([
+            'order_leg_id' => $leg->id,
+            'type' => 'unloading',
+            'sequence' => 1,
+            'actual_date' => '2026-06-02',
+        ]);
+
+        $service = app(OrderRouteActualDateUpdateService::class);
+
+        $clearedLoading = $service->apply(
+            $actor,
+            $order->fresh(['legs.routePoints']),
+            'loading_actual',
+            'clear',
+        );
+
+        $this->assertTrue($clearedLoading['cleared']);
+        $this->assertNull($clearedLoading['date']);
+        $this->assertNull($loading->fresh()->actual_date);
+
+        $clearedUnloading = $service->apply(
+            $actor,
+            $order->fresh(['legs.routePoints']),
+            'unloading_actual',
+            '',
+        );
+
+        $this->assertTrue($clearedUnloading['cleared']);
+        $this->assertNull($unloading->fresh()->actual_date);
+    }
+
+    public function test_manager_cannot_change_existing_unloading_actual_via_route_service(): void
+    {
+        $manager = User::factory()->create(['email_verified_at' => now()]);
+        $this->assignRole($manager, 'manager');
+
+        $order = Order::factory()->create();
+
+        $leg = OrderLeg::query()->create([
+            'order_id' => $order->id,
+            'sequence' => 0,
+            'type' => 'transport',
+            'description' => 'leg_1',
+        ]);
+
+        RoutePoint::factory()->create([
+            'order_leg_id' => $leg->id,
+            'type' => 'loading',
+            'sequence' => 0,
+        ]);
+
+        RoutePoint::factory()->create([
+            'order_leg_id' => $leg->id,
+            'type' => 'unloading',
+            'sequence' => 1,
+            'actual_date' => '2026-06-02',
+        ]);
+
+        try {
+            app(OrderRouteActualDateUpdateService::class)->apply(
+                $manager->fresh(['role', 'roles']),
+                $order->fresh(['legs.routePoints']),
+                'unloading_actual',
+                '2026-06-10',
+            );
+            $this->fail('Expected ValidationException was not thrown.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('unloading_actual', $exception->errors());
+        }
+    }
+
+    private function assignRole(User $user, string $roleName): void
+    {
+        $roleId = DB::table('roles')->where('name', $roleName)->value('id');
+
+        if ($roleId === null) {
+            $roleId = DB::table('roles')->insertGetId([
+                'name' => $roleName,
+                'display_name' => $roleName,
+                'visibility_areas' => json_encode(['dashboard', 'orders'], JSON_THROW_ON_ERROR),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $user->forceFill(['role_id' => $roleId])->save();
+    }
+
     private function createClerkUser(): User
     {
         $roleId = DB::table('roles')->insertGetId([

@@ -184,18 +184,16 @@ final class PerformerRouteActualDates
             $loading = $loadings === [] ? null : min($loadings);
             $unloading = $unloadings === [] ? null : max($unloadings);
 
-            if ($loading !== null) {
-                $index = self::firstRoutePointIndex($points, $stage, 'loading');
-                if ($index !== null) {
-                    $points[$index]['actual_date'] = $loading;
-                }
+            // Всегда пишем (в т.ч. null): иначе очистка факта в мастере не снимает
+            // actual_date с точки, и при открытии дата «возвращается» из маршрута.
+            $loadingIndex = self::firstRoutePointIndex($points, $stage, 'loading');
+            if ($loadingIndex !== null) {
+                $points[$loadingIndex]['actual_date'] = $loading;
             }
 
-            if ($unloading !== null) {
-                $index = self::lastRoutePointIndex($points, $stage, 'unloading');
-                if ($index !== null) {
-                    $points[$index]['actual_date'] = $unloading;
-                }
+            $unloadingIndex = self::lastRoutePointIndex($points, $stage, 'unloading');
+            if ($unloadingIndex !== null) {
+                $points[$unloadingIndex]['actual_date'] = $unloading;
             }
         }
 

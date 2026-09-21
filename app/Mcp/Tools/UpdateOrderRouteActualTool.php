@@ -14,7 +14,7 @@ use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
 
 #[Name('update_order_route_actual')]
-#[Description('Фактическая дата погрузки или выгрузки по маршруту заказа (не track_* и не order_date). «Груз забрали» = loading_actual.')]
+#[Description('Фактическая дата погрузки или выгрузки по маршруту заказа (не track_* и не order_date). «Груз забрали» = loading_actual. Пустая date / clear — снять ошибочный факт.')]
 class UpdateOrderRouteActualTool extends Tool
 {
     use LogsMcpToolCalls;
@@ -29,7 +29,7 @@ class UpdateOrderRouteActualTool extends Tool
             $validated = $request->validate([
                 'order_id' => ['required', 'integer', 'min:1'],
                 'kind' => ['required', 'string', 'max:120'],
-                'date' => ['required', 'string', 'max:32'],
+                'date' => ['nullable', 'string', 'max:32'],
                 'leg_stage' => ['nullable', 'string', 'max:32'],
             ]);
 
@@ -38,7 +38,7 @@ class UpdateOrderRouteActualTool extends Tool
                     $user,
                     (int) $validated['order_id'],
                     (string) $validated['kind'],
-                    (string) $validated['date'],
+                    $validated['date'] ?? null,
                     isset($validated['leg_stage']) ? (string) $validated['leg_stage'] : null,
                 );
             } catch (ValidationException $exception) {
@@ -65,8 +65,7 @@ class UpdateOrderRouteActualTool extends Tool
                 ->description('loading_actual (фактическая погрузка / «груз забрали») или unloading_actual (фактическая выгрузка).')
                 ->required(),
             'date' => $schema->string()
-                ->description('Дата: Y-m-d или dd.mm.yyyy (например 15.05.2026).')
-                ->required(),
+                ->description('Дата: Y-m-d или dd.mm.yyyy. Пусто / clear / null — снять фактическую дату.'),
             'leg_stage' => $schema->string()
                 ->description('Плечо маршрута, по умолчанию leg_1.'),
         ];

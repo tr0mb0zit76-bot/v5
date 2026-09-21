@@ -51,6 +51,8 @@ const {
     maxActualDate,
     onPerformerActualDateInput,
     onSplitActualDateInput,
+    isUnloadingActualLocked,
+    unloadingActualLockHint,
     routePointsWithIndicesForLeg,
     routePointsDragEnabled,
     draggedRoutePointIndex,
@@ -266,7 +268,15 @@ const {
                                 </div>
                                 <div class="w-[8.75rem] space-y-0.5">
                                     <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. выгрузка</label>
-                                    <input v-model="performer.unloading_actual" type="date" :max="maxActualDate" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" @change="onPerformerActualDateInput(performer, 'unloading_actual')" />
+                                    <input
+                                        v-model="performer.unloading_actual"
+                                        type="date"
+                                        :max="maxActualDate"
+                                        :disabled="isUnloadingActualLocked(performer.unloading_actual)"
+                                        :title="isUnloadingActualLocked(performer.unloading_actual) ? unloadingActualLockHint : undefined"
+                                        class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
+                                        @change="onPerformerActualDateInput(performer, 'unloading_actual')"
+                                    />
                                 </div>
                             </div>
                         </template>
@@ -395,7 +405,15 @@ const {
                                     </div>
                                     <div class="w-[8.75rem] space-y-0.5">
                                         <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. выгрузка</label>
-                                        <input v-model="slot.unloading_actual" type="date" :max="maxActualDate" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" @change="onSplitActualDateInput(slot, 'unloading_actual')" />
+                                        <input
+                                            v-model="slot.unloading_actual"
+                                            type="date"
+                                            :max="maxActualDate"
+                                            :disabled="isUnloadingActualLocked(slot.unloading_actual)"
+                                            :title="isUnloadingActualLocked(slot.unloading_actual) ? unloadingActualLockHint : undefined"
+                                            class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
+                                            @change="onSplitActualDateInput(slot, 'unloading_actual')"
+                                        />
                                     </div>
                                 </div>
                             </div>

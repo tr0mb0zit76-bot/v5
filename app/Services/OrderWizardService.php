@@ -24,6 +24,7 @@ use App\Support\ContractorCostRowClassification;
 use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderFinancialEditAuthorization;
 use App\Support\OrderPersistedId;
+use App\Support\OrderRouteActualDateAuthorization;
 use App\Support\OrderRouteMilestoneDateResolver;
 use App\Support\OwnFleetCatalog;
 use App\Support\PartyNormsPenalties;
@@ -102,6 +103,12 @@ class OrderWizardService
     {
         return DB::transaction(function () use ($order, $validated, $user): Order {
             $validated = $this->normalizeValidatedPaymentForms($validated);
+
+            OrderRouteActualDateAuthorization::assertWizardPayloadMayChangeUnloadingActuals(
+                $user,
+                $order,
+                $validated,
+            );
 
             if (! OrderFinancialEditAuthorization::userMayEditFinancialFields($user, $order)) {
                 $validated = $this->preservePersistedFinancialPayload($order, $validated);

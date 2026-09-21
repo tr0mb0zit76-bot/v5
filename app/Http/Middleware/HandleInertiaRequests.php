@@ -148,6 +148,7 @@ class HandleInertiaRequests extends Middleware
                         'id' => $primaryRole->id,
                         'name' => $primaryRole->name,
                         'is_admin' => RoleAccess::userHasRoleName($user, 'admin'),
+                        'is_supervisor' => RoleAccess::userHasRoleName($user, 'supervisor'),
                         'display_name' => $displayNames->count() > 1
                             ? $displayNames->implode(', ')
                             : ($primaryRole->display_name ?? $primaryRole->name),

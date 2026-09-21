@@ -1,4 +1,5 @@
 import { computed, nextTick, ref, watch } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import {
     routePointCityValue,
     setRoutePointCity,
@@ -15,7 +16,7 @@ import {
     performerFleetCacheKey,
     splitCarrierSlotLabel,
 } from '@/support/orderPerformers.js';
-import { todayIsoDate } from '@/support/orderActualDates.js';
+import { todayIsoDate, toIsoDateDay } from '@/support/orderActualDates.js';
 import {
     isVirtualOwnFleetContractor,
     OWN_FLEET_CONTRACTOR_NAME,
@@ -51,6 +52,26 @@ export function useOrderWizardRouteTab(deps) {
         crmSegmentedBtn,
         crmSegmentedBtnActive,
     } = deps;
+
+    const page = usePage();
+    const canChangeLockedUnloadingActual = computed(() => {
+        const role = page.props.auth?.user?.role ?? {};
+
+        return Boolean(role.is_admin)
+            || role.name === 'admin'
+            || Boolean(role.is_supervisor)
+            || role.name === 'supervisor';
+    });
+
+    function isUnloadingActualLocked(value) {
+        if (canChangeLockedUnloadingActual.value) {
+            return false;
+        }
+
+        return toIsoDateDay(value) !== '';
+    }
+
+    const unloadingActualLockHint = 'Фактическую выгрузку после проставления может изменить руководитель или администратор.';
 
     const borderCrossingLegPicker = deps.borderCrossingLegPicker ?? ref('');
     const carrierSearch = deps.carrierSearch ?? ref({});
@@ -1550,6 +1571,9 @@ function wizardRouteLoadingHasActualDate() {
         openCounterpartyModal,
         onPerformerActualDateInput,
         onSplitActualDateInput,
+        isUnloadingActualLocked,
+        unloadingActualLockHint,
+        canChangeLockedUnloadingActual,
         wizardRouteLoadingHasActualDate,
         initRouteTabSideEffects,
         form,

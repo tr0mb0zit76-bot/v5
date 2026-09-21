@@ -10,6 +10,7 @@ use App\Services\OrderClosingDocumentsNotificationService;
 use App\Services\OrderCompensationService;
 use App\Services\OrderStatusService;
 use App\Support\OrderAgentLexicon;
+use App\Support\OrderRouteActualDateAuthorization;
 use App\Support\OrderRouteMilestoneDateResolver;
 use App\Support\PerformerRouteActualDates;
 use Illuminate\Support\Facades\Schema;
@@ -24,7 +25,7 @@ class OrderRouteActualDateUpdateService
     ) {}
 
     /**
-     * @return array{kind: string, kind_label: string, date: string, order_id: int}
+     * @return array{kind: string, kind_label: string, date: ?string, order_id: int, cleared: bool}
      */
     public function apply(User $user, Order $order, string $kind, mixed $date, ?string $legStage = null): array
     {
@@ -36,11 +37,12 @@ class OrderRouteActualDateUpdateService
             ]);
         }
 
-        $normalizedDate = OrderAgentLexicon::normalizeDateValue($date);
+        $clearRequested = $this->isClearActualDateRequest($date);
+        $normalizedDate = $clearRequested ? null : OrderAgentLexicon::normalizeDateValue($date);
 
-        if ($normalizedDate === null) {
+        if (! $clearRequested && $normalizedDate === null) {
             throw ValidationException::withMessages([
-                'date' => 'Укажите дату в формате Y-m-d или dd.mm.yyyy.',
+                'date' => 'Укажите дату в формате Y-m-d или dd.mm.yyyy (или пусто / clear — чтобы снять факт).',
             ]);
         }
 
@@ -60,7 +62,17 @@ class OrderRouteActualDateUpdateService
             ]);
         }
 
-        $this->assertLoadingNotAfterUnloading($order, $stage, $routeType, $normalizedDate);
+        if ($kind === 'unloading_actual') {
+            OrderRouteActualDateAuthorization::assertCanChangeUnloadingActual(
+                $user,
+                optional($routePoint->actual_date)?->toDateString(),
+                $normalizedDate,
+            );
+        }
+
+        if ($normalizedDate !== null) {
+            $this->assertLoadingNotAfterUnloading($order, $stage, $routeType, $normalizedDate);
+        }
 
         $routePoint->forceFill(['actual_date' => $normalizedDate])->save();
         $this->syncPerformersJson($order, $stage, $kind, $normalizedDate);
@@ -109,9 +121,25 @@ class OrderRouteActualDateUpdateService
             'kind' => $kind,
             'kind_label' => $kindLabel,
             'date' => $normalizedDate,
+            'cleared' => $normalizedDate === null,
             'leg_stage' => $stage,
             'status' => $derivedStatus,
         ];
+    }
+
+    private function isClearActualDateRequest(mixed $date): bool
+    {
+        if ($date === null) {
+            return true;
+        }
+
+        if (! is_string($date) && ! is_numeric($date)) {
+            return false;
+        }
+
+        $trimmed = mb_strtolower(trim((string) $date));
+
+        return in_array($trimmed, ['', 'null', 'clear', 'none', 'сброс', 'очистить'], true);
     }
 
     private function resolveRoutePoint(Order $order, string $stage, string $routeType): ?RoutePoint
@@ -133,7 +161,7 @@ class OrderRouteActualDateUpdateService
         return $points->filter(fn (RoutePoint $point): bool => $point->type === 'unloading')->last();
     }
 
-    private function syncPerformersJson(Order $order, string $stage, string $kind, string $date): void
+    private function syncPerformersJson(Order $order, string $stage, string $kind, ?string $date): void
     {
         if (! Schema::hasColumn('orders', 'performers')) {
             return;
@@ -142,6 +170,10 @@ class OrderRouteActualDateUpdateService
         $performers = is_array($order->performers) ? $order->performers : [];
 
         if ($performers === []) {
+            if ($date === null) {
+                return;
+            }
+
             $performers = [[
                 'stage' => $stage,
                 'carrier_mode' => 'single',
@@ -180,6 +212,10 @@ class OrderRouteActualDateUpdateService
         }
 
         if (! $updated) {
+            if ($date === null) {
+                return;
+            }
+
             $performers[] = [
                 'stage' => $stage,
                 'carrier_mode' => 'single',

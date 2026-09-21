@@ -95,4 +95,25 @@ class PerformerRouteActualDatesTest extends TestCase
         $this->assertSame('2026-05-02', $synced[0]['actual_date']);
         $this->assertSame('2026-05-08', $synced[1]['actual_date']);
     }
+
+    public function test_clearing_performer_actual_dates_clears_route_point_actual_dates(): void
+    {
+        $performers = [
+            [
+                'stage' => 'leg_1',
+                'loading_actual' => null,
+                'unloading_actual' => '',
+            ],
+        ];
+
+        $routePoints = [
+            ['stage' => 'leg_1', 'type' => 'loading', 'sequence' => 1, 'actual_date' => '2026-05-01'],
+            ['stage' => 'leg_1', 'type' => 'unloading', 'sequence' => 2, 'actual_date' => '2026-05-03'],
+        ];
+
+        $synced = PerformerRouteActualDates::applyPerformersToRoutePoints($routePoints, $performers);
+
+        $this->assertNull($synced[0]['actual_date']);
+        $this->assertNull($synced[1]['actual_date']);
+    }
 }
