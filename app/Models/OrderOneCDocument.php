@@ -11,6 +11,8 @@ class OrderOneCDocument extends Model
 {
     public const TYPE_REALIZATION = 'realization';
 
+    public const TYPE_REALIZATION_INTERCOMPANY = 'realization_intercompany';
+
     public const TYPE_ETRN = 'etrn';
 
     public const TYPE_EXPEDITION_RECEIPT = 'expedition_receipt';

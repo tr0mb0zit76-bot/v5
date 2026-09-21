@@ -7,6 +7,8 @@ namespace App\Services\OneC;
 use App\Models\Order;
 use App\Models\OrderOneCDocument;
 use App\Models\User;
+use App\Services\OrderIntercompanyRequestService;
+use App\Support\OrderIntercompanySubcontract;
 use App\Support\RoleAccess;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -17,6 +19,7 @@ final class OneCRealizationSyncService
     public function __construct(
         private readonly OneCRealizationMapper $mapper,
         private readonly OneCBpClient $client,
+        private readonly OrderIntercompanyRequestService $intercompanyRequests,
     ) {}
 
     /**
@@ -31,7 +34,10 @@ final class OneCRealizationSyncService
 
         $documents = OrderOneCDocument::query()
             ->where('order_id', $order->id)
-            ->where('document_type', OrderOneCDocument::TYPE_REALIZATION)
+            ->whereIn('document_type', [
+                OrderOneCDocument::TYPE_REALIZATION,
+                OrderOneCDocument::TYPE_REALIZATION_INTERCOMPANY,
+            ])
             ->whereNotNull('external_ref')
             ->get();
 
@@ -114,12 +120,45 @@ final class OneCRealizationSyncService
     {
         $this->assertReady();
 
-        $payload = $this->mapper->map($order);
+        if (OrderIntercompanySubcontract::applies($order)) {
+            $this->intercompanyRequests->ensureSigned($order, $user);
+        }
+
+        $result = $this->pushMappedDocument(
+            $order,
+            $user,
+            OrderOneCDocument::TYPE_REALIZATION,
+            $this->mapper->map($order),
+        );
+
+        if (OrderIntercompanySubcontract::applies($order)) {
+            $this->pushMappedDocument(
+                $order,
+                $user,
+                OrderOneCDocument::TYPE_REALIZATION_INTERCOMPANY,
+                $this->mapper->mapIntercompany($order),
+            );
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{
+     *     document: OrderOneCDocument,
+     *     action: 'created'|'updated'|'unchanged',
+     *     created: bool,
+     *     updated: bool
+     * }
+     */
+    private function pushMappedDocument(Order $order, User $user, string $documentType, array $payload): array
+    {
         $fingerprint = $this->payloadFingerprint($payload);
 
         $existing = OrderOneCDocument::query()
             ->where('order_id', $order->id)
-            ->where('document_type', OrderOneCDocument::TYPE_REALIZATION)
+            ->where('document_type', $documentType)
             ->first();
 
         $hasLiveLink = $existing !== null
@@ -148,14 +187,14 @@ final class OneCRealizationSyncService
             ]);
             $existing->save();
 
-            return $this->createNew($order, $user, $existing, $payload, $fingerprint);
+            return $this->createNew($order, $user, $existing, $payload, $fingerprint, $documentType);
         }
 
         if ($hasLiveLink) {
             return $this->updateExisting($order, $user, $existing, $payload, $fingerprint);
         }
 
-        return $this->createNew($order, $user, $existing, $payload, $fingerprint);
+        return $this->createNew($order, $user, $existing, $payload, $fingerprint, $documentType);
     }
 
     /**
@@ -184,11 +223,16 @@ final class OneCRealizationSyncService
         ?OrderOneCDocument $existing,
         array $payload,
         string $fingerprint,
+        string $documentType = OrderOneCDocument::TYPE_REALIZATION,
     ): array {
         $document = $existing ?? new OrderOneCDocument([
             'order_id' => $order->id,
-            'document_type' => OrderOneCDocument::TYPE_REALIZATION,
+            'document_type' => $documentType,
         ]);
+
+        if ($document->document_type === null || $document->document_type === '') {
+            $document->document_type = $documentType;
+        }
 
         $document->fill([
             'status' => OrderOneCDocument::STATUS_PENDING,

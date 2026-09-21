@@ -15,6 +15,7 @@ final readonly class OrderPrintFormContext
         public ?int $carrierSlot = null,
         public ?string $documentVerificationCode = null,
         public ?int $orderDocumentId = null,
+        public bool $intercompanySubcontract = false,
     ) {}
 
     public static function forCustomerLeg(string $legStage): self
@@ -35,6 +36,17 @@ final readonly class OrderPrintFormContext
         return new self(
             carrierContractorId: $contractorId,
             routeLegsAsTableRows: true,
+        );
+    }
+
+    /**
+     * Межфирменная заявка: печати 2-й руки, контрагент = 1-я рука, сумма = customer_rate × 0.95.
+     */
+    public static function forIntercompanySubcontract(): self
+    {
+        return new self(
+            printParty: PrintFormBasicTerm::PARTY_CARRIER,
+            intercompanySubcontract: true,
         );
     }
 

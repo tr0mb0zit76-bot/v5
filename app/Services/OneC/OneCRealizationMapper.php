@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\RoutePoint;
 use App\Support\OrderClipboardSummaryFormatter;
 use App\Support\OrderFleetTransportDetailsResolver;
+use App\Support\OrderIntercompanySubcontract;
 use App\Support\PaymentAmountVatConverter;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentFormVat;
@@ -194,6 +195,177 @@ final class OneCRealizationMapper
         ];
 
         $payload['odata_stub'] = $this->toODataStub($payload);
+
+        return $payload;
+    }
+
+    /**
+     * Реализация 2-й руки → 1-я рука (Гросс → Автоальянс): сумма customer_rate×0.95,
+     * форма оплаты/НДС с клиентской стороны, публикация по ИНН carrier_own_company.
+     *
+     * @return array<string, mixed>
+     */
+    public function mapIntercompany(Order $order): array
+    {
+        if (! OrderIntercompanySubcontract::applies($order)) {
+            throw ValidationException::withMessages([
+                'one_c' => 'Межфирменная реализация доступна только при разных own_company и carrier_own_company.',
+            ]);
+        }
+
+        if ($order->exists) {
+            $order->unsetRelation('ownCompany');
+            $order->unsetRelation('carrierOwnCompany');
+            $order->load([
+                'ownCompany',
+                'carrierOwnCompany',
+                'legs' => fn ($query) => $query->orderBy('sequence'),
+                'legs.routePoints' => fn ($query) => $query->orderBy('sequence'),
+            ]);
+        } else {
+            $order->loadMissing([
+                'ownCompany',
+                'carrierOwnCompany',
+                'legs' => fn ($query) => $query->orderBy('sequence'),
+                'legs.routePoints' => fn ($query) => $query->orderBy('sequence'),
+            ]);
+        }
+
+        $firstHand = $order->ownCompany;
+        if ($firstHand === null) {
+            throw ValidationException::withMessages([
+                'one_c' => 'У заказа не указана своя компания 1-й руки (own_company).',
+            ]);
+        }
+
+        $secondHand = $order->carrierOwnCompany;
+        if ($secondHand === null) {
+            throw ValidationException::withMessages([
+                'one_c' => 'У заказа не указана своя компания 2-й руки (carrier_own_company).',
+            ]);
+        }
+
+        $inn = $this->digits((string) ($firstHand->inn ?? ''));
+        if ($inn === '' || (strlen($inn) !== 10 && strlen($inn) !== 12)) {
+            throw ValidationException::withMessages([
+                'one_c' => 'У компании 1-й руки должен быть корректный ИНН для межфирменной реализации.',
+            ]);
+        }
+
+        $kppRaw = trim((string) ($firstHand->kpp ?? ''));
+        $kpp = $kppRaw !== '' ? $this->digits($kppRaw) : null;
+        if (strlen($inn) === 10 && ($kpp === null || strlen($kpp) !== 9)) {
+            throw ValidationException::withMessages([
+                'one_c' => 'Для юрлица 1-й руки нужен КПП (9 цифр) для межфирменной реализации.',
+            ]);
+        }
+
+        $amount = OrderIntercompanySubcontract::amount($order);
+        if ($amount === null || (float) $amount <= 0) {
+            throw ValidationException::withMessages([
+                'one_c' => 'Сумма межфирменной реализации (customer_rate × 0.95) должна быть больше нуля.',
+            ]);
+        }
+
+        $orderNumber = trim((string) ($order->order_number ?? ''));
+        if ($orderNumber === '') {
+            $orderNumber = 'ID-'.$order->id;
+        }
+
+        [$loadingCity, $unloadingCity] = $this->resolveRouteCities($order);
+        $transport = $this->transportDetails->resolveForOrder($order);
+        $content = OrderClipboardSummaryFormatter::formatServiceContent(
+            $orderNumber,
+            $order->order_date,
+            $loadingCity,
+            $unloadingCity,
+            $transport['tractor_brand'],
+            $transport['tractor_plate'],
+            $transport['trailer_brand'],
+            $transport['trailer_plate'],
+            $transport['driver_name'],
+        );
+
+        $documentDate = $order->unloading_date
+            ?? $order->order_date
+            ?? now()->toDateString();
+
+        if ($documentDate instanceof \DateTimeInterface) {
+            $documentDate = $documentDate->format('Y-m-d');
+        }
+
+        $publication = $this->publications->forOrganizationInn((string) ($secondHand->inn ?? ''));
+        if ($publication === null) {
+            throw ValidationException::withMessages([
+                'one_c' => 'Не найдена публикация 1С для компании 2-й руки (ИНН '.($secondHand->inn ?? '—').').',
+            ]);
+        }
+
+        $nomenclatureRef = $publication['service_nomenclature_ref'] !== ''
+            ? $publication['service_nomenclature_ref']
+            : $this->nullableConfigString('one_c.service_nomenclature.ref');
+        $nomenclatureCode = $publication['service_nomenclature_code'] !== ''
+            ? $publication['service_nomenclature_code']
+            : $this->nullableConfigString('one_c.service_nomenclature.code');
+        $organizationRef = $publication['organization_ref'] !== ''
+            ? $publication['organization_ref']
+            : $this->nullableConfigString('one_c.organization_ref');
+        $baseUrl = $publication['base_url'] !== ''
+            ? $publication['base_url']
+            : $this->nullableConfigString('one_c.base_url');
+
+        $paymentForm = filled($order->customer_payment_form)
+            ? (string) $order->customer_payment_form
+            : null;
+        $vat = $this->resolveVat((float) $amount, $paymentForm);
+
+        $extraAttributes = [];
+        $attrOrderId = $this->nullableConfigString('one_c.extra_attributes.order_id');
+        $attrOrderNumber = $this->nullableConfigString('one_c.extra_attributes.order_number');
+        if ($attrOrderId !== null) {
+            $extraAttributes[] = ['name' => $attrOrderId, 'value' => (string) $order->id];
+        }
+        if ($attrOrderNumber !== null) {
+            $extraAttributes[] = ['name' => $attrOrderNumber, 'value' => $orderNumber];
+        }
+
+        $payload = [
+            'document_type' => 'РеализацияТоваровУслуг',
+            'operation_kind' => 'Услуги',
+            'order_id' => (int) $order->id,
+            'order_number' => $orderNumber,
+            'amount' => $amount,
+            'currency' => 'RUB',
+            'document_date' => (string) $documentDate,
+            'customer_payment_form' => $paymentForm,
+            'vat' => $vat,
+            'counterparty' => [
+                'inn' => $inn,
+                'kpp' => $kpp,
+                'name' => $firstHand->name !== null ? (string) $firstHand->name : null,
+            ],
+            'organization_ref' => $organizationRef,
+            'publication_code' => $publication['code'],
+            'base_url' => $baseUrl,
+            'currency_ref' => $this->nullableConfigString('one_c.currency_ref'),
+            'service_line' => [
+                'nomenclature_code' => $nomenclatureCode,
+                'nomenclature_ref' => $nomenclatureRef,
+                'content' => $content,
+                'quantity' => 1.0,
+                'price' => $amount,
+                'amount' => $amount,
+                'vat_rate' => $vat['one_c_rate'],
+                'vat_amount' => $vat['vat_amount'],
+            ],
+            'payment_form_label' => PaymentFormDictionary::labelForCode($paymentForm),
+            'extra_attributes' => $extraAttributes,
+            'intercompany' => true,
+        ];
+
+        $payload['odata_stub'] = $this->toODataStub($payload);
+        $comment = (string) ($payload['odata_stub']['Комментарий'] ?? '');
+        $payload['odata_stub']['Комментарий'] = trim($comment.'; межфирменная');
 
         return $payload;
     }

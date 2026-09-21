@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\OrderOneCDocument;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\OrderIntercompanyRequestService;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -188,6 +189,88 @@ class OrderOneCRealizationTest extends TestCase
         $this->actingAs($clerk)
             ->postJson(route('orders.one-c.realization.store', $order))
             ->assertStatus(422);
+    }
+
+    public function test_intercompany_order_pushes_second_realization_at_95_percent(): void
+    {
+        if (! Schema::hasTable('order_one_c_documents') || ! Schema::hasColumn('orders', 'carrier_own_company_id')) {
+            $this->markTestSkipped('schema missing');
+        }
+
+        config([
+            'one_c.publications' => [
+                'autalliance' => [
+                    'label' => 'АА',
+                    'base_url' => 'https://one-c.test/aa',
+                    'organization_ref' => 'aa-org',
+                    'organization_inn' => '6732110940',
+                    'service_nomenclature_ref' => 'aa-nom',
+                    'service_nomenclature_code' => '00-1',
+                    'enabled' => true,
+                    'include_in_sync' => true,
+                ],
+                'gross' => [
+                    'label' => 'Гросс',
+                    'base_url' => 'https://one-c.test/gross',
+                    'organization_ref' => 'gross-org',
+                    'organization_inn' => '6345031755',
+                    'service_nomenclature_ref' => 'gross-nom',
+                    'service_nomenclature_code' => '00-3',
+                    'enabled' => true,
+                    'include_in_sync' => true,
+                ],
+            ],
+        ]);
+
+        $this->mock(OrderIntercompanyRequestService::class, function ($mock): void {
+            $mock->shouldReceive('ensureSigned')->once()->andReturn(null);
+        });
+
+        $clerk = $this->makeUserWithRole('clerk', 'Делопроизводитель', 'all');
+        [$order] = $this->makeFarmserviceOrder($clerk, 'АС-МФ-2', '200000.00');
+
+        $firstHand = Contractor::query()->create([
+            'type' => 'customer',
+            'name' => 'ООО Автоальянс-Смоленск',
+            'inn' => '6732110940',
+            'kpp' => '673201001',
+            'is_own_company' => true,
+            'is_active' => true,
+        ]);
+        $secondHand = Contractor::query()->create([
+            'type' => 'customer',
+            'name' => 'ООО ГРОСС',
+            'inn' => '6345031755',
+            'kpp' => '634501001',
+            'is_own_company' => true,
+            'is_active' => true,
+        ]);
+
+        $order->forceFill([
+            'own_company_id' => $firstHand->id,
+            'carrier_own_company_id' => $secondHand->id,
+            'customer_payment_form' => 'vat_22',
+        ])->save();
+
+        $this->actingAs($clerk)
+            ->postJson(route('orders.one-c.realization.store', $order))
+            ->assertOk()
+            ->assertJsonPath('created', true)
+            ->assertJsonPath('realization.amount', '200000.00');
+
+        $this->assertDatabaseHas('order_one_c_documents', [
+            'order_id' => $order->id,
+            'document_type' => OrderOneCDocument::TYPE_REALIZATION,
+            'status' => OrderOneCDocument::STATUS_CREATED,
+            'amount' => '200000.00',
+        ]);
+        $this->assertDatabaseHas('order_one_c_documents', [
+            'order_id' => $order->id,
+            'document_type' => OrderOneCDocument::TYPE_REALIZATION_INTERCOMPANY,
+            'status' => OrderOneCDocument::STATUS_CREATED,
+            'amount' => '190000.00',
+            'counterparty_inn' => '6732110940',
+        ]);
     }
 
     /**

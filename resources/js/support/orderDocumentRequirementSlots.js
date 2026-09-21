@@ -428,9 +428,11 @@ export function buildDocumentRequirementRules(
     clientRequestMode = 'single_request',
     additionalCosts = [],
     paymentContext = {},
+    ownCompanyContext = {},
 ) {
     if (isOwnFleetCarrierOnly(performers)) {
-        return buildOwnFleetCarrierOnlyRules(performers, clientRequestMode, paymentContext, additionalCosts);
+        const ownFleetRules = buildOwnFleetCarrierOnlyRules(performers, clientRequestMode, paymentContext, additionalCosts);
+        return appendIntercompanyRule(ownFleetRules, ownCompanyContext);
     }
 
     const mode = clientRequestMode === 'split_by_leg' ? 'split_by_leg' : 'single_request';
@@ -557,6 +559,36 @@ export function buildDocumentRequirementRules(
         rules.push(buildWaybillRule(performers, mode));
         rules.push(buildEtrnRule(performers, mode));
     }
+
+    return appendIntercompanyRule(rules, ownCompanyContext);
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} rules
+ * @param {{own_company_id?: number|null, carrier_own_company_id?: number|null, label?: string|null}} ownCompanyContext
+ */
+function appendIntercompanyRule(rules, ownCompanyContext = {}) {
+    const ownId = Number(ownCompanyContext?.own_company_id ?? 0);
+    const carrierOwnId = Number(ownCompanyContext?.carrier_own_company_id ?? 0);
+    if (!(ownId > 0 && carrierOwnId > 0 && ownId !== carrierOwnId)) {
+        return rules;
+    }
+
+    const label = ownCompanyContext?.label ? String(ownCompanyContext.label).trim() : '';
+
+    rules.push({
+        key: 'intercompany_request:intercompany',
+        label: 'Межфирменная заявка',
+        description: 'Заявка между своими компаниями (2-я рука → 1-я). Создаётся и подписывается при «Создать реализацию».',
+        party: 'internal',
+        accepted_types: [...REQUEST_TYPES],
+        slot_kind: 'intercompany_request',
+        slot_key: 'intercompany',
+        contractor_id: null,
+        order_leg_stage: null,
+        counterparty_label: label !== '' ? label : null,
+        is_required: true,
+    });
 
     return rules;
 }

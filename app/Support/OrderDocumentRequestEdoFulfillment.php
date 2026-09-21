@@ -16,7 +16,7 @@ final class OrderDocumentRequestEdoFulfillment
     public const REQUEST_TYPES = ['request', 'contract_request'];
 
     /** @var list<string> */
-    public const REQUEST_SLOT_KINDS = ['customer_request', 'carrier_request', 'contractor_request'];
+    public const REQUEST_SLOT_KINDS = ['customer_request', 'carrier_request', 'contractor_request', 'intercompany_request'];
 
     public static function isRequestSlotKind(string $slotKind): bool
     {

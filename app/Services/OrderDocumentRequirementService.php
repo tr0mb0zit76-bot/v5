@@ -18,6 +18,7 @@ use App\Support\OrderDocumentRequestEdoFulfillment;
 use App\Support\OrderDocumentRequirementSlotBuilder;
 use App\Support\OrderDocumentTransportTypes;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\OrderIntercompanySubcontract;
 use App\Support\PaymentFormDictionary;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -63,6 +64,15 @@ class OrderDocumentRequirementService
             $this->resolveAdditionalCostsForOrder($order),
             $this->resolvePaymentContextForOrder($order),
         );
+
+        if (OrderIntercompanySubcontract::applies($order)) {
+            $order->loadMissing(['ownCompany:id,name', 'carrierOwnCompany:id,name']);
+            $label = trim(implode(' → ', array_filter([
+                $order->carrierOwnCompany?->name,
+                $order->ownCompany?->name,
+            ])));
+            $rules[] = OrderIntercompanySubcontract::requirementSlot($label !== '' ? $label : null);
+        }
 
         return $this->enrichRequirementRulesWithCounterpartyLabels($order, $rules);
     }

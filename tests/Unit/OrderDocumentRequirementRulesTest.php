@@ -10,6 +10,7 @@ use App\Models\OrderDocumentEdoAcknowledgement;
 use App\Services\OrderDocumentRequirementService;
 use App\Support\OrderDocumentRequirementSlotBuilder;
 use App\Support\OrderDocumentTransportTypes;
+use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -506,5 +507,40 @@ class OrderDocumentRequirementRulesTest extends TestCase
 
         $this->assertNotNull(collect($rules)->first(fn (array $rule): bool => str_starts_with((string) ($rule['key'] ?? ''), 'carrier_request:')));
         $this->assertNotNull(collect($rules)->first(fn (array $rule): bool => str_starts_with((string) ($rule['key'] ?? ''), 'carrier_closing:')));
+    }
+
+    #[Test]
+    public function intercompany_slot_appears_when_own_companies_differ(): void
+    {
+        if (! Schema::hasColumn('orders', 'carrier_own_company_id')) {
+            $this->markTestSkipped('carrier_own_company_id missing');
+        }
+
+        $firstHand = Contractor::query()->create([
+            'type' => 'customer',
+            'name' => 'ООО АА',
+            'inn' => '6732110940',
+            'is_own_company' => true,
+            'is_active' => true,
+        ]);
+        $secondHand = Contractor::query()->create([
+            'type' => 'customer',
+            'name' => 'ООО Гросс',
+            'inn' => '6345031755',
+            'is_own_company' => true,
+            'is_active' => true,
+        ]);
+
+        $order = Order::factory()->create([
+            'own_company_id' => $firstHand->id,
+            'carrier_own_company_id' => $secondHand->id,
+        ]);
+
+        $rules = app(OrderDocumentRequirementService::class)->requirementRulesForOrder($order);
+        $intercompany = collect($rules)->firstWhere('slot_kind', 'intercompany_request');
+
+        $this->assertNotNull($intercompany);
+        $this->assertSame('internal', $intercompany['party']);
+        $this->assertTrue($intercompany['is_required']);
     }
 }

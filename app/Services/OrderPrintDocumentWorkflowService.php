@@ -4,11 +4,13 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\OrderDocument;
+use App\Models\PrintFormBasicTerm;
 use App\Models\PrintFormTemplate;
 use App\Models\User;
 use App\Services\Pdf\PdfDocumentCertificationService;
 use App\Services\Pdf\PdfVerificationQrStampService;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\OrderIntercompanySubcontract;
 use App\Support\OrderOwnCompanySide;
 use App\Support\OrderPrintFormContext;
 use App\Support\PrintFormVerificationCode;
@@ -56,9 +58,11 @@ class OrderPrintDocumentWorkflowService
             'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'metadata' => array_filter([
                 'flow' => 'print_template_workflow',
-                'party' => in_array($context?->printParty, ['customer', 'carrier'], true)
-                    ? $context->printParty
-                    : $this->resolveMetadataParty($template),
+                'party' => $context?->intercompanySubcontract
+                    ? 'internal'
+                    : (in_array($context?->printParty, ['customer', 'carrier'], true)
+                        ? $context->printParty
+                        : $this->resolveMetadataParty($template)),
                 'template_code' => $template->code,
                 'template_name' => $template->name,
                 'storage_driver' => $this->documentStorage->configuredDriver(),
@@ -66,6 +70,10 @@ class OrderPrintDocumentWorkflowService
                 'carrier_contractor_id' => $context?->carrierContractorId,
                 'carrier_slot' => $context?->carrierSlot,
                 'route_legs_as_table_rows' => $context?->routeLegsAsTableRows ?? false,
+                'intercompany_subcontract' => $context?->intercompanySubcontract ? true : null,
+                'requirement_slot_key' => $context?->intercompanySubcontract
+                    ? OrderIntercompanySubcontract::SLOT_KEY
+                    : null,
             ], fn (mixed $value): bool => $value !== null && $value !== false && $value !== ''),
         ]);
 
@@ -122,6 +130,7 @@ class OrderPrintDocumentWorkflowService
             carrierSlot: $context->carrierSlot,
             documentVerificationCode: $context->documentVerificationCode,
             orderDocumentId: $orderDocumentId,
+            intercompanySubcontract: $context->intercompanySubcontract,
         );
     }
 
@@ -143,6 +152,7 @@ class OrderPrintDocumentWorkflowService
             carrierSlot: $context->carrierSlot,
             documentVerificationCode: $verificationCode,
             orderDocumentId: $context->orderDocumentId,
+            intercompanySubcontract: $context->intercompanySubcontract,
         );
     }
 
@@ -830,15 +840,18 @@ class OrderPrintDocumentWorkflowService
             ? trim($metadata['pdf_verification_code'])
             : null;
 
+        $isIntercompany = (bool) ($metadata['intercompany_subcontract'] ?? false);
+
         if (($legStage === null || $legStage === '') && $carrierId === null && ! $routeLegsAsTableRows && ($verificationCode === null || $verificationCode === '')) {
             $partyOnly = OrderOwnCompanySide::partyFromDocument($metadata);
-            if ($partyOnly === null) {
+            if ($partyOnly === null && ! $isIntercompany) {
                 return null;
             }
 
             return new OrderPrintFormContext(
-                printParty: $partyOnly,
+                printParty: $partyOnly ?? ($isIntercompany ? PrintFormBasicTerm::PARTY_CARRIER : null),
                 orderDocumentId: (int) $document->id,
+                intercompanySubcontract: $isIntercompany,
             );
         }
 
@@ -846,10 +859,14 @@ class OrderPrintDocumentWorkflowService
             legStage: $legStage !== '' ? $legStage : null,
             carrierContractorId: $carrierId,
             routeLegsAsTableRows: $routeLegsAsTableRows,
-            printParty: OrderOwnCompanySide::partyFromDocument($metadata),
+            printParty: OrderOwnCompanySide::partyFromDocument($metadata)
+                ?? ((bool) ($metadata['intercompany_subcontract'] ?? false)
+                    ? PrintFormBasicTerm::PARTY_CARRIER
+                    : null),
             carrierSlot: $carrierSlot,
             documentVerificationCode: ($verificationCode !== null && $verificationCode !== '') ? $verificationCode : null,
             orderDocumentId: (int) $document->id,
+            intercompanySubcontract: (bool) ($metadata['intercompany_subcontract'] ?? false),
         );
     }
 }

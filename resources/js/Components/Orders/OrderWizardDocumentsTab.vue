@@ -168,6 +168,10 @@ const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRu
     props.clientRequestMode,
     props.additionalCosts,
     documentPaymentContext.value,
+    {
+        own_company_id: props.ownCompanyId,
+        carrier_own_company_id: props.carrierOwnCompanyId,
+    },
 ));
 
 const effectiveDocumentChecklist = computed(() => {

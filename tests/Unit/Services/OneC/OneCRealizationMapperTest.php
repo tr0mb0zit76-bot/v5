@@ -7,6 +7,7 @@ namespace Tests\Unit\Services\OneC;
 use App\Models\Contractor;
 use App\Models\Order;
 use App\Services\OneC\OneCRealizationMapper;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -223,5 +224,78 @@ class OneCRealizationMapperTest extends TestCase
         $order->setRelation('legs', collect());
 
         app(OneCRealizationMapper::class)->map($order);
+    }
+
+    public function test_maps_intercompany_with_customer_payment_form_and_95_percent(): void
+    {
+        if (! Schema::hasColumn('orders', 'carrier_own_company_id')) {
+            $this->markTestSkipped('carrier_own_company_id missing');
+        }
+
+        config([
+            'one_c.extra_attributes.order_id' => '',
+            'one_c.extra_attributes.order_number' => '',
+            'one_c.currency_ref' => '69e038af-320f-11f1-acc9-b69a48ddb3f4',
+            'one_c.publications' => [
+                'autalliance' => [
+                    'label' => 'АА',
+                    'base_url' => 'https://one-c.test/aa',
+                    'organization_ref' => 'aa-org-ref',
+                    'organization_inn' => '6732110940',
+                    'service_nomenclature_ref' => 'aa-nom',
+                    'service_nomenclature_code' => '00-00000001',
+                    'enabled' => true,
+                ],
+                'gross' => [
+                    'label' => 'Гросс',
+                    'base_url' => 'https://one-c.test/gross',
+                    'organization_ref' => 'gross-org-ref',
+                    'organization_inn' => '6345031755',
+                    'service_nomenclature_ref' => 'gross-nom',
+                    'service_nomenclature_code' => '00-00000003',
+                    'enabled' => true,
+                ],
+            ],
+        ]);
+
+        $firstHand = new Contractor([
+            'name' => 'ООО Автоальянс-Смоленск',
+            'inn' => '6732110940',
+            'kpp' => '673201001',
+        ]);
+        $firstHand->id = 1;
+
+        $secondHand = new Contractor([
+            'name' => 'ООО ГРОСС',
+            'inn' => '6345031755',
+        ]);
+        $secondHand->id = 2;
+
+        $order = new Order([
+            'order_number' => 'АС-МФ-1',
+            'customer_rate' => '100000.00',
+            'customer_payment_form' => 'vat_22',
+            'order_date' => '2026-09-01',
+            'unloading_date' => '2026-09-05',
+            'own_company_id' => 1,
+            'carrier_own_company_id' => 2,
+        ]);
+        $order->id = 200;
+        $order->setRelation('ownCompany', $firstHand);
+        $order->setRelation('carrierOwnCompany', $secondHand);
+        $order->setRelation('legs', collect());
+
+        $payload = app(OneCRealizationMapper::class)->mapIntercompany($order);
+
+        $this->assertSame('95000.00', $payload['amount']);
+        $this->assertSame('vat_22', $payload['customer_payment_form']);
+        $this->assertSame('НДС22', $payload['service_line']['vat_rate']);
+        $this->assertSame('gross', $payload['publication_code']);
+        $this->assertSame('https://one-c.test/gross', $payload['base_url']);
+        $this->assertSame('gross-org-ref', $payload['organization_ref']);
+        $this->assertSame('6732110940', $payload['counterparty']['inn']);
+        $this->assertSame('673201001', $payload['counterparty']['kpp']);
+        $this->assertTrue($payload['intercompany']);
+        $this->assertStringContainsString('межфирменная', $payload['odata_stub']['Комментарий']);
     }
 }

@@ -21,6 +21,7 @@ use App\Support\ContractorPrimaryContactResolver;
 use App\Support\DocxPrintFormPlaceholderPreprocessor;
 use App\Support\DocxTextRunPlaceholderMerger;
 use App\Support\DocxVmlOverlayStylePatcher;
+use App\Support\OrderIntercompanySubcontract;
 use App\Support\OrderOwnCompanySide;
 use App\Support\OrderPrintFormContext;
 use App\Support\PartyNormsPenalties;
@@ -339,6 +340,27 @@ class OrderPrintFormDraftService
         $this->ensureContractorContactsLoaded($order->client);
         $this->ensureContractorContactsLoaded($carrierContractor instanceof Contractor ? $carrierContractor : null);
 
+        $intercompany = (bool) ($context?->intercompanySubcontract);
+        $intercompanyAmount = $intercompany ? OrderIntercompanySubcontract::amount($order) : null;
+        $firstHandCompany = $intercompany
+            ? OrderOwnCompanySide::contractorForPrintParty($order, PrintFormBasicTerm::PARTY_CUSTOMER)
+            : null;
+        if ($firstHandCompany !== null) {
+            $this->ensureContractorContactsLoaded($firstHandCompany);
+        }
+
+        $customerForSnapshot = $intercompany && $firstHandCompany !== null
+            ? $firstHandCompany
+            : $order->client;
+        $customerRateRaw = $intercompany && $intercompanyAmount !== null
+            ? $intercompanyAmount
+            : $order->customer_rate;
+        $customerRateDisplay = $this->formatMoney($customerRateRaw);
+        $customerRateWithCurrency = $this->formatMoneyWithCurrency(
+            $customerRateRaw,
+            $this->resolveCustomerCurrencyCode($order, $paymentTermsPayload),
+        );
+
         return [
             'order' => [
                 'id' => $order->id,
@@ -347,12 +369,9 @@ class OrderPrintFormDraftService
                 'loading_date' => $this->formatDate($order->loading_date),
                 'unloading_date' => $this->formatDate($order->unloading_date),
                 'status' => $order->status,
-                'customer_rate' => $this->formatMoney($order->customer_rate),
+                'customer_rate' => $customerRateDisplay,
                 'carrier_rate' => $this->formatMoney($this->resolveCarrierRateValue($order, $context)),
-                'customer_rate_with_currency' => $this->formatMoneyWithCurrency(
-                    $order->customer_rate,
-                    $this->resolveCustomerCurrencyCode($order, $paymentTermsPayload),
-                ),
+                'customer_rate_with_currency' => $customerRateWithCurrency,
                 'carrier_rate_with_currency' => $this->formatMoneyWithCurrency(
                     $this->resolveCarrierRateValue($order, $context),
                     $this->resolveCarrierCurrencyCode($order, $scopedPaymentTermsPayload),
@@ -395,7 +414,7 @@ class OrderPrintFormDraftService
                 'all_addresses' => $this->resolvePartyAddressList($unloadingPoints),
                 'all_contact_phones' => $this->resolvePartyContactPhoneList($unloadingPoints, 'recipient_contact', 'recipient_phone'),
             ],
-            'customer' => $this->contractorPayload($order->client),
+            'customer' => $this->contractorPayload($customerForSnapshot),
             'carrier' => $this->contractorPayload($carrierContractor),
             'own_company' => $this->contractorPayload(
                 OrderOwnCompanySide::contractorForPrintParty($order, $context?->printParty),
@@ -406,7 +425,7 @@ class OrderPrintFormDraftService
             'dispatcher' => $this->managerPayload($order->dispatcher),
             'driver' => $driver,
             'vehicle' => $vehicle,
-            'contacts' => $this->partyContactsPayload($order, $order->client, $carrierContractor),
+            'contacts' => $this->partyContactsPayload($order, $customerForSnapshot, $carrierContractor),
             'route' => [
                 'loading_addresses' => $this->resolvePartyAddressList($loadingPoints),
                 'loading_cities' => $this->resolvePointCityList($loadingPoints),
@@ -1545,6 +1564,7 @@ class OrderPrintFormDraftService
             carrierSlot: $carrierSlot,
             documentVerificationCode: $context->documentVerificationCode,
             orderDocumentId: $context->orderDocumentId,
+            intercompanySubcontract: $context->intercompanySubcontract,
         );
     }
 
@@ -1571,6 +1591,7 @@ class OrderPrintFormDraftService
             carrierSlot: $context->carrierSlot,
             documentVerificationCode: $context->documentVerificationCode,
             orderDocumentId: $context->orderDocumentId,
+            intercompanySubcontract: $context->intercompanySubcontract,
         );
     }
 
