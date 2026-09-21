@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Models\PrintFormBasicTerm;
+
 /**
  * Контекст генерации печатной формы заказа (плечо маршрута, перевозчик, режим таблицы плеч).
  */
