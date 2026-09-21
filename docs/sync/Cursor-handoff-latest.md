@@ -3,7 +3,23 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-21 11:55 · **Ветка:** `master` · **HEAD:** `5907becd` · **тема:** межфирменный субподряд + dual 1С
+**Обновлено:** 2026-09-21 12:45 · **Ветка:** `master` · **HEAD:** `3c85bec2` · **тема:** CMR/ТН на нескольких плечах
+
+### Итог сессии 2026-09-21 — транспортные доки multi-leg
+
+| Блок | Статус |
+| --- | --- |
+| Модалка attach: не сбрасывать перевозчика на первого при CMR/ТН/ТСД | ✅ |
+| Слот waybill/etrn: без label первого перевозчика; registry по `carrier_contractor_id` | ✅ |
+| Заказ 208: CMR `1377` уже с cid=29 (2-е плечо); баг был в UI | ✅ |
+| PHPUnit `OrderDocumentRequirementRulesTest` | ✅ 22 |
+| **Commit + push** `3c85bec2` · **прод** pull + `npm run build` + optimize:clear | ✅ |
+
+**Следующий шаг:** smoke заказ 208 — таблица документов: CMR → СОЮЗ-ЛОГИСТИК; новая загрузка CMR на 2-е плечо.
+
+---
+
+**Обновлено (архив):** 2026-09-21 11:55 · **Ветка:** `master` · **HEAD:** `5907becd` · **тема:** межфирменный субподряд + dual 1С
 
 ### Итог сессии 2026-09-21 — межфирменная заявка / реализации
 
@@ -13,7 +29,7 @@
 | Слот чек-листа `intercompany_request` при own ≠ carrier_own | ✅ |
 | Кнопка «Создать реализацию» → подпись заявки + push клиенту + push 2-й ИБ | ✅ |
 | PHPUnit helper / mapper / dual push / slot | ✅ |
-| **Commit + push** `5907becd` · **прод** pull + `npm run build` | ✅ (в процессе деплоя) |
+| **Commit + push** `5907becd` · **прод** pull + `npm run build` | ✅ |
 
 **Следующий шаг:** smoke на заказе с двумя своими компаниями — «Создать реализацию»: две связи в `order_one_c_documents`, слот межфирменной закрыт.
 
