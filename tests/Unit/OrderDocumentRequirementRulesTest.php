@@ -325,7 +325,7 @@ class OrderDocumentRequirementRulesTest extends TestCase
         $waybillRule = collect($rules)->firstWhere('key', 'waybill');
 
         $this->assertSame('carrier', $waybillRule['party']);
-        $this->assertSame('ООО Перевоз', $waybillRule['counterparty_label']);
+        $this->assertNull($waybillRule['counterparty_label']);
 
         $service = app(OrderDocumentRequirementService::class);
 

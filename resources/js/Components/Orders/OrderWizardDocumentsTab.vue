@@ -303,7 +303,10 @@ watch(
         }
 
         attachForm.party = 'carrier';
-        attachForm.carrier_target_key = defaultAttachCarrierTargetKey();
+        // Не сбрасывать выбранного перевозчика на первого при смене типа на ТН/CMR/ТСД.
+        if (!isAttachCarrierTargetKeyValid(attachForm.carrier_target_key)) {
+            attachForm.carrier_target_key = defaultAttachCarrierTargetKey();
+        }
     },
 );
 
@@ -311,7 +314,13 @@ watch(
     () => attachForm.party,
     (party) => {
         attachForm.stage = defaultAttachCustomerStage();
-        attachForm.carrier_target_key = defaultAttachCarrierTargetKey();
+        if (party === 'carrier') {
+            if (!isAttachCarrierTargetKeyValid(attachForm.carrier_target_key)) {
+                attachForm.carrier_target_key = defaultAttachCarrierTargetKey();
+            }
+        } else {
+            attachForm.carrier_target_key = null;
+        }
         if (party === 'contractor') {
             attachForm.contractor_id = attachContractorOptions.value[0]?.id ?? null;
         } else {
@@ -624,6 +633,14 @@ function defaultAttachCustomerStage() {
 
 function defaultAttachCarrierTargetKey() {
     return attachCarrierTargetOptions.value[0]?.key ?? null;
+}
+
+function isAttachCarrierTargetKeyValid(key) {
+    if (key == null || key === '') {
+        return false;
+    }
+
+    return attachCarrierTargetOptions.value.some((row) => row.key === key);
 }
 
 function resolveAttachCarrierTarget() {

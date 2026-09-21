@@ -196,15 +196,20 @@ function partyLabel(row) {
     }
 
     if (row.party === 'carrier') {
-        const contractorId = Number(row.contractor_id ?? 0);
+        const contractorId = Number(row.contractor_id ?? row.carrier_contractor_id ?? 0);
         const performerName = findPerformerContractorName(contractorId, props.performers);
         if (performerName) {
             return performerName;
         }
 
         const carrierName = props.order?.carrier?.name;
-        if (carrierName) {
+        if (carrierName && contractorId <= 0) {
             return String(carrierName).trim();
+        }
+
+        if (carrierName && contractorId > 0) {
+            // contractor_id задан, но имени в performers нет — не подменяем на «главного» перевозчика заказа.
+            return `Перевозчик #${contractorId}`;
         }
 
         return 'Перевозчик';

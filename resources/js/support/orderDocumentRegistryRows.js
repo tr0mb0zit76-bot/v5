@@ -136,6 +136,13 @@ function buildPlaceholderRow(rule, completed = false, checklistItem = null) {
  * @param {Map<string, string>} typeLabels
  */
 function buildMatchedRow(document, rule, completed, typeLabels) {
+    const documentContractorId = resolveDocumentContractorId(document);
+    const ruleContractorId = rule.contractor_id != null && Number(rule.contractor_id) > 0
+        ? Number(rule.contractor_id)
+        : null;
+    const contractorId = documentContractorId ?? ruleContractorId;
+    const isSharedTransportSlot = ['waybill', 'etrn'].includes(String(rule.slot_kind ?? ''));
+
     return {
         ...document,
         party: rule.party ?? document.party,
@@ -143,14 +150,32 @@ function buildMatchedRow(document, rule, completed, typeLabels) {
         requirement_label: rule.label,
         slot_kind: rule.slot_kind ?? document.slot_kind ?? null,
         slot_key: rule.slot_key ?? document.slot_key ?? null,
-        contractor_id: rule.contractor_id ?? document.contractor_id ?? null,
-        counterparty_label: rule.counterparty_label ?? document.counterparty_label ?? null,
+        contractor_id: contractorId,
+        carrier_contractor_id: document.carrier_contractor_id ?? contractorId,
+        // Общий слот ТН/ЭТрН помечен label'ом первого перевозчика — не затирать фактического.
+        counterparty_label: isSharedTransportSlot && documentContractorId != null
+            ? (document.counterparty_label ?? null)
+            : (rule.counterparty_label ?? document.counterparty_label ?? null),
         expects_edo: Boolean(rule.expects_edo),
         accepted_types: Array.isArray(rule.accepted_types) ? rule.accepted_types : [],
         type_label: registryTypeLabel(document, rule, typeLabels),
         checklist_completed: completed,
         is_placeholder: false,
     };
+}
+
+/**
+ * @param {Record<string, unknown>} document
+ */
+function resolveDocumentContractorId(document) {
+    const raw = document?.carrier_contractor_id ?? document?.contractor_id ?? null;
+    if (raw == null || raw === '') {
+        return null;
+    }
+
+    const id = Number(raw);
+
+    return Number.isFinite(id) && id > 0 ? id : null;
 }
 
 /**

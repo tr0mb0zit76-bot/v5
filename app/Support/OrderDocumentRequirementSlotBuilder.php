@@ -128,8 +128,6 @@ final class OrderDocumentRequirementSlotBuilder
      */
     private static function waybillRule(array $performers, string $clientRequestMode): array
     {
-        $carrierLabel = self::primaryCarrierTransportLabel($performers, $clientRequestMode);
-
         return [
             'key' => 'waybill',
             'label' => OrderDocumentTransportTypes::UNIFIED_LABEL,
@@ -140,7 +138,8 @@ final class OrderDocumentRequirementSlotBuilder
             'slot_key' => 'waybill',
             'contractor_id' => null,
             'order_leg_stage' => null,
-            'counterparty_label' => $carrierLabel,
+            // Общий слот: не привязывать label к первому перевозчику (иначе CMR второго плеча «выглядит» чужой).
+            'counterparty_label' => null,
             'allows_multiple' => true,
             'is_required' => true,
         ];
@@ -152,8 +151,6 @@ final class OrderDocumentRequirementSlotBuilder
      */
     private static function etrnRule(array $performers, string $clientRequestMode): array
     {
-        $carrierLabel = self::primaryCarrierTransportLabel($performers, $clientRequestMode);
-
         return [
             'key' => 'etrn',
             'label' => OrderDocumentTransportTypes::ETRN_LABEL,
@@ -164,38 +161,10 @@ final class OrderDocumentRequirementSlotBuilder
             'slot_key' => 'etrn',
             'contractor_id' => null,
             'order_leg_stage' => null,
-            'counterparty_label' => $carrierLabel,
+            'counterparty_label' => null,
             'allows_multiple' => false,
             'is_required' => true,
         ];
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $performers
-     */
-    private static function primaryCarrierTransportLabel(array $performers, string $clientRequestMode): ?string
-    {
-        foreach (self::carrierRequestSlots($performers, $clientRequestMode) as $slot) {
-            $name = trim((string) ($slot['contractorName'] ?? ''));
-
-            if ($name !== '') {
-                return $name;
-            }
-        }
-
-        foreach ($performers as $performer) {
-            if (! is_array($performer)) {
-                continue;
-            }
-
-            $name = trim((string) ($performer['contractor_name'] ?? ''));
-
-            if ($name !== '') {
-                return $name;
-            }
-        }
-
-        return null;
     }
 
     /**

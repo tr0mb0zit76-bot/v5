@@ -112,27 +112,6 @@ function customerRequestRequired(customerPaymentForm, cashToCashDeal) {
     return !cashToCashDeal;
 }
 
-function primaryCarrierTransportLabel(performers, clientRequestMode) {
-    const slots = carrierRequestSlots(performers, clientRequestMode);
-    const withContractor = slots.find((slot) => slot.contractorId);
-
-    if (withContractor?.contractorName) {
-        return String(withContractor.contractorName).trim();
-    }
-
-    const legs = Array.isArray(performers) ? performers : [];
-
-    for (const performer of legs) {
-        const name = performer?.contractor_name ? String(performer.contractor_name).trim() : '';
-
-        if (name !== '') {
-            return name;
-        }
-    }
-
-    return null;
-}
-
 function buildWaybillRule(performers, clientRequestMode) {
     return {
         key: 'waybill',
@@ -144,7 +123,8 @@ function buildWaybillRule(performers, clientRequestMode) {
         slot_key: 'waybill',
         contractor_id: null,
         order_leg_stage: null,
-        counterparty_label: primaryCarrierTransportLabel(performers, clientRequestMode),
+        // Shared slot: do not pin first carrier (CMR of leg 2 looked like carrier 1).
+        counterparty_label: null,
         allows_multiple: true,
         is_required: true,
     };
@@ -161,7 +141,7 @@ function buildEtrnRule(performers, clientRequestMode) {
         slot_key: 'etrn',
         contractor_id: null,
         order_leg_stage: null,
-        counterparty_label: primaryCarrierTransportLabel(performers, clientRequestMode),
+        counterparty_label: null,
         allows_multiple: false,
         is_required: true,
     };
