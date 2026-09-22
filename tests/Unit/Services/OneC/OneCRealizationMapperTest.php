@@ -87,6 +87,7 @@ class OneCRealizationMapperTest extends TestCase
                     'organization_inn' => '6732110940',
                     'service_nomenclature_ref' => '9ec829b8-632e-11f1-8745-fa163ea037a3',
                     'service_nomenclature_code' => '00-00000001',
+                    'currency_ref' => 'aa-rub',
                     'enabled' => true,
                 ],
                 'profsfera' => [
@@ -96,6 +97,7 @@ class OneCRealizationMapperTest extends TestCase
                     'organization_inn' => '6321213940',
                     'service_nomenclature_ref' => 'af537684-63c4-11f1-8ae7-fa163eafb81d',
                     'service_nomenclature_code' => '00-00000002',
+                    'currency_ref' => 'profsfera-rub',
                     'enabled' => true,
                 ],
             ],
@@ -131,6 +133,71 @@ class OneCRealizationMapperTest extends TestCase
         $this->assertSame('68778110-58ca-11f1-8af0-fa163eafb81d', $payload['odata_stub']['Организация_Key']);
         $this->assertSame('af537684-63c4-11f1-8ae7-fa163eafb81d', $payload['service_line']['nomenclature_ref']);
         $this->assertSame('00-00000002', $payload['service_line']['nomenclature_code']);
+        $this->assertSame('profsfera-rub', $payload['odata_stub']['ВалютаДокумента_Key']);
+    }
+
+    public function test_maps_own_company_gross_to_gross_publication_refs(): void
+    {
+        config([
+            'one_c.extra_attributes.order_id' => '',
+            'one_c.extra_attributes.order_number' => '',
+            'one_c.service_nomenclature.ref' => 'aa-foreign-nom',
+            'one_c.currency_ref' => 'aa-foreign-rub',
+            'one_c.default_publication' => 'autalliance',
+            'one_c.publications' => [
+                'autalliance' => [
+                    'label' => 'АА',
+                    'base_url' => 'https://one-c.test/aa',
+                    'organization_ref' => 'aa-org',
+                    'organization_inn' => '6732110940',
+                    'service_nomenclature_ref' => 'aa-foreign-nom',
+                    'service_nomenclature_code' => '00-00000001',
+                    'currency_ref' => 'aa-foreign-rub',
+                    'enabled' => true,
+                ],
+                'gross' => [
+                    'label' => 'Гросс',
+                    'base_url' => 'https://one-c.test/gross',
+                    'organization_ref' => 'gross-org',
+                    'organization_inn' => '6345031755',
+                    'service_nomenclature_ref' => 'gross-teu',
+                    'service_nomenclature_code' => '00-00000001',
+                    'currency_ref' => 'gross-rub',
+                    'enabled' => true,
+                ],
+            ],
+        ]);
+
+        $client = new Contractor([
+            'name' => 'ООО Клиент',
+            'inn' => '7707083893',
+            'kpp' => '770701001',
+        ]);
+        $own = new Contractor([
+            'name' => 'ООО ГРОСС',
+            'inn' => '6345031755',
+        ]);
+        $own->id = 9;
+
+        $order = new Order([
+            'order_number' => 'Г-1',
+            'customer_rate' => '10000.00',
+            'order_date' => '2026-09-01',
+            'own_company_id' => 9,
+        ]);
+        $order->id = 226;
+        $order->setRelation('client', $client);
+        $order->setRelation('ownCompany', $own);
+        $order->setRelation('legs', collect());
+
+        $payload = app(OneCRealizationMapper::class)->map($order);
+
+        $this->assertSame('gross', $payload['publication_code']);
+        $this->assertSame('gross-teu', $payload['service_line']['nomenclature_ref']);
+        $this->assertSame('gross-teu', $payload['odata_stub']['Услуги'][0]['Номенклатура_Key']);
+        $this->assertSame('gross-rub', $payload['odata_stub']['ВалютаДокумента_Key']);
+        $this->assertNotSame('aa-foreign-nom', $payload['service_line']['nomenclature_ref']);
+        $this->assertNotSame('aa-foreign-rub', $payload['currency_ref']);
     }
 
     public function test_maps_customer_vat_22_into_service_line(): void

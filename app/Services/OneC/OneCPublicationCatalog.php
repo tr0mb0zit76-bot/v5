@@ -20,6 +20,7 @@ use InvalidArgumentException;
  *     bank_account_number: string,
  *     service_nomenclature_ref: string,
  *     service_nomenclature_code: string,
+ *     currency_ref: string,
  *     date_filter_mode: 'odata'|'client',
  *     enabled: bool,
  *     include_in_sync: bool
@@ -183,6 +184,7 @@ final class OneCPublicationCatalog
             'bank_account_number' => (string) ($row['bank_account_number'] ?? ''),
             'service_nomenclature_ref' => (string) ($row['service_nomenclature_ref'] ?? ''),
             'service_nomenclature_code' => (string) ($row['service_nomenclature_code'] ?? ''),
+            'currency_ref' => (string) ($row['currency_ref'] ?? ''),
             'date_filter_mode' => $mode,
             'enabled' => (bool) ($row['enabled'] ?? true),
             'include_in_sync' => (bool) ($row['include_in_sync'] ?? true),
@@ -203,6 +205,7 @@ final class OneCPublicationCatalog
             'bank_account_number' => (string) config('one_c.bank_statement.account_number', '40702810959710001997'),
             'service_nomenclature_ref' => (string) config('one_c.service_nomenclature.ref', ''),
             'service_nomenclature_code' => (string) config('one_c.service_nomenclature.code', ''),
+            'currency_ref' => (string) config('one_c.currency_ref', ''),
             'date_filter_mode' => 'odata',
             'enabled' => true,
             'include_in_sync' => true,

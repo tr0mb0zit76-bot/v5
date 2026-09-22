@@ -210,6 +210,10 @@ return [
                 'ONE_C_AUTALLIANCE_SERVICE_NOMENCLATURE_CODE',
                 (string) env('ONE_C_SERVICE_NOMENCLATURE_CODE', '00-00000001')
             ),
+            'currency_ref' => (string) env(
+                'ONE_C_AUTALLIANCE_CURRENCY_REF',
+                (string) env('ONE_C_CURRENCY_REF', '69e038af-320f-11f1-acc9-b69a48ddb3f4')
+            ),
             'date_filter_mode' => 'odata',
             'enabled' => filter_var(env('ONE_C_AUTALLIANCE_ENABLED', true), FILTER_VALIDATE_BOOL),
             'include_in_sync' => true,
@@ -238,6 +242,11 @@ return [
                 'ONE_C_GROSS_SERVICE_NOMENCLATURE_CODE',
                 '00-00000001'
             ),
+            // Рубль в ИБ Гросс — другой Ref_Key, чем у АА/Профсферы.
+            'currency_ref' => (string) env(
+                'ONE_C_GROSS_CURRENCY_REF',
+                '0601b6db-556c-11eb-8132-0050569f5448'
+            ),
             'date_filter_mode' => 'client',
             'enabled' => filter_var(env('ONE_C_GROSS_ENABLED', true), FILTER_VALIDATE_BOOL),
             'include_in_sync' => true,
@@ -265,6 +274,10 @@ return [
             'service_nomenclature_code' => (string) env(
                 'ONE_C_PROFSFERA_SERVICE_NOMENCLATURE_CODE',
                 '00-00000002'
+            ),
+            'currency_ref' => (string) env(
+                'ONE_C_PROFSFERA_CURRENCY_REF',
+                (string) env('ONE_C_CURRENCY_REF', '69e038af-320f-11f1-acc9-b69a48ddb3f4')
             ),
             'date_filter_mode' => 'client',
             'enabled' => filter_var(env('ONE_C_PROFSFERA_ENABLED', true), FILTER_VALIDATE_BOOL),
@@ -302,6 +315,13 @@ return [
                 (string) env(
                     'ONE_C_AUTALLIANCE_SERVICE_NOMENCLATURE_CODE',
                     (string) env('ONE_C_SERVICE_NOMENCLATURE_CODE', '00-00000001')
+                )
+            ),
+            'currency_ref' => (string) env(
+                'ONE_C_SANDBOX_CURRENCY_REF',
+                (string) env(
+                    'ONE_C_AUTALLIANCE_CURRENCY_REF',
+                    (string) env('ONE_C_CURRENCY_REF', '69e038af-320f-11f1-acc9-b69a48ddb3f4')
                 )
             ),
             'date_filter_mode' => 'odata',

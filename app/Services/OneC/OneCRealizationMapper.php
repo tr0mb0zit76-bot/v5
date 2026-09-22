@@ -172,7 +172,7 @@ final class OneCRealizationMapper
             'organization_ref' => $organizationRef,
             'publication_code' => $publication['code'],
             'base_url' => $baseUrl,
-            'currency_ref' => $this->nullableConfigString('one_c.currency_ref'),
+            'currency_ref' => $this->resolveCurrencyRef($publication),
             'service_line' => [
                 'nomenclature_code' => $nomenclatureCode,
                 'nomenclature_ref' => $nomenclatureRef,
@@ -335,7 +335,7 @@ final class OneCRealizationMapper
             'organization_ref' => $organizationRef,
             'publication_code' => $publication['code'],
             'base_url' => $baseUrl,
-            'currency_ref' => $this->nullableConfigString('one_c.currency_ref'),
+            'currency_ref' => $this->resolveCurrencyRef($publication),
             'service_line' => [
                 'nomenclature_code' => $nomenclatureCode,
                 'nomenclature_ref' => $nomenclatureRef,
@@ -502,6 +502,25 @@ final class OneCRealizationMapper
             $ref !== '' ? $ref : null,
             $code !== '' ? $code : null,
         ];
+    }
+
+    /**
+     * Валюта документа для ИБ публикации (у Гросс Ref рубля другой).
+     *
+     * @param  array<string, mixed>  $publication
+     */
+    private function resolveCurrencyRef(array $publication): ?string
+    {
+        $ref = trim((string) ($publication['currency_ref'] ?? ''));
+        if ($ref !== '') {
+            return $ref;
+        }
+
+        if (($publication['code'] ?? '') === OneCPublicationCatalog::CODE_AUTALLIANCE) {
+            return $this->nullableConfigString('one_c.currency_ref');
+        }
+
+        return null;
     }
 
     /**
