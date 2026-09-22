@@ -37,5 +37,6 @@ class CardSmartLinksResolverTest extends TestCase
         $this->assertNotEmpty($links);
         $this->assertSame('tasks', $links[0]['key']);
         $this->assertSame(1, $links[0]['count']);
+        $this->assertNull($links[0]['href']);
     }
 }

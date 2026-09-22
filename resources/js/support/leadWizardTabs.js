@@ -91,11 +91,16 @@ export function isContractSigningLeadWizard(slug) {
 
 /**
  * Воронка «от запроса до заказа» (биржа / конвертация / «сколько влезет»).
+ * Любой полный профиль карточки: канон `transport-intake` и переименованные slug (прод: `ot-zaprosa-do-zakaza`).
  *
  * @param {string|null|undefined} slug
  */
 export function isTransportIntakeLeadWizard(slug) {
-    return slug === 'transport-intake';
+    if (!slug) {
+        return false;
+    }
+
+    return leadWizardCardProfile(slug) === 'default';
 }
 
 /**

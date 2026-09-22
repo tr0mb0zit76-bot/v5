@@ -18,6 +18,12 @@ class LeadAcquaintanceSpawnService
 
     public const TARGET_PROCESS_SLUG = 'transport-intake';
 
+    /** @var list<string> канон + прод-алиас после переименования slug */
+    public const TARGET_PROCESS_SLUG_ALIASES = [
+        self::TARGET_PROCESS_SLUG,
+        'ot-zaprosa-do-zakaza',
+    ];
+
     public function __construct(
         private readonly LeadBusinessProcessService $leadBusinessProcessService,
     ) {}
@@ -44,12 +50,13 @@ class LeadAcquaintanceSpawnService
         }
 
         $targetProcess = BusinessProcess::query()
-            ->where('slug', self::TARGET_PROCESS_SLUG)
+            ->whereIn('slug', self::TARGET_PROCESS_SLUG_ALIASES)
             ->where('is_active', true)
+            ->orderByRaw('CASE WHEN slug = ? THEN 0 ELSE 1 END', [self::TARGET_PROCESS_SLUG])
             ->first();
 
         if ($targetProcess === null) {
-            throw new InvalidArgumentException('Процесс «Получение деталей по перевозке» не найден.');
+            throw new InvalidArgumentException('Процесс «От запроса до заказа» не найден.');
         }
 
         return DB::transaction(function () use ($parent, $user, $metadata, $targetProcess): Lead {

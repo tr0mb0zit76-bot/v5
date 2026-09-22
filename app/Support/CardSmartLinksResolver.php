@@ -38,7 +38,7 @@ final class CardSmartLinksResolver
                     key: 'tasks',
                     label: 'Задачи',
                     count: $openTasks,
-                    href: route('leads.show', $lead).'#tasks',
+                    href: null,
                 );
             }
         }
@@ -92,7 +92,7 @@ final class CardSmartLinksResolver
                     key: 'tasks',
                     label: 'Задачи',
                     count: $openTasks,
-                    href: route('orders.edit', $order).'#tasks',
+                    href: null,
                 );
             }
         }
