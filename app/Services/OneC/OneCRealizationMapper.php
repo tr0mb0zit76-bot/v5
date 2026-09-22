@@ -130,15 +130,8 @@ final class OneCRealizationMapper
             $documentDate = $documentDate->format('Y-m-d');
         }
 
-        $nomenclatureRef = $this->nullableConfigString('one_c.service_nomenclature.ref');
-        $nomenclatureCode = $this->nullableConfigString('one_c.service_nomenclature.code');
         $publication = $this->publications->forOrder($order);
-        if ($publication['service_nomenclature_ref'] !== '') {
-            $nomenclatureRef = $publication['service_nomenclature_ref'];
-        }
-        if ($publication['service_nomenclature_code'] !== '') {
-            $nomenclatureCode = $publication['service_nomenclature_code'];
-        }
+        [$nomenclatureRef, $nomenclatureCode] = $this->resolveServiceNomenclature($publication);
         $organizationRef = $publication['organization_ref'] !== ''
             ? $publication['organization_ref']
             : $this->nullableConfigString('one_c.organization_ref');
@@ -301,12 +294,7 @@ final class OneCRealizationMapper
             ]);
         }
 
-        $nomenclatureRef = $publication['service_nomenclature_ref'] !== ''
-            ? $publication['service_nomenclature_ref']
-            : $this->nullableConfigString('one_c.service_nomenclature.ref');
-        $nomenclatureCode = $publication['service_nomenclature_code'] !== ''
-            ? $publication['service_nomenclature_code']
-            : $this->nullableConfigString('one_c.service_nomenclature.code');
+        [$nomenclatureRef, $nomenclatureCode] = $this->resolveServiceNomenclature($publication);
         $organizationRef = $publication['organization_ref'] !== ''
             ? $publication['organization_ref']
             : $this->nullableConfigString('one_c.organization_ref');
@@ -488,6 +476,32 @@ final class OneCRealizationMapper
 
         // Дробные ставки в OData этой ИБ — строка; fallback на целое округление.
         return 'НДС'.$rounded;
+    }
+
+    /**
+     * Номенклатура услуги для ИБ публикации.
+     * Глобальный ONE_C_SERVICE_NOMENCLATURE_* — только для Автоальянса (иначе чужой GUID → «Объект не найден»).
+     *
+     * @param  array<string, mixed>  $publication
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function resolveServiceNomenclature(array $publication): array
+    {
+        $ref = trim((string) ($publication['service_nomenclature_ref'] ?? ''));
+        $code = trim((string) ($publication['service_nomenclature_code'] ?? ''));
+        $isAutalliance = ($publication['code'] ?? '') === OneCPublicationCatalog::CODE_AUTALLIANCE;
+
+        if ($ref === '' && $isAutalliance) {
+            $ref = (string) ($this->nullableConfigString('one_c.service_nomenclature.ref') ?? '');
+        }
+        if ($code === '' && $isAutalliance) {
+            $code = (string) ($this->nullableConfigString('one_c.service_nomenclature.code') ?? '');
+        }
+
+        return [
+            $ref !== '' ? $ref : null,
+            $code !== '' ? $code : null,
+        ];
     }
 
     /**

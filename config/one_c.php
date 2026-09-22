@@ -229,8 +229,15 @@ return [
                 'ONE_C_GROSS_BANK_ACCOUNT',
                 '40702810629940001726'
             ),
-            'service_nomenclature_ref' => (string) env('ONE_C_GROSS_SERVICE_NOMENCLATURE_REF', ''),
-            'service_nomenclature_code' => (string) env('ONE_C_GROSS_SERVICE_NOMENCLATURE_CODE', ''),
+            // В ИБ Гросс ТЭУ = 00-00000001 (Ref другой, чем у Автоальянса — иначе «Объект не найден»).
+            'service_nomenclature_ref' => (string) env(
+                'ONE_C_GROSS_SERVICE_NOMENCLATURE_REF',
+                'b35e5374-bae4-11ef-89a3-dc68443ee9e4'
+            ),
+            'service_nomenclature_code' => (string) env(
+                'ONE_C_GROSS_SERVICE_NOMENCLATURE_CODE',
+                '00-00000001'
+            ),
             'date_filter_mode' => 'client',
             'enabled' => filter_var(env('ONE_C_GROSS_ENABLED', true), FILTER_VALIDATE_BOOL),
             'include_in_sync' => true,
