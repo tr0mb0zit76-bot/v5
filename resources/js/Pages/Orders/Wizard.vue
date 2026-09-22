@@ -259,7 +259,7 @@ import {
     performerFleetCacheKey,
     splitCarrierSlotLabel,
 } from '@/support/orderPerformers.js';
-import { clampActualDateToToday, isActualLoadingAfterUnloading, todayIsoDate, toIsoDateDay } from '@/support/orderActualDates.js';
+import { clampActualDateToToday, isActualLoadingAfterUnloading, todayIsoDate } from '@/support/orderActualDates.js';
 import { classifyDealType, paymentFormMetaFromOptions } from '@/support/paymentFormDealType.js';
 import { buildNormalizeCargoItem, useOrderWizardCargoTab } from '@/composables/useOrderWizardCargoTab.js';
 import { useOrderWizardCounterpartyModal } from '@/composables/useOrderWizardCounterpartyModal.js';
