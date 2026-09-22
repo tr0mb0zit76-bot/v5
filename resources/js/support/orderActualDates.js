@@ -25,11 +25,34 @@ export function toIsoDateDay(value) {
     return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : normalized;
 }
 
+/**
+ * Полная ISO-дата с «нормальным» годом.
+ * Нужна, потому что при наборе года в <input type="date"> Chrome временно
+ * отдаёт 0002 / 0020 / 0202 — на них нельзя валидировать порядок дат.
+ */
+export function isPlausibleActualIsoDate(value) {
+    const day = toIsoDateDay(value);
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+        return false;
+    }
+
+    const year = Number(day.slice(0, 4));
+    const currentYear = new Date().getFullYear();
+
+    return year >= 2000 && year <= currentYear;
+}
+
 export function clampActualDateToToday(value) {
     const normalized = toIsoDateDay(value);
 
     if (normalized === '') {
         return '';
+    }
+
+    // Не трогаем промежуточные значения при наборе года с клавиатуры.
+    if (!isPlausibleActualIsoDate(normalized)) {
+        return normalized;
     }
 
     const today = todayIsoDate();
@@ -39,15 +62,15 @@ export function clampActualDateToToday(value) {
 
 /**
  * True when both dates present and loading calendar day is after unloading.
- * Same day is allowed.
+ * Same day is allowed. Incomplete / typing-in-progress dates → false.
  */
 export function isActualLoadingAfterUnloading(loading, unloading) {
-    const loadingDay = toIsoDateDay(loading);
-    const unloadingDay = toIsoDateDay(unloading);
-
-    if (!loadingDay || !unloadingDay) {
+    if (!isPlausibleActualIsoDate(loading) || !isPlausibleActualIsoDate(unloading)) {
         return false;
     }
+
+    const loadingDay = toIsoDateDay(loading);
+    const unloadingDay = toIsoDateDay(unloading);
 
     return loadingDay > unloadingDay;
 }

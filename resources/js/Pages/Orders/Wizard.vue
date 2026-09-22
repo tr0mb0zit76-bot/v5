@@ -999,9 +999,7 @@ function onSplitActualDateInput(slot, field) {
 }
 
 function assertPerformerActualOrder(performer, field) {
-    performer.loading_actual = toIsoDateDay(performer.loading_actual);
-    performer.unloading_actual = toIsoDateDay(performer.unloading_actual);
-
+    // Не нормализуем/не ругаемся на промежуточные значения при наборе года (0002/0020/0202).
     if (!isActualLoadingAfterUnloading(performer.loading_actual, performer.unloading_actual)) {
         return;
     }
@@ -1011,9 +1009,6 @@ function assertPerformerActualOrder(performer, field) {
 }
 
 function assertSlotActualOrder(slot, field) {
-    slot.loading_actual = toIsoDateDay(slot.loading_actual);
-    slot.unloading_actual = toIsoDateDay(slot.unloading_actual);
-
     if (!isActualLoadingAfterUnloading(slot.loading_actual, slot.unloading_actual)) {
         return;
     }
