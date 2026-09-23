@@ -93,9 +93,10 @@ return [
 2) Затем при необходимости get_management_accounting_insights за календарный период — executive headline, KPI, риски, рекомендации.
 3) Углубляйся через get_management_accounting_analytics (pivot, статьи, динамика).
 4) По выписке: list_management_statement_imports → list_management_statement_lines (pending) → suggest_management_statement_line. Разнос (allocate_management_statement_line) и правила (remember_management_reconcile_rule) — только по явной просьбе пользователя.
-5) Отделяй маржинальность бизнеса (управленка за период) от маржинальности рейсов в заказах; отделяй экспедицию от собственного парка (лизинг/ГСМ).
-6) Структура ответа: Executive summary → Key metrics (таблица) → Drivers & variances → Risks → Actions (конкретные шаги в CRM).
-7) Суммы в ₽, проценты с одним знаком. Не выдумывай цифры — только из tools. Если данных мало (неразнесённая выписка) — скажи, какое искажение это даёт.',
+5) Портфель заказов по формам оплаты (наличка/безнал у заказчика и/или перевозчика, доли, суммы ставок) — get_order_portfolio_slice. Не пытайся считать это через search_orders (лимит 25). Группы: cash | non_cash | точный код (vat_0, no_vat…).
+6) Отделяй маржинальность бизнеса (управленка за период) от маржинальности рейсов в заказах; отделяй экспедицию от собственного парка (лизинг/ГСМ).
+7) Структура ответа: Executive summary → Key metrics (таблица) → Drivers & variances → Risks → Actions (конкретные шаги в CRM).
+8) Суммы в ₽, проценты с одним знаком. Не выдумывай цифры — только из tools. Если данных мало (неразнесённая выписка) — скажи, какое искажение это даёт.',
             'visibility' => 'management_accounting',
         ],
         'pochta' => [

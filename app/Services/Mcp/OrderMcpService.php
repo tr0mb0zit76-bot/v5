@@ -10,6 +10,8 @@ use App\Services\Orders\OrderRouteActualDateUpdateService;
 use App\Support\ActivityEventType;
 use App\Support\OrderAgentLexicon;
 use App\Support\OrderInlineFieldCatalog;
+use App\Support\PaymentFormDictionary;
+use App\Support\RoleAccess;
 use App\Support\RoutePointActualMilestones;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\Builder;
@@ -126,9 +128,247 @@ class OrderMcpService
         if ($this->access->canViewFinance($user)) {
             $payload['customer_rate'] = $order->customer_rate;
             $payload['delta'] = $order->delta;
+            $this->appendPaymentForms($payload, $order);
         }
 
         return $payload;
+    }
+
+    /**
+     * Срез портфеля заказов по формам оплаты и периоду (COUNT + суммы + примеры).
+     *
+     * @param  array{
+     *     customer_payment_form?: string|null,
+     *     customer_payment_form_group?: string|null,
+     *     carrier_payment_form?: string|null,
+     *     carrier_payment_form_group?: string|null,
+     *     from_date?: string|null,
+     *     to_date?: string|null,
+     *     active_only?: bool,
+     *     include_examples?: bool,
+     *     examples_limit?: int
+     * }  $filters
+     * @return array<string, mixed>
+     */
+    public function portfolioSlice(User $user, array $filters = []): array
+    {
+        $this->access->requireOrdersArea($user);
+
+        $canFinance = $this->access->canViewFinance($user);
+        $hasCustomerForm = Schema::hasColumn('orders', 'customer_payment_form');
+        $hasCarrierForm = Schema::hasColumn('orders', 'carrier_payment_form');
+
+        if (! $hasCustomerForm && ! $hasCarrierForm) {
+            return [
+                'available' => false,
+                'message' => 'В схеме orders нет полей форм оплаты.',
+            ];
+        }
+
+        $customerCode = $this->normalizeOptionalFormCode($filters['customer_payment_form'] ?? null);
+        $carrierCode = $this->normalizeOptionalFormCode($filters['carrier_payment_form'] ?? null);
+        $customerGroup = $this->normalizeFormGroup($filters['customer_payment_form_group'] ?? null);
+        $carrierGroup = $this->normalizeFormGroup($filters['carrier_payment_form_group'] ?? null);
+        $activeOnly = array_key_exists('active_only', $filters)
+            ? (bool) $filters['active_only']
+            : true;
+        $includeExamples = array_key_exists('include_examples', $filters)
+            ? (bool) $filters['include_examples']
+            : true;
+        $examplesLimit = max(1, min((int) ($filters['examples_limit'] ?? 8), 15));
+
+        $base = Order::query()->orderByDesc('id');
+        if (Schema::hasColumn('orders', 'deleted_at')) {
+            $base->whereNull('deleted_at');
+        }
+        $this->access->applyOrdersScope($base, $user);
+
+        if ($activeOnly) {
+            $this->applyActiveOnlyFilter($base);
+        }
+
+        $fromDate = $this->normalizeOptionalDate($filters['from_date'] ?? null);
+        $toDate = $this->normalizeOptionalDate($filters['to_date'] ?? null);
+        if ($fromDate !== null && Schema::hasColumn('orders', 'order_date')) {
+            $base->whereDate('order_date', '>=', $fromDate);
+        }
+        if ($toDate !== null && Schema::hasColumn('orders', 'order_date')) {
+            $base->whereDate('order_date', '<=', $toDate);
+        }
+
+        $denominatorQuery = clone $base;
+        $denominator = (clone $denominatorQuery)->count();
+
+        if ($hasCustomerForm) {
+            $this->applyPaymentFormConstraint($base, 'customer_payment_form', $customerCode, $customerGroup);
+        }
+        if ($hasCarrierForm) {
+            $this->applyPaymentFormConstraint($base, 'carrier_payment_form', $carrierCode, $carrierGroup);
+        }
+
+        $matched = (clone $base)->count();
+
+        $totals = [
+            'orders' => $matched,
+        ];
+        if ($canFinance) {
+            $totals['customer_rate_sum'] = round((float) (clone $base)->sum('customer_rate'), 2);
+            if (Schema::hasColumn('orders', 'carrier_rate')) {
+                $totals['carrier_rate_sum'] = round((float) (clone $base)->sum('carrier_rate'), 2);
+            }
+            if (Schema::hasColumn('orders', 'delta')) {
+                $totals['delta_sum'] = round((float) (clone $base)->sum('delta'), 2);
+            }
+        }
+
+        $examples = [];
+        if ($includeExamples && $matched > 0) {
+            $examples = (clone $base)
+                ->with(['client:id,name', 'carrier:id,name', 'manager:id,name'])
+                ->limit($examplesLimit)
+                ->get()
+                ->map(fn (Order $order): array => $this->summarize($order, $user))
+                ->all();
+        }
+
+        $scopeMode = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
+        $scopeNote = match ($scopeMode) {
+            'all' => 'все заказы в зоне видимости роли',
+            'department' => 'заказы отдела',
+            default => 'только ваши заказы (scope own)',
+        };
+
+        return [
+            'available' => true,
+            'filters_applied' => [
+                'customer_payment_form' => $customerCode,
+                'customer_payment_form_group' => $customerGroup,
+                'carrier_payment_form' => $carrierCode,
+                'carrier_payment_form_group' => $carrierGroup,
+                'from_date' => $fromDate,
+                'to_date' => $toDate,
+                'active_only' => $activeOnly,
+            ],
+            'scope' => [
+                'mode' => $scopeMode,
+                'note' => $scopeNote,
+            ],
+            'totals' => $totals,
+            'denominator_orders' => $denominator,
+            'share_of_denominator' => $denominator > 0
+                ? round($matched / $denominator, 4)
+                : null,
+            'examples' => $examples,
+            'can_view_finance_metrics' => $canFinance,
+            'methodology' => array_values(array_filter([
+                $hasCustomerForm ? 'customer: orders.customer_payment_form' : null,
+                $hasCarrierForm ? 'carrier: orders.carrier_payment_form (колонка заказа; плечи contractors_costs не учитываются в v1)' : null,
+                'cash = код cash; non_cash = любое заполненное значение кроме cash (включая no_vat и ставки НДС)',
+                'active_only: is_active=1 и статус не cancelled/closed (если колонки есть)',
+                'период — по order_date',
+            ])),
+            'caveats' => [
+                'Мультиплечо: фактическая форма в contractors_costs может отличаться от carrier_payment_form.',
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function appendPaymentForms(array &$payload, Order $order): void
+    {
+        if (Schema::hasColumn('orders', 'customer_payment_form')) {
+            $code = $order->customer_payment_form;
+            $payload['customer_payment_form'] = $code;
+            $payload['customer_payment_form_label'] = PaymentFormDictionary::labelForCode(
+                is_string($code) ? $code : null,
+            );
+        }
+
+        if (Schema::hasColumn('orders', 'carrier_payment_form')) {
+            $code = $order->carrier_payment_form;
+            $payload['carrier_payment_form'] = $code;
+            $payload['carrier_payment_form_label'] = PaymentFormDictionary::labelForCode(
+                is_string($code) ? $code : null,
+            );
+        }
+    }
+
+    private function normalizeOptionalFormCode(mixed $value): ?string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        return PaymentFormDictionary::normalizeForStorage(trim($value)) ?? trim($value);
+    }
+
+    private function normalizeFormGroup(mixed $value): ?string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        $group = mb_strtolower(trim($value));
+
+        return in_array($group, ['cash', 'non_cash', 'any'], true) ? $group : null;
+    }
+
+    private function normalizeOptionalDate(mixed $value): ?string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        return trim($value);
+    }
+
+    private function applyActiveOnlyFilter(Builder $builder): void
+    {
+        if (Schema::hasColumn('orders', 'is_active')) {
+            $builder->where('is_active', true);
+        }
+
+        if (Schema::hasColumn('orders', 'manual_status')) {
+            $builder->where(function (Builder $q): void {
+                $q->whereNull('manual_status')
+                    ->orWhereNotIn('manual_status', ['cancelled', 'closed']);
+            });
+        } elseif (Schema::hasColumn('orders', 'status')) {
+            $builder->where(function (Builder $q): void {
+                $q->whereNull('status')
+                    ->orWhereNotIn('status', ['cancelled', 'closed']);
+            });
+        }
+    }
+
+    private function applyPaymentFormConstraint(
+        Builder $builder,
+        string $column,
+        ?string $code,
+        ?string $group,
+    ): void {
+        if ($code !== null) {
+            $builder->where($column, $code);
+
+            return;
+        }
+
+        if ($group === null || $group === 'any') {
+            return;
+        }
+
+        if ($group === 'cash') {
+            $builder->where($column, 'cash');
+
+            return;
+        }
+
+        // non_cash
+        $builder->whereNotNull($column)
+            ->where($column, '!=', '')
+            ->where($column, '!=', 'cash');
     }
 
     /**

@@ -13,6 +13,7 @@ final class McpToolDomainRegistry
     private const TOOLS = [
         'search_orders' => ['domain' => 'orders', 'cross' => []],
         'get_order' => ['domain' => 'orders', 'cross' => ['contractors', 'fleet']],
+        'get_order_portfolio_slice' => ['domain' => 'orders', 'cross' => ['finance']],
         'get_order_timeline' => ['domain' => 'orders', 'cross' => []],
         'list_order_documents' => ['domain' => 'orders', 'cross' => ['finance']],
         'add_order_note' => ['domain' => 'orders', 'cross' => []],

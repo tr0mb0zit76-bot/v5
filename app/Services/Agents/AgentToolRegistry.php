@@ -194,7 +194,7 @@ class AgentToolRegistry
             ),
             new AgentToolDefinition(
                 name: 'get_order',
-                description: 'Карточка заказа по id. В ответе loading_actual / unloading_actual — фактические даты погрузки и выгрузки.',
+                description: 'Карточка заказа по id. В ответе loading_actual / unloading_actual — фактические даты погрузки и выгрузки; при доступе к финансам — customer/carrier_payment_form.',
                 parameters: [
                     'type' => 'object',
                     'properties' => [
@@ -207,6 +207,27 @@ class AgentToolRegistry
                 invoke: function (User $user, array $args): array {
                     return ['order' => $this->orders->get($user, (int) $args['order_id'])];
                 },
+            ),
+            new AgentToolDefinition(
+                name: 'get_order_portfolio_slice',
+                description: 'Срез портфеля заказов: COUNT, суммы ставок/дельты и примеры по формам оплаты заказчика/перевозчика (cash, non_cash или точный код), периоду order_date и active_only. Для «сколько заявок с наличкой у перевозчика». Не заменяет search_orders для одного номера.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'customer_payment_form' => ['type' => 'string', 'description' => 'Точный код формы заказчика (cash, vat_0…).'],
+                        'customer_payment_form_group' => ['type' => 'string', 'enum' => ['cash', 'non_cash', 'any']],
+                        'carrier_payment_form' => ['type' => 'string', 'description' => 'Точный код формы перевозчика.'],
+                        'carrier_payment_form_group' => ['type' => 'string', 'enum' => ['cash', 'non_cash', 'any']],
+                        'from_date' => ['type' => 'string', 'description' => 'YYYY-MM-DD по order_date'],
+                        'to_date' => ['type' => 'string', 'description' => 'YYYY-MM-DD по order_date'],
+                        'active_only' => ['type' => 'boolean', 'description' => 'По умолчанию true'],
+                        'include_examples' => ['type' => 'boolean', 'description' => 'По умолчанию true'],
+                        'examples_limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 15],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canOrders($user),
+                invoke: fn (User $user, array $args): array => $this->orders->portfolioSlice($user, $args),
             ),
             new AgentToolDefinition(
                 name: 'get_order_field_lexicon',

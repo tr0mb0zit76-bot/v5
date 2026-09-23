@@ -26,6 +26,7 @@ use App\Mcp\Tools\GetManagementAccountingInsightsTool;
 use App\Mcp\Tools\GetManagerSalesCoachingInsightsTool;
 use App\Mcp\Tools\GetOrderFieldLexiconTool;
 use App\Mcp\Tools\GetOrderIntakeDraftTool;
+use App\Mcp\Tools\GetOrderPortfolioSliceTool;
 use App\Mcp\Tools\GetOrderTimelineTool;
 use App\Mcp\Tools\GetOrderTool;
 use App\Mcp\Tools\GetPrintFormBasicTermsTool;
@@ -101,6 +102,7 @@ use Laravel\Mcp\Server\Tool;
         - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text / extract_order_draft_from_document / apply_order_wizard_draft / remember_order_intake_phrase — черновики заявок
         - apply_order_wizard_draft: dry_run=true → confirm_token, затем вызов с confirm_token (создание заказа из draft_id)
         - После create/extract в ответе draft_id и wizard_path. Альтернатива UI: apply_order_wizard_draft после dry_run.
+        - get_order_portfolio_slice — COUNT/суммы/примеры заказов по формам оплаты (cash/non_cash/код), периоду order_date; для портфельных вопросов Финансиста
         - get_print_form_basic_terms — общие пункты базовых условий cp/dp (заказчик/перевозчик) из настроек CRM
         - get_print_form_templates_insights — шаблоны DOCX, базовые условия и диагностика печати (settings_system / Юрик)
         - upsert_print_form_basic_terms — прямое сохранение базовых условий (admin / settings_system)
@@ -126,6 +128,7 @@ class CrmServer extends Server
         GetUserContextTool::class,
         SearchOrdersTool::class,
         GetOrderTool::class,
+        GetOrderPortfolioSliceTool::class,
         GetOrderFieldLexiconTool::class,
         GetOrderTimelineTool::class,
         ListOrderDocumentsTool::class,
