@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\CurrencyDictionary;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -80,7 +81,7 @@ class StoreLoadBoardPostRequest extends FormRequest
             'ati_cargo_payload' => ['nullable', 'array'],
             'transport_type' => ['nullable', 'string', 'max:255'],
             'customer_rate' => ['nullable', 'numeric', 'min:0', 'max:999999999999.99'],
-            'customer_rate_currency' => ['nullable', 'string', 'size:3'],
+            'customer_rate_currency' => ['nullable', 'string', 'size:3', Rule::in(CurrencyDictionary::allowedCodes())],
             'target_carrier_rate' => ['nullable', 'numeric', 'min:0', 'max:999999999999.99'],
             'payment_form' => ['nullable', 'string', 'max:255'],
             'requirements' => ['nullable', 'string', 'max:5000'],

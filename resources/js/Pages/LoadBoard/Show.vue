@@ -16,6 +16,7 @@
             :status-labels="statusLabels"
             :priority-labels="priorityLabels"
             :offer-source-options="offerSourceOptions"
+            :currency-options="currencyOptions"
             :current-user-id="currentUserId"
             :ati-preview="atiPreview"
             :order-options="orderOptions"
@@ -49,6 +50,7 @@ const props = defineProps({
     leadOptions: { type: Array, default: () => [] },
     orderOptions: { type: Array, default: () => [] },
     offerSourceOptions: { type: Object, default: () => ({}) },
+    currencyOptions: { type: Array, default: () => [] },
     atiPreview: { type: Object, default: null },
 });
 

@@ -247,10 +247,21 @@
                             <option v-for="(label, value) in offerSourceOptions" :key="value" :value="value">{{ label }}</option>
                         </select>
                     </div>
-                    <div class="grid gap-2 sm:grid-cols-2">
+                    <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]">
                         <input v-model="offerForm.carrier_rate" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="Ставка перевозчика" />
-                        <input v-model="offerForm.carrier_rate_currency" maxlength="3" :class="crmFieldFluid" placeholder="RUB" />
+                        <select v-model="offerForm.carrier_rate_currency" :class="crmFieldFluid">
+                            <option
+                                v-for="option in currencyOptions"
+                                :key="`offer-currency-${option.value}`"
+                                :value="option.value"
+                            >
+                                {{ option.value }}
+                            </option>
+                        </select>
                     </div>
+                    <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                        Ставка за весь маршрут этого поста (один перевозчик). Для мультимода лучше отдельный пост на плечо в том же кейсе закупки — или суммарную ставку с расшифровкой в «Условиях».
+                    </p>
                     <div class="grid gap-2 sm:grid-cols-2">
                         <input v-model="offerForm.payment_form" :class="crmFieldFluid" placeholder="Форма оплаты" />
                         <input v-model="offerForm.available_date" type="date" :class="crmFieldFluid" />
@@ -382,9 +393,17 @@
                         :class="crmFieldFluid"
                         placeholder="Название перевозчика (если нет в справочнике)"
                     >
-                    <div class="grid gap-2 sm:grid-cols-2">
+                    <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]">
                         <input v-model="candidateForm.carrier_rate" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="Ориентир ставки (необязательно)" />
-                        <input v-model="candidateForm.carrier_rate_currency" maxlength="3" :class="crmFieldFluid" placeholder="RUB" />
+                        <select v-model="candidateForm.carrier_rate_currency" :class="crmFieldFluid">
+                            <option
+                                v-for="option in currencyOptions"
+                                :key="`candidate-currency-${option.value}`"
+                                :value="option.value"
+                            >
+                                {{ option.value }}
+                            </option>
+                        </select>
                     </div>
                     <input v-model="candidateForm.carrier_contact" :class="crmFieldFluid" placeholder="Контакт" />
                     <textarea v-model="candidateForm.conditions" rows="2" :class="crmFieldFluid" placeholder="Условия" />
@@ -539,6 +558,7 @@ const props = defineProps({
     statusLabels: { type: Object, default: () => ({}) },
     priorityLabels: { type: Object, default: () => ({}) },
     offerSourceOptions: { type: Object, default: () => ({}) },
+    currencyOptions: { type: Array, default: () => [] },
     currentUserId: { type: [Number, String], default: null },
     atiPreview: { type: Object, default: null },
     orderOptions: { type: Array, default: () => [] },
@@ -726,16 +746,22 @@ function isClosed(post) {
     return ['closed', 'cancelled', 'no_options'].includes(post.status);
 }
 
+function defaultOfferCurrency() {
+    return props.post?.customer_rate_currency || 'RUB';
+}
+
 function openOfferForm() {
     activeTab.value = 'offers';
     showOfferForm.value = true;
     showCandidateForm.value = false;
+    offerForm.carrier_rate_currency = defaultOfferCurrency();
 }
 
 function openCandidateForm() {
     activeTab.value = 'pool';
     showCandidateForm.value = true;
     showOfferForm.value = false;
+    candidateForm.carrier_rate_currency = defaultOfferCurrency();
 }
 
 function submitCandidate() {
@@ -745,7 +771,7 @@ function submitCandidate() {
             showCandidateForm.value = false;
             candidateForm.reset();
             candidateForm.source = 'phone';
-            candidateForm.carrier_rate_currency = 'RUB';
+            candidateForm.carrier_rate_currency = defaultOfferCurrency();
             advisorPayload.value = null;
         },
     });
@@ -771,7 +797,7 @@ function promoteCandidateToOffer(entry) {
     offerCarrierLabel.value = entry.carrier_name ?? '';
     offerForm.source = entry.source ?? 'phone';
     offerForm.carrier_rate = entry.carrier_rate ?? '';
-    offerForm.carrier_rate_currency = entry.carrier_rate_currency ?? 'RUB';
+    offerForm.carrier_rate_currency = entry.carrier_rate_currency ?? defaultOfferCurrency();
     offerForm.carrier_contact = entry.carrier_contact ?? '';
     offerForm.conditions = entry.conditions ?? '';
     offerForm.comment = entry.comment ?? '';
@@ -792,6 +818,7 @@ function submitOffer() {
             showOfferForm.value = false;
             offerForm.reset();
             offerForm.source = 'internal_crm';
+            offerForm.carrier_rate_currency = defaultOfferCurrency();
         },
     });
 }

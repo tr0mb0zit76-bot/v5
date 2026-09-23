@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Support\CurrencyDictionary;
 use App\Support\LoadBoardOfferSource;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreLoadBoardOfferRequest extends FormRequest
 {
@@ -26,7 +28,7 @@ class StoreLoadBoardOfferRequest extends FormRequest
         return [
             'carrier_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'carrier_rate' => ['required', 'numeric', 'min:0', 'max:999999999999.99'],
-            'carrier_rate_currency' => ['nullable', 'string', 'size:3'],
+            'carrier_rate_currency' => ['nullable', 'string', 'size:3', Rule::in(CurrencyDictionary::allowedCodes())],
             'payment_form' => ['nullable', 'string', 'max:255'],
             'available_date' => ['nullable', 'date'],
             'carrier_contact' => ['nullable', 'string', 'max:255'],

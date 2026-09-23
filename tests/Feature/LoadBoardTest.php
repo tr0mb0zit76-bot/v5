@@ -190,7 +190,34 @@ class LoadBoardTest extends TestCase
                 ->has('posts.data')
                 ->has('posts.meta')
                 ->where('posts.meta.per_page', 50)
-                ->has('activePostsCount'));
+                ->has('activePostsCount')
+                ->has('currencyOptions')
+                ->where('currencyOptions.0.value', 'RUB'));
+    }
+
+    public function test_store_offer_rejects_unknown_currency(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'load_board_role_currency',
+            'display_name' => 'Load board role currency',
+            'visibility_areas' => ['load_board'],
+        ]);
+
+        $user = User::factory()->create(['role_id' => $role->id]);
+        $post = LoadBoardPost::query()->create([
+            'seller_id' => $user->id,
+            'status' => 'in_work',
+            'priority' => 'normal',
+            'title' => 'Груз валюта',
+            'published_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('load-board.offers.store', $post), [
+                'carrier_rate' => 100000,
+                'carrier_rate_currency' => 'XXX',
+            ])
+            ->assertSessionHasErrors('carrier_rate_currency');
     }
 
     public function test_rows_endpoint_returns_next_page_for_infinite_scroll(): void

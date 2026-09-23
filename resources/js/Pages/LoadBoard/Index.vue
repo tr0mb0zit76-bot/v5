@@ -223,7 +223,15 @@
                 </label>
                 <label :class="crmFilterField">
                     <span :class="crmLabelCompact">Валюта</span>
-                    <input v-model="postForm.customer_rate_currency" maxlength="3" :class="crmFieldFluid" />
+                    <select v-model="postForm.customer_rate_currency" :class="crmFieldFluid">
+                        <option
+                            v-for="option in currencyOptions"
+                            :key="`post-currency-${option.value}`"
+                            :value="option.value"
+                        >
+                            {{ option.label }}
+                        </option>
+                    </select>
                 </label>
                 <label :class="crmFilterField">
                     <span :class="crmLabelCompact">Макс. ставка перевозчика</span>
@@ -374,6 +382,7 @@
                 :status-labels="statusLabels"
                 :priority-labels="priorityLabels"
                 :offer-source-options="offerSourceOptions"
+                :currency-options="currencyOptions"
                 :current-user-id="currentUserId"
                 :ati-preview="atiPreview"
                 :order-options="orderOptions"
@@ -442,6 +451,7 @@ const props = defineProps({
     orderOptions: { type: Array, default: () => [] },
     atiDictionaries: { type: Object, default: () => ({}) },
     offerSourceOptions: { type: Object, default: () => ({}) },
+    currencyOptions: { type: Array, default: () => [] },
     prefill: { type: Object, default: null },
 });
 

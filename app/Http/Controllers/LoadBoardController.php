@@ -23,6 +23,7 @@ use App\Services\LoadBoard\LoadBoardRateObservationService;
 use App\Services\LoadBoard\ProcurementCaseLinkService;
 use App\Services\LoadBoard\ProcurementCaseSyncService;
 use App\Support\AtiDictionaryOptionCatalog;
+use App\Support\CurrencyDictionary;
 use App\Support\LoadBoardOfferSource;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
@@ -96,6 +97,7 @@ class LoadBoardController extends Controller
             'orderOptions' => Order::query()->select(['id', 'order_number'])->latest('id')->limit(100)->get(),
             'atiDictionaries' => $this->atiDictionaries(),
             'offerSourceOptions' => LoadBoardOfferSource::labels(),
+            'currencyOptions' => CurrencyDictionary::options(),
             'prefill' => $prefill,
         ]);
     }
@@ -892,6 +894,7 @@ class LoadBoardController extends Controller
             'orderOptions' => Order::query()->select(['id', 'order_number'])->latest('id')->limit(100)->get(),
             'atiDictionaries' => $this->atiDictionaries(),
             'offerSourceOptions' => LoadBoardOfferSource::labels(),
+            'currencyOptions' => CurrencyDictionary::options(),
             'atiPreview' => $request->session()->get('flash.load_board_ati_preview'),
         ];
     }

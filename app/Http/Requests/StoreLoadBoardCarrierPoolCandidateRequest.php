@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Support\CurrencyDictionary;
 use App\Support\LoadBoardOfferSource;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class StoreLoadBoardCarrierPoolCandidateRequest extends FormRequest
@@ -25,7 +27,7 @@ class StoreLoadBoardCarrierPoolCandidateRequest extends FormRequest
             'carrier_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'carrier_name' => ['nullable', 'string', 'max:255'],
             'carrier_rate' => ['nullable', 'numeric', 'min:0', 'max:999999999999.99'],
-            'carrier_rate_currency' => ['nullable', 'string', 'size:3'],
+            'carrier_rate_currency' => ['nullable', 'string', 'size:3', Rule::in(CurrencyDictionary::allowedCodes())],
             'carrier_contact' => ['nullable', 'string', 'max:255'],
             'conditions' => ['nullable', 'string', 'max:5000'],
             'comment' => ['nullable', 'string', 'max:5000'],
