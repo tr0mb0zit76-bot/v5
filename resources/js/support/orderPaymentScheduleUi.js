@@ -420,6 +420,13 @@ export function syncInstallmentAmountsFromPercents(schedule, totalAmount) {
         return;
     }
 
+    // Если суммы уже сходятся с итогом — не пересчитываем из % (округление % ломает рубли).
+    if (installmentAmountsMatchTotal(rows, total)) {
+        syncInstallmentPercentsFromAmounts(rows, total);
+
+        return;
+    }
+
     let allocated = 0;
     let percentSum = 0;
 
@@ -436,6 +443,40 @@ export function syncInstallmentAmountsFromPercents(schedule, totalAmount) {
         assignRoundedNumber(rows[i], 'percent', pct);
         assignRoundedNumber(rows[i], 'amount', amt);
         allocated += rows[i].amount;
+        percentSum += rows[i].percent;
+    }
+}
+
+function installmentAmountsMatchTotal(rows, total) {
+    let sum = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+        const raw = rows[i].amount;
+        if (raw === null || raw === undefined || raw === '') {
+            return false;
+        }
+
+        sum += Math.round(Number(raw) * 100) / 100;
+    }
+
+    return Math.abs(Math.round(sum * 100) / 100 - total) <= 0.02;
+}
+
+function syncInstallmentPercentsFromAmounts(rows, total) {
+    let percentSum = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+        const isLast = i === rows.length - 1;
+        const amount = Math.round(Number(rows[i].amount || 0) * 100) / 100;
+        assignRoundedNumber(rows[i], 'amount', amount);
+
+        if (isLast) {
+            assignRoundedNumber(rows[i], 'percent', Math.max(0, 100 - percentSum));
+            break;
+        }
+
+        const pct = total > 0 ? Math.min(100, Math.max(0, (amount / total) * 100)) : 0;
+        assignRoundedNumber(rows[i], 'percent', pct);
         percentSum += rows[i].percent;
     }
 }
