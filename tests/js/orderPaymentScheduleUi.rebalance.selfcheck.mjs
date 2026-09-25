@@ -6,6 +6,7 @@ import {
     blankInstallmentRow,
     rebalanceInstallmentPercents,
     equalizeInstallmentPercents,
+    syncInstallmentAmountsFromPercents,
 } from '../../resources/js/support/orderPaymentScheduleUi.js';
 
 function assert(cond, message) {
@@ -49,5 +50,20 @@ assert(nearlyEqual(schedule.installments[0].percent, 50), 'first must stay 50 af
 assert(nearlyEqual(schedule.installments[1].percent, 30), 'second stays 30');
 assert(nearlyEqual(schedule.installments[2].percent, 20), `third should absorb 20, got ${schedule.installments[2].percent}`);
 assert(nearlyEqual(sum(percents(schedule)), 100), 'sum must stay 100');
+
+const exact = {
+    installments: [
+        blankInstallmentRow({ percent: 25, amount: 500000 }),
+        blankInstallmentRow({ percent: 25, amount: 1856500 }),
+        blankInstallmentRow({ percent: 25, amount: 360000 }),
+        blankInstallmentRow({ percent: 25, amount: 1856500 }),
+    ],
+};
+syncInstallmentAmountsFromPercents(exact, 4573000);
+assert(exact.installments[0].amount === 500000, `t1 amount kept, got ${exact.installments[0].amount}`);
+assert(exact.installments[1].amount === 1856500, `t2 amount kept, got ${exact.installments[1].amount}`);
+assert(exact.installments[2].amount === 360000, `t3 amount kept, got ${exact.installments[2].amount}`);
+assert(exact.installments[3].amount === 1856500, `t4 amount kept, got ${exact.installments[3].amount}`);
+assert(nearlyEqual(sum(percents(exact)), 100), 'exact amounts: percents sum 100');
 
 console.log('orderPaymentScheduleUi.rebalance.selfcheck: ok');
