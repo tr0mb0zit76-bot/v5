@@ -76,6 +76,14 @@ final class PaymentInstallmentScheduleNormalizer
             return self::stripLegacyKeys(array_merge($schedule, ['installments' => $normalizedRows]));
         }
 
+        // Если суммы траншей уже сходятся с итогом — не пересчитываем из % (округление % ломает рубли).
+        if (self::amountsMatchTotal($normalizedRows, $total)) {
+            return self::stripLegacyKeys(array_merge(
+                $schedule,
+                ['installments' => self::percentsFromAmounts($normalizedRows, $total)],
+            ));
+        }
+
         $allocated = 0.0;
         $percentSum = 0.0;
 
@@ -98,6 +106,51 @@ final class PaymentInstallmentScheduleNormalizer
         }
 
         return self::stripLegacyKeys(array_merge($schedule, ['installments' => $normalizedRows]));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private static function amountsMatchTotal(array $rows, float $total): bool
+    {
+        $sum = 0.0;
+
+        foreach ($rows as $row) {
+            if (! array_key_exists('amount', $row) || $row['amount'] === null) {
+                return false;
+            }
+
+            $sum += round((float) $row['amount'], 2);
+        }
+
+        return abs(round($sum, 2) - $total) <= 0.02;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    private static function percentsFromAmounts(array $rows, float $total): array
+    {
+        $percentSum = 0.0;
+        $count = count($rows);
+
+        for ($i = 0; $i < $count; $i++) {
+            $amount = round((float) $rows[$i]['amount'], 2);
+            $rows[$i]['amount'] = $amount;
+
+            if ($i === $count - 1) {
+                $rows[$i]['percent'] = round(max(0, 100.0 - $percentSum), 2);
+
+                continue;
+            }
+
+            $percent = $total > 0 ? self::clampPercent(($amount / $total) * 100.0) : 0.0;
+            $rows[$i]['percent'] = $percent;
+            $percentSum += $percent;
+        }
+
+        return $rows;
     }
 
     /**
