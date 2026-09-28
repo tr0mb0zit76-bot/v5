@@ -16,7 +16,7 @@ import {
     performerFleetCacheKey,
     splitCarrierSlotLabel,
 } from '@/support/orderPerformers.js';
-import { todayIsoDate, toIsoDateDay } from '@/support/orderActualDates.js';
+import { isUnloadingActualLockedForManager, todayIsoDate } from '@/support/orderActualDates.js';
 import {
     isVirtualOwnFleetContractor,
     OWN_FLEET_CONTRACTOR_NAME,
@@ -64,11 +64,7 @@ export function useOrderWizardRouteTab(deps) {
     });
 
     function isUnloadingActualLocked(value) {
-        if (canChangeLockedUnloadingActual.value) {
-            return false;
-        }
-
-        return toIsoDateDay(value) !== '';
+        return isUnloadingActualLockedForManager(value, canChangeLockedUnloadingActual.value);
     }
 
     const unloadingActualLockHint = 'Фактическую выгрузку после проставления может изменить руководитель или администратор.';

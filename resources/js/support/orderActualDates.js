@@ -74,3 +74,15 @@ export function isActualLoadingAfterUnloading(loading, unloading) {
 
     return loadingDay > unloadingDay;
 }
+
+/**
+ * UI-lock «факт. выгрузки» для менеджера: только после полной правдоподобной даты.
+ * Нельзя опираться на «строка непустая» — Chrome при наборе года отдаёт 0002/0020/0202.
+ */
+export function isUnloadingActualLockedForManager(value, canOverrideLock) {
+    if (canOverrideLock) {
+        return false;
+    }
+
+    return isPlausibleActualIsoDate(value);
+}

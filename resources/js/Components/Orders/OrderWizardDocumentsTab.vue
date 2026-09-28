@@ -919,7 +919,7 @@ async function onGlobalDrop(event) {
                     v-if="oneCState?.can_create"
                     type="button"
                     :class="crmBtnSecondary"
-                    :disabled="!order?.id || oneCBusy || !isOrderFormEditable || !oneCState?.can_push"
+                    :disabled="!order?.id || oneCBusy || !oneCState?.can_push"
                     @click="pushOneCRealization"
                 >
                     {{ oneCBusy ? 'Синхронизация…' : (oneCState?.button_label || 'Создать реализацию в 1С') }}

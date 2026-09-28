@@ -376,7 +376,7 @@ async function unlinkRegistryEntry(entry) {
                             v-if="panel.state?.can_create"
                             type="button"
                             :class="crmBtnSecondary"
-                            :disabled="!order?.id || panel.busy || !isOrderFormEditable || !panel.state?.can_push"
+                            :disabled="!order?.id || panel.busy || !panel.state?.can_push"
                             @click="pushStub(panel)"
                         >
                             {{ panel.busy ? 'Синхронизация…' : (panel.state?.button_label || `Создать ${panel.title} в 1С`) }}

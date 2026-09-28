@@ -5,6 +5,7 @@ import {
     clampActualDateToToday,
     isActualLoadingAfterUnloading,
     isPlausibleActualIsoDate,
+    isUnloadingActualLockedForManager,
 } from './orderActualDates.js';
 
 function assert(condition, message) {
@@ -46,5 +47,26 @@ assert(
 );
 
 assert(clampActualDateToToday('0002-09-21') === '0002-09-21', 'do not clamp mid-typing year');
+
+assert(
+    !isUnloadingActualLockedForManager('0002-09-28', false),
+    'manager must keep typing after first year digit (0002)',
+);
+assert(
+    !isUnloadingActualLockedForManager('0020-09-28', false),
+    'manager must keep typing mid-year (0020)',
+);
+assert(
+    !isUnloadingActualLockedForManager('', false),
+    'empty unloading is not locked',
+);
+assert(
+    isUnloadingActualLockedForManager('2026-09-28', false),
+    'manager locks after full plausible date',
+);
+assert(
+    !isUnloadingActualLockedForManager('2026-09-28', true),
+    'admin/supervisor override never locks',
+);
 
 console.log('orderActualDates.selfcheck: ok');
