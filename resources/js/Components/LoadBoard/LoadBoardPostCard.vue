@@ -166,6 +166,57 @@
                     </div>
                 </div>
 
+                <div
+                    v-if="canSubmitClientRateFeedback || post.client_rate_feedback"
+                    class="space-y-3 border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-900/50 dark:bg-amber-950/20"
+                >
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                            Обратная связь закупщику
+                        </div>
+                        <p class="mt-1 text-xs text-amber-900/80 dark:text-amber-100/80">
+                            Укажите, по какой ставке клиент реально возит по этому коридору — закупщик получит уведомление и задачу.
+                        </p>
+                    </div>
+                    <div
+                        v-if="post.client_rate_feedback"
+                        class="rounded-lg border border-amber-200/80 bg-white/70 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-zinc-950/40 dark:text-amber-50"
+                    >
+                        Последняя отметка:
+                        <strong>{{ money(post.client_rate_feedback.rate, post.client_rate_feedback.currency) }}</strong>
+                        <span v-if="post.client_rate_feedback.reported_by_name"> · {{ post.client_rate_feedback.reported_by_name }}</span>
+                        <p v-if="post.client_rate_feedback.note" class="mt-1 whitespace-pre-wrap text-xs opacity-90">{{ post.client_rate_feedback.note }}</p>
+                    </div>
+                    <form
+                        v-if="canSubmitClientRateFeedback"
+                        class="grid gap-2 md:grid-cols-[1fr_7rem_auto] md:items-end"
+                        @submit.prevent="submitClientRateFeedback"
+                    >
+                        <label class="space-y-1 text-xs font-medium text-amber-900 dark:text-amber-100">
+                            <span>Ставка клиента</span>
+                            <input v-model="clientRateFeedbackForm.rate" type="number" min="0.01" step="0.01" :class="crmFieldFluid" required />
+                        </label>
+                        <label class="space-y-1 text-xs font-medium text-amber-900 dark:text-amber-100">
+                            <span>Валюта</span>
+                            <select v-model="clientRateFeedbackForm.currency" :class="crmFieldFluid">
+                                <option v-for="option in currencyOptions" :key="option.value ?? option" :value="option.value ?? option">
+                                    {{ option.label ?? option }}
+                                </option>
+                            </select>
+                        </label>
+                        <button type="submit" :class="crmBtnNeutral" :disabled="clientRateFeedbackForm.processing">
+                            {{ clientRateFeedbackForm.processing ? 'Отправка…' : 'Передать закупщику' }}
+                        </button>
+                        <label class="space-y-1 text-xs font-medium text-amber-900 dark:text-amber-100 md:col-span-3">
+                            <span>Комментарий (необязательно)</span>
+                            <textarea v-model="clientRateFeedbackForm.note" rows="2" :class="crmFieldFluid" placeholder="Например: клиент возит по 85 тыс. с НДС" />
+                        </label>
+                        <p v-if="clientRateFeedbackForm.errors.rate" class="text-xs text-rose-700 md:col-span-3 dark:text-rose-300">
+                            {{ clientRateFeedbackForm.errors.rate }}
+                        </p>
+                    </form>
+                </div>
+
                 <div class="flex flex-wrap gap-2">
                     <label v-if="!isClosed(post)" class="flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                         <span>Закупщик</span>
@@ -537,7 +588,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { Link, router, useForm } from '@inertiajs/vue3';
+import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import InputError from '@/Components/InputError.vue';
 import ContractorAsyncSearchSelect from '@/Components/Crm/ContractorAsyncSearchSelect.vue';
@@ -633,6 +684,33 @@ const candidateForm = useForm({
     carrier_contact: '',
     conditions: '',
     comment: '',
+});
+
+const page = usePage();
+const canSubmitClientRateFeedback = computed(() => {
+    const userId = Number(props.currentUserId);
+    if (! Number.isFinite(userId) || userId <= 0) {
+        return false;
+    }
+
+    if (Number(props.post.seller_id) === userId) {
+        return true;
+    }
+
+    const role = page.props.auth?.user?.role ?? {};
+
+    return Boolean(role.is_admin)
+        || Boolean(role.is_supervisor)
+        || role.name === 'admin'
+        || role.name === 'supervisor';
+});
+
+const clientRateFeedbackForm = useForm({
+    rate: props.post.client_rate_feedback?.rate ?? props.post.customer_rate ?? '',
+    currency: props.post.client_rate_feedback?.currency
+        || props.post.customer_rate_currency
+        || 'RUB',
+    note: '',
 });
 
 const sortedOffers = computed(() => {
@@ -819,6 +897,15 @@ function submitOffer() {
             offerForm.reset();
             offerForm.source = 'internal_crm';
             offerForm.carrier_rate_currency = defaultOfferCurrency();
+        },
+    });
+}
+
+function submitClientRateFeedback() {
+    clientRateFeedbackForm.post(route('load-board.client-rate-feedback.store', props.post.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            clientRateFeedbackForm.note = '';
         },
     });
 }

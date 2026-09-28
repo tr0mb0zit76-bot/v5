@@ -6,6 +6,7 @@ use App\Models\ChatMessage;
 use App\Models\Contractor;
 use App\Models\ContractorPrintFormChangeRequest;
 use App\Models\ContractorRiskAssessment;
+use App\Models\LoadBoardPost;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\Task;
@@ -394,6 +395,49 @@ class CabinetNotifier
         foreach ($recipients as $user) {
             $this->deliver($user, $notification);
         }
+    }
+
+    /**
+     * @param  array{rate: float|int|string, currency: string, note?: ?string}  $feedback
+     */
+    public function notifyLoadBoardClientRateFeedback(LoadBoardPost $post, User $actor, array $feedback): bool
+    {
+        if (! Schema::hasTable('notifications')) {
+            return false;
+        }
+
+        $buyerId = (int) ($post->buyer_id ?? 0);
+        if ($buyerId <= 0 || $buyerId === (int) $actor->id) {
+            return false;
+        }
+
+        $recipient = User::query()->where('is_active', true)->find($buyerId);
+        if ($recipient === null) {
+            return false;
+        }
+
+        $rateLabel = number_format((float) $feedback['rate'], 2, '.', ' ').' '.$feedback['currency'];
+        $note = trim((string) ($feedback['note'] ?? ''));
+        $body = sprintf(
+            '%s: клиент возит по %s%s.',
+            $actor->name,
+            $rateLabel,
+            $note !== '' ? ' — '.$note : '',
+        );
+
+        $this->deliver($recipient, new CabinetInAppNotification(
+            'load_board_client_rate_feedback',
+            'Биржа: ставка клиента',
+            $body,
+            route('load-board.cases.show', $post, absolute: false),
+            [
+                'load_board_post_id' => $post->id,
+                'client_rate' => $feedback['rate'],
+                'client_rate_currency' => $feedback['currency'],
+            ],
+        ));
+
+        return true;
     }
 
     private function deliver(User $user, CabinetInAppNotification $notification): void

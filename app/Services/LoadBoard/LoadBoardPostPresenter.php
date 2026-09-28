@@ -78,6 +78,7 @@ class LoadBoardPostPresenter
             'payment_form' => $post->payment_form,
             'requirements' => $post->requirements,
             'seller_comment' => $post->seller_comment,
+            'client_rate_feedback' => $this->clientRateFeedback($post),
             'metadata' => $post->metadata ?? [],
             'published_at' => $post->published_at?->toDateTimeString(),
             'taken_at' => $post->taken_at?->toDateTimeString(),
@@ -190,6 +191,41 @@ class LoadBoardPostPresenter
             'best_margin_pct' => $margin['pct'],
             'sources' => $sources,
             'sources_label' => $sources !== [] ? implode(', ', $sources) : '—',
+        ];
+    }
+
+    /**
+     * @return array{
+     *     rate: float|null,
+     *     currency: string|null,
+     *     note: string|null,
+     *     previous_rate: float|null,
+     *     previous_currency: string|null,
+     *     reported_by: int|null,
+     *     reported_by_name: string|null,
+     *     reported_at: string|null
+     * }|null
+     */
+    private function clientRateFeedback(LoadBoardPost $post): ?array
+    {
+        $raw = data_get($post->metadata, LoadBoardClientRateFeedbackService::METADATA_KEY);
+        if (! is_array($raw) || ! isset($raw['rate'])) {
+            return null;
+        }
+
+        return [
+            'rate' => isset($raw['rate']) && is_numeric($raw['rate']) ? (float) $raw['rate'] : null,
+            'currency' => isset($raw['currency']) ? strtoupper((string) $raw['currency']) : null,
+            'note' => isset($raw['note']) && is_string($raw['note']) ? $raw['note'] : null,
+            'previous_rate' => isset($raw['previous_rate']) && is_numeric($raw['previous_rate'])
+                ? (float) $raw['previous_rate']
+                : null,
+            'previous_currency' => isset($raw['previous_currency'])
+                ? strtoupper((string) $raw['previous_currency'])
+                : null,
+            'reported_by' => isset($raw['reported_by']) ? (int) $raw['reported_by'] : null,
+            'reported_by_name' => isset($raw['reported_by_name']) ? (string) $raw['reported_by_name'] : null,
+            'reported_at' => isset($raw['reported_at']) ? (string) $raw['reported_at'] : null,
         ];
     }
 }

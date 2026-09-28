@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreLoadBoardCarrierPoolCandidateRequest;
+use App\Http\Requests\StoreLoadBoardClientRateFeedbackRequest;
 use App\Http\Requests\StoreLoadBoardOfferRequest;
 use App\Http\Requests\StoreLoadBoardPostRequest;
 use App\Models\FinancialTerm;
@@ -17,6 +18,7 @@ use App\Services\LoadBoard\LoadBoardAtiReadinessService;
 use App\Services\LoadBoard\LoadBoardBuyerTaskService;
 use App\Services\LoadBoard\LoadBoardCarrierPoolCandidateService;
 use App\Services\LoadBoard\LoadBoardCarrierPoolService;
+use App\Services\LoadBoard\LoadBoardClientRateFeedbackService;
 use App\Services\LoadBoard\LoadBoardPostIndexService;
 use App\Services\LoadBoard\LoadBoardPostPresenter;
 use App\Services\LoadBoard\LoadBoardRateObservationService;
@@ -237,6 +239,25 @@ class LoadBoardController extends Controller
         $this->procurementCases->syncPostStatus($post->fresh());
 
         return back()->with('message', $buyerId === null ? 'Закупщик снят.' : 'Закупщик назначен.');
+    }
+
+    public function storeClientRateFeedback(
+        StoreLoadBoardClientRateFeedbackRequest $request,
+        LoadBoardPost $post,
+        LoadBoardClientRateFeedbackService $feedback,
+    ): RedirectResponse {
+        $result = $feedback->submit($post, $request->user(), $request->validated());
+        $fresh = $result['post'];
+
+        $message = $result['notified_buyer']
+            ? 'Ставка клиента передана закупщику.'
+            : (
+                $fresh->buyer_id
+                    ? 'Ставка клиента сохранена.'
+                    : 'Ставка клиента сохранена. Назначьте закупщика, чтобы он получил уведомление.'
+            );
+
+        return back()->with('message', $message);
     }
 
     public function storeOffer(StoreLoadBoardOfferRequest $request, LoadBoardPost $post): RedirectResponse

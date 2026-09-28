@@ -699,4 +699,79 @@ class LoadBoardTest extends TestCase
             ->assertRedirect(route('load-board.cases.show', $post))
             ->assertSessionHasErrors('carrier_id');
     }
+
+    public function test_seller_can_send_client_rate_feedback_to_buyer(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'load_board_feedback_role',
+            'display_name' => 'Load board feedback',
+            'visibility_areas' => ['load_board'],
+        ]);
+
+        $seller = User::factory()->create(['role_id' => $role->id]);
+        $buyer = User::factory()->create(['role_id' => $role->id]);
+        $stranger = User::factory()->create(['role_id' => $role->id]);
+
+        $post = LoadBoardPost::query()->create([
+            'title' => 'Самара → Уфа',
+            'status' => 'in_work',
+            'priority' => 'normal',
+            'seller_id' => $seller->id,
+            'buyer_id' => $buyer->id,
+            'loading_location' => 'Самара',
+            'unloading_location' => 'Уфа',
+            'customer_rate' => 100000,
+            'customer_rate_currency' => 'RUB',
+            'published_at' => now(),
+            'taken_at' => now(),
+        ]);
+
+        $this->actingAs($stranger)
+            ->from(route('load-board.cases.show', $post))
+            ->post(route('load-board.client-rate-feedback.store', $post), [
+                'rate' => 85000,
+                'currency' => 'RUB',
+                'note' => 'Клиент возит по 85',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($seller)
+            ->from(route('load-board.cases.show', $post))
+            ->post(route('load-board.client-rate-feedback.store', $post), [
+                'rate' => 85000,
+                'currency' => 'RUB',
+                'note' => 'Клиент возит по 85',
+            ])
+            ->assertRedirect(route('load-board.cases.show', $post))
+            ->assertSessionHas('message');
+
+        $post->refresh();
+        $this->assertSame('85000.00', (string) $post->customer_rate);
+        $this->assertSame(85000.0, (float) data_get($post->metadata, 'client_rate_feedback.rate'));
+        $this->assertSame('Клиент возит по 85', data_get($post->metadata, 'client_rate_feedback.note'));
+        $this->assertSame(100000.0, (float) data_get($post->metadata, 'client_rate_feedback.previous_rate'));
+
+        if (Schema::hasTable('tasks')) {
+            $this->assertDatabaseHas('tasks', [
+                'responsible_id' => $buyer->id,
+                'created_by' => $seller->id,
+            ]);
+
+            $task = Task::query()
+                ->where('responsible_id', $buyer->id)
+                ->where('meta->source', 'load_board_client_rate_feedback')
+                ->where('meta->load_board_post_id', $post->id)
+                ->first();
+
+            $this->assertNotNull($task);
+            $this->assertStringContainsString('85 000.00', (string) $task->title);
+        }
+
+        if (Schema::hasTable('notifications')) {
+            $this->assertDatabaseHas('notifications', [
+                'notifiable_id' => $buyer->id,
+                'notifiable_type' => User::class,
+            ]);
+        }
+    }
 }
