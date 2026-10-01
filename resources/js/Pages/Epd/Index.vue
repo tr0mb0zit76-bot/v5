@@ -1,13 +1,13 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
+import EpdGrid from '@/Components/Epd/EpdGrid.vue';
 import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import {
     crmBtnCreate,
-    crmBtnNeutral,
     crmBtnSecondary,
     crmFieldFluid,
     crmGridPanel,
@@ -36,18 +36,22 @@ const props = defineProps({
     epdPilot: { type: Object, default: null },
 });
 
+const page = usePage();
+const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
+
 const localFilters = reactive({
     type: props.filters?.type || 'all',
     unlinked: Boolean(props.filters?.unlinked),
-    q: props.filters?.q || '',
 });
+
+/** documents = плоский реестр 1С; by_order = заказ → документы */
+const viewMode = ref('by_order');
 
 watch(
     () => props.filters,
     (value) => {
         localFilters.type = value?.type || 'all';
         localFilters.unlinked = Boolean(value?.unlinked);
-        localFilters.q = value?.q || '';
     },
     { deep: true },
 );
@@ -69,12 +73,17 @@ function applyFilters() {
     router.get(route('epd.index'), {
         type: localFilters.type === 'all' ? undefined : localFilters.type,
         unlinked: localFilters.unlinked ? 1 : undefined,
-        q: localFilters.q || undefined,
+        order_id: props.filters?.order_id || undefined,
     }, {
         preserveState: true,
         preserveScroll: true,
         replace: true,
     });
+}
+
+function setTypeFilter(value) {
+    localFilters.type = value;
+    applyFilters();
 }
 
 async function syncNow() {
@@ -162,6 +171,13 @@ async function unlinkEntry(entry) {
     }
 }
 
+function openOrder(row) {
+    if (!row?.order_id) {
+        return;
+    }
+    window.open(route('orders.edit', row.order_id), '_blank', 'noopener,noreferrer');
+}
+
 function formatDate(value) {
     if (!value) {
         return '—';
@@ -178,7 +194,7 @@ function formatDate(value) {
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-2">
         <CrmPageHeader
-            lead="Зеркало РеестрЭПД из 1С: поручения, расписки, ЭТрН и заказы-заявки. Свяжите документ с заказом CRM — связь появится на вкладке «ЭПД» в мастере."
+            lead="Реестр ЭПД из 1С: фильтры в заголовках, колонки и представления — как у Лидов/Заказов. Режим «По заказам» раскрывает документы внутри заказа."
             title="ЭПД"
         >
             <template #actions>
@@ -193,38 +209,33 @@ function formatDate(value) {
             </template>
         </CrmPageHeader>
 
-        <p v-if="syncMessage" class="text-sm text-slate-600 dark:text-slate-300">{{ syncMessage }}</p>
         <p
             v-if="epdPilot?.enabled"
             class="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
         >
-            Пилот ЭПД: sync и отображение только с тестовой ИБ
+            Пилот: только тестовая ИБ
             <span class="font-semibold">{{ epdPilot.publication_label || 'sandbox' }}</span>.
-            Боевой Автоальянс в этом гриде скрыт.
         </p>
+        <p v-if="syncMessage" class="text-sm text-slate-600 dark:text-slate-300">{{ syncMessage }}</p>
         <p v-if="lastSyncedAt" class="text-xs text-slate-500">
-            Последняя синхронизация строки: {{ lastSyncedAt }}
+            Последняя синхронизация: {{ lastSyncedAt }}
         </p>
 
-        <div class="flex flex-wrap items-end gap-2">
-            <label class="text-sm">
-                <span class="mb-1 block text-xs text-slate-500">Тип</span>
-                <select v-model="localFilters.type" :class="crmFieldFluid" class="min-w-[12rem]" @change="applyFilters">
-                    <option v-for="opt in typeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                </select>
-            </label>
-            <label class="text-sm">
-                <span class="mb-1 block text-xs text-slate-500">Поиск</span>
-                <input
-                    v-model="localFilters.q"
-                    type="search"
-                    :class="crmFieldFluid"
-                    class="min-w-[14rem]"
-                    placeholder="номер, ИНН, название…"
-                    @keydown.enter.prevent="applyFilters"
-                >
-            </label>
-            <button type="button" :class="crmBtnNeutral" @click="applyFilters">Найти</button>
+        <div class="flex flex-wrap items-center gap-2">
+            <button
+                type="button"
+                :class="viewMode === 'by_order' ? crmPillActive : crmPill"
+                @click="viewMode = 'by_order'"
+            >
+                По заказам
+            </button>
+            <button
+                type="button"
+                :class="viewMode === 'documents' ? crmPillActive : crmPill"
+                @click="viewMode = 'documents'"
+            >
+                Плоский реестр ({{ rows.length }})
+            </button>
             <button
                 type="button"
                 :class="localFilters.unlinked ? crmPillActive : crmPill"
@@ -234,82 +245,27 @@ function formatDate(value) {
             </button>
         </div>
 
-        <div :class="`${crmGridPanel} overflow-auto`">
-            <table class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-700">
-                <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900/60">
-                    <tr>
-                        <th class="px-3 py-2">Тип</th>
-                        <th class="px-3 py-2">№ ЭПД</th>
-                        <th class="px-3 py-2">Дата</th>
-                        <th class="px-3 py-2">Шаг</th>
-                        <th class="px-3 py-2">ГО</th>
-                        <th class="px-3 py-2">Перевозчик</th>
-                        <th class="px-3 py-2">Заказ CRM</th>
-                        <th class="px-3 py-2">Действия</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                    <tr v-for="row in rows" :key="row.id" class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
-                        <td class="px-3 py-2 font-medium text-slate-900 dark:text-slate-100">
-                            {{ row.document_type_label }}
-                        </td>
-                        <td class="px-3 py-2 whitespace-nowrap">{{ row.epd_number || row.ib_number || '—' }}</td>
-                        <td class="px-3 py-2 whitespace-nowrap">{{ formatDate(row.epd_date) }}</td>
-                        <td class="px-3 py-2">
-                            <span class="inline-flex items-center gap-1">
-                                {{ row.current_step || '—' }}
-                                <span
-                                    v-if="row.current_step_done"
-                                    class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
-                                >ok</span>
-                            </span>
-                        </td>
-                        <td class="px-3 py-2">
-                            <div>{{ row.shipper_name || '—' }}</div>
-                            <div v-if="row.shipper_inn" class="text-xs text-slate-500">{{ row.shipper_inn }}</div>
-                        </td>
-                        <td class="px-3 py-2">
-                            <div>{{ row.carrier_name || '—' }}</div>
-                            <div v-if="row.carrier_inn" class="text-xs text-slate-500">{{ row.carrier_inn }}</div>
-                        </td>
-                        <td class="px-3 py-2">
-                            <Link
-                                v-if="row.order_id"
-                                :href="route('orders.edit', row.order_id)"
-                                class="font-medium text-sky-700 hover:underline dark:text-sky-300"
-                            >
-                                {{ row.order_number || `#${row.order_id}` }}
-                            </Link>
-                            <span v-else class="text-slate-400">не связан</span>
-                        </td>
-                        <td class="px-3 py-2 whitespace-nowrap">
-                            <button
-                                v-if="!row.order_id"
-                                type="button"
-                                :class="crmBtnCreate"
-                                class="!px-2 !py-1 text-xs"
-                                @click="openLinkModal(row)"
-                            >
-                                Связать
-                            </button>
-                            <button
-                                v-else
-                                type="button"
-                                :class="crmBtnNeutral"
-                                class="!px-2 !py-1 text-xs"
-                                @click="unlinkEntry(row)"
-                            >
-                                Отвязать
-                            </button>
-                        </td>
-                    </tr>
-                    <tr v-if="rows.length === 0">
-                        <td colspan="8" class="px-3 py-8 text-center text-slate-500">
-                            Пока пусто. Нажмите «Обновить из 1С» или дождитесь hourly sync.
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="flex flex-wrap gap-2">
+            <button
+                v-for="opt in typeOptions"
+                :key="opt.value"
+                type="button"
+                :class="localFilters.type === opt.value ? crmPillActive : crmPill"
+                @click="setTypeFilter(opt.value)"
+            >
+                {{ opt.label }}
+            </button>
+        </div>
+
+        <div :class="crmGridPanel">
+            <EpdGrid
+                :rows="rows"
+                :user-id="userId"
+                :view-mode="viewMode"
+                @link-request="openLinkModal"
+                @unlink-request="unlinkEntry"
+                @open-order="openOrder"
+            />
         </div>
 
         <Modal :show="linkModal.show" max-width="lg" @close="closeLinkModal">
@@ -336,7 +292,7 @@ function formatDate(value) {
                         </div>
                     </div>
                     <p v-if="linkModal.error" class="text-sm text-rose-600">{{ linkModal.error }}</p>
-                    <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
+                    <ul class="divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-700">
                         <li
                             v-for="order in linkModal.orders"
                             :key="order.id"
@@ -344,13 +300,13 @@ function formatDate(value) {
                         >
                             <div>
                                 <div class="font-medium">{{ order.order_number || `#${order.id}` }}</div>
-                                <div class="text-xs text-slate-500">{{ order.customer_name || '—' }} · {{ formatDate(order.order_date) }}</div>
+                                <div class="text-xs text-zinc-500">{{ order.customer_name || '—' }} · {{ formatDate(order.order_date) }}</div>
                             </div>
                             <button type="button" :class="crmBtnCreate" class="!px-2 !py-1 text-xs" :disabled="linkModal.busy" @click="linkOrder(order)">
                                 Выбрать
                             </button>
                         </li>
-                        <li v-if="linkModal.orders.length === 0" class="px-3 py-4 text-center text-sm text-slate-500">
+                        <li v-if="linkModal.orders.length === 0" class="px-3 py-4 text-center text-sm text-zinc-500">
                             Введите номер и нажмите «Найти».
                         </li>
                     </ul>

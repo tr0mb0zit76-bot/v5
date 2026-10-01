@@ -35,6 +35,11 @@ final class GridViewCatalog
                 'route' => 'documents.index',
                 'visibility_area' => 'documents',
             ],
+            'epd' => [
+                'label' => 'ЭПД',
+                'route' => 'epd.index',
+                'visibility_area' => 'documents',
+            ],
             'leads' => [
                 'label' => 'Лиды',
                 'route' => 'leads.index',
