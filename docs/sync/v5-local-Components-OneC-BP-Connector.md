@@ -56,7 +56,8 @@
 | Автоальянс | `Avtoalians_4nYnMmRSab` | `19b37fca-5d84-11f1-8bf4-fa163ea037a3` |
 | Гросс | `Gross_44N8sTPEXf` | `13d87b6e-bae2-11ef-89a3-dc68443ee9e4` (ИНН 6345031755) |
 | Профсфера | `ProSfera_gRLXXFMK8M` | `68778110-58ca-11f1-8af0-fa163eafb81d` (ИНН 6321213940) |
-| **Тест АА** | `AvtoAl_test2_34QG7659eH` на `avtoalyns.case-it.ru` | тот же org ref; код `sandbox` |
+| **Тест АА** | `AvtoAl_test2_34QG7659eH` на `avtoalyns-crm.case-it.ru` | тот же org ref; код `sandbox` |
+| **Пилот ЭПД** | `ONE_C_EPD_PILOT_SANDBOX=true` (default) | весь push ЭТрН/ЭР + sync `/epd` → sandbox; выключить → снова боевые ИБ |
 
 **User override ЭПД:** колонка `users.one_c_epd_publication_override` (например `sandbox`). `OneCPublicationCatalog::forEpdOrder` → stub mapper. Sandbox с `include_in_sync=false` (не тянет банк/реестр). Юзер `test_2@avtoaliyans.ru` проставляется миграцией. Баннер на вкладке ЭПД.
 

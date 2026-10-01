@@ -3,7 +3,26 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-09-21 14:30 · **Ветка:** `master` · **HEAD:** `74e375ec` · **тема:** факт. даты маршрута — очистка + lock выгрузки
+**Обновлено:** 2026-10-01 16:20 · **Ветка:** `master` · **тема:** пилот ЭПД на sandbox
+
+### Итог сессии 2026-10-01 — пилот ЭПД → AvtoAl_test2
+
+| Блок | Статус |
+| --- | --- |
+| `ONE_C_EPD_PILOT_SANDBOX=true` (default): push ЭТрН/ЭР + sync `/epd` только sandbox | ✅ на проде (файлы) |
+| Fill титула после create ЭТрН (`/hs/crm/epd/etrn/fill`) | ✅ код; на 214 fill упал на правах OData к `КлассификаторОКОПФ` |
+| Зеркало поручения (ЭПЭ) в `order_one_c_documents` при link | ✅ |
+| UI: баннер пилота, блок «Входящее поручение», `/epd` фильтр sandbox | ✅ + `npm run build` |
+| Новофарм на sandbox: ЭПЭ №11 + ЭЭР №1 → связаны с заказом **214** | ✅ |
+| ЭТрН на sandbox для 214: № **00000000008** (`ea9b00da-…`) | ✅ create; fill — права 1С |
+
+**Переключение на боевой:** `.env` → `ONE_C_EPD_PILOT_SANDBOX=false` + `config:clear`.
+
+**Следующий шаг:** 1С — дать `Odata` права на `РегистрСведений.КлассификаторОКОПФ` в test2; smoke fill; затем commit/push кода.
+
+---
+
+**Обновлено (архив):** 2026-09-21 14:30 · **Ветка:** `master` · **HEAD:** `74e375ec` · **тема:** факт. даты маршрута — очистка + lock выгрузки
 
 ### Итог сессии 2026-09-21 (день) — факт. погрузка/выгрузка
 

@@ -64,7 +64,7 @@ final class OneCEpdRegistrySyncService
 
         $pubs = $publicationCode !== null && $publicationCode !== ''
             ? [$this->publications->get($publicationCode)]
-            : $this->publications->all();
+            : $this->publications->forEpdRegistrySync();
 
         $limit = $top !== null && $top > 0
             ? $top

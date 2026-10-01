@@ -17,6 +17,9 @@ class OrderOneCDocument extends Model
 
     public const TYPE_EXPEDITION_RECEIPT = 'expedition_receipt';
 
+    /** Входящее поручение экспедитору (зеркало из реестра, не stub-push). */
+    public const TYPE_EXPEDITION_ORDER = 'expedition_order';
+
     /** @var list<string> */
     public const EPD_TYPES = [
         self::TYPE_ETRN,

@@ -139,14 +139,17 @@ final class OneCEpdStubSyncService
         $publicationOverride = trim((string) ($user?->one_c_epd_publication_override ?? ''));
         $publicationLabel = null;
         $publicationCode = null;
-        if ($publicationOverride !== '') {
+        $pilotSandbox = app(OneCPublicationCatalog::class)->epdPilotSandboxEnabled();
+        if ($pilotSandbox || $publicationOverride !== '') {
             try {
-                $pub = app(OneCPublicationCatalog::class)->get($publicationOverride);
+                $pub = app(OneCPublicationCatalog::class)->forEpdOrder($order, $user);
                 $publicationCode = $pub['code'];
                 $publicationLabel = $pub['label'];
             } catch (Throwable) {
-                $publicationCode = $publicationOverride;
-                $publicationLabel = $publicationOverride;
+                $publicationCode = $pilotSandbox
+                    ? OneCPublicationCatalog::CODE_SANDBOX
+                    : $publicationOverride;
+                $publicationLabel = $publicationCode;
             }
         }
 
@@ -163,6 +166,7 @@ final class OneCEpdStubSyncService
             'stale' => $ui['stale'],
             'publication_override_code' => $publicationCode,
             'publication_override_label' => $publicationLabel,
+            'pilot_sandbox' => $pilotSandbox,
             'document' => $document?->toWizardSummary([
                 'posted' => $ui['posted'],
                 'stale' => $ui['stale'],
@@ -220,13 +224,30 @@ final class OneCEpdStubSyncService
             $raw = is_array($result['raw'] ?? null) ? $result['raw'] : [];
             $raw['Posted'] = (bool) ($raw['Posted'] ?? false);
 
+            $fillWarning = null;
+            if (
+                $documentType === OrderOneCDocument::TYPE_ETRN
+                && (bool) config('one_c.epd.etrn_fill_enabled', true)
+            ) {
+                try {
+                    $fill = $this->client->fillEtrnTitle((string) $result['ref'], $payload);
+                    $raw['fill'] = $fill['raw'];
+                    if (! empty($fill['etrn_number'])) {
+                        $result['number'] = $fill['etrn_number'];
+                    }
+                } catch (Throwable $fillError) {
+                    $fillWarning = 'ЭТрН создана, но fill титула не выполнен: '.$fillError->getMessage();
+                    $raw['fill_error'] = $fillError->getMessage();
+                }
+            }
+
             $document->fill([
                 'status' => OrderOneCDocument::STATUS_CREATED,
                 'external_ref' => $result['ref'],
                 'external_number' => $result['number'],
                 'external_date' => $result['date'],
                 'response_payload' => $raw,
-                'last_error' => null,
+                'last_error' => $fillWarning,
             ]);
             $document->save();
 

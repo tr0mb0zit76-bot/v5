@@ -124,18 +124,41 @@ final class OneCPublicationCatalog
     }
 
     /**
-     * ИБ для push ЭПД (ЭТрН / ЭР): override пользователя → иначе forOrder.
+     * ИБ для push ЭПД (ЭТрН / ЭР): пилот sandbox → override пользователя → forOrder.
      *
      * @return Publication
      */
     public function forEpdOrder(Order $order, ?User $actor = null): array
     {
+        if ($this->epdPilotSandboxEnabled()) {
+            return $this->get(self::CODE_SANDBOX);
+        }
+
         $override = trim((string) ($actor?->one_c_epd_publication_override ?? ''));
         if ($override !== '') {
             return $this->get($override);
         }
 
         return $this->forOrder($order);
+    }
+
+    /**
+     * Публикации для sync РеестрЭПД: при пилоте — только sandbox, иначе all() (без sandbox).
+     *
+     * @return list<Publication>
+     */
+    public function forEpdRegistrySync(): array
+    {
+        if ($this->epdPilotSandboxEnabled()) {
+            return [$this->get(self::CODE_SANDBOX)];
+        }
+
+        return $this->all();
+    }
+
+    public function epdPilotSandboxEnabled(): bool
+    {
+        return (bool) config('one_c.epd.pilot_sandbox', false);
     }
 
     /**

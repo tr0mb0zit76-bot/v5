@@ -28,11 +28,12 @@ const props = defineProps({
     rows: { type: Array, default: () => [] },
     filters: {
         type: Object,
-        default: () => ({ type: 'all', unlinked: false, q: '' }),
+        default: () => ({ type: 'all', unlinked: false, q: '', order_id: null }),
     },
     typeOptions: { type: Array, default: () => [] },
     canSync: { type: Boolean, default: false },
     lastSyncedAt: { type: String, default: null },
+    epdPilot: { type: Object, default: null },
 });
 
 const localFilters = reactive({
@@ -193,6 +194,14 @@ function formatDate(value) {
         </CrmPageHeader>
 
         <p v-if="syncMessage" class="text-sm text-slate-600 dark:text-slate-300">{{ syncMessage }}</p>
+        <p
+            v-if="epdPilot?.enabled"
+            class="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+        >
+            Пилот ЭПД: sync и отображение только с тестовой ИБ
+            <span class="font-semibold">{{ epdPilot.publication_label || 'sandbox' }}</span>.
+            Боевой Автоальянс в этом гриде скрыт.
+        </p>
         <p v-if="lastSyncedAt" class="text-xs text-slate-500">
             Последняя синхронизация строки: {{ lastSyncedAt }}
         </p>

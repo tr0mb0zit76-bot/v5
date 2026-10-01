@@ -91,6 +91,7 @@ final class OneCEpdDocumentTypeResolver
         return [
             OneCEpdRegistryEntry::TYPE_ETRN,
             OneCEpdRegistryEntry::TYPE_EXPEDITION_RECEIPT,
+            OneCEpdRegistryEntry::TYPE_EXPEDITION_ORDER,
         ];
     }
 }

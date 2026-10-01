@@ -13,6 +13,7 @@ use App\Services\DocumentStorageService;
 use App\Services\Epd\OrderEpdPreviewPresenter;
 use App\Services\KpiConfigurationService;
 use App\Services\OneC\OneCEpdStubSyncService;
+use App\Services\OneC\OneCPublicationCatalog;
 use App\Services\OneC\OneCRealizationSyncService;
 use App\Services\OrderClaimService;
 use App\Services\OrderDocumentEdoAcknowledgementService;
@@ -29,6 +30,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class OrderWizardPagePresenter
 {
@@ -130,6 +132,41 @@ class OrderWizardPagePresenter
             'epdIntegration' => $this->oneCEpdStubSync->wizardStates($order, $user),
             'epdPreview' => $this->epdPreviewPresenter->forOrder($order),
             'epdRegistryLinks' => $this->epdRegistryLinksForOrder($order),
+            'epdPilot' => $this->epdPilotPayload(),
+        ];
+    }
+
+    /**
+     * @return array{enabled: bool, publication_code: string|null, publication_label: string|null, base_url: string|null}
+     */
+    private function epdPilotPayload(): array
+    {
+        $catalog = app(OneCPublicationCatalog::class);
+        if (! $catalog->epdPilotSandboxEnabled()) {
+            return [
+                'enabled' => false,
+                'publication_code' => null,
+                'publication_label' => null,
+                'base_url' => null,
+            ];
+        }
+
+        try {
+            $pub = $catalog->get(OneCPublicationCatalog::CODE_SANDBOX);
+        } catch (Throwable) {
+            return [
+                'enabled' => true,
+                'publication_code' => OneCPublicationCatalog::CODE_SANDBOX,
+                'publication_label' => 'sandbox',
+                'base_url' => null,
+            ];
+        }
+
+        return [
+            'enabled' => true,
+            'publication_code' => $pub['code'],
+            'publication_label' => $pub['label'],
+            'base_url' => $pub['base_url'],
         ];
     }
 

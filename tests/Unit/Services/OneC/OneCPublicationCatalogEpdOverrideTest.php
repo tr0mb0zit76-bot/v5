@@ -17,7 +17,8 @@ class OneCPublicationCatalogEpdOverrideTest extends TestCase
     public function test_sandbox_is_excluded_from_sync_catalog_but_resolvable_by_get(): void
     {
         config([
-            'one_c.publications.sandbox.base_url' => 'https://avtoalyns.case-it.ru/AvtoAl_test2_34QG7659eH',
+            'one_c.epd.pilot_sandbox' => false,
+            'one_c.publications.sandbox.base_url' => 'https://avtoalyns-crm.case-it.ru/AvtoAl_test2_34QG7659eH',
             'one_c.publications.sandbox.enabled' => true,
             'one_c.publications.sandbox.include_in_sync' => false,
             'one_c.publications.sandbox.organization_inn' => '',
@@ -38,7 +39,8 @@ class OneCPublicationCatalogEpdOverrideTest extends TestCase
     public function test_for_epd_order_uses_user_override(): void
     {
         config([
-            'one_c.publications.sandbox.base_url' => 'https://avtoalyns.case-it.ru/AvtoAl_test2_34QG7659eH',
+            'one_c.epd.pilot_sandbox' => false,
+            'one_c.publications.sandbox.base_url' => 'https://avtoalyns-crm.case-it.ru/AvtoAl_test2_34QG7659eH',
             'one_c.publications.sandbox.enabled' => true,
             'one_c.publications.sandbox.include_in_sync' => false,
             'one_c.publications.autalliance.base_url' => 'https://avtoalyns-crm.case-it.ru/Avtoalians_prod',
@@ -61,10 +63,37 @@ class OneCPublicationCatalogEpdOverrideTest extends TestCase
         $this->assertSame('autalliance', $catalog->forEpdOrder($order, null)['code']);
     }
 
+    public function test_pilot_sandbox_forces_sandbox_for_epd_and_registry_sync(): void
+    {
+        config([
+            'one_c.epd.pilot_sandbox' => true,
+            'one_c.publications.sandbox.base_url' => 'https://avtoalyns-crm.case-it.ru/AvtoAl_test2_34QG7659eH',
+            'one_c.publications.sandbox.enabled' => true,
+            'one_c.publications.sandbox.include_in_sync' => false,
+            'one_c.publications.autalliance.base_url' => 'https://avtoalyns-crm.case-it.ru/Avtoalians_prod',
+            'one_c.publications.autalliance.enabled' => true,
+            'one_c.default_publication' => 'autalliance',
+        ]);
+
+        $order = new Order(['order_number' => 'X']);
+        $order->id = 1;
+        $order->setRelation('ownCompany', null);
+
+        $catalog = app(OneCPublicationCatalog::class);
+        $this->assertTrue($catalog->epdPilotSandboxEnabled());
+        $this->assertSame('sandbox', $catalog->forEpdOrder($order, null)['code']);
+        $this->assertSame('autalliance', $catalog->forOrder($order)['code']);
+
+        $syncPubs = $catalog->forEpdRegistrySync();
+        $this->assertCount(1, $syncPubs);
+        $this->assertSame('sandbox', $syncPubs[0]['code']);
+    }
+
     public function test_mapper_routes_etrn_to_sandbox_for_override_user(): void
     {
         config([
-            'one_c.publications.sandbox.base_url' => 'https://avtoalyns.case-it.ru/AvtoAl_test2_34QG7659eH',
+            'one_c.epd.pilot_sandbox' => false,
+            'one_c.publications.sandbox.base_url' => 'https://avtoalyns-crm.case-it.ru/AvtoAl_test2_34QG7659eH',
             'one_c.publications.sandbox.enabled' => true,
             'one_c.publications.sandbox.organization_ref' => 'sandbox-org-ref',
             'one_c.publications.sandbox.include_in_sync' => false,

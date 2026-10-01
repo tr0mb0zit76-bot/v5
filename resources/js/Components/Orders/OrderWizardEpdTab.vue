@@ -12,6 +12,7 @@ const props = defineProps({
     epdIntegration: { type: Object, default: null },
     epdPreview: { type: Object, default: null },
     epdRegistryLinks: { type: Array, default: () => [] },
+    epdPilot: { type: Object, default: null },
     documentEdoAcknowledgements: { type: Array, default: () => [] },
     canEditDocumentEdoAcknowledgements: { type: Boolean, default: false },
 });
@@ -55,7 +56,20 @@ const registryLinks = computed(() => (
     Array.isArray(props.epdRegistryLinks) ? props.epdRegistryLinks : []
 ));
 
+const expeditionOrderLinks = computed(() => registryLinks.value.filter(
+    (row) => row?.document_type === 'expedition_order',
+));
+
+const otherRegistryLinks = computed(() => registryLinks.value.filter(
+    (row) => row?.document_type !== 'expedition_order',
+));
+
 const sandboxPublicationBanner = computed(() => {
+    if (props.epdPilot?.enabled) {
+        return props.epdPilot.publication_label
+            || props.epdPilot.publication_code
+            || 'sandbox';
+    }
     const fromIntegration = integration.value?.etrn?.publication_override_label
         || integration.value?.etrn?.publication_override_code
         || integration.value?.expedition_receipt?.publication_override_label
@@ -65,6 +79,14 @@ const sandboxPublicationBanner = computed(() => {
     }
     const code = page.props?.auth?.user?.one_c_epd_publication_override;
     return code ? String(code) : '';
+});
+
+const pilotBannerText = computed(() => {
+    if (!props.epdPilot?.enabled) {
+        return '';
+    }
+    const label = props.epdPilot.publication_label || props.epdPilot.publication_code || 'sandbox';
+    return `Пилот ЭПД: реестр и отправка идут в тестовую ИБ «${label}». Боевой 1С не трогаем.`;
 });
 
 watch(
@@ -276,16 +298,60 @@ async function unlinkRegistryEntry(entry) {
         </div>
 
         <div
-            v-if="sandboxPublicationBanner"
+            v-if="pilotBannerText || sandboxPublicationBanner"
             class="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
         >
-            ЭПД из CRM уходит в тестовую ИБ:
-            <span class="font-semibold">{{ sandboxPublicationBanner }}</span>
-            (не боевой Автоальянс).
+            <template v-if="pilotBannerText">{{ pilotBannerText }}</template>
+            <template v-else>
+                ЭПД из CRM уходит в тестовую ИБ:
+                <span class="font-semibold">{{ sandboxPublicationBanner }}</span>
+                (не боевой Автоальянс).
+            </template>
         </div>
 
         <section
-            v-if="registryLinks.length > 0 || registryError"
+            v-if="expeditionOrderLinks.length > 0"
+            class="rounded-2xl border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-900/40 dark:bg-violet-950/20"
+        >
+            <h3 class="text-sm font-semibold text-violet-950 dark:text-violet-100">
+                Входящее поручение экспедитору
+            </h3>
+            <p class="mt-1 text-xs text-violet-800/80 dark:text-violet-200/80">
+                Старт цепочки ЭПД. Данные груза/маршрута из тела документа 1С пока недоступны через OData —
+                стороны и номер берём из реестра.
+            </p>
+            <ul class="mt-3 space-y-2">
+                <li
+                    v-for="entry in expeditionOrderLinks"
+                    :key="entry.id"
+                    class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-200/80 bg-white px-3 py-2 text-sm dark:border-violet-900/50 dark:bg-slate-900/40"
+                >
+                    <div>
+                        <div class="font-medium text-slate-900 dark:text-slate-100">
+                            {{ entry.document_type_label }}
+                            · № {{ entry.epd_number || entry.ib_number || '—' }}
+                        </div>
+                        <div class="text-xs text-slate-500">
+                            шаг: {{ entry.current_step || '—' }}
+                            <span v-if="entry.shipper_name"> · ГО: {{ entry.shipper_name }}</span>
+                            <span v-if="entry.carrier_name"> · перевозчик: {{ entry.carrier_name }}</span>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        :class="crmBtnSecondary"
+                        class="!px-2 !py-1 text-xs"
+                        :disabled="unlinkBusyId === entry.id"
+                        @click="unlinkRegistryEntry(entry)"
+                    >
+                        {{ unlinkBusyId === entry.id ? '…' : 'Отвязать' }}
+                    </button>
+                </li>
+            </ul>
+        </section>
+
+        <section
+            v-if="otherRegistryLinks.length > 0 || registryError"
             class="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20"
         >
             <h3 class="text-sm font-semibold text-emerald-950 dark:text-emerald-100">
@@ -294,7 +360,7 @@ async function unlinkRegistryEntry(entry) {
             <p v-if="registryError" class="mt-1 text-xs text-rose-600">{{ registryError }}</p>
             <ul class="mt-3 space-y-2">
                 <li
-                    v-for="entry in registryLinks"
+                    v-for="entry in otherRegistryLinks"
                     :key="entry.id"
                     class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200/80 bg-white px-3 py-2 text-sm dark:border-emerald-900/50 dark:bg-slate-900/40"
                 >

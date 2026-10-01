@@ -127,6 +127,17 @@ return [
     ],
 
     /**
+     * Пилот ЭПД: весь send/receive реестра и push ЭТрН/ЭР → publication sandbox.
+     * Выключить (false) → снова боевые ИБ по forOrder / hourly sync без sandbox.
+     */
+    'epd' => [
+        'pilot_sandbox' => filter_var(env('ONE_C_EPD_PILOT_SANDBOX', true), FILTER_VALIDATE_BOOL),
+        /** После OData-create ЭТрН вызывать HTTP fill титула. */
+        'etrn_fill_enabled' => filter_var(env('ONE_C_EPD_ETRN_FILL_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'etrn_fill_path' => (string) env('ONE_C_EPD_ETRN_FILL_PATH', '/hs/crm/epd/etrn/fill'),
+    ],
+
+    /**
      * Sync статусов ЭДО (исходящие заказчику) → order_document_edo_acknowledgements.
      * Состояния = «уже отправлено» (для сроков оплаты / чек-листа closing).
      */
@@ -284,15 +295,16 @@ return [
             'include_in_sync' => true,
         ],
         /**
-         * Тестовая ИБ Автоальянс. Не участвует в hourly sync (банк/реестр ЭПД).
-         * Push ЭПД только если у пользователя one_c_epd_publication_override=sandbox.
+         * Тестовая ИБ Автоальянс (AvtoAl_test2 на avtoalyns-crm).
+         * При one_c.epd.pilot_sandbox=true — единственная ИБ для ЭПД (push + sync реестра).
+         * Иначе: push только при user override; include_in_sync=false (не в hourly банк/реестр).
          * organization_inn пустой — чтобы не перехватывать forOrder по ИНН АА.
          */
         'sandbox' => [
-            'label' => 'Автоальянс (тест)',
+            'label' => 'Автоальянс (тест / песочница)',
             'base_url' => rtrim((string) env(
                 'ONE_C_SANDBOX_BASE_URL',
-                'https://avtoalyns.case-it.ru/AvtoAl_test2_34QG7659eH'
+                'https://avtoalyns-crm.case-it.ru/AvtoAl_test2_34QG7659eH'
             ), '/'),
             'organization_ref' => (string) env(
                 'ONE_C_SANDBOX_ORG_REF',

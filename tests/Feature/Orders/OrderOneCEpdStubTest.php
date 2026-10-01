@@ -21,6 +21,8 @@ class OrderOneCEpdStubTest extends TestCase
         config([
             'one_c.enabled' => true,
             'one_c.driver' => 'fake',
+            'one_c.epd.pilot_sandbox' => false,
+            'one_c.epd.etrn_fill_enabled' => true,
         ]);
     }
 
@@ -127,7 +129,9 @@ class OrderOneCEpdStubTest extends TestCase
         config([
             'one_c.enabled' => true,
             'one_c.driver' => 'fake',
-            'one_c.publications.sandbox.base_url' => 'https://avtoalyns.case-it.ru/AvtoAl_test2_34QG7659eH',
+            'one_c.epd.pilot_sandbox' => false,
+            'one_c.epd.etrn_fill_enabled' => true,
+            'one_c.publications.sandbox.base_url' => 'https://avtoalyns-crm.case-it.ru/AvtoAl_test2_34QG7659eH',
             'one_c.publications.sandbox.enabled' => true,
             'one_c.publications.sandbox.include_in_sync' => false,
             'one_c.publications.sandbox.organization_ref' => 'sandbox-org',

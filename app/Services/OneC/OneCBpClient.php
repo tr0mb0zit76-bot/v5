@@ -52,6 +52,75 @@ final class OneCBpClient
     }
 
     /**
+     * Заполнить титул исходящей ЭТрН через HTTP-сервис 1С (после OData-create).
+     *
+     * @param  array<string, mixed>  $stubPayload  результат OneCEpdStubMapper::map()
+     * @return array{ok: bool, etrn_ref: string, etrn_number: ?string, raw: array<string, mixed>}
+     */
+    public function fillEtrnTitle(string $ref, array $stubPayload): array
+    {
+        $driver = (string) config('one_c.driver', 'fake');
+
+        return match ($driver) {
+            'fake' => [
+                'ok' => true,
+                'etrn_ref' => $ref,
+                'etrn_number' => null,
+                'raw' => ['ok' => true, 'fake' => true],
+            ],
+            'http' => $this->fillEtrnTitleHttp($ref, $stubPayload),
+            default => throw ValidationException::withMessages([
+                'one_c' => "Неизвестный драйвер 1С: {$driver}.",
+            ]),
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $stubPayload
+     * @return array{ok: bool, etrn_ref: string, etrn_number: ?string, raw: array<string, mixed>}
+     */
+    private function fillEtrnTitleHttp(string $ref, array $stubPayload): array
+    {
+        $base = $this->resolveBaseUrl($stubPayload);
+        $customer = is_array($stubPayload['counterparty'] ?? null) ? $stubPayload['counterparty'] : [];
+        $carrier = is_array($stubPayload['parties']['carrier'] ?? null) ? $stubPayload['parties']['carrier'] : [];
+        $customerRef = $this->resolvePartyRef($customer, $base, 'Заказчик');
+        $carrierRef = $this->resolvePartyRef($carrier, $base, 'Перевозчик', optional: true);
+
+        $body = app(OneCEpdEtrnFillPayloadBuilder::class)->build(
+            $ref,
+            $stubPayload,
+            $customerRef,
+            $carrierRef,
+        );
+
+        $path = (string) config('one_c.epd.etrn_fill_path', '/hs/crm/epd/etrn/fill');
+        $response = $this->http()->acceptJson()->asJson()->post($base.$path, $body);
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                '1С отказала в fill ЭТрН: HTTP '.$response->status().' '.$response->body()
+            );
+        }
+
+        /** @var array<string, mixed> $json */
+        $json = $response->json() ?? [];
+        $okRaw = $json['ok'] ?? true;
+        $ok = $okRaw === true || $okRaw === 'true' || $okRaw === 1 || $okRaw === '1';
+        if (! $ok) {
+            $message = (string) ($json['message'] ?? $response->body());
+            throw new RuntimeException('1С fill ЭТрН: '.$message);
+        }
+
+        return [
+            'ok' => true,
+            'etrn_ref' => (string) ($json['etrn_ref'] ?? $ref),
+            'etrn_number' => isset($json['etrn_number']) ? (string) $json['etrn_number'] : null,
+            'raw' => $json,
+        ];
+    }
+
+    /**
      * Создать болванку ЭПД (ЭТрН / экспедиторская расписка).
      *
      * @param  array<string, mixed>  $payload  результат OneCEpdStubMapper::map()

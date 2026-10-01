@@ -106,11 +106,7 @@ final class OneCEpdRegistryLinkService
             return;
         }
 
-        $mappedType = match ((string) $entry->document_type) {
-            OneCEpdRegistryEntry::TYPE_ETRN => OrderOneCDocument::TYPE_ETRN,
-            OneCEpdRegistryEntry::TYPE_EXPEDITION_RECEIPT => OrderOneCDocument::TYPE_EXPEDITION_RECEIPT,
-            default => null,
-        };
+        $mappedType = $this->mapRegistryTypeToOrderDocument((string) $entry->document_type);
         if ($mappedType === null) {
             return;
         }
@@ -173,17 +169,23 @@ final class OneCEpdRegistryLinkService
         ]);
     }
 
+    private function mapRegistryTypeToOrderDocument(string $documentType): ?string
+    {
+        return match ($documentType) {
+            OneCEpdRegistryEntry::TYPE_ETRN => OrderOneCDocument::TYPE_ETRN,
+            OneCEpdRegistryEntry::TYPE_EXPEDITION_RECEIPT => OrderOneCDocument::TYPE_EXPEDITION_RECEIPT,
+            OneCEpdRegistryEntry::TYPE_EXPEDITION_ORDER => OrderOneCDocument::TYPE_EXPEDITION_ORDER,
+            default => null,
+        };
+    }
+
     private function clearRegistryMirror(int $orderId, string $documentRef, string $documentType): void
     {
         if (! Schema::hasTable('order_one_c_documents') || $orderId <= 0 || $documentRef === '') {
             return;
         }
 
-        $mappedType = match ($documentType) {
-            OneCEpdRegistryEntry::TYPE_ETRN => OrderOneCDocument::TYPE_ETRN,
-            OneCEpdRegistryEntry::TYPE_EXPEDITION_RECEIPT => OrderOneCDocument::TYPE_EXPEDITION_RECEIPT,
-            default => null,
-        };
+        $mappedType = $this->mapRegistryTypeToOrderDocument($documentType);
         if ($mappedType === null) {
             return;
         }

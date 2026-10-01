@@ -9,6 +9,7 @@ use App\Models\OneCEpdRegistryEntry;
 use App\Models\Order;
 use App\Services\OneC\OneCEpdRegistryLinkService;
 use App\Services\OneC\OneCEpdRegistrySyncService;
+use App\Services\OneC\OneCPublicationCatalog;
 use App\Support\OrderViewAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
@@ -31,6 +32,7 @@ class EpdRegistryController extends Controller
         $type = trim((string) $request->query('type', ''));
         $unlinkedOnly = $request->boolean('unlinked');
         $q = trim((string) $request->query('q', ''));
+        $orderId = $request->integer('order_id') ?: null;
 
         $query = OneCEpdRegistryEntry::query()
             ->with(['order:id,order_number'])
@@ -44,6 +46,16 @@ class EpdRegistryController extends Controller
 
         if ($unlinkedOnly) {
             $query->whereNull('order_id');
+        }
+
+        if ($orderId !== null && $orderId > 0) {
+            $query->where('order_id', $orderId);
+        }
+
+        $catalog = app(OneCPublicationCatalog::class);
+        $pilot = $catalog->epdPilotSandboxEnabled();
+        if ($pilot) {
+            $query->where('publication_code', OneCPublicationCatalog::CODE_SANDBOX);
         }
 
         if ($q !== '') {
@@ -60,12 +72,31 @@ class EpdRegistryController extends Controller
 
         $rows = $query->limit(300)->get()->map(fn (OneCEpdRegistryEntry $row): array => $row->toGridRow())->values()->all();
 
+        $pilotPayload = ['enabled' => false, 'publication_label' => null, 'base_url' => null];
+        if ($pilot) {
+            try {
+                $sandbox = $catalog->get(OneCPublicationCatalog::CODE_SANDBOX);
+                $pilotPayload = [
+                    'enabled' => true,
+                    'publication_label' => $sandbox['label'],
+                    'base_url' => $sandbox['base_url'],
+                ];
+            } catch (\Throwable) {
+                $pilotPayload = [
+                    'enabled' => true,
+                    'publication_label' => 'sandbox',
+                    'base_url' => null,
+                ];
+            }
+        }
+
         return Inertia::render('Epd/Index', [
             'rows' => $rows,
             'filters' => [
                 'type' => $type !== '' ? $type : 'all',
                 'unlinked' => $unlinkedOnly,
                 'q' => $q,
+                'order_id' => $orderId,
             ],
             'typeOptions' => [
                 ['value' => 'all', 'label' => 'Все типы'],
@@ -78,6 +109,7 @@ class EpdRegistryController extends Controller
             ],
             'canSync' => (bool) config('one_c.enabled'),
             'lastSyncedAt' => OneCEpdRegistryEntry::query()->max('last_synced_at'),
+            'epdPilot' => $pilotPayload,
         ]);
     }
 

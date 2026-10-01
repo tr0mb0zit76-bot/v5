@@ -129,6 +129,7 @@
                 :epd-integration="epdIntegration"
                 :epd-preview="epdPreview"
                 :epd-registry-links="epdRegistryLinks"
+                :epd-pilot="epdPilot"
                 :document-edo-acknowledgements="documentEdoAcknowledgements"
                 :can-edit-document-edo-acknowledgements="canEditDocumentEdoAcknowledgements"
             />
@@ -342,6 +343,7 @@ const props = defineProps({
     epdIntegration: { type: Object, default: null },
     epdPreview: { type: Object, default: null },
     epdRegistryLinks: { type: Array, default: () => [] },
+    epdPilot: { type: Object, default: null },
 });
 
 const leadPrecalculationSnapshot = computed(() => props.order?.lead_precalculation_snapshot ?? null);
