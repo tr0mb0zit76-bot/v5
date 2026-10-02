@@ -55,7 +55,7 @@ class OrderOneCRealizationTest extends TestCase
 
         $order->refresh();
         if (Schema::hasColumn('orders', 'accounting_handoff_at')) {
-            $this->assertNotNull($order->accounting_handoff_at);
+            $this->assertNull($order->accounting_handoff_at);
         }
     }
 

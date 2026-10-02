@@ -262,8 +262,6 @@ final class OneCRealizationSyncService
             ]);
             $document->save();
 
-            $this->maybeMarkAccountingHandoff($order, $user);
-
             return [
                 'document' => $document->fresh() ?? $document,
                 'action' => 'created',
@@ -598,21 +596,5 @@ final class OneCRealizationSyncService
                 'one_c' => 'Таблица связей с 1С не создана. Выполните миграции.',
             ]);
         }
-    }
-
-    private function maybeMarkAccountingHandoff(Order $order, User $user): void
-    {
-        if (! Schema::hasColumn('orders', 'accounting_handoff_at')) {
-            return;
-        }
-
-        if ($order->accounting_handoff_at !== null) {
-            return;
-        }
-
-        $order->forceFill([
-            'accounting_handoff_at' => now(),
-            'accounting_handoff_by' => $user->id,
-        ])->save();
     }
 }

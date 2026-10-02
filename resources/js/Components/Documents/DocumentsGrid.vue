@@ -551,12 +551,16 @@ const columnDefs = computed(() => {
 
                 return params.data?.[column.field] ?? null;
             };
-            colDef.valueFormatter = (params) => {
+            colDef.cellRenderer = (params) => {
                 if (!params.data?.[needsField]) {
-                    return 'не требуется';
+                    return createNotRequiredLabel();
                 }
 
-                return formatTrackReceivedDate(params.value);
+                const span = document.createElement('span');
+                span.className = 'text-xs text-zinc-700 dark:text-zinc-200';
+                span.textContent = formatTrackReceivedDate(params.value) || '—';
+
+                return span;
             };
             colDef.cellClass = (params) => {
                 const classes = [];
