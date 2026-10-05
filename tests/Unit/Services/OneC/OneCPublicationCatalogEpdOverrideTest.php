@@ -89,6 +89,37 @@ class OneCPublicationCatalogEpdOverrideTest extends TestCase
         $this->assertSame('sandbox', $syncPubs[0]['code']);
     }
 
+    public function test_sandbox_credentials_override_global_basic_auth(): void
+    {
+        config([
+            'one_c.username' => 'Odata',
+            'one_c.password' => 'global-secret',
+            'one_c.publications.sandbox.base_url' => 'https://avtoalyns-crm.case-it.ru/AvtoAl_test2_34QG7659eH',
+            'one_c.publications.sandbox.enabled' => true,
+            'one_c.publications.sandbox.include_in_sync' => false,
+            'one_c.publications.sandbox.username' => 'Admin',
+            'one_c.publications.sandbox.password' => '1cadmin',
+            'one_c.publications.autalliance.base_url' => 'https://avtoalyns-crm.case-it.ru/Avtoalians_prod',
+            'one_c.publications.autalliance.enabled' => true,
+            'one_c.publications.autalliance.username' => '',
+            'one_c.publications.autalliance.password' => '',
+        ]);
+
+        $catalog = app(OneCPublicationCatalog::class);
+        $sandbox = $catalog->get(OneCPublicationCatalog::CODE_SANDBOX);
+
+        $this->assertSame(['Admin', '1cadmin'], $catalog->credentialsForPublication($sandbox));
+        $this->assertSame(
+            ['Admin', '1cadmin'],
+            $catalog->credentialsForBaseUrl('https://avtoalyns-crm.case-it.ru/AvtoAl_test2_34QG7659eH'),
+        );
+        $this->assertSame(
+            ['Odata', 'global-secret'],
+            $catalog->credentialsForBaseUrl('https://avtoalyns-crm.case-it.ru/Avtoalians_prod'),
+        );
+        $this->assertSame(['Odata', 'global-secret'], $catalog->credentialsForBaseUrl(null));
+    }
+
     public function test_mapper_routes_etrn_to_sandbox_for_override_user(): void
     {
         config([

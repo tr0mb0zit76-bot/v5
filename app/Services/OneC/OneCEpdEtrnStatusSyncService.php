@@ -199,7 +199,7 @@ final class OneCEpdEtrnStatusSyncService
             '/odata/standard.odata/Document_ЭлектроннаяТранспортнаяНакладная'
         );
 
-        $response = $this->http()->get($baseUrl.$path."(guid'{$documentRef}')", [
+        $response = $this->http($baseUrl)->get($baseUrl.$path."(guid'{$documentRef}')", [
             '$format' => 'json',
         ]);
 
@@ -253,7 +253,7 @@ final class OneCEpdEtrnStatusSyncService
                 continue;
             }
             try {
-                $response = $this->http()->get($baseUrl.$path."(guid'{$ref}')", [
+                $response = $this->http($baseUrl)->get($baseUrl.$path."(guid'{$ref}')", [
                     '$format' => 'json',
                     '$select' => 'Description,ИНН',
                 ]);
@@ -405,12 +405,11 @@ final class OneCEpdEtrnStatusSyncService
         return null;
     }
 
-    private function http(): PendingRequest
+    private function http(?string $baseUrl = null): PendingRequest
     {
-        return Http::withBasicAuth(
-            (string) config('one_c.username'),
-            (string) config('one_c.password'),
-        )
+        [$username, $password] = $this->publications->credentialsForBaseUrl($baseUrl);
+
+        return Http::withBasicAuth($username, $password)
             ->timeout((int) config('one_c.timeout_seconds', 30))
             ->acceptJson();
     }

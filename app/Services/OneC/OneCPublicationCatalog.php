@@ -15,6 +15,8 @@ use InvalidArgumentException;
  *     code: string,
  *     label: string,
  *     base_url: string,
+ *     username: string,
+ *     password: string,
  *     organization_ref: string,
  *     organization_inn: string,
  *     bank_account_number: string,
@@ -162,6 +164,43 @@ final class OneCPublicationCatalog
     }
 
     /**
+     * Basic Auth для HTTP/OData: username/password публикации, иначе глобальные ONE_C_*.
+     *
+     * @return array{0: string, 1: string}
+     */
+    public function credentialsForBaseUrl(?string $baseUrl): array
+    {
+        $fallbackUser = (string) config('one_c.username', '');
+        $fallbackPass = (string) config('one_c.password', '');
+        $normalized = rtrim(trim((string) ($baseUrl ?? '')), '/');
+        if ($normalized === '') {
+            return [$fallbackUser, $fallbackPass];
+        }
+
+        foreach ($this->configuredEnabled() as $pub) {
+            if ($pub['base_url'] !== '' && $pub['base_url'] === $normalized && $pub['username'] !== '') {
+                return [$pub['username'], $pub['password']];
+            }
+        }
+
+        return [$fallbackUser, $fallbackPass];
+    }
+
+    /**
+     * @param  Publication|array{base_url?: string, username?: string, password?: string}  $pub
+     * @return array{0: string, 1: string}
+     */
+    public function credentialsForPublication(array $pub): array
+    {
+        $user = trim((string) ($pub['username'] ?? ''));
+        if ($user !== '') {
+            return [$user, (string) ($pub['password'] ?? '')];
+        }
+
+        return $this->credentialsForBaseUrl(isset($pub['base_url']) ? (string) $pub['base_url'] : null);
+    }
+
+    /**
      * @return list<Publication>
      */
     private function configuredEnabled(): array
@@ -202,6 +241,8 @@ final class OneCPublicationCatalog
             'code' => $code,
             'label' => (string) ($row['label'] ?? $code),
             'base_url' => rtrim((string) ($row['base_url'] ?? ''), '/'),
+            'username' => (string) ($row['username'] ?? ''),
+            'password' => (string) ($row['password'] ?? ''),
             'organization_ref' => (string) ($row['organization_ref'] ?? ''),
             'organization_inn' => $inn,
             'bank_account_number' => (string) ($row['bank_account_number'] ?? ''),
@@ -223,6 +264,8 @@ final class OneCPublicationCatalog
             'code' => self::CODE_AUTALLIANCE,
             'label' => 'Автоальянс-Смоленск',
             'base_url' => rtrim((string) config('one_c.base_url', ''), '/'),
+            'username' => '',
+            'password' => '',
             'organization_ref' => (string) config('one_c.organization_ref', ''),
             'organization_inn' => '6732110940',
             'bank_account_number' => (string) config('one_c.bank_statement.account_number', '40702810959710001997'),

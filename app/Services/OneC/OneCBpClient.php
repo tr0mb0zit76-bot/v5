@@ -95,7 +95,7 @@ final class OneCBpClient
         );
 
         $path = (string) config('one_c.epd.etrn_fill_path', '/hs/crm/epd/etrn/fill');
-        $response = $this->http()->acceptJson()->asJson()->post($base.$path, $body);
+        $response = $this->http($base)->acceptJson()->asJson()->post($base.$path, $body);
 
         if (! $response->successful()) {
             throw new RuntimeException(
@@ -285,7 +285,7 @@ final class OneCBpClient
         $body = $this->epdWriteBody($payload);
         $base = $this->resolveBaseUrl($payload);
         $path = $this->epdODataPath($documentType);
-        $response = $this->http()->post($base.$path, $body);
+        $response = $this->http($base)->post($base.$path, $body);
 
         if (! $response->successful()) {
             throw new RuntimeException(
@@ -328,7 +328,7 @@ final class OneCBpClient
 
         $body = $this->epdWriteBody($payload);
         $path = $this->epdODataPath($documentType);
-        $response = $this->http()->patch($base.$path."(guid'{$ref}')", $body);
+        $response = $this->http($base)->patch($base.$path."(guid'{$ref}')", $body);
 
         if (! $response->successful()) {
             throw new RuntimeException(
@@ -359,7 +359,7 @@ final class OneCBpClient
     {
         $base = $this->resolveBaseUrl(null, $baseUrl);
         $path = $this->epdODataPath($documentType);
-        $response = $this->http()->get($base.$path."(guid'{$ref}')", [
+        $response = $this->http($base)->get($base.$path."(guid'{$ref}')", [
             '$format' => 'json',
         ]);
 
@@ -404,7 +404,7 @@ final class OneCBpClient
         }
 
         $path = $this->epdODataPath($documentType);
-        $response = $this->http()->patch($base.$path."(guid'{$ref}')", [
+        $response = $this->http($base)->patch($base.$path."(guid'{$ref}')", [
             'DeletionMark' => true,
         ]);
 
@@ -572,7 +572,7 @@ final class OneCBpClient
         $body = $this->realizationWriteBody($payload);
         $base = $this->resolveBaseUrl($payload);
         $path = (string) config('one_c.odata.realization_path');
-        $response = $this->http()->post($base.$path, $body);
+        $response = $this->http($base)->post($base.$path, $body);
 
         if (! $response->successful()) {
             throw new RuntimeException(
@@ -615,7 +615,7 @@ final class OneCBpClient
 
         $body = $this->realizationWriteBody($payload);
         $path = (string) config('one_c.odata.realization_path');
-        $response = $this->http()->patch($base.$path."(guid'{$ref}')", $body);
+        $response = $this->http($base)->patch($base.$path."(guid'{$ref}')", $body);
 
         if (! $response->successful()) {
             throw new RuntimeException(
@@ -738,7 +738,7 @@ final class OneCBpClient
         }
 
         try {
-            $response = $this->http()->get($base.'/odata/standard.odata/', [
+            $response = $this->http($base)->get($base.'/odata/standard.odata/', [
                 '$format' => 'json',
             ]);
         } catch (\Throwable $e) {
@@ -925,7 +925,7 @@ final class OneCBpClient
             $query['$orderby'] = 'Date';
         }
 
-        $response = $this->http()->get($base.$path, $query);
+        $response = $this->http($base)->get($base.$path, $query);
 
         if (! $response->successful()) {
             throw new RuntimeException(
@@ -1001,7 +1001,7 @@ final class OneCBpClient
     private function fetchCounterpartyMeta(string $base, string $ref): array
     {
         $path = (string) config('one_c.odata.counterparty_path');
-        $response = $this->http()->get($base.$path."(guid'{$ref}')", [
+        $response = $this->http($base)->get($base.$path."(guid'{$ref}')", [
             '$format' => 'json',
             '$select' => 'Description,ИНН',
         ]);
@@ -1180,7 +1180,7 @@ final class OneCBpClient
     {
         $base = $this->resolveBaseUrl(null, $baseUrl);
         $path = (string) config('one_c.odata.realization_path');
-        $response = $this->http()->get($base.$path."(guid'{$ref}')", [
+        $response = $this->http($base)->get($base.$path."(guid'{$ref}')", [
             '$format' => 'json',
         ]);
 
@@ -1219,7 +1219,7 @@ final class OneCBpClient
         }
 
         $path = (string) config('one_c.odata.buyer_invoice_path');
-        $response = $this->http()->get($base.$path."(guid'{$ref}')", [
+        $response = $this->http($base)->get($base.$path."(guid'{$ref}')", [
             '$format' => 'json',
             '$select' => 'Ref_Key,Number,Posted,Date,СуммаДокумента,Комментарий',
         ]);
@@ -1265,7 +1265,7 @@ final class OneCBpClient
         }
 
         $path = (string) config('one_c.odata.realization_path');
-        $response = $this->http()->patch($base.$path."(guid'{$ref}')", [
+        $response = $this->http($base)->patch($base.$path."(guid'{$ref}')", [
             'DeletionMark' => true,
         ]);
 
@@ -1318,7 +1318,7 @@ final class OneCBpClient
         $filter = "substringof('{$innEscaped}',ИНН)";
 
         $path = (string) config('one_c.odata.counterparty_path');
-        $response = $this->http()->get($base.$path, [
+        $response = $this->http($base)->get($base.$path, [
             '$format' => 'json',
             '$filter' => $filter,
             '$top' => 20,
@@ -1389,7 +1389,7 @@ final class OneCBpClient
         }
 
         $path = (string) config('one_c.odata.counterparty_path');
-        $response = $this->http()->post($base.$path, $body);
+        $response = $this->http($base)->post($base.$path, $body);
 
         if (! $response->successful()) {
             throw new RuntimeException(
@@ -1428,7 +1428,7 @@ final class OneCBpClient
 
         $path = (string) config('one_c.odata.counterparty_path');
         $url = $base.$path."(guid'{$ref}')";
-        $current = $this->http()->get($url, ['$format' => 'json']);
+        $current = $this->http($base)->get($url, ['$format' => 'json']);
         if (! $current->successful()) {
             return;
         }
@@ -1447,7 +1447,7 @@ final class OneCBpClient
         $phoneRow['LineNumber'] = (string) (count($rows) + 1);
         $rows[] = $phoneRow;
 
-        $response = $this->http()->patch($url, [
+        $response = $this->http($base)->patch($url, [
             'КонтактнаяИнформация' => $rows,
         ]);
 
@@ -1551,7 +1551,7 @@ final class OneCBpClient
             'one_c.odata.contact_info_kinds_path',
             '/odata/standard.odata/Catalog_ВидыКонтактнойИнформации'
         );
-        $response = $this->http()->get($baseUrl.$kindsPath, [
+        $response = $this->http($baseUrl)->get($baseUrl.$kindsPath, [
             '$format' => 'json',
             '$filter' => "PredefinedDataName eq 'ТелефонКонтрагента'",
             '$top' => 1,
@@ -1640,7 +1640,7 @@ final class OneCBpClient
 
         $path = (string) config('one_c.odata.counterparty_path');
         $url = $base.$path."(guid'{$ref}')";
-        $current = $this->http()->get($url, [
+        $current = $this->http($base)->get($url, [
             '$format' => 'json',
             '$select' => 'ЮридическоеФизическоеЛицо,ИндивидуальныйПредприниматель,ИНН,НаименованиеПолное',
         ]);
@@ -1658,7 +1658,7 @@ final class OneCBpClient
         // Не затираем Description при repair — только тип/полное имя/ИНН.
         unset($body['Description']);
 
-        $response = $this->http()->patch($url, $body);
+        $response = $this->http($base)->patch($url, $body);
         if (! $response->successful()) {
             throw new RuntimeException(
                 '1С: не удалось исправить тип контрагента (ИП): HTTP '.$response->status().' '.$response->body()
@@ -1778,7 +1778,7 @@ final class OneCBpClient
         $base = $this->resolveBaseUrl(null, $baseUrl);
         $path = (string) config('one_c.odata.edo_accounting_objects_path');
         $escaped = str_replace("'", "''", $objectRef);
-        $response = $this->http()->get($base.$path, [
+        $response = $this->http($base)->get($base.$path, [
             '$format' => 'json',
             '$filter' => "ОбъектУчета eq '{$escaped}'",
             '$top' => 20,
@@ -1829,7 +1829,7 @@ final class OneCBpClient
         }
 
         $escaped = str_replace("'", "''", $objectRef);
-        $response = $this->http()->get($base.$path, [
+        $response = $this->http($base)->get($base.$path, [
             '$format' => 'json',
             '$filter' => "ИдентификаторСвязи eq '{$escaped}'",
             '$select' => 'Ref_Key,DeletionMark',
@@ -1901,7 +1901,7 @@ final class OneCBpClient
     {
         $base = $this->resolveBaseUrl(null, $baseUrl);
         $path = (string) config('one_c.odata.edo_outgoing_document_path');
-        $response = $this->http()->get($base.$path."(guid'{$ref}')", [
+        $response = $this->http($base)->get($base.$path."(guid'{$ref}')", [
             '$format' => 'json',
         ]);
 
@@ -1954,7 +1954,7 @@ final class OneCBpClient
         $base = $this->resolveBaseUrl(null, $baseUrl);
         $path = (string) config('one_c.odata.edo_document_states_path');
         $escaped = str_replace("'", "''", $edoRef);
-        $response = $this->http()->get($base.$path, [
+        $response = $this->http($base)->get($base.$path, [
             '$format' => 'json',
             '$filter' => "ЭлектронныйДокумент eq '{$escaped}'",
             '$top' => 5,
@@ -2019,7 +2019,7 @@ final class OneCBpClient
             $query['$filter'] = "Контрагент_Key eq guid'{$counterpartyRef}' and DeletionMark eq false";
         }
 
-        $response = $this->http()->get($base.$path, $query);
+        $response = $this->http($base)->get($base.$path, $query);
         if (! $response->successful()) {
             throw new RuntimeException(
                 '1С: не удалось прочитать СФ выданные: HTTP '.$response->status().' '.$response->body()
@@ -2070,11 +2070,10 @@ final class OneCBpClient
         return $raw;
     }
 
-    private function http(): PendingRequest
+    private function http(?string $baseUrl = null): PendingRequest
     {
         $timeout = (int) config('one_c.timeout_seconds', 30);
-        $username = (string) config('one_c.username', '');
-        $password = (string) config('one_c.password', '');
+        [$username, $password] = app(OneCPublicationCatalog::class)->credentialsForBaseUrl($baseUrl);
 
         $request = Http::timeout($timeout)
             ->acceptJson()

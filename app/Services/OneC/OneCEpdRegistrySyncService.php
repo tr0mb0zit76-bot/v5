@@ -107,7 +107,7 @@ final class OneCEpdRegistrySyncService
             '/odata/standard.odata/InformationRegister_РеестрЭПД'
         );
 
-        $response = $this->http()->get($baseUrl.$path, [
+        $response = $this->http($baseUrl)->get($baseUrl.$path, [
             '$format' => 'json',
             '$top' => $top,
         ]);
@@ -203,7 +203,7 @@ final class OneCEpdRegistrySyncService
         $synonym = null;
         if ($typeRefKey !== '') {
             try {
-                $meta = $this->http()->get(
+                $meta = $this->http($baseUrl)->get(
                     $baseUrl."/odata/standard.odata/Catalog_ИдентификаторыОбъектовМетаданных(guid'{$typeRefKey}')",
                     ['$format' => 'json', '$select' => 'ПолноеИмя,Синоним,Description,Имя'],
                 );
@@ -253,7 +253,7 @@ final class OneCEpdRegistrySyncService
                 continue;
             }
             try {
-                $response = $this->http()->get($baseUrl.$path."(guid'{$ref}')", [
+                $response = $this->http($baseUrl)->get($baseUrl.$path."(guid'{$ref}')", [
                     '$format' => 'json',
                     '$select' => 'Description,ИНН',
                 ]);
@@ -279,12 +279,11 @@ final class OneCEpdRegistrySyncService
         return $out;
     }
 
-    private function http(): PendingRequest
+    private function http(?string $baseUrl = null): PendingRequest
     {
-        return Http::withBasicAuth(
-            (string) config('one_c.username'),
-            (string) config('one_c.password'),
-        )
+        [$username, $password] = $this->publications->credentialsForBaseUrl($baseUrl);
+
+        return Http::withBasicAuth($username, $password)
             ->timeout((int) config('one_c.timeout_seconds', 30))
             ->acceptJson();
     }

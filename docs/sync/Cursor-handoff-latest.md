@@ -3,22 +3,24 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-10-01 16:20 · **Ветка:** `master` · **тема:** пилот ЭПД на sandbox
+**Обновлено:** 2026-10-05 15:55 · **Ветка:** `master` · **тема:** пилот ЭПД sandbox credentials
 
-### Итог сессии 2026-10-01 — пилот ЭПД → AvtoAl_test2
+### Итог сессии 2026-10-05 — sandbox Basic Auth Admin
 
 | Блок | Статус |
 | --- | --- |
-| `ONE_C_EPD_PILOT_SANDBOX=true` (default): push ЭТрН/ЭР + sync `/epd` только sandbox | ✅ на проде (файлы) |
-| Fill титула после create ЭТрН (`/hs/crm/epd/etrn/fill`) | ✅ код; на 214 fill упал на правах OData к `КлассификаторОКОПФ` |
-| Зеркало поручения (ЭПЭ) в `order_one_c_documents` при link | ✅ |
-| UI: баннер пилота, блок «Входящее поручение», `/epd` фильтр sandbox | ✅ + `npm run build` |
-| Новофарм на sandbox: ЭПЭ №11 + ЭЭР №1 → связаны с заказом **214** | ✅ |
-| ЭТрН на sandbox для 214: № **00000000008** (`ea9b00da-…`) | ✅ create; fill — права 1С |
+| У `Odata` на test2 нет прав на `КлассификаторОКОПФ` (GET 401 / fill 400) | ✅ подтверждено |
+| Под `Admin`/`1cadmin` fill ЭТрН 00000000008 (заказ 214) | ✅ HTTP 200 |
+| `ONE_C_SANDBOX_USERNAME` / `ONE_C_SANDBOX_PASSWORD` → credentials публикации sandbox | ✅ код |
+| HTTP клиенты BpClient / registry / etrn-status берут creds по `base_url` | ✅ |
+
+**Прод `.env`:** `ONE_C_SANDBOX_USERNAME=Admin` + `ONE_C_SANDBOX_PASSWORD=…` + `config:clear`.
 
 **Переключение на боевой:** `.env` → `ONE_C_EPD_PILOT_SANDBOX=false` + `config:clear`.
 
-**Следующий шаг:** 1С — дать `Odata` права на `РегистрСведений.КлассификаторОКОПФ` в test2; smoke fill; затем commit/push кода.
+---
+
+**Обновлено (архив):** 2026-10-01 16:20 · **тема:** пилот ЭПД → AvtoAl_test2 (create ЭТрН; fill блокировался ОКОПФ у Odata)
 
 ---
 

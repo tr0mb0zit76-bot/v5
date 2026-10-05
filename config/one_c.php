@@ -306,6 +306,12 @@ return [
                 'ONE_C_SANDBOX_BASE_URL',
                 'https://avtoalyns-crm.case-it.ru/AvtoAl_test2_34QG7659eH'
             ), '/'),
+            /**
+             * Отдельная учётка публикации (пилот ЭПД): у Odata на test2 нет прав на КлассификаторОКОПФ.
+             * Пусто → fallback на ONE_C_USERNAME / ONE_C_PASSWORD.
+             */
+            'username' => (string) env('ONE_C_SANDBOX_USERNAME', ''),
+            'password' => (string) env('ONE_C_SANDBOX_PASSWORD', ''),
             'organization_ref' => (string) env(
                 'ONE_C_SANDBOX_ORG_REF',
                 (string) env(
